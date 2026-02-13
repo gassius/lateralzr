@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptRelationshipAgent;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 
@@ -65,15 +66,50 @@ PROMPT;
     {
         $data = $response->toArray();
 
+        // Handle various response structures that the LLM might return
+        $relatedConcepts = [];
+        $rawConcepts = $data['related_concepts'] ?? [];
+
+        foreach ($rawConcepts as $concept) {
+            // Handle different possible structures - LLM may return concept_name, concept, name, or title
+            $conceptName = $concept['concept'] 
+                ?? $concept['concept_name'] 
+                ?? $concept['name'] 
+                ?? $concept['title'] 
+                ?? '';
+            
+            // If concept is still empty, try to extract from rationale or other fields
+            if (empty($conceptName) && !empty($concept['rationale'])) {
+                // Try to extract concept name from rationale (first few words)
+                $words = explode(' ', $concept['rationale'], 3);
+                $conceptName = !empty($words[0]) ? $words[0] : '';
+            }
+
+            // Skip if we still don't have a concept name
+            if (empty($conceptName)) {
+                Log::warning('Skipping concept with empty name', ['concept_data' => $concept]);
+                continue;
+            }
+
+            // Handle strength/score - LLM may return strength, strength_score, or score
+            $strength = isset($concept['strength']) 
+                ? (float) $concept['strength'] 
+                : (isset($concept['strength_score']) 
+                    ? (float) $concept['strength_score'] 
+                    : (isset($concept['score']) 
+                        ? (float) $concept['score'] 
+                        : null));
+
+            $relatedConcepts[] = [
+                'concept' => trim($conceptName),
+                'rationale' => $concept['rationale'] ?? $concept['explanation'] ?? $concept['reason'] ?? null,
+                'strength' => $strength,
+            ];
+        }
+
         return [
             'seed' => $data['seed'] ?? '',
-            'related_concepts' => array_map(function ($concept) {
-                return [
-                    'concept' => $concept['concept'] ?? '',
-                    'rationale' => $concept['rationale'] ?? null,
-                    'strength' => isset($concept['strength']) ? (float) $concept['strength'] : null,
-                ];
-            }, $data['related_concepts'] ?? []),
+            'related_concepts' => $relatedConcepts,
         ];
     }
 }

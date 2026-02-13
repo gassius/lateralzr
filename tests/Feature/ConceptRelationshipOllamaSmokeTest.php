@@ -5,11 +5,10 @@ namespace Tests\Feature;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
-/**
- * @group ollama
- */
+#[Group('ollama')]
 class ConceptRelationshipOllamaSmokeTest extends TestCase
 {
     use RefreshDatabase;
