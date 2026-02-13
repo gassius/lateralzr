@@ -204,3 +204,17 @@ app/Http/Resources/RelationshipResource.php
 - Queue jobs for async LLM operations
 - API versioning
 - Documentation (API documentation generation)
+
+## Laravel Boost & MCP Usage
+
+- Laravel Boost is installed and available in this project (`laravel/boost` v2.1.3 with `laravel/mcp` v0.5.6).
+- Agents **should use Boost MCP tools** to understand and work with the app instead of generic shell commands whenever possible.
+- Prefer these tools for:
+  - **Application info**: `project-0-lateralzr-api-laravel-boost-application-info`
+  - **Database**: `project-0-lateralzr-api-laravel-boost-database-schema`, `project-0-lateralzr-api-laravel-boost-database-query`, `project-0-lateralzr-api-laravel-boost-database-connections`
+  - **Routes**: `project-0-lateralzr-api-laravel-boost-list-routes`
+  - **Config & env**: `project-0-lateralzr-api-laravel-boost-get-config`, `project-0-lateralzr-api-laravel-boost-list-available-env-vars`
+  - **Logs & errors**: `project-0-lateralzr-api-laravel-boost-read-log-entries`, `project-0-lateralzr-api-laravel-boost-last-error`, `project-0-lateralzr-api-laravel-boost-browser-logs`
+  - **URLs**: `project-0-lateralzr-api-laravel-boost-get-absolute-url`
+  - **Artisan & Tinker**: `project-0-lateralzr-api-laravel-boost-list-artisan-commands`, `project-0-lateralzr-api-laravel-boost-tinker`
+- When exploring or debugging, agents should **reach for Boost tools first**, then fall back to generic filesystem or shell tools only when necessary.
