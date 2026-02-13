@@ -14,7 +14,8 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 
 - **Framework**: Laravel 12
 - **Development Environment**: Laravel Sail (Docker)
-- **AI Integration**: Laravel Boost (MCP/Agent integration)
+- **AI Integration**: Laravel AI SDK with Ollama (local LLM)
+- **AI Development Tools**: Laravel Boost (MCP/Agent integration)
 - **Database**: MySQL (via Sail)
 - **Testing**: PHPUnit
 
@@ -23,6 +24,8 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 - Docker Desktop installed and running
 - Git
 - Composer (optional - Sail includes it)
+- Ollama installed on macOS (for local LLM development)
+  - See [02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md) for installation instructions
 
 ## Installation
 
@@ -67,6 +70,26 @@ sail artisan key:generate
 
 ```bash
 sail artisan migrate
+```
+
+### 6. Start Development Environment
+
+Use the development script to start Ollama (if needed) and Laravel Sail:
+
+```bash
+./dev.sh up
+```
+
+This will:
+- Check if Ollama is running and start it if needed
+- Verify the default model (`llama3.2:3b`) is available
+- Start Laravel Sail containers
+
+To stop services:
+
+```bash
+./dev.sh down        # Stop Sail only
+./dev.sh down --all  # Stop Sail and Ollama
 ```
 
 ## Development Workflow
@@ -132,6 +155,39 @@ Returns a simple health check response.
 }
 ```
 
+### Generate Concept Relationships
+
+**POST** `/api/concepts/relationships`
+
+Generates laterally related concepts from a seed concept using the local LLM.
+
+**Request:**
+```json
+{
+  "seed": "creativity",
+  "count": 5
+}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "seed": "creativity",
+    "related_concepts": [
+      {
+        "concept": "constraint",
+        "rationale": "Limitations can spark creative solutions",
+        "strength": 0.8
+      }
+    ]
+  },
+  "status": "success"
+}
+```
+
+**Note**: Requires Ollama to be running. See [Local LLM Setup](#local-llm-setup) below.
+
 ## Project Structure
 
 ```
@@ -147,9 +203,60 @@ lateralzr-api/
 │   └── api.php           # API routes
 ├── tests/                 # Test suite
 │   └── Feature/          # Feature tests
-├── Plans/                # Project plans and documentation
+├── .cursor/plans/        # Project plans
 └── compose.yaml          # Docker Compose configuration
 ```
+
+## Local LLM Setup
+
+This project uses **Ollama** running natively on macOS for local LLM development, integrated via **Laravel AI SDK**. This allows for cost-free development and testing of concept relationship generation.
+
+### Quick Start
+
+1. **Install Ollama** (if not already installed):
+   ```bash
+   brew install ollama
+   # Or download from https://ollama.com/download
+   ```
+
+2. **Pull the default model**:
+   ```bash
+   ollama pull llama3.2:3b
+   ```
+
+3. **Start development environment**:
+   ```bash
+   ./dev.sh up
+   ```
+
+4. **Test the concept generation endpoint**:
+   ```bash
+   curl -X POST http://localhost/api/concepts/relationships \
+     -H "Content-Type: application/json" \
+     -d '{"seed": "innovation"}'
+   ```
+
+### Configuration
+
+The default model (`llama3.2:3b`) can be changed via the `OLLAMA_MODEL` environment variable in `.env`:
+
+```env
+OLLAMA_MODEL=llama3.1:8b  # For higher quality (slower)
+OLLAMA_MODEL=llama3.2:1b  # For faster responses
+```
+
+### Testing
+
+Run tests:
+```bash
+# Unit and feature tests (mocked)
+sail test
+
+# Smoke tests with real Ollama (requires Ollama running)
+AI_SMOKE_TESTS=1 sail test --group=ollama
+```
+
+For detailed setup instructions, troubleshooting, and model recommendations, see [.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md).
 
 ## Laravel Boost Integration
 
@@ -192,15 +299,18 @@ sail test
 ## Next Steps
 
 - Design database schema for concepts and relationships
-- Set up Laravel AI SDK for LLM integration
-- Create concept generation endpoints
+- ~~Set up Laravel AI SDK for LLM integration~~ ✅ Complete
+- ~~Create concept generation endpoints~~ ✅ Complete
 - Implement relationship mapping logic
+- Add caching for generated relationships
 - Add authentication if needed
 
 ## Resources
 
 - [Laravel Documentation](https://laravel.com/docs/12.x)
+- [Laravel AI SDK Documentation](https://laravel.com/docs/12.x/ai-sdk)
 - [Laravel Sail Documentation](https://laravel.com/docs/12.x/sail)
 - [Laravel Boost Documentation](https://laravel.com/docs/12.x/boost)
+- [Ollama Documentation](https://docs.ollama.com)
 - [Edward de Bono - Lateral Thinking](https://www.edwarddebono.com/lateral-thinking)
 - [Oblique Strategies - Brian Eno](https://en.wikipedia.org/wiki/Oblique_Strategies)
