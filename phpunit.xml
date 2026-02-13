@@ -30,6 +30,6 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
-        <env name="AI_SMOKE_TESTS" value="0"/>
+        <env name="AI_SMOKE_TESTS" value="1"/>
     </php>
 </phpunit>

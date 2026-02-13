@@ -2,8 +2,10 @@
 
 namespace Tests\Unit;
 
+use App\Ai\Agents\ConceptRelationshipAgent;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery;
 use Tests\TestCase;
@@ -48,15 +50,12 @@ class ConceptRelationshipServiceTest extends TestCase
             ]);
 
         // Mock the agent
-        $mockAgent = Mockery::mock('alias:App\Ai\Agents\ConceptRelationshipAgent');
-        $mockAgent->shouldReceive('make')
-            ->once()
-            ->andReturnSelf();
+        $mockAgent = Mockery::mock(ConceptRelationshipAgent::class);
         $mockAgent->shouldReceive('prompt')
             ->once()
             ->andReturn($mockResponse);
 
-        $result = $this->service->generateRelationships('creativity');
+        $result = $this->service->generateRelationships('creativity', null, $mockAgent);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey('seed', $result);
@@ -92,11 +91,10 @@ class ConceptRelationshipServiceTest extends TestCase
                 ],
             ]);
 
-        $mockAgent = Mockery::mock('alias:App\Ai\Agents\ConceptRelationshipAgent');
-        $mockAgent->shouldReceive('make')->andReturnSelf();
+        $mockAgent = Mockery::mock(ConceptRelationshipAgent::class);
         $mockAgent->shouldReceive('prompt')->andReturn($mockResponse);
 
-        $result = $this->service->generateRelationships('test');
+        $result = $this->service->generateRelationships('test', null, $mockAgent);
 
         $this->assertEquals('test', $result['seed']);
         $this->assertCount(2, $result['related_concepts']);
@@ -108,14 +106,17 @@ class ConceptRelationshipServiceTest extends TestCase
 
     public function test_generate_relationships_throws_exception_on_non_structured_response(): void
     {
-        $mockAgent = Mockery::mock('alias:App\Ai\Agents\ConceptRelationshipAgent');
-        $mockAgent->shouldReceive('make')->andReturnSelf();
-        $mockAgent->shouldReceive('prompt')->andReturn('not a structured response');
+        // Mock a non-structured AgentResponse
+        $mockResponse = Mockery::mock(AgentResponse::class);
+        $mockResponse->shouldNotReceive('toArray');
+
+        $mockAgent = Mockery::mock(ConceptRelationshipAgent::class);
+        $mockAgent->shouldReceive('prompt')->andReturn($mockResponse);
 
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('Expected structured response from agent');
 
-        $this->service->generateRelationships('test');
+        $this->service->generateRelationships('test', null, $mockAgent);
     }
 
     protected function tearDown(): void

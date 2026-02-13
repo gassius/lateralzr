@@ -14,13 +14,14 @@ class ConceptRelationshipService
      *
      * @param  string  $seedConcept  The seed concept to generate relationships from
      * @param  int|null  $count  Optional number of concepts to generate (default: 3-5)
+     * @param  ConceptRelationshipAgent|null  $agent  Optional agent instance (for testing)
      * @return array{seed: string, related_concepts: array<int, array{concept: string, rationale: string|null, strength: float|null}>}
      *
      * @throws \Exception
      */
-    public function generateRelationships(string $seedConcept, ?int $count = null): array
+    public function generateRelationships(string $seedConcept, ?int $count = null, ?ConceptRelationshipAgent $agent = null): array
     {
-        $agent = ConceptRelationshipAgent::make();
+        $agent = $agent ?? new ConceptRelationshipAgent();
 
         $prompt = $this->buildPrompt($seedConcept, $count);
 
