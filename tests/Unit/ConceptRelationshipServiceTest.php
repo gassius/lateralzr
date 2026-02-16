@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Ai\Agents\ConceptRelationshipAgent;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery;
@@ -24,6 +25,54 @@ class ConceptRelationshipServiceTest extends TestCase
 
     public function test_generate_relationships_returns_normalized_structure(): void
     {
+        // Mock HTTP calls for tools
+        Http::fake(function ($request) {
+            $url = $request->url();
+            
+            // Wikipedia API
+            if (str_contains($url, 'en.wikipedia.org/api/rest_v1/page/summary')) {
+                return Http::response([
+                    'content_urls' => [
+                        'desktop' => [
+                            'page' => 'https://en.wikipedia.org/wiki/Constraint',
+                        ],
+                    ],
+                ], 200);
+            }
+            
+            // Wikimedia Commons search API
+            if (str_contains($url, 'commons.wikimedia.org/w/api.php') && str_contains($url, 'list=search')) {
+                return Http::response([
+                    'query' => [
+                        'search' => [
+                            ['title' => 'File:Constraint.jpg'],
+                        ],
+                    ],
+                ], 200);
+            }
+            
+            // Wikimedia Commons imageinfo API (for thumbnails)
+            if (str_contains($url, 'commons.wikimedia.org/w/api.php') && str_contains($url, 'prop=imageinfo')) {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '-1' => [
+                                'title' => 'File:Constraint.jpg',
+                                'imageinfo' => [
+                                    [
+                                        'thumburl' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Constraint.jpg/960px-Constraint.jpg',
+                                        'url' => 'https://upload.wikimedia.org/wikipedia/commons/c/c1/Constraint.jpg',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+            
+            return Http::response([], 404);
+        });
+
         // Mock the agent response
         $mockResponse = Mockery::mock(StructuredAgentResponse::class);
         $mockResponse->shouldReceive('toArray')
@@ -33,18 +82,15 @@ class ConceptRelationshipServiceTest extends TestCase
                 'related_concepts' => [
                     [
                         'concept' => 'constraint',
-                        'rationale' => 'Limitations can spark creative solutions',
-                        'strength' => 0.8,
+                        'shortDescription' => 'Limitations that can spark creative solutions',
                     ],
                     [
                         'concept' => 'chaos',
-                        'rationale' => 'Disorder can lead to unexpected patterns',
-                        'strength' => 0.7,
+                        'shortDescription' => 'Disorder that can lead to unexpected patterns',
                     ],
                     [
                         'concept' => 'silence',
-                        'rationale' => 'Empty spaces allow ideas to emerge',
-                        'strength' => 0.6,
+                        'shortDescription' => 'Empty spaces that allow ideas to emerge',
                     ],
                 ],
             ]);
@@ -65,14 +111,23 @@ class ConceptRelationshipServiceTest extends TestCase
 
         $firstConcept = $result['related_concepts'][0];
         $this->assertArrayHasKey('concept', $firstConcept);
-        $this->assertArrayHasKey('rationale', $firstConcept);
-        $this->assertArrayHasKey('strength', $firstConcept);
+        $this->assertArrayHasKey('shortDescription', $firstConcept);
+        $this->assertArrayHasKey('wikiUrl', $firstConcept);
+        $this->assertArrayHasKey('mediaUrl', $firstConcept);
         $this->assertEquals('constraint', $firstConcept['concept']);
-        $this->assertEquals(0.8, $firstConcept['strength']);
+        $this->assertEquals('Limitations that can spark creative solutions', $firstConcept['shortDescription']);
+        $this->assertNotNull($firstConcept['wikiUrl']);
+        $this->assertNotNull($firstConcept['mediaUrl']);
     }
 
     public function test_generate_relationships_handles_missing_fields_gracefully(): void
     {
+        // Mock HTTP calls for tools (return empty responses to simulate failures)
+        Http::fake([
+            'en.wikipedia.org/api/rest_v1/page/summary/*' => Http::response([], 404),
+            'commons.wikimedia.org/w/api.php*' => Http::response([], 404),
+        ]);
+
         $mockResponse = Mockery::mock(StructuredAgentResponse::class);
         $mockResponse->shouldReceive('toArray')
             ->once()
@@ -81,12 +136,11 @@ class ConceptRelationshipServiceTest extends TestCase
                 'related_concepts' => [
                     [
                         'concept' => 'related1',
-                        // Missing rationale and strength
+                        'shortDescription' => 'First related concept',
                     ],
                     [
                         'concept' => 'related2',
-                        'rationale' => 'Some rationale',
-                        // Missing strength
+                        'shortDescription' => 'Second related concept',
                     ],
                 ],
             ]);
@@ -98,10 +152,44 @@ class ConceptRelationshipServiceTest extends TestCase
 
         $this->assertEquals('test', $result['seed']);
         $this->assertCount(2, $result['related_concepts']);
-        $this->assertNull($result['related_concepts'][0]['rationale']);
-        $this->assertNull($result['related_concepts'][0]['strength']);
-        $this->assertEquals('Some rationale', $result['related_concepts'][1]['rationale']);
-        $this->assertNull($result['related_concepts'][1]['strength']);
+        $this->assertEquals('related1', $result['related_concepts'][0]['concept']);
+        $this->assertEquals('First related concept', $result['related_concepts'][0]['shortDescription']);
+        // URLs may be null if tools fail
+        $this->assertArrayHasKey('wikiUrl', $result['related_concepts'][0]);
+        $this->assertArrayHasKey('mediaUrl', $result['related_concepts'][0]);
+    }
+
+    public function test_generate_relationships_handles_tool_failures_gracefully(): void
+    {
+        // Mock HTTP calls to fail
+        Http::fake([
+            'en.wikipedia.org/api/rest_v1/page/summary/*' => Http::response([], 500),
+            'commons.wikimedia.org/w/api.php*' => Http::response([], 500),
+        ]);
+
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')
+            ->once()
+            ->andReturn([
+                'seed' => 'test',
+                'related_concepts' => [
+                    [
+                        'concept' => 'testconcept',
+                        'shortDescription' => 'A test concept',
+                    ],
+                ],
+            ]);
+
+        $mockAgent = Mockery::mock(ConceptRelationshipAgent::class);
+        $mockAgent->shouldReceive('prompt')->andReturn($mockResponse);
+
+        $result = $this->service->generateRelationships('test', null, $mockAgent);
+
+        $this->assertEquals('test', $result['seed']);
+        $this->assertCount(1, $result['related_concepts']);
+        // URLs should be null when tools fail
+        $this->assertNull($result['related_concepts'][0]['wikiUrl']);
+        $this->assertNull($result['related_concepts'][0]['mediaUrl']);
     }
 
     public function test_generate_relationships_throws_exception_on_non_structured_response(): void

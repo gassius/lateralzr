@@ -29,13 +29,15 @@ class ConceptRelationshipApiTest extends TestCase
                 'related_concepts' => [
                     [
                         'concept' => 'constraint',
-                        'rationale' => 'Limitations can spark creative solutions',
-                        'strength' => 0.8,
+                        'shortDescription' => 'Limitations that can spark creative solutions',
+                        'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint',
+                        'mediaUrl' => 'https://commons.wikimedia.org/wiki/File:Constraint.jpg',
                     ],
                     [
                         'concept' => 'chaos',
-                        'rationale' => 'Disorder can lead to unexpected patterns',
-                        'strength' => 0.7,
+                        'shortDescription' => 'Disorder that can lead to unexpected patterns',
+                        'wikiUrl' => 'https://en.wikipedia.org/wiki/Chaos',
+                        'mediaUrl' => null,
                     ],
                 ],
             ]);
@@ -53,8 +55,9 @@ class ConceptRelationshipApiTest extends TestCase
                     'related_concepts' => [
                         '*' => [
                             'concept',
-                            'rationale',
-                            'strength',
+                            'shortDescription',
+                            'wikiUrl',
+                            'mediaUrl',
                         ],
                     ],
                 ],
