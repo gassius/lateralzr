@@ -25,17 +25,24 @@ class ConceptRelationshipApiTest extends TestCase
             ->once()
             ->with('creativity', null)
             ->andReturn([
-                'seed' => 'creativity',
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'The use of imagination or original ideas to create something',
+                    'wikiUrl' => 'https://en.wikipedia.org/wiki/Creativity',
+                    'mediaUrl' => 'https://commons.wikimedia.org/wiki/File:Creativity.jpg',
+                ],
                 'related_concepts' => [
                     [
                         'concept' => 'constraint',
                         'shortDescription' => 'Limitations that can spark creative solutions',
+                        'larelality' => 3,
                         'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint',
                         'mediaUrl' => 'https://commons.wikimedia.org/wiki/File:Constraint.jpg',
                     ],
                     [
                         'concept' => 'chaos',
                         'shortDescription' => 'Disorder that can lead to unexpected patterns',
+                        'larelality' => 4,
                         'wikiUrl' => 'https://en.wikipedia.org/wiki/Chaos',
                         'mediaUrl' => null,
                     ],
@@ -51,11 +58,17 @@ class ConceptRelationshipApiTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
-                    'seed',
+                    'seed' => [
+                        'concept',
+                        'shortDescription',
+                        'wikiUrl',
+                        'mediaUrl',
+                    ],
                     'related_concepts' => [
                         '*' => [
                             'concept',
                             'shortDescription',
+                            'larelality',
                             'wikiUrl',
                             'mediaUrl',
                         ],
@@ -66,7 +79,9 @@ class ConceptRelationshipApiTest extends TestCase
             ->assertJson([
                 'status' => 'success',
                 'data' => [
-                    'seed' => 'creativity',
+                    'seed' => [
+                        'concept' => 'creativity',
+                    ],
                 ],
             ]);
     }
@@ -78,7 +93,12 @@ class ConceptRelationshipApiTest extends TestCase
             ->once()
             ->with('innovation', 5)
             ->andReturn([
-                'seed' => 'innovation',
+                'seed' => [
+                    'concept' => 'innovation',
+                    'shortDescription' => 'The introduction of something new',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
                 'related_concepts' => [],
             ]);
 

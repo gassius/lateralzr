@@ -37,8 +37,9 @@ Those that are not direclty related to the seed concept. Only indirectly or abst
 5 - Wildly Discrepant - The terms are randomly associated with zero initial overlap. This is the Random Entry technique used to break dominant thought patterns entirely. (e.g "Standardized Testing" and "Marshmallows". The distance is so great that any connection formed is entirely original)
 
 IMPORTANT - Tools and URLs:
-- You have access to tools that can fetch Wikipedia URLs and Wikimedia Commons image URLs for each concept you generate.
-- For each concept, you MUST invoke these tools as needed and then fill the `wikiUrl` and `mediaUrl` fields in your structured output.
+- You have access to tools that can fetch Wikipedia URLs and Wikimedia Commons image URLs for concepts.
+- For the seed concept AND each related concept, you MUST invoke these tools as needed and then fill the `wikiUrl` and `mediaUrl` fields in your structured output.
+- The seed object must include: `concept` (the seed concept name), `shortDescription` (a brief description), `wikiUrl`, and `mediaUrl`.
 - If a tool cannot find a suitable URL or fails, set the corresponding field to null.
 
 IMPORTANT - Concept Chaining:
@@ -80,13 +81,19 @@ INSTRUCTIONS;
     public function schema(JsonSchema $schema): array
     {
         return [
-            'seed' => $schema->string()->required(),
+            'seed' => $schema->object([
+                'concept' => $schema->string()->required(),
+                'shortDescription' => $schema->string()->required(),
+                // URLs are populated via tools; may be null if tools fail
+                'wikiUrl' => $schema->string(),
+                'mediaUrl' => $schema->string(),
+            ])->required(),
             'related_concepts' => $schema->array(
                 $schema->object([
                     'concept' => $schema->string()->required(),
                     'shortDescription' => $schema->string()->required(),
                     // Laterality level 1–5 as described in the instructions
-                    'laterality' => $schema->integer()->min(1)->max(5)->required(),
+                    'larelality' => $schema->integer()->min(1)->max(5)->required(),
                     // URLs are populated via tools; may be null if tools fail
                     'wikiUrl' => $schema->string(),
                     'mediaUrl' => $schema->string(),

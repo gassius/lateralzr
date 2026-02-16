@@ -45,12 +45,17 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
             ])
             ->assertJsonStructure([
                 'data' => [
-                    'seed',
+                    'seed' => [
+                        'concept',
+                        'shortDescription',
+                        'wikiUrl',
+                        'mediaUrl',
+                    ],
                     'related_concepts' => [
                         '*' => [
                             'concept',
                             'shortDescription',
-                            'laterality',
+                            'larelality',
                             'wikiUrl',
                             'mediaUrl',
                         ],
@@ -60,6 +65,14 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
             ]);
 
         $data = $response->json('data');
+        
+        // Check seed structure
+        $this->assertIsArray($data['seed']);
+        $this->assertArrayHasKey('concept', $data['seed']);
+        $this->assertArrayHasKey('shortDescription', $data['seed']);
+        $this->assertArrayHasKey('wikiUrl', $data['seed']);
+        $this->assertArrayHasKey('mediaUrl', $data['seed']);
+        
         $this->assertIsArray($data['related_concepts']);
 
         // If no concepts returned, log the full response for debugging
@@ -73,7 +86,7 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
         $firstConcept = $data['related_concepts'][0];
         $this->assertArrayHasKey('concept', $firstConcept);
         $this->assertArrayHasKey('shortDescription', $firstConcept);
-        $this->assertArrayHasKey('laterality', $firstConcept);
+        $this->assertArrayHasKey('larelality', $firstConcept);
         $this->assertArrayHasKey('wikiUrl', $firstConcept);
         $this->assertArrayHasKey('mediaUrl', $firstConcept);
         // URLs may be null if tools fail, but keys should exist

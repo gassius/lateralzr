@@ -29,26 +29,31 @@ class ConceptRelationshipServiceTest extends TestCase
         $mockResponse->shouldReceive('toArray')
             ->once()
             ->andReturn([
-                'seed' => 'creativity',
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'The use of imagination or original ideas to create something',
+                    'wikiUrl' => 'https://en.wikipedia.org/wiki/Creativity',
+                    'mediaUrl' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Creativity.jpg/960px-Creativity.jpg',
+                ],
                 'related_concepts' => [
                     [
                         'concept' => 'constraint',
                         'shortDescription' => 'Limitations that can spark creative solutions',
-                        'laterality' => 3,
+                        'larelality' => 3,
                         'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint',
                         'mediaUrl' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Constraint.jpg/960px-Constraint.jpg',
                     ],
                     [
                         'concept' => 'chaos',
                         'shortDescription' => 'Disorder that can lead to unexpected patterns',
-                        'laterality' => 4,
+                        'larelality' => 4,
                         'wikiUrl' => null,
                         'mediaUrl' => null,
                     ],
                     [
                         'concept' => 'silence',
                         'shortDescription' => 'Empty spaces that allow ideas to emerge',
-                        'laterality' => 4,
+                        'larelality' => 4,
                         'wikiUrl' => null,
                         'mediaUrl' => null,
                     ],
@@ -66,13 +71,21 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertIsArray($result);
         $this->assertArrayHasKey('seed', $result);
         $this->assertArrayHasKey('related_concepts', $result);
-        $this->assertEquals('creativity', $result['seed']);
+        
+        // Check seed structure
+        $this->assertIsArray($result['seed']);
+        $this->assertArrayHasKey('concept', $result['seed']);
+        $this->assertArrayHasKey('shortDescription', $result['seed']);
+        $this->assertArrayHasKey('wikiUrl', $result['seed']);
+        $this->assertArrayHasKey('mediaUrl', $result['seed']);
+        $this->assertEquals('creativity', $result['seed']['concept']);
+        
         $this->assertCount(3, $result['related_concepts']);
 
         $firstConcept = $result['related_concepts'][0];
         $this->assertArrayHasKey('concept', $firstConcept);
         $this->assertArrayHasKey('shortDescription', $firstConcept);
-        $this->assertArrayHasKey('laterality', $firstConcept);
+        $this->assertArrayHasKey('larelality', $firstConcept);
         $this->assertArrayHasKey('wikiUrl', $firstConcept);
         $this->assertArrayHasKey('mediaUrl', $firstConcept);
         $this->assertEquals('constraint', $firstConcept['concept']);
@@ -87,17 +100,22 @@ class ConceptRelationshipServiceTest extends TestCase
         $mockResponse->shouldReceive('toArray')
             ->once()
             ->andReturn([
-                'seed' => 'test',
+                'seed' => [
+                    'concept' => 'test',
+                    'shortDescription' => 'A test concept',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
                 'related_concepts' => [
                     [
                         'concept' => 'related1',
                         'shortDescription' => 'First related concept',
-                        'laterality' => 2,
+                        'larelality' => 2,
                     ],
                     [
                         'concept' => 'related2',
                         'shortDescription' => 'Second related concept',
-                        'laterality' => 3,
+                        'larelality' => 3,
                     ],
                 ],
             ]);
@@ -107,11 +125,12 @@ class ConceptRelationshipServiceTest extends TestCase
 
         $result = $this->service->generateRelationships('test', null, $mockAgent);
 
-        $this->assertEquals('test', $result['seed']);
+        $this->assertIsArray($result['seed']);
+        $this->assertEquals('test', $result['seed']['concept']);
         $this->assertCount(2, $result['related_concepts']);
         $this->assertEquals('related1', $result['related_concepts'][0]['concept']);
         $this->assertEquals('First related concept', $result['related_concepts'][0]['shortDescription']);
-        $this->assertArrayHasKey('laterality', $result['related_concepts'][0]);
+        $this->assertArrayHasKey('larelality', $result['related_concepts'][0]);
     }
 
     public function test_generate_relationships_throws_exception_on_non_structured_response(): void
