@@ -195,6 +195,7 @@ app/Http/Resources/RelationshipResource.php
 - Maintain consistency with established patterns
 - Ask for clarification if requirements are ambiguous
 - Prioritize testability and maintainability
+- **CRITICAL: Always run `./vendor/bin/sail test` after making code changes to ensure tests pass and the app is not broken**
 
 ## Future Considerations
 

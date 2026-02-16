@@ -50,6 +50,7 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
                         '*' => [
                             'concept',
                             'shortDescription',
+                            'laterality',
                             'wikiUrl',
                             'mediaUrl',
                         ],
@@ -60,18 +61,19 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
 
         $data = $response->json('data');
         $this->assertIsArray($data['related_concepts']);
-        
+
         // If no concepts returned, log the full response for debugging
         if (count($data['related_concepts']) === 0) {
             $this->fail('No concepts returned. Full response: '.json_encode($data, JSON_PRETTY_PRINT));
         }
-        
+
         $this->assertGreaterThan(0, count($data['related_concepts']));
 
         // Check that at least one concept has the expected structure
         $firstConcept = $data['related_concepts'][0];
         $this->assertArrayHasKey('concept', $firstConcept);
         $this->assertArrayHasKey('shortDescription', $firstConcept);
+        $this->assertArrayHasKey('laterality', $firstConcept);
         $this->assertArrayHasKey('wikiUrl', $firstConcept);
         $this->assertArrayHasKey('mediaUrl', $firstConcept);
         // URLs may be null if tools fail, but keys should exist
