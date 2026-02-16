@@ -37,6 +37,7 @@ class WikipediaSearchTool implements Tool
         try {
             // Normalize concept name: capitalize first letter of each word, replace spaces with underscores
             $normalizedConcept = $this->normalizeConceptName($concept);
+            $encodedTitle = rawurlencode($normalizedConcept);
 
             // Try to fetch page summary from Wikipedia API
             $response = Http::timeout(10)
@@ -44,7 +45,7 @@ class WikipediaSearchTool implements Tool
                 ->withHeaders([
                     'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
                 ])
-                ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$normalizedConcept}");
+                ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$encodedTitle}");
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -85,12 +86,13 @@ class WikipediaSearchTool implements Tool
             // If direct lookup failed, try with spaces replaced by underscores
             $underscoredConcept = str_replace(' ', '_', ucwords(strtolower($concept)));
             if ($underscoredConcept !== $normalizedConcept) {
+                $encodedUnderscored = rawurlencode($underscoredConcept);
                 $response = Http::timeout(10)
                     ->withoutVerifying() // Skip SSL verification in Docker if needed
                     ->withHeaders([
                         'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
                     ])
-                    ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$underscoredConcept}");
+                    ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$encodedUnderscored}");
 
                 if ($response->successful()) {
                     $data = $response->json();

@@ -16,7 +16,7 @@ class WikimediaCommonsSearchTool implements Tool
      */
     public function description(): Stringable|string
     {
-        return 'Search for a Public Domain JPEG image on Wikimedia Commons for a given concept. Returns a direct link to the image file (second largest thumbnail size) if found.';
+        return 'Search for a Public Domain JPEG image on Wikimedia Commons for a concept. Use both concept and shortDescription for better relevance. Returns ONLY a direct image URL (https://upload.wikimedia.org/...), never a wiki info page (commons.wikimedia.org/wiki/File:...). Returns the second-largest thumbnail size when available.';
     }
 
     /**
@@ -43,7 +43,7 @@ class WikimediaCommonsSearchTool implements Tool
 
             foreach ($searchStrategies as $strategy) {
                 $imageUrl = $this->trySearchStrategy($concept, $strategy);
-                if ($imageUrl) {
+                if ($imageUrl && $this->isDirectImageUrl($imageUrl)) {
                     return $imageUrl;
                 }
             }
@@ -71,48 +71,18 @@ class WikimediaCommonsSearchTool implements Tool
     }
 
     /**
-     * Build multiple search strategies from most specific to most general.
+     * Build multiple search strategies: prefer concept + description for relevance, then fallbacks.
      */
     protected function buildSearchStrategies(string $concept, string $shortDescription): array
     {
         $strategies = [];
         $conceptEscaped = addslashes($concept);
 
-        // Strategy 1: Concept in title + Public Domain + JPEG
-        $strategies[] = [
-            'query' => sprintf('intitle:"%s" filetype:bitmap filemime:image/jpeg haswbstatement:P275=Q6938433', $conceptEscaped),
-            'description' => 'concept in title + PD + JPEG',
-        ];
-
-        // Strategy 2: Concept in title + JPEG (no PD requirement)
-        $strategies[] = [
-            'query' => sprintf('intitle:"%s" filetype:bitmap filemime:image/jpeg', $conceptEscaped),
-            'description' => 'concept in title + JPEG',
-        ];
-
-        // Strategy 3: Concept as general search + Public Domain + JPEG
-        $strategies[] = [
-            'query' => sprintf('"%s" filetype:bitmap filemime:image/jpeg haswbstatement:P275=Q6938433', $conceptEscaped),
-            'description' => 'concept search + PD + JPEG',
-        ];
-
-        // Strategy 4: Concept as general search + JPEG
-        $strategies[] = [
-            'query' => sprintf('"%s" filetype:bitmap filemime:image/jpeg', $conceptEscaped),
-            'description' => 'concept search + JPEG',
-        ];
-
-        // Strategy 5: Concept only + JPEG (most general)
-        $strategies[] = [
-            'query' => sprintf('%s filetype:bitmap filemime:image/jpeg', $conceptEscaped),
-            'description' => 'concept only + JPEG',
-        ];
-
-        // Strategy 6: If description available, try concept + description keywords + JPEG
+        // Strategy 1: Concept + description keywords (best relevance when shortDescription is provided)
         if (!empty($shortDescription)) {
             $keywords = $this->extractKeywords($shortDescription);
             if (!empty($keywords)) {
-                $keywordTerms = implode(' ', array_slice($keywords, 0, 2));
+                $keywordTerms = implode(' ', array_slice($keywords, 0, 3));
                 $strategies[] = [
                     'query' => sprintf('%s %s filetype:bitmap filemime:image/jpeg', $conceptEscaped, addslashes($keywordTerms)),
                     'description' => 'concept + description keywords + JPEG',
@@ -120,7 +90,45 @@ class WikimediaCommonsSearchTool implements Tool
             }
         }
 
+        // Strategy 2: Concept in title + Public Domain + JPEG
+        $strategies[] = [
+            'query' => sprintf('intitle:"%s" filetype:bitmap filemime:image/jpeg haswbstatement:P275=Q6938433', $conceptEscaped),
+            'description' => 'concept in title + PD + JPEG',
+        ];
+
+        // Strategy 3: Concept in title + JPEG (no PD requirement)
+        $strategies[] = [
+            'query' => sprintf('intitle:"%s" filetype:bitmap filemime:image/jpeg', $conceptEscaped),
+            'description' => 'concept in title + JPEG',
+        ];
+
+        // Strategy 4: Concept as general search + Public Domain + JPEG
+        $strategies[] = [
+            'query' => sprintf('"%s" filetype:bitmap filemime:image/jpeg haswbstatement:P275=Q6938433', $conceptEscaped),
+            'description' => 'concept search + PD + JPEG',
+        ];
+
+        // Strategy 5: Concept as general search + JPEG
+        $strategies[] = [
+            'query' => sprintf('"%s" filetype:bitmap filemime:image/jpeg', $conceptEscaped),
+            'description' => 'concept search + JPEG',
+        ];
+
+        // Strategy 6: Concept only + JPEG (most general)
+        $strategies[] = [
+            'query' => sprintf('%s filetype:bitmap filemime:image/jpeg', $conceptEscaped),
+            'description' => 'concept only + JPEG',
+        ];
+
         return $strategies;
+    }
+
+    /**
+     * Ensure we only return direct image URLs (upload.wikimedia.org), never wiki info pages.
+     */
+    protected function isDirectImageUrl(string $url): bool
+    {
+        return str_contains($url, 'upload.wikimedia.org') && !str_contains($url, 'commons.wikimedia.org/wiki/');
     }
 
     /**
@@ -245,16 +253,15 @@ class WikimediaCommonsSearchTool implements Tool
                 }
             }
 
-            // If we have multiple thumbnails, return second largest; otherwise return what we have
+            // If we have multiple thumbnails, return second largest; otherwise return what we have (direct URL only)
             if (!empty($availableThumbnails)) {
                 krsort($availableThumbnails);
                 $sortedUrls = array_values($availableThumbnails);
-                
-                // Return second largest if available, otherwise largest
-                return $sortedUrls[min(1, count($sortedUrls) - 1)] ?? $sortedUrls[0] ?? null;
+                $chosen = $sortedUrls[min(1, count($sortedUrls) - 1)] ?? $sortedUrls[0] ?? null;
+                return $chosen && $this->isDirectImageUrl($chosen) ? $chosen : null;
             }
 
-            // Fallback: get original image URL if no thumbnails found
+            // Fallback: get original image URL if no thumbnails found (must be direct upload URL)
             $fallbackResponse = Http::timeout(8)
                 ->withoutVerifying()
                 ->withHeaders([
@@ -275,7 +282,8 @@ class WikimediaCommonsSearchTool implements Tool
                     $fallbackPage = reset($fallbackPages);
                     if (!isset($fallbackPage['missing'])) {
                         $fallbackInfo = $fallbackPage['imageinfo'][0] ?? null;
-                        return $fallbackInfo['url'] ?? null;
+                        $url = $fallbackInfo['url'] ?? null;
+                        return $url && $this->isDirectImageUrl($url) ? $url : null;
                     }
                 }
             }

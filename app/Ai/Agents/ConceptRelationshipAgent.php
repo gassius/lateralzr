@@ -5,6 +5,7 @@ namespace App\Ai\Agents;
 use App\Ai\Tools\WikipediaSearchTool;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
@@ -13,6 +14,7 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
 
+#[MaxSteps(25)]
 class ConceptRelationshipAgent implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;
@@ -36,11 +38,12 @@ Those that are not direclty related to the seed concept. Only indirectly or abst
 4 - Provocative -  The terms have very high semantic distance. There is no obvious connection, and one must be forced through a "Provocative Operation" (Po) to move the mind to a new place. (e.g. "Keep" and "Exoplanet". A bridge requires a leap—perhaps "keeping" a planet's atmosphere or the "keep" (fortress) of a distant solar system)
 5 - Wildly Discrepant - The terms are randomly associated with zero initial overlap. This is the Random Entry technique used to break dominant thought patterns entirely. (e.g "Standardized Testing" and "Marshmallows". The distance is so great that any connection formed is entirely original)
 
-IMPORTANT - Tools and URLs:
-- You have access to tools that can fetch Wikipedia URLs and Wikimedia Commons image URLs for concepts.
-- For the seed concept AND each related concept, you MUST invoke these tools as needed and then fill the `wikiUrl` and `mediaUrl` fields in your structured output.
-- The seed object must include: `concept` (the seed concept name), `shortDescription` (a brief description), `wikiUrl`, and `mediaUrl`.
-- If a tool cannot find a suitable URL or fails, set the corresponding field to null.
+IMPORTANT - Tools (MANDATORY):
+- You have two tools: WikipediaSearchTool (returns a Wikipedia article URL) and WikimediaCommonsSearchTool (returns a direct image URL on upload.wikimedia.org).
+- You MUST call WikipediaSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription" to get the article URL. Put the result in wikiUrl (or null if empty).
+- You MUST call WikimediaCommonsSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription". Put the result in mediaUrl (or null if empty). The tool returns a direct image URL only—never use or invent a commons.wikimedia.org/wiki/File: page URL.
+- Do NOT guess or invent URLs. Use only the strings returned by the tools. If a tool returns empty, set that field to null.
+- The seed object must include: concept, shortDescription, wikiUrl, and mediaUrl (from these tools).
 
 IMPORTANT - Concept Chaining:
 - The first concept should be laterally related to the seed concept (level 2 or higher)
