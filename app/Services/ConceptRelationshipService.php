@@ -98,9 +98,9 @@ PROMPT;
             ?? $data['related_concepts_array']
             ?? [];
 
-        // Ensure rawConcepts is an array
-        if (!is_array($rawConcepts)) {
-            Log::warning('related_concepts is not an array', [
+        // Ensure rawConcepts is something we can iterate over (array or Traversable)
+        if (!is_iterable($rawConcepts)) {
+            Log::warning('related_concepts is not iterable', [
                 'type' => gettype($rawConcepts),
                 'value' => $rawConcepts,
                 'available_keys' => array_keys($data),
@@ -116,21 +116,25 @@ PROMPT;
                 'full_response' => $data,
             ]);
         } else {
+            // Attempt to inspect the first concept's keys when possible (arrays only)
+            $firstConceptKeys = [];
+            if (is_array($rawConcepts)) {
+                $first = reset($rawConcepts);
+                if (is_array($first)) {
+                    $firstConceptKeys = array_keys($first);
+                }
+            }
+
             Log::channel('single')->debug('ConceptRelationshipService: Processing concepts', [
-                'count' => count($rawConcepts),
-                'first_concept_keys' => !empty($rawConcepts[0]) ? array_keys($rawConcepts[0]) : [],
+                'count' => is_countable($rawConcepts) ? count($rawConcepts) : null,
+                'first_concept_keys' => $firstConceptKeys,
             ]);
         }
 
         foreach ($rawConcepts as $index => $concept) {
-            // Ensure concept is an array
+            // Ensure concept is treated as an array (StructuredAgentResponse may return stdClass / collections)
             if (!is_array($concept)) {
-                Log::warning('Concept at index is not an array', [
-                    'index' => $index,
-                    'type' => gettype($concept),
-                    'value' => $concept,
-                ]);
-                continue;
+                $concept = (array) $concept;
             }
 
             // Handle different possible structures - LLM may return concept_name, concept, name, or title
