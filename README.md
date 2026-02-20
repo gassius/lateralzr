@@ -66,10 +66,11 @@ sail up -d
 sail artisan key:generate
 ```
 
-### 5. Run Migrations
+### 5. Run Migrations and Seed (optional)
 
 ```bash
 sail artisan migrate
+sail artisan db:seed   # Seeds roles and, in local, the admin user test@lateralzr.com
 ```
 
 ### 6. Start Development Environment
@@ -97,6 +98,17 @@ To stop services:
 ### Running the Application
 
 The API will be available at `http://localhost` (or the port configured in your `.env`).
+
+### Admin Backoffice
+
+A Filament 5 admin panel is available at **`/admin`** for quick inspection and management of data (e.g. Concepts, Users).
+
+- **URL**: `http://localhost/admin` (or your app URL + `/admin`)
+- **Auth**: Login required. Access is restricted to users with the `super_admin` role (Spatie Laravel Permission).
+- **Local seed user** (created only when `APP_ENV=local`):  
+  - Email: `test@lateralzr.com`  
+  - Password: `!12345678`  
+  After running `sail artisan migrate` and `sail artisan db:seed`, this user exists in local and can log in to the backoffice.
 
 ### Common Sail Commands
 

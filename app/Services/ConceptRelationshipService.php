@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
-use App\Models\ConceptUrl;
+use App\Models\Concept;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Laravel\Ai\Tools\Request;
@@ -100,7 +100,7 @@ class ConceptRelationshipService
     {
         $concept = $item['concept'] ?? '';
         $shortDescription = $item['shortDescription'] ?? '';
-        $normalized = ConceptUrl::normalizeConcept($concept);
+        $normalized = Concept::normalizeConcept($concept);
 
         $cached = $this->urlCache->findByConcept($concept);
 

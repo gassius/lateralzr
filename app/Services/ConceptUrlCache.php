@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\ConceptUrl;
+use App\Models\Concept;
 use Illuminate\Support\Facades\Log;
 
 class ConceptUrlCache
@@ -10,21 +10,21 @@ class ConceptUrlCache
     /**
      * Find a concept URL record by normalized concept name.
      */
-    public function findByConcept(string $concept): ?ConceptUrl
+    public function findByConcept(string $concept): ?Concept
     {
-        $normalized = ConceptUrl::normalizeConcept($concept);
+        $normalized = Concept::normalizeConcept($concept);
 
-        return ConceptUrl::query()->where('concept', $normalized)->first();
+        return Concept::query()->where('concept', $normalized)->first();
     }
 
     /**
      * Find or create a concept URL record; update URLs if provided.
      */
-    public function remember(string $concept, ?string $wikiUrl, ?string $mediaUrl): ConceptUrl
+    public function remember(string $concept, ?string $wikiUrl, ?string $mediaUrl): Concept
     {
-        $normalized = ConceptUrl::normalizeConcept($concept);
+        $normalized = Concept::normalizeConcept($concept);
 
-        $record = ConceptUrl::query()->where('concept', $normalized)->first();
+        $record = Concept::query()->where('concept', $normalized)->first();
 
         if ($record) {
             $updated = false;
@@ -43,7 +43,7 @@ class ConceptUrlCache
             return $record;
         }
 
-        $record = ConceptUrl::query()->create([
+        $record = Concept::query()->create([
             'concept' => $normalized,
             'wiki_url' => $wikiUrl,
             'media_url' => $mediaUrl,

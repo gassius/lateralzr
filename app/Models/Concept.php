@@ -4,8 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class ConceptUrl extends Model
+class Concept extends Model
 {
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
+    protected $table = 'concepts';
+
     /**
      * The attributes that are mass assignable.
      *

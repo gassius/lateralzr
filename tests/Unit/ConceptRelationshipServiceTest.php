@@ -5,7 +5,7 @@ namespace Tests\Unit;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
 use App\Services\ConceptRelationshipService;
-use Database\Seeders\ConceptUrlSeeder;
+use Database\Seeders\ConceptSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Ai\Responses\AgentResponse;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -107,7 +107,7 @@ class ConceptRelationshipServiceTest extends TestCase
 
     public function test_generate_relationships_uses_stored_record_when_concept_in_cache(): void
     {
-        $this->seed(ConceptUrlSeeder::class);
+        $this->seed(ConceptSeeder::class);
 
         $mockResponse = Mockery::mock(StructuredAgentResponse::class);
         $mockResponse->shouldReceive('toArray')
@@ -198,7 +198,7 @@ class ConceptRelationshipServiceTest extends TestCase
 
     public function test_generate_relationships_creates_new_record_when_concept_not_in_cache(): void
     {
-        $this->assertDatabaseCount('concept_urls', 0);
+        $this->assertDatabaseCount('concepts', 0);
 
         $mockResponse = Mockery::mock(StructuredAgentResponse::class);
         $mockResponse->shouldReceive('toArray')
@@ -218,8 +218,8 @@ class ConceptRelationshipServiceTest extends TestCase
 
         $this->service->generateRelationships('newness', null, $mockAgent);
 
-        $this->assertDatabaseCount('concept_urls', 1);
-        $this->assertDatabaseHas('concept_urls', [
+        $this->assertDatabaseCount('concepts', 1);
+        $this->assertDatabaseHas('concepts', [
             'concept' => 'newness',
         ]);
     }

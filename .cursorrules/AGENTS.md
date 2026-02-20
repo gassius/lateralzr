@@ -23,6 +23,7 @@ This document provides context and guidelines for AI agents working on the Later
 - **Laravel Boost**: MCP integration for AI-assisted development
 - **MySQL**: Primary database (via Sail)
 - **PHPUnit**: Testing framework
+- **Admin backoffice**: Filament 5 panel at `/admin`; access restricted to users with the `super_admin` role (Spatie Laravel Permission). Roles/permissions are extensible; the first role is `super_admin` with full capabilities. Filament resources provide quick CRUD for models (e.g. Concept, User). The Concept model (table `concepts`) is the main entity for concept/URL data; User model holds app users and roles.
 
 ### API Design Principles
 - RESTful API design

@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Models\ConceptUrl;
+use App\Models\Concept;
 use Illuminate\Database\Seeder;
 
-class ConceptUrlSeeder extends Seeder
+class ConceptSeeder extends Seeder
 {
     /**
-     * Seed concept_urls for testing (and optional dev). Uses normalized concept names.
+     * Seed concepts for testing (and optional dev). Uses normalized concept names.
      */
     public function run(): void
     {
@@ -36,7 +36,7 @@ class ConceptUrlSeeder extends Seeder
         ];
 
         foreach ($concepts as $row) {
-            ConceptUrl::query()->updateOrCreate(
+            Concept::query()->updateOrCreate(
                 ['concept' => $row['concept']],
                 [
                     'wiki_url' => $row['wiki_url'],
