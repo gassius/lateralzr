@@ -1,0 +1,64 @@
+# CI for the monorepo. For independent deployment, configure your deploy pipeline to run
+# only when relevant paths change: e.g. deploy API when paths outside apps/client change,
+# deploy client when apps/client/** changes.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  api:
+    name: API (Laravel)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, mysql
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction
+
+      - name: Copy environment
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: Prepare testing database
+        run: mkdir -p database && touch database/testing.sqlite
+
+      - name: Run tests
+        run: php artisan test
+
+  client:
+    name: Client (Expo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Client type check
+        run: pnpm exec tsc --noEmit
+        working-directory: apps/client

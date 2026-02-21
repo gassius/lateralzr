@@ -40,6 +40,15 @@ This document provides context and guidelines for AI agents working on the Later
 - Use Eloquent models with proper relationships
 - Implement repository pattern if complexity grows
 
+### Monorepo
+- **API** lives at the **repository root** (Laravel, Sail, `app/`, `routes/`, `compose.yaml`). **Expo client** lives in **`apps/client`**. Turborepo orchestrates the root package (admin/Vite) and the client (Expo) so their build and dev tasks do not collide.
+- **Node version** is defined in [.nvmrc](.nvmrc); use NVM on the host or the optional Node Docker service (profile `client`) for client tooling.
+- **Agents must not assume a single app**: run API tests from the repo root with Sail (`./vendor/bin/sail test`). Run client commands from `apps/client` (e.g. `pnpm exec expo start`, `pnpm exec expo start --web`) or from the root with Turbo: `pnpm turbo run dev --filter=client`. The project uses **pnpm** as the package manager (see [pnpm-workspace.yaml](pnpm-workspace.yaml)).
+
+### Expo client
+- **Stack**: Expo SDK, React Native, TypeScript, Expo Router. The client fetches concepts from the API and displays them as flip/swipe cards.
+- **Expo AI Skills**: When editing or adding code in `apps/client`, agents should use **Expo AI Skills** for accurate Expo/React Native guidance. To enable in Cursor: **Settings → Rules & Command → Project Rules → Add Rule → Remote Rule (GitHub)** → `https://github.com/expo/skills.git`. Skills are auto-discovered for prompts about Expo, UI, data fetching, and deployment (see [expo/skills README](https://github.com/expo/skills/blob/main/README.md)).
+
 ## Laravel Conventions to Follow
 
 ### Controllers

@@ -24,6 +24,7 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 - Docker Desktop installed and running
 - Git
 - Composer (optional - Sail includes it)
+- **Node.js** (see [.nvmrc](.nvmrc); e.g. Node 20) and **pnpm** (package manager for the monorepo). Use [NVM](https://github.com/nvm-sh/nvm) on the host: `nvm use` in the repo root; install pnpm via `corepack enable && corepack prepare pnpm@latest --activate` or [pnpm.io](https://pnpm.io/installation). Optional: run the client via the Node Docker service (see [Monorepo](#monorepo)).
 - Ollama installed on macOS (for local LLM development)
   - See [02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md) for installation instructions
 
@@ -99,6 +100,22 @@ To stop services:
 
 The API will be available at `http://localhost` (or the port configured in your `.env`).
 
+### Monorepo
+
+This repository is a **monorepo**: the **Laravel API** lives at the **root**; the **Expo client** lives in **`apps/client`**. The **package manager is pnpm** ([pnpm-workspace.yaml](pnpm-workspace.yaml)). [Turborepo](https://turbo.build) orchestrates tasks so the root (Laravel Admin / Vite) and the client (Expo) do not collide: run admin builds from the root, client from `apps/client` or via Turbo.
+
+- **Node version**: Use the version in [.nvmrc](.nvmrc) (e.g. `nvm use` in the repo root) for both Vite and the Expo app. Alternatively, use the optional **Node Docker service** (profile `client`) to run client commands in a container. Ensure pnpm is available (e.g. `corepack enable && corepack prepare pnpm@9.15.0 --activate` in the image or use a pnpm-aware image), then from the repo root:  
+  `docker compose --profile client run --rm node sh -c "pnpm install --frozen-lockfile && pnpm turbo run dev --filter=client"`.
+- **Run the API**: from the repo root, `./vendor/bin/sail up -d` (or `./dev.sh up`); see [Installation](#installation).
+- **Run the client**: from the repo root, `cd apps/client && pnpm exec expo start`, then choose web (`w`), iOS (`i`), or Android (`a`). Or use Turbo: `pnpm turbo run dev --filter=client` (from root).
+- **Independent deployment**: In CI, deploy only the API when changes are outside `apps/client/**`; deploy only the client when changes are under `apps/client/**`.
+
+#### Expo client
+
+- **Prerequisites**: Node version per [.nvmrc](.nvmrc) (NVM on host or Node Docker service); optionally Xcode (iOS) / Android Studio (Android) for native runs.
+- **Environment**: Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/client/.env`) to the API base URL (no trailing slash). Example: `EXPO_PUBLIC_API_URL=http://localhost`.
+- See [Expo Documentation](https://docs.expo.dev) for building and deploying the app.
+
 ### Admin Backoffice
 
 A Filament 5 admin panel is available at **`/admin`** for quick inspection and management of data (e.g. Concepts, Users).
@@ -171,7 +188,7 @@ Returns a simple health check response.
 
 **POST** `/api/concepts/relationships`
 
-Generates laterally related concepts from a seed concept using the local LLM.
+Generates laterally related concepts from a seed concept using the local LLM. **Cold start**: omit `seed` (or send an empty body) to let the API choose a random concept.
 
 **Request:**
 ```json
@@ -180,6 +197,7 @@ Generates laterally related concepts from a seed concept using the local LLM.
   "count": 5
 }
 ```
+`seed` is optional; when omitted, the API picks a random concept from config or the database. `count` is optional (default 3–5, max 10).
 
 **Response:**
 ```json
@@ -204,19 +222,27 @@ Generates laterally related concepts from a seed concept using the local LLM.
 
 ```
 lateralzr-api/
-├── app/                    # Application code
+├── app/                    # Laravel application code
 │   ├── Http/
 │   │   └── Controllers/   # API controllers
 │   └── Models/            # Eloquent models
+├── apps/
+│   └── client/            # Expo client (React Native + TypeScript, Expo Router)
+├── config/
+│   └── concepts.php       # Default seed concepts (cold start)
 ├── database/
 │   ├── migrations/        # Database migrations
-│   └── seeders/          # Database seeders
+│   └── seeders/           # Database seeders
 ├── routes/
-│   └── api.php           # API routes
+│   └── api.php            # API routes
 ├── tests/                 # Test suite
-│   └── Feature/          # Feature tests
-├── .cursor/plans/        # Project plans
-└── compose.yaml          # Docker Compose configuration
+│   └── Feature/           # Feature tests
+├── turbo.json             # Turborepo pipeline
+├── pnpm-workspace.yaml     # pnpm workspace (apps/*)
+├── pnpm-lock.yaml         # pnpm lockfile
+├── .nvmrc                  # Node version (e.g. 20)
+├── .cursor/plans/         # Project plans
+└── compose.yaml           # Docker Compose configuration
 ```
 
 ## Local LLM Setup
@@ -323,6 +349,8 @@ sail test
 - [Laravel AI SDK Documentation](https://laravel.com/docs/12.x/ai-sdk)
 - [Laravel Sail Documentation](https://laravel.com/docs/12.x/sail)
 - [Laravel Boost Documentation](https://laravel.com/docs/12.x/boost)
+- [Expo Documentation](https://docs.expo.dev)
+- [Expo Skills (GitHub)](https://github.com/expo/skills) – Cursor users can add Expo Skills as a **Remote Rule** (Settings → Rules & Command → Project Rules → Add Rule → Remote Rule (GitHub) → `https://github.com/expo/skills.git`) for better agent support when working on the client app.
 - [Ollama Documentation](https://docs.ollama.com)
 - [Edward de Bono - Lateral Thinking](https://www.edwarddebono.com/lateral-thinking)
 - [Oblique Strategies - Brian Eno](https://en.wikipedia.org/wiki/Oblique_Strategies)

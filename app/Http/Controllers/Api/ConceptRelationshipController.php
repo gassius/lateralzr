@@ -16,6 +16,7 @@ class ConceptRelationshipController
 
     /**
      * Generate laterally related concepts from a seed concept.
+     * When seed is omitted, the API chooses a random concept (cold start).
      *
      * @param  Request  $request
      * @return JsonResponse
@@ -25,13 +26,17 @@ class ConceptRelationshipController
     public function generate(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'seed' => ['required', 'string', 'min:1', 'max:255'],
+            'seed' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
             'count' => ['sometimes', 'integer', 'min:1', 'max:10'],
         ]);
 
+        $seed = isset($validated['seed']) && trim((string) $validated['seed']) !== ''
+            ? trim((string) $validated['seed'])
+            : null;
+
         try {
             $result = $this->service->generateRelationships(
-                seedConcept: $validated['seed'],
+                seedConcept: $seed,
                 count: $validated['count'] ?? null
             );
 

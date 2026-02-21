@@ -224,6 +224,45 @@ class ConceptRelationshipServiceTest extends TestCase
         ]);
     }
 
+    public function test_generate_relationships_with_null_seed_uses_random_seed(): void
+    {
+        $defaultSeeds = config('concepts.default_seeds', ['creativity']);
+        $this->assertNotEmpty($defaultSeeds);
+
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')
+            ->once()
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'Cold start seed',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [],
+            ]);
+
+        $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
+        $mockAgent->shouldReceive('prompt')
+            ->once()
+            ->with(Mockery::on(function (string $prompt) use ($defaultSeeds) {
+                foreach ($defaultSeeds as $seed) {
+                    if (str_contains($prompt, "\"{$seed}\"")) {
+                        return true;
+                    }
+                }
+                return false;
+            }))
+            ->andReturn($mockResponse);
+
+        $result = $this->service->generateRelationships(null, null, $mockAgent);
+
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('seed', $result);
+        $this->assertArrayHasKey('related_concepts', $result);
+        $this->assertContains($result['seed']['concept'], $defaultSeeds);
+    }
+
     protected function tearDown(): void
     {
         Mockery::close();

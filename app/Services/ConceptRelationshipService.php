@@ -6,6 +6,7 @@ use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
 use App\Models\Concept;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Laravel\Ai\Tools\Request;
@@ -21,16 +22,23 @@ class ConceptRelationshipService
     /**
      * Generate laterally related concepts from a seed concept.
      * Phase 1: Get concepts from LLM (no URL tools). Phase 2: Resolve URLs from cache or tools, persist misses.
+     * When $seedConcept is null or empty, a random seed is chosen (from DB or config).
      *
-     * @param  string  $seedConcept  The seed concept to generate relationships from
+     * @param  string|null  $seedConcept  The seed concept to generate relationships from; null for cold start (random seed)
      * @param  int|null  $count  Optional number of concepts to generate (default: 3-5)
      * @param  object|null  $agent  Optional agent instance (for testing; must implement prompt() and return StructuredAgentResponse)
      * @return array{seed: array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}, related_concepts: array<int, array{concept: string, shortDescription: string, larelality: int, wikiUrl: string|null, mediaUrl: string|null}>}
      *
      * @throws \Exception
      */
-    public function generateRelationships(string $seedConcept, ?int $count = null, ?object $agent = null): array
+    public function generateRelationships(?string $seedConcept, ?int $count = null, ?object $agent = null): array
     {
+        if ($seedConcept === null || trim($seedConcept) === '') {
+            $seedConcept = $this->resolveRandomSeed();
+        } else {
+            $seedConcept = trim($seedConcept);
+        }
+
         $agent = $agent ?? new ConceptsOnlyAgent();
 
         $countText = $count
@@ -88,6 +96,25 @@ class ConceptRelationshipService
             'seed' => $seed,
             'related_concepts' => $related,
         ];
+    }
+
+    /**
+     * Resolve a random seed concept for cold start (no user-provided seed).
+     * Prefers a random concept from the database; falls back to config default_seeds.
+     */
+    protected function resolveRandomSeed(): string
+    {
+        $fromDb = Concept::query()->inRandomOrder()->first()?->concept;
+        if ($fromDb !== null && $fromDb !== '') {
+            return $fromDb;
+        }
+
+        $defaults = config('concepts.default_seeds', []);
+        if ($defaults !== []) {
+            return (string) Arr::random($defaults);
+        }
+
+        return 'creativity';
     }
 
     /**

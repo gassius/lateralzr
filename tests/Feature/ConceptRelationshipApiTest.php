@@ -112,12 +112,31 @@ class ConceptRelationshipApiTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_generate_endpoint_validates_seed_required(): void
+    public function test_generate_endpoint_accepts_empty_body_and_uses_random_seed(): void
     {
+        $mockService = Mockery::mock(ConceptRelationshipService::class);
+        $mockService->shouldReceive('generateRelationships')
+            ->once()
+            ->withArgs(function ($seed, $count) {
+                return $count === null && ($seed === null || (is_string($seed) && $seed !== ''));
+            })
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'The use of imagination',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [],
+            ]);
+
+        $this->app->instance(ConceptRelationshipService::class, $mockService);
+
         $response = $this->postJson('/api/concepts/relationships', []);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['seed']);
+        $response->assertStatus(200)
+            ->assertJson(['status' => 'success'])
+            ->assertJsonStructure(['data' => ['seed' => ['concept'], 'related_concepts']]);
     }
 
     public function test_generate_endpoint_validates_seed_is_string(): void
@@ -130,14 +149,32 @@ class ConceptRelationshipApiTest extends TestCase
             ->assertJsonValidationErrors(['seed']);
     }
 
-    public function test_generate_endpoint_validates_seed_min_length(): void
+    public function test_generate_endpoint_treats_whitespace_only_seed_as_cold_start(): void
     {
+        $mockService = Mockery::mock(ConceptRelationshipService::class);
+        $mockService->shouldReceive('generateRelationships')
+            ->once()
+            ->withArgs(function ($seed, $count) {
+                return $count === null && ($seed === null || (is_string($seed) && $seed !== ''));
+            })
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'innovation',
+                    'shortDescription' => 'Cold start',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [],
+            ]);
+
+        $this->app->instance(ConceptRelationshipService::class, $mockService);
+
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => '',
+            'seed' => '   ',  // only whitespace → normalized to null (cold start)
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonValidationErrors(['seed']);
+        $response->assertStatus(200)
+            ->assertJson(['status' => 'success']);
     }
 
     public function test_generate_endpoint_validates_count_range(): void
