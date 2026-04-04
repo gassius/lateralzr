@@ -24,6 +24,7 @@ database/testing.sqlite
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/.turbo
 
 # Laravel Boost (optional - uncomment if you want each developer to configure their own)
 # boost.json
