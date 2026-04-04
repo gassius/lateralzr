@@ -1,4 +1,6 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost';
+import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+
+const API_URL = resolveApiBaseUrl();
 
 export type ConceptItem = {
   concept: string;
