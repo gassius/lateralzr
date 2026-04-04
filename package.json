@@ -7,7 +7,9 @@
     "build": "vite build",
     "dev": "vite",
     "build:all": "turbo run build",
-    "dev:all": "turbo run dev"
+    "dev:all": "turbo run dev",
+    "dev:full": "bash ./dev.sh up && pnpm dev:all",
+    "dev:client": "turbo run dev --filter=client"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
