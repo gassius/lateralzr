@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
+import { DeckStatusCard } from './DeckStatusCard';
 import type { ConceptItem } from '@/lib/api';
 
 type ConceptCardStackProps = {
@@ -17,11 +18,13 @@ type ConceptCardStackProps = {
   onSwipeRight: () => void;
   availableHeight: number;
   preloadedMediaUrls: ReadonlySet<string>;
+  loadingMore: boolean;
+  loadMoreError: boolean;
+  onRetryLoadMore: () => void;
 };
 
 const SWIPE_THRESHOLD = 56;
 const springConfig = { damping: 22, stiffness: 220 };
-/** Pan only activates after this horizontal movement so taps go to Gesture.Tap */
 const PAN_ACTIVE_OFFSET = 18;
 
 export function ConceptCardStack({
@@ -31,11 +34,22 @@ export function ConceptCardStack({
   onSwipeRight,
   availableHeight,
   preloadedMediaUrls,
+  loadingMore,
+  loadMoreError,
+  onRetryLoadMore,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
 
   const cardAreaHeight = Math.max(320, availableHeight);
+
+  const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
+  const showDeckStatus = useMemo(
+    () => isLastCard && (loadingMore || loadMoreError),
+    [isLastCard, loadingMore, loadMoreError],
+  );
+
+  const deckStatusVariant = loadMoreError ? 'error' : 'loading';
 
   useEffect(() => {
     translateX.value = 0;
@@ -84,7 +98,7 @@ export function ConceptCardStack({
       },
     );
 
-  const composed = Gesture.Exclusive(tap, pan);
+  const composed = showDeckStatus ? pan : Gesture.Exclusive(tap, pan);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -92,22 +106,47 @@ export function ConceptCardStack({
 
   if (concepts.length === 0) return null;
 
-  const item = concepts[currentIndex]!;
-  const mediaUri = item.mediaUrl?.trim() ?? '';
-  const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
-
   return (
     <View style={styles.outer}>
       <GestureDetector gesture={composed}>
         <Animated.View
-          key={currentIndex}
+          key={showDeckStatus ? `deck-${deckStatusVariant}-${currentIndex}` : currentIndex}
           style={[styles.cardWrap, { height: cardAreaHeight }, animatedStyle]}
         >
-          <ConceptCard item={item} flipped={flipped} isMediaPrefetched={isMediaPrefetched} />
+          {showDeckStatus ? (
+            <DeckStatusCard
+              variant={deckStatusVariant}
+              onRetry={loadMoreError ? onRetryLoadMore : undefined}
+            />
+          ) : (
+            <ConceptCardForIndex
+              concepts={concepts}
+              currentIndex={currentIndex}
+              flipped={flipped}
+              preloadedMediaUrls={preloadedMediaUrls}
+            />
+          )}
         </Animated.View>
       </GestureDetector>
     </View>
   );
+}
+
+function ConceptCardForIndex({
+  concepts,
+  currentIndex,
+  flipped,
+  preloadedMediaUrls,
+}: {
+  concepts: ConceptItem[];
+  currentIndex: number;
+  flipped: boolean;
+  preloadedMediaUrls: ReadonlySet<string>;
+}) {
+  const item = concepts[currentIndex]!;
+  const mediaUri = item.mediaUrl?.trim() ?? '';
+  const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
+  return <ConceptCard item={item} flipped={flipped} isMediaPrefetched={isMediaPrefetched} />;
 }
 
 const styles = StyleSheet.create({
