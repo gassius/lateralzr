@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -6,7 +7,6 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { StyleSheet, View } from 'react-native';
 import { ConceptCard } from './ConceptCard';
 import type { ConceptItem } from '@/lib/api';
 
@@ -15,38 +15,76 @@ type ConceptCardStackProps = {
   currentIndex: number;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
+  availableHeight: number;
+  preloadedMediaUrls: ReadonlySet<string>;
 };
 
-const SWIPE_THRESHOLD = 60;
-const springConfig = { damping: 20, stiffness: 200 };
+const SWIPE_THRESHOLD = 56;
+const springConfig = { damping: 22, stiffness: 220 };
+/** Pan only activates after this horizontal movement so taps go to Gesture.Tap */
+const PAN_ACTIVE_OFFSET = 18;
 
 export function ConceptCardStack({
   concepts,
   currentIndex,
   onSwipeLeft,
   onSwipeRight,
+  availableHeight,
+  preloadedMediaUrls,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
+  const [flipped, setFlipped] = useState(false);
+
+  const cardAreaHeight = Math.max(320, availableHeight);
 
   useEffect(() => {
     translateX.value = 0;
   }, [currentIndex]);
 
+  useEffect(() => {
+    setFlipped(false);
+  }, [currentIndex]);
+
+  const toggleFlip = useCallback(() => {
+    setFlipped((f) => !f);
+  }, []);
+
+  const tap = Gesture.Tap()
+    .maxDistance(14)
+    .onEnd(() => {
+      runOnJS(toggleFlip)();
+    });
+
   const pan = Gesture.Pan()
-    .onUpdate((e) => {
+    .activeOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .onUpdate((e: { translationX: number }) => {
       translateX.value = e.translationX;
     })
-    .onEnd((e) => {
-      const goLeft = e.translationX < -SWIPE_THRESHOLD || e.velocityX < -200;
-      const goRight = e.translationX > SWIPE_THRESHOLD || e.velocityX > 200;
-      if (goLeft) {
-        translateX.value = withSpring(-400, springConfig, () => runOnJS(onSwipeLeft)());
-      } else if (goRight) {
-        translateX.value = withSpring(400, springConfig, () => runOnJS(onSwipeRight)());
-      } else {
+    .onEnd(
+      (e: {
+        translationX: number;
+        translationY: number;
+        velocityX: number;
+        velocityY: number;
+      }) => {
+        const goLeft = e.translationX < -SWIPE_THRESHOLD || e.velocityX < -180;
+        const goRight = e.translationX > SWIPE_THRESHOLD || e.velocityX > 180;
+
+        if (goLeft) {
+          translateX.value = 0;
+          runOnJS(onSwipeLeft)();
+          return;
+        }
+        if (goRight) {
+          translateX.value = 0;
+          runOnJS(onSwipeRight)();
+          return;
+        }
         translateX.value = withSpring(0, springConfig);
-      }
-    });
+      },
+    );
+
+  const composed = Gesture.Exclusive(tap, pan);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -55,55 +93,33 @@ export function ConceptCardStack({
   if (concepts.length === 0) return null;
 
   const item = concepts[currentIndex]!;
+  const mediaUri = item.mediaUrl?.trim() ?? '';
+  const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
 
   return (
-    <View style={styles.container}>
-      <GestureDetector gesture={pan}>
-        <Animated.View style={[styles.cardWrap, animatedStyle]}>
-          <ConceptCard item={item} />
+    <View style={styles.outer}>
+      <GestureDetector gesture={composed}>
+        <Animated.View
+          key={currentIndex}
+          style={[styles.cardWrap, { height: cardAreaHeight }, animatedStyle]}
+        >
+          <ConceptCard item={item} flipped={flipped} isMediaPrefetched={isMediaPrefetched} />
         </Animated.View>
       </GestureDetector>
-      <View style={styles.dots}>
-        {concepts.map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.dot,
-              i === currentIndex && styles.dotActive,
-            ]}
-          />
-        ))}
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  outer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    justifyContent: 'flex-start',
   },
   cardWrap: {
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 24,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.2)',
-  },
-  dotActive: {
-    backgroundColor: '#2f95dc',
-    width: 24,
+    alignSelf: 'center',
   },
 });
