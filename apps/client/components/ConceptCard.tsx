@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/Themed';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
@@ -26,10 +26,22 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
 
-  useEffect(() => {
-    setMediaDecoded(false);
-    setMediaError(false);
-  }, [mediaUri]);
+  // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI (spinner / flash).
+  // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
+  useLayoutEffect(() => {
+    if (mediaUri.length === 0) {
+      setMediaDecoded(true);
+      setMediaError(false);
+      return;
+    }
+    if (isMediaPrefetched) {
+      setMediaDecoded(true);
+      setMediaError(false);
+    } else {
+      setMediaDecoded(false);
+      setMediaError(false);
+    }
+  }, [mediaUri, isMediaPrefetched]);
 
   const imageSource = mediaUri ? { uri: mediaUri, headers: REMOTE_IMAGE_HEADERS } : null;
 
@@ -70,7 +82,7 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
             contentFit="contain"
             cachePolicy="memory-disk"
             priority="high"
-            transition={isMediaPrefetched ? 0 : 280}
+            transition={0}
             onLoad={() => {
               setMediaDecoded(true);
               setMediaError(false);
@@ -125,19 +137,16 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           style={styles.eagerPreload}
           cachePolicy="memory-disk"
           priority="high"
+          transition={0}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
       ) : null}
       <View style={styles.face}>
         {flipped ? (
-          <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(180)} style={styles.faceFill}>
-            {back}
-          </Animated.View>
+          <Animated.View style={styles.faceFill}>{back}</Animated.View>
         ) : (
-          <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(180)} style={styles.faceFill}>
-            {front}
-          </Animated.View>
+          <Animated.View style={styles.faceFill}>{front}</Animated.View>
         )}
       </View>
     </View>
