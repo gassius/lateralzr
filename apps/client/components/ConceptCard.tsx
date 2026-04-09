@@ -1,11 +1,19 @@
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
 import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { Text } from '@/components/Themed';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { REMOTE_IMAGE_HEADERS } from '@/lib/remoteImage';
+
+const FLIP_MS = 420;
 
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
@@ -25,6 +33,15 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
+  const flipProgress = useSharedValue(0);
+
+  useEffect(() => {
+    flipProgress.value = withTiming(flipped ? 1 : 0, {
+      duration: FLIP_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [flipped, flipProgress]);
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI (spinner / flash).
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
@@ -44,6 +61,22 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
   }, [mediaUri, isMediaPrefetched]);
 
   const imageSource = mediaUri ? { uri: mediaUri, headers: REMOTE_IMAGE_HEADERS } : null;
+
+  const frontFaceStyle = useAnimatedStyle(() => {
+    const rot = interpolate(flipProgress.value, [0, 1], [0, -90]);
+    return {
+      opacity: interpolate(flipProgress.value, [0, 0.48, 0.52, 1], [1, 1, 0, 0]),
+      transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
+    };
+  });
+
+  const backFaceStyle = useAnimatedStyle(() => {
+    const rot = interpolate(flipProgress.value, [0, 1], [90, 0]);
+    return {
+      opacity: interpolate(flipProgress.value, [0, 0.48, 0.52, 1], [0, 0, 1, 1]),
+      transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
+    };
+  });
 
   const front = (
     <View style={styles.faceInner}>
@@ -143,11 +176,14 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
         />
       ) : null}
       <View style={styles.face}>
-        {flipped ? (
-          <Animated.View style={styles.faceFill}>{back}</Animated.View>
-        ) : (
-          <Animated.View style={styles.faceFill}>{front}</Animated.View>
-        )}
+        <View style={styles.flipRoot}>
+          <Animated.View style={[styles.faceSide, styles.faceFront, frontFaceStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
+            {front}
+          </Animated.View>
+          <Animated.View style={[styles.faceSide, styles.faceBack, backFaceStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
+            {back}
+          </Animated.View>
+        </View>
       </View>
     </View>
   );
@@ -179,9 +215,19 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 1,
   },
-  faceFill: {
+  flipRoot: {
     flex: 1,
     minHeight: 0,
+    position: 'relative',
+  },
+  faceSide: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  faceFront: {
+    zIndex: 2,
+  },
+  faceBack: {
+    zIndex: 1,
   },
   faceInner: {
     flex: 1,

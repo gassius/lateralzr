@@ -18,14 +18,18 @@ type ConceptCardStackProps = {
   currentIndex: number;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
+  /** Same forward motion as swipe left; also adjusts complexity for the next API call. */
+  onSwipeForwardVertical: (direction: 'up' | 'down') => void;
   availableHeight: number;
   preloadedMediaUrls: ReadonlySet<string>;
-  loadingMore: boolean;
+  /** Loading / error deck card — only when user is at the true end and waiting (see HomeScreen). */
+  showDeckLoading: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
 };
 
 const SWIPE_THRESHOLD = 56;
+const SWIPE_VELOCITY_Y = 650;
 const springConfig = { damping: 22, stiffness: 220 };
 const PAN_ACTIVE_OFFSET = 18;
 const MAX_ROTATION_DEG = 45;
@@ -35,6 +39,8 @@ const ENTER_ROTATION_DEG = 14;
 const SWIPE_RIGHT_COMMIT_DURATION_MS = 200;
 /** Front card exits left before index advances; same pattern as swipe right. */
 const SWIPE_LEFT_COMMIT_DURATION_MS = 200;
+/** Vertical forward exits up or down before index advances. */
+const SWIPE_VERTICAL_COMMIT_DURATION_MS = 220;
 const CARD_ASPECT = 1.4;
 /** Move behind peek off-screen instead of opacity:0 — opacity toggles caused a sibling alpha compositor flash on handoff. */
 const BEHIND_PEEK_OFFSCREEN_X = -4096;
@@ -44,13 +50,15 @@ export function ConceptCardStack({
   currentIndex,
   onSwipeLeft,
   onSwipeRight,
+  onSwipeForwardVertical,
   availableHeight,
   preloadedMediaUrls,
-  loadingMore,
+  showDeckLoading,
   loadMoreError,
   onRetryLoadMore,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
   const enterX = useSharedValue(0);
   const enterR = useSharedValue(0);
   const swipeAnimating = useSharedValue(false);
@@ -86,8 +94,8 @@ export function ConceptCardStack({
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
   const showDeckStatus = useMemo(
-    () => isLastCard && (loadingMore || loadMoreError),
-    [isLastCard, loadingMore, loadMoreError],
+    () => isLastCard && (showDeckLoading || loadMoreError),
+    [isLastCard, showDeckLoading, loadMoreError],
   );
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
@@ -115,9 +123,11 @@ export function ConceptCardStack({
     runOnUI(() => {
       'worklet';
       translateX.value = 0;
+      translateY.value = 0;
       swipeAnimating.value = false;
     })();
     translateX.value = 0;
+    translateY.value = 0;
     swipeAnimating.value = false;
     setFlipped(false);
 
@@ -133,8 +143,9 @@ export function ConceptCardStack({
       enterX.value = 0;
       enterR.value = 0;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- run only when deck index changes
-  }, [currentIndex]);
+    // Also when showDeckStatus toggles (e.g. deck loading UI) without index change — forward swipe from last
+    // left translateX/Y off-screen; reset so the status card is visible and not stuck on blue background.
+  }, [currentIndex, showDeckStatus]);
 
   // Clear overlay/behind locks + suppression after paint so Reanimated and native have applied translateX = 0
   // before we drop the lock (same cadence as swipe-right path).
@@ -143,13 +154,20 @@ export function ConceptCardStack({
     setBehindLockedIndex(null);
     returnOverlaySuppressSV.value = 0;
     behindPeekSuppressSV.value = 0;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mirror currentIndex layout reset
-  }, [currentIndex]);
+  }, [currentIndex, showDeckStatus]);
 
   const commitSwipeLeft = useCallback(() => {
     navIntentRef.current = 'forward';
     onSwipeLeft();
   }, [onSwipeLeft]);
+
+  const commitSwipeVertical = useCallback(
+    (direction: 'up' | 'down') => {
+      navIntentRef.current = 'forward';
+      onSwipeForwardVertical(direction);
+    },
+    [onSwipeForwardVertical],
+  );
 
   const commitSwipeRight = useCallback(() => {
     // Gesture already animated the previous card into place; do not replay backward enter on index change.
@@ -179,8 +197,12 @@ export function ConceptCardStack({
       runOnJS(toggleFlip)();
     });
 
-  const pan = Gesture.Pan()
+  const panX = Gesture.Pan()
     .activeOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .failOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .onStart(() => {
+      translateY.value = 0;
+    })
     .onUpdate((e: { translationX: number }) => {
       if (swipeAnimating.value) return;
       let tx = e.translationX;
@@ -234,12 +256,75 @@ export function ConceptCardStack({
       },
     );
 
-  const composed = showDeckStatus ? pan : Gesture.Exclusive(tap, pan);
+  const panY = Gesture.Pan()
+    .activeOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .failOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .onStart(() => {
+      translateX.value = 0;
+    })
+    .onUpdate((e: { translationY: number }) => {
+      if (swipeAnimating.value) return;
+      if (showDeckStatusSV.value === 1) {
+        translateY.value = 0;
+        return;
+      }
+      translateY.value = e.translationY;
+    })
+    .onEnd(
+      (e: {
+        translationX: number;
+        translationY: number;
+        velocityX: number;
+        velocityY: number;
+      }) => {
+        if (swipeAnimating.value) return;
+        const goUp = e.translationY < -SWIPE_THRESHOLD || e.velocityY < -SWIPE_VELOCITY_Y;
+        const goDown = e.translationY > SWIPE_THRESHOLD || e.velocityY > SWIPE_VELOCITY_Y;
+        if (!goUp && !goDown) {
+          translateY.value = withSpring(0, springConfig);
+          return;
+        }
+        let direction: 'up' | 'down';
+        if (goUp && goDown) {
+          direction = e.velocityY < 0 || (e.velocityY === 0 && e.translationY < 0) ? 'up' : 'down';
+        } else if (goUp) {
+          direction = 'up';
+        } else {
+          direction = 'down';
+        }
 
-  /** Current / top-of-deck card — only moves & tilts when swiping left (forward). */
+        if (showDeckStatusSV.value === 1) {
+          translateY.value = withSpring(0, springConfig);
+          return;
+        }
+        swipeAnimating.value = true;
+        runOnJS(lockBehindIndexForLeftCommit)();
+        const h = Math.max(1, cardHeightSV.value);
+        const target = direction === 'up' ? -(h + 140) : h + 140;
+        translateY.value = withTiming(target, { duration: SWIPE_VERTICAL_COMMIT_DURATION_MS }, (finished) => {
+          if (finished) {
+            runOnJS(commitSwipeVertical)(direction);
+          }
+        });
+      },
+    );
+
+  const composed = showDeckStatus
+    ? Gesture.Exclusive(panX, panY)
+    : flipped
+      ? Gesture.Exclusive(tap, panX)
+      : Gesture.Exclusive(tap, panX, panY);
+
+  /** Current / top-of-deck card — horizontal forward: tilt + X; vertical forward: Y only. */
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const w = Math.max(1, cardWidthSV.value);
     const h = cardHeightSV.value;
+    const ty = translateY.value;
+    if (Math.abs(ty) > 0.5) {
+      return {
+        transform: [{ translateX: enterX.value }, { translateY: ty }],
+      };
+    }
     const tx = translateX.value < 0 ? translateX.value : 0;
     const rotBase =
       translateX.value < 0

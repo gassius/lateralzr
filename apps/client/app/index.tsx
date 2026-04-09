@@ -5,14 +5,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
-import { fetchConceptRelationships, type ConceptItem } from '@/lib/api';
+import { fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { mergeUniqueRelated } from '@/lib/mergeConcepts';
 import { Palette } from '@/constants/Colors';
+import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 
 /**
  * Prefetch the next API batch when at most this many concepts remain **ahead** of the
- * current card (not counting the card you’re on). So with 2: when you still have two
- * cards to swipe to that you haven’t opened yet, we already request more.
+ * current card (not counting the card you're on). So with 2: when you still have two
+ * cards to swipe to that you haven't opened yet, we already request more.
  */
 const UNVISITED_AHEAD_PREFETCH_AT = 2;
 
@@ -27,18 +28,51 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
+  const [complexityHydrated, setComplexityHydrated] = useState(false);
+
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
+  /** True only after the user swipes forward from the last card while waiting for more items. */
+  const [pendingEndDeckLoad, setPendingEndDeckLoad] = useState(false);
 
   const conceptsRef = useRef(concepts);
+  const currentIndexRef = useRef(currentIndex);
   const loadMoreInFlightRef = useRef(false);
   const emptyRetryDelayRef = useRef(INITIAL_EMPTY_RETRY_MS);
   const emptyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
+  const pendingEndDeckLoadRef = useRef(false);
+  const complexityRef = useRef(complexity);
+
+  useEffect(() => {
+    complexityRef.current = complexity;
+  }, [complexity]);
 
   useEffect(() => {
     conceptsRef.current = concepts;
   }, [concepts]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    pendingEndDeckLoadRef.current = pendingEndDeckLoad;
+  }, [pendingEndDeckLoad]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadStoredComplexity().then((c) => {
+      if (!cancelled) {
+        setComplexity(c);
+        setComplexityHydrated(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
@@ -60,10 +94,12 @@ export default function HomeScreen() {
     setLoading(true);
     setError(null);
     setLoadMoreError(false);
+    setPendingEndDeckLoad(false);
+    pendingEndDeckLoadRef.current = false;
     clearEmptyRetry();
     emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
     try {
-      const data = await fetchConceptRelationships({ count: 5 });
+      const data = await fetchConceptRelationships({ count: 5, complexity: complexityRef.current });
       const list: ConceptItem[] = [data.seed, ...data.related_concepts];
       setConcepts(list);
       setCurrentIndex(0);
@@ -75,8 +111,9 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    loadConcepts();
-  }, [loadConcepts]);
+    if (!complexityHydrated) return;
+    void loadConcepts();
+  }, [complexityHydrated, loadConcepts]);
 
   const loadMoreConcepts = useCallback(async () => {
     if (loadMoreInFlightRef.current) return;
@@ -94,7 +131,7 @@ export default function HomeScreen() {
     setLoadMoreError(false);
 
     try {
-      const data = await fetchConceptRelationships({ seed, count: 5 });
+      const data = await fetchConceptRelationships({ seed, count: 5, complexity: complexityRef.current });
       const related = data.related_concepts ?? [];
 
       const merged = mergeUniqueRelated(conceptsRef.current, related);
@@ -112,7 +149,15 @@ export default function HomeScreen() {
         setConcepts((prev) => {
           const fresh = mergeUniqueRelated(prev, related);
           if (fresh.length === 0) return prev;
-          return [...prev, ...fresh];
+          const next = [...prev, ...fresh];
+          if (pendingEndDeckLoadRef.current) {
+            queueMicrotask(() => {
+              setCurrentIndex(prev.length);
+              pendingEndDeckLoadRef.current = false;
+              setPendingEndDeckLoad(false);
+            });
+          }
+          return next;
         });
       }
     } catch {
@@ -144,16 +189,48 @@ export default function HomeScreen() {
   }, [loading, concepts.length, currentIndex, loadMoreError, loadMoreConcepts]);
 
   const onSwipeLeft = useCallback(() => {
-    setCurrentIndex((i) => Math.min(i + 1, Math.max(0, concepts.length - 1)));
-  }, [concepts.length]);
+    const len = conceptsRef.current.length;
+    const i = currentIndexRef.current;
+    if (len === 0) return;
+    if (i < len - 1) {
+      pendingEndDeckLoadRef.current = false;
+      setPendingEndDeckLoad(false);
+      setCurrentIndex(i + 1);
+      return;
+    }
+    // Stuck on last card: show deck loading UI immediately (do not require loadingMore yet — avoids empty gap).
+    pendingEndDeckLoadRef.current = true;
+    setPendingEndDeckLoad(true);
+    // Index does not change, so the prefetch effect will not re-run; request more explicitly.
+    queueMicrotask(() => {
+      void loadMoreConceptsRef.current();
+    });
+  }, []);
 
   const onSwipeRight = useCallback(() => {
+    pendingEndDeckLoadRef.current = false;
+    setPendingEndDeckLoad(false);
     setCurrentIndex((i) => Math.max(i - 1, 0));
   }, []);
 
+  const onSwipeForwardVertical = useCallback(
+    (direction: 'up' | 'down') => {
+      const next = clampComplexity(complexityRef.current + (direction === 'up' ? 1 : -1));
+      complexityRef.current = next;
+      setComplexity(next);
+      void persistComplexity(next);
+      onSwipeLeft();
+    },
+    [onSwipeLeft],
+  );
+
+  const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
+  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
+  const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
+
   const usableHeight = windowHeight - insets.top - insets.bottom;
 
-  if (loading && concepts.length === 0) {
+  if (!complexityHydrated || (loading && concepts.length === 0)) {
     return (
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
@@ -194,9 +271,10 @@ export default function HomeScreen() {
           currentIndex={currentIndex}
           onSwipeLeft={onSwipeLeft}
           onSwipeRight={onSwipeRight}
+          onSwipeForwardVertical={onSwipeForwardVertical}
           availableHeight={usableHeight}
           preloadedMediaUrls={preloadedMediaUrls}
-          loadingMore={loadingMore}
+          showDeckLoading={showDeckLoading}
           loadMoreError={loadMoreError}
           onRetryLoadMore={retryLoadMore}
         />
