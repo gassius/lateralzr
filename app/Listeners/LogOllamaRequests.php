@@ -6,8 +6,8 @@ use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Events\AgentPrompted;
 use Laravel\Ai\Events\PromptingAgent;
 use Laravel\Ai\Responses\AgentResponse;
-use Laravel\Ai\Responses\StructuredAgentResponse;
 use Laravel\Ai\Responses\StreamedAgentResponse;
+use Laravel\Ai\Responses\StructuredAgentResponse;
 
 class LogOllamaRequests
 {
@@ -25,14 +25,14 @@ class LogOllamaRequests
     {
         try {
             $prompt = $event->prompt;
-            
+
             // Extract provider and model from prompt
             $providerInstance = $prompt->provider();
             $providerName = class_basename($providerInstance);
             $model = $prompt->model ?? 'default';
 
             // Only log for Ollama provider (check class name)
-            if (!str_contains(strtolower($providerName), 'ollama')) {
+            if (! str_contains(strtolower($providerName), 'ollama')) {
                 return;
             }
 
@@ -54,12 +54,16 @@ class LogOllamaRequests
             }
 
             if ($event instanceof PromptingAgent) {
-                // Log outgoing request
+                // $prompt->prompt is only the user message; Laravel AI sends
+                // $prompt->agent->instructions() as the system prompt separately (see GeneratesText / PrismGateway).
+                $agent = $prompt->agent;
                 Log::channel('single')->debug('Ollama Request', [
                     'invocation_id' => $invocationId,
                     'provider' => $providerName,
                     'model' => $model,
-                    'prompt_text' => $prompt->prompt,
+                    'agent_class' => $agent::class,
+                    'system_instructions' => (string) $agent->instructions(),
+                    'user_message' => $prompt->prompt,
                     'timeout' => $prompt->timeout ?? null,
                 ]);
             } elseif ($event instanceof AgentPrompted) {

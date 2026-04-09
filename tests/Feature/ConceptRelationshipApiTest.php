@@ -23,8 +23,9 @@ class ConceptRelationshipApiTest extends TestCase
         $mockService = Mockery::mock(ConceptRelationshipService::class);
         $mockService->shouldReceive('generateRelationships')
             ->once()
-            ->with('creativity', null)
+            ->with('creativity', null, null, null)
             ->andReturn([
+                'complexity' => 2,
                 'seed' => [
                     'concept' => 'creativity',
                     'shortDescription' => 'The use of imagination or original ideas to create something',
@@ -58,6 +59,7 @@ class ConceptRelationshipApiTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
+                    'complexity',
                     'seed' => [
                         'concept',
                         'shortDescription',
@@ -91,8 +93,9 @@ class ConceptRelationshipApiTest extends TestCase
         $mockService = Mockery::mock(ConceptRelationshipService::class);
         $mockService->shouldReceive('generateRelationships')
             ->once()
-            ->with('innovation', 5)
+            ->with('innovation', 5, null, null)
             ->andReturn([
+                'complexity' => 2,
                 'seed' => [
                     'concept' => 'innovation',
                     'shortDescription' => 'The introduction of something new',
@@ -117,10 +120,11 @@ class ConceptRelationshipApiTest extends TestCase
         $mockService = Mockery::mock(ConceptRelationshipService::class);
         $mockService->shouldReceive('generateRelationships')
             ->once()
-            ->withArgs(function ($seed, $count) {
-                return $count === null && ($seed === null || (is_string($seed) && $seed !== ''));
+            ->withArgs(function ($seed, $count, $agent, $complexity) {
+                return $count === null && $complexity === null && ($seed === null || (is_string($seed) && $seed !== ''));
             })
             ->andReturn([
+                'complexity' => 2,
                 'seed' => [
                     'concept' => 'creativity',
                     'shortDescription' => 'The use of imagination',
@@ -154,10 +158,11 @@ class ConceptRelationshipApiTest extends TestCase
         $mockService = Mockery::mock(ConceptRelationshipService::class);
         $mockService->shouldReceive('generateRelationships')
             ->once()
-            ->withArgs(function ($seed, $count) {
-                return $count === null && ($seed === null || (is_string($seed) && $seed !== ''));
+            ->withArgs(function ($seed, $count, $agent, $complexity) {
+                return $count === null && $complexity === null && ($seed === null || (is_string($seed) && $seed !== ''));
             })
             ->andReturn([
+                'complexity' => 2,
                 'seed' => [
                     'concept' => 'innovation',
                     'shortDescription' => 'Cold start',
@@ -186,6 +191,45 @@ class ConceptRelationshipApiTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['count']);
+    }
+
+    public function test_generate_endpoint_validates_complexity_range(): void
+    {
+        $response = $this->postJson('/api/concepts/relationships', [
+            'seed' => 'test',
+            'complexity' => 6,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['complexity']);
+    }
+
+    public function test_generate_endpoint_passes_complexity_to_service(): void
+    {
+        $mockService = Mockery::mock(ConceptRelationshipService::class);
+        $mockService->shouldReceive('generateRelationships')
+            ->once()
+            ->with('creativity', null, null, 4)
+            ->andReturn([
+                'complexity' => 4,
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'Desc',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [],
+            ]);
+
+        $this->app->instance(ConceptRelationshipService::class, $mockService);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'seed' => 'creativity',
+            'complexity' => 4,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.complexity', 4);
     }
 
     public function test_generate_endpoint_handles_service_exception(): void

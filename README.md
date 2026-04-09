@@ -194,21 +194,32 @@ Generates laterally related concepts from a seed concept using the local LLM. **
 ```json
 {
   "seed": "creativity",
-  "count": 5
+  "count": 5,
+  "complexity": 2
 }
 ```
-`seed` is optional; when omitted, the API picks a random concept from config or the database. `count` is optional (default 3–5, max 10).
+- `seed` — optional; when omitted, the API picks a random concept from config or the database.
+- `count` — optional (default 3–5 concepts, max 10).
+- `complexity` — optional, integer **1–5**: controls **label length** for each `concept` (word caps: 1 = one word, 2 = **max two words**—places, people, short artwork titles; 3–4 = up to 3–4 words; 5 = longer scholarly titles). Default **2** (`CONCEPTS_DEFAULT_COMPLEXITY` in `.env`).
 
 **Response:**
 ```json
 {
   "data": {
-    "seed": "creativity",
+    "complexity": 2,
+    "seed": {
+      "concept": "creativity",
+      "shortDescription": "...",
+      "wikiUrl": "...",
+      "mediaUrl": null
+    },
     "related_concepts": [
       {
         "concept": "constraint",
-        "rationale": "Limitations can spark creative solutions",
-        "strength": 0.8
+        "shortDescription": "Limitations can spark creative solutions",
+        "larelality": 3,
+        "wikiUrl": null,
+        "mediaUrl": null
       }
     ]
   },

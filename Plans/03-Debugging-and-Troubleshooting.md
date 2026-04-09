@@ -16,7 +16,7 @@ tail -f storage/logs/laravel.log
 
 ### What Gets Logged
 
-- **Outgoing Requests**: Prompt text, model, provider, invocation ID
+- **Outgoing Requests**: `agent_class`, `system_instructions` (from the agent’s `instructions()` method), `user_message` (the string passed to `->prompt()`), model, provider, invocation ID. The old field name `prompt_text` only reflected the user message; the system prompt is sent separately by Laravel AI and was easy to miss in logs.
 - **Incoming Responses**: Response text, structured data, usage information
 
 Look for log entries prefixed with:
@@ -26,7 +26,7 @@ Look for log entries prefixed with:
 ### Example Log Output
 
 ```
-[2026-02-13 10:54:27] local.DEBUG: Ollama Request {"invocation_id":"abc123","provider":"OllamaProvider","model":"llama3.2:3b","prompt_text":"Given the seed concept: \"creativity\"..."}
+[2026-02-13 10:54:27] local.DEBUG: Ollama Request {"invocation_id":"abc123","agent_class":"App\\Ai\\Agents\\ConceptsOnlyAgent","system_instructions":"You are a lateral thinking assistant...","user_message":"Seed concept: \"creativity\"..."}
 [2026-02-13 10:54:28] local.DEBUG: Ollama Response {"invocation_id":"abc123","provider":"OllamaProvider","model":"llama3.2:3b","response_text":"...","response_data":{"seed":"creativity","related_concepts":[...]}}
 ```
 

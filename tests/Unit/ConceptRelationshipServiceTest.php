@@ -79,6 +79,8 @@ class ConceptRelationshipServiceTest extends TestCase
         $result = $this->service->generateRelationships('creativity', null, $mockAgent);
 
         $this->assertIsArray($result);
+        $this->assertArrayHasKey('complexity', $result);
+        $this->assertSame(2, $result['complexity']);
         $this->assertArrayHasKey('seed', $result);
         $this->assertArrayHasKey('related_concepts', $result);
 
@@ -182,6 +184,70 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertArrayHasKey('mediaUrl', $result['related_concepts'][0]);
     }
 
+    public function test_generate_relationships_truncates_concept_labels_to_match_complexity_two(): void
+    {
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')
+            ->once()
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'creativity',
+                    'shortDescription' => 'Seed gloss.',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [
+                    [
+                        'concept' => "Benoît Mandelbrot's work on fractals in literature",
+                        'shortDescription' => 'A long-winded label example.',
+                        'larelality' => 3,
+                        'wikiUrl' => null,
+                        'mediaUrl' => null,
+                    ],
+                ],
+            ]);
+
+        $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
+        $mockAgent->shouldReceive('prompt')->andReturn($mockResponse);
+
+        $result = $this->service->generateRelationships('creativity', null, $mockAgent, 2);
+
+        $this->assertSame(2, $result['complexity']);
+        $this->assertSame("Benoît Mandelbrot's", $result['related_concepts'][0]['concept']);
+    }
+
+    public function test_generate_relationships_fills_empty_short_descriptions(): void
+    {
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')
+            ->once()
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'Kyoto',
+                    'shortDescription' => '',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [
+                    [
+                        'concept' => 'Marble',
+                        'shortDescription' => '   ',
+                        'larelality' => 3,
+                        'wikiUrl' => null,
+                        'mediaUrl' => null,
+                    ],
+                ],
+            ]);
+
+        $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
+        $mockAgent->shouldReceive('prompt')->andReturn($mockResponse);
+
+        $result = $this->service->generateRelationships('Kyoto', null, $mockAgent);
+
+        $this->assertStringContainsString('Kyoto', $result['seed']['shortDescription']);
+        $this->assertStringContainsString('Marble', $result['related_concepts'][0]['shortDescription']);
+    }
+
     public function test_generate_relationships_throws_exception_on_non_structured_response(): void
     {
         $mockResponse = Mockery::mock(AgentResponse::class);
@@ -251,6 +317,7 @@ class ConceptRelationshipServiceTest extends TestCase
                         return true;
                     }
                 }
+
                 return false;
             }))
             ->andReturn($mockResponse);
@@ -261,6 +328,34 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertArrayHasKey('seed', $result);
         $this->assertArrayHasKey('related_concepts', $result);
         $this->assertContains($result['seed']['concept'], $defaultSeeds);
+    }
+
+    public function test_generate_relationships_accepts_explicit_complexity(): void
+    {
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')
+            ->once()
+            ->andReturn([
+                'seed' => [
+                    'concept' => 'test',
+                    'shortDescription' => 'Desc',
+                    'wikiUrl' => null,
+                    'mediaUrl' => null,
+                ],
+                'related_concepts' => [],
+            ]);
+
+        $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
+        $mockAgent->shouldReceive('prompt')
+            ->once()
+            ->with(Mockery::on(function (string $prompt) {
+                return str_contains($prompt, 'Target complexity for this request: **4**');
+            }))
+            ->andReturn($mockResponse);
+
+        $result = $this->service->generateRelationships('test', null, $mockAgent, 4);
+
+        $this->assertSame(4, $result['complexity']);
     }
 
     protected function tearDown(): void

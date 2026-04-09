@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptsOnlyAgent;
+use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
 use App\Models\Concept;
@@ -27,11 +28,12 @@ class ConceptRelationshipService
      * @param  string|null  $seedConcept  The seed concept to generate relationships from; null for cold start (random seed)
      * @param  int|null  $count  Optional number of concepts to generate (default: 3-5)
      * @param  object|null  $agent  Optional agent instance (for testing; must implement prompt() and return StructuredAgentResponse)
-     * @return array{seed: array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}, related_concepts: array<int, array{concept: string, shortDescription: string, larelality: int, wikiUrl: string|null, mediaUrl: string|null}>}
+     * @param  int|null  $complexity  Concept name complexity 1–5; null uses config `concepts.default_complexity`
+     * @return array{complexity: int, seed: array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}, related_concepts: array<int, array{concept: string, shortDescription: string, larelality: int, wikiUrl: string|null, mediaUrl: string|null}>}
      *
      * @throws \Exception
      */
-    public function generateRelationships(?string $seedConcept, ?int $count = null, ?object $agent = null): array
+    public function generateRelationships(?string $seedConcept, ?int $count = null, ?object $agent = null, ?int $complexity = null): array
     {
         if ($seedConcept === null || trim($seedConcept) === '') {
             $seedConcept = $this->resolveRandomSeed();
@@ -39,13 +41,31 @@ class ConceptRelationshipService
             $seedConcept = trim($seedConcept);
         }
 
-        $agent = $agent ?? new ConceptsOnlyAgent();
+        $agent = $agent ?? new ConceptsOnlyAgent;
+
+        $complexity = $complexity ?? (int) config('concepts.default_complexity', 2);
+        $complexity = max(1, min(5, $complexity));
 
         $countText = $count
             ? "Generate exactly {$count} related concepts."
             : 'Generate 3 to 5 related concepts.';
 
-        $userPrompt = "Seed concept: \"{$seedConcept}\"\n\n{$countText}\n\nFollow your instructions and schema. Leave wikiUrl and mediaUrl as null for all concepts.";
+        $complexityBlock = LateralConceptAgentInstructions::complexityUserInstructions($complexity);
+
+        $userPrompt = <<<PROMPT
+Seed concept: "{$seedConcept}"
+
+{$countText}
+
+{$complexityBlock}
+
+Requirements:
+- The first related concept must not be a same-domain / encyclopedia-neighbor of the seed (avoid catalog walks in one field).
+- If a candidate is really just "more of the same subject area" as the seed, score it 1 and pick a different concept instead.
+- Only explain an obvious vertical link to the seed in shortDescription when larelality is 1; for 2+ keep the description neutral or oblique (see system instructions).
+- Every `shortDescription` must be non-empty (at least one sentence describing what the concept is). Never return blank descriptions.
+- Leave wikiUrl and mediaUrl null for every item; follow the schema and system instructions.
+PROMPT;
 
         $response = $agent->prompt($userPrompt);
 
@@ -60,9 +80,17 @@ class ConceptRelationshipService
             $seedData = ['concept' => is_string($seedData) ? $seedData : $seedConcept];
         }
 
+        $seedConceptName = $this->applyConceptWordLimit(
+            (string) ($seedData['concept'] ?? $seedData['name'] ?? $seedConcept),
+            $complexity
+        );
+
         $seed = [
-            'concept' => $seedData['concept'] ?? $seedData['name'] ?? $seedConcept,
-            'shortDescription' => $seedData['shortDescription'] ?? $seedData['description'] ?? '',
+            'concept' => $seedConceptName,
+            'shortDescription' => $this->normalizeShortDescription(
+                $seedConceptName,
+                $seedData['shortDescription'] ?? $seedData['description'] ?? ''
+            ),
             'wikiUrl' => $seedData['wikiUrl'] ?? null,
             'mediaUrl' => $seedData['mediaUrl'] ?? null,
         ];
@@ -75,13 +103,22 @@ class ConceptRelationshipService
             $related = [];
         }
 
-        $related = array_map(function ($concept) {
+        $related = array_map(function ($concept) use ($complexity) {
             if (! is_array($concept)) {
                 return $concept;
             }
+
+            $name = $this->applyConceptWordLimit(
+                (string) ($concept['concept'] ?? $concept['name'] ?? ''),
+                $complexity
+            );
+
             return [
-                'concept' => $concept['concept'] ?? $concept['name'] ?? '',
-                'shortDescription' => $concept['shortDescription'] ?? $concept['description'] ?? '',
+                'concept' => $name,
+                'shortDescription' => $this->normalizeShortDescription(
+                    $name,
+                    $concept['shortDescription'] ?? $concept['description'] ?? ''
+                ),
                 'larelality' => $concept['larelality'] ?? $concept['laterality'] ?? 1,
                 'wikiUrl' => $concept['wikiUrl'] ?? null,
                 'mediaUrl' => $concept['mediaUrl'] ?? null,
@@ -93,9 +130,70 @@ class ConceptRelationshipService
         $related = array_map(fn ($c) => $this->resolveUrlsForConcept($c), $related);
 
         return [
+            'complexity' => $complexity,
             'seed' => $seed,
             'related_concepts' => $related,
         ];
+    }
+
+    /**
+     * Enforce max word count for `concept` labels (LLMs often ignore prompt caps). Uses Unicode-aware splitting.
+     */
+    protected function applyConceptWordLimit(string $concept, int $complexity): string
+    {
+        $maxWords = match ($complexity) {
+            1 => 1,
+            2 => 2,
+            3 => 4,
+            4 => 4,
+            5 => 6,
+            default => 2,
+        };
+
+        $trimmed = trim($concept);
+        if ($trimmed === '') {
+            return $trimmed;
+        }
+
+        $words = preg_split('/\s+/u', $trimmed, -1, PREG_SPLIT_NO_EMPTY);
+        if ($words === false || count($words) <= $maxWords) {
+            return $trimmed;
+        }
+
+        $limited = implode(' ', array_slice($words, 0, $maxWords));
+
+        Log::info('ConceptRelationshipService: concept label truncated to match complexity', [
+            'complexity' => $complexity,
+            'max_words' => $maxWords,
+            'original' => $trimmed,
+            'truncated' => $limited,
+        ]);
+
+        return $limited;
+    }
+
+    /**
+     * Ensure shortDescription is never blank (models sometimes omit when asked to stay "oblique").
+     */
+    protected function normalizeShortDescription(string $concept, ?string $shortDescription): string
+    {
+        $text = trim((string) $shortDescription);
+        if ($text !== '') {
+            return $text;
+        }
+
+        $label = trim($concept);
+        if ($label === '') {
+            Log::debug('ConceptRelationshipService: empty shortDescription and concept; using generic fallback');
+
+            return 'A concept in this lateral chain.';
+        }
+
+        Log::debug('ConceptRelationshipService: empty shortDescription filled from concept label', [
+            'concept' => $label,
+        ]);
+
+        return "Short label in this chain: {$label}.";
     }
 
     /**
@@ -135,6 +233,7 @@ class ConceptRelationshipService
             Log::info('ConceptUrlCache: using stored record', ['concept' => $normalized]);
             $item['wikiUrl'] = $cached->wiki_url;
             $item['mediaUrl'] = $cached->media_url;
+
             return $item;
         }
 
@@ -155,6 +254,7 @@ class ConceptRelationshipService
 
         $item['wikiUrl'] = $wikiUrl;
         $item['mediaUrl'] = $mediaUrl;
+
         return $item;
     }
 }

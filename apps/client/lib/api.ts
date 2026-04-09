@@ -12,18 +12,25 @@ export type ConceptItem = {
 
 export type ConceptRelationshipsResponse = {
   data: {
+    /** 1 = simplest labels … 5 = dense academic; echoed from request or server default */
+    complexity: number;
     seed: ConceptItem;
     related_concepts: ConceptItem[];
   };
   status: string;
 };
 
+/** Default complexity when not specified — matches API `concepts.default_complexity` (2). */
+export const DEFAULT_CONCEPT_COMPLEXITY = 2;
+
 export async function fetchConceptRelationships(
-  options?: { seed?: string; count?: number }
+  options?: { seed?: string; count?: number; complexity?: number }
 ): Promise<ConceptRelationshipsResponse['data']> {
-  const body: { seed?: string; count?: number } = {};
+  const body: { seed?: string; count?: number; complexity?: number } = {};
   if (options?.seed != null && options.seed.trim() !== '') body.seed = options.seed.trim();
   if (options?.count != null) body.count = options.count;
+  // Always send complexity so the API and proxies see an explicit tier (defaults to 2).
+  body.complexity = options?.complexity ?? DEFAULT_CONCEPT_COMPLEXITY;
 
   const res = await fetch(`${API_URL}/api/concepts/relationships`, {
     method: 'POST',

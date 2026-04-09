@@ -11,15 +11,12 @@ class ConceptRelationshipController
 {
     public function __construct(
         protected ConceptRelationshipService $service
-    ) {
-    }
+    ) {}
 
     /**
      * Generate laterally related concepts from a seed concept.
      * When seed is omitted, the API chooses a random concept (cold start).
      *
-     * @param  Request  $request
-     * @return JsonResponse
      *
      * @throws ValidationException
      */
@@ -28,6 +25,7 @@ class ConceptRelationshipController
         $validated = $request->validate([
             'seed' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
             'count' => ['sometimes', 'integer', 'min:1', 'max:10'],
+            'complexity' => ['sometimes', 'integer', 'min:1', 'max:5'],
         ]);
 
         $seed = isset($validated['seed']) && trim((string) $validated['seed']) !== ''
@@ -37,7 +35,8 @@ class ConceptRelationshipController
         try {
             $result = $this->service->generateRelationships(
                 seedConcept: $seed,
-                count: $validated['count'] ?? null
+                count: $validated['count'] ?? null,
+                complexity: $validated['complexity'] ?? null
             );
 
             return response()->json([

@@ -45,6 +45,7 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
             ])
             ->assertJsonStructure([
                 'data' => [
+                    'complexity',
                     'seed' => [
                         'concept',
                         'shortDescription',
@@ -65,14 +66,14 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
             ]);
 
         $data = $response->json('data');
-        
+
         // Check seed structure
         $this->assertIsArray($data['seed']);
         $this->assertArrayHasKey('concept', $data['seed']);
         $this->assertArrayHasKey('shortDescription', $data['seed']);
         $this->assertArrayHasKey('wikiUrl', $data['seed']);
         $this->assertArrayHasKey('mediaUrl', $data['seed']);
-        
+
         $this->assertIsArray($data['related_concepts']);
 
         // If no concepts returned, log the full response for debugging

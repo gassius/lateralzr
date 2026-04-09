@@ -2,10 +2,12 @@
 
 namespace App\Ai\Agents;
 
-use App\Ai\Tools\WikipediaSearchTool;
+use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
+use App\Ai\Tools\WikipediaSearchTool;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxSteps;
+use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
@@ -15,6 +17,7 @@ use Laravel\Ai\Promptable;
 use Stringable;
 
 #[MaxSteps(25)]
+#[Temperature(0.88)]
 class ConceptRelationshipAgent implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;
@@ -24,44 +27,26 @@ class ConceptRelationshipAgent implements Agent, HasStructuredOutput, HasTools
      */
     public function instructions(): Stringable|string
     {
-        return <<<'INSTRUCTIONS'
-You are a lateral thinking assistant inspired by Edward de Bono's lateral thinking concepts and Brian Eno's Oblique Strategies.
+        $base = LateralConceptAgentInstructions::core();
 
-Your task is to generate laterally related concepts from a seed concept using concept chaining. Lateral thinking involves finding unexpected, non-linear connections between ideas. Think creatively and make associations that are not immediately obvious.
+        return <<<INSTRUCTIONS
+{$base}
 
-IMPORTANT - What is a lateral related concept?
-Those that are not direclty related to the seed concept. Only indirectly or abstractly related to the seed concept. The conceptual distance can be defined as "Laterality" and in a scale of 1 o 5 can be understood like this:
-
-1 - Directly / Vertically related to the seed concept (e.g. "Apple" is directly related to "Fruit" because it is a type of fruit)
-2 - Indirectly / Extended related to the seed concept (e.g. "baseball" is indirectly related to "Porcorn" because is a differen category but share a strong enviromental context like a Stadium)
-3 - Abstractly / Laterally related to the seed concept (e.g."Mona Lisa" and "Poker Face". Both involve the "structural" concept of a cryptic or unreadable facial expression used for strategic or artistic effect, despite belonging to fine art and gambling/pop culture respectively.)
-4 - Provocative -  The terms have very high semantic distance. There is no obvious connection, and one must be forced through a "Provocative Operation" (Po) to move the mind to a new place. (e.g. "Keep" and "Exoplanet". A bridge requires a leap—perhaps "keeping" a planet's atmosphere or the "keep" (fortress) of a distant solar system)
-5 - Wildly Discrepant - The terms are randomly associated with zero initial overlap. This is the Random Entry technique used to break dominant thought patterns entirely. (e.g "Standardized Testing" and "Marshmallows". The distance is so great that any connection formed is entirely original)
-
-IMPORTANT - Tools (MANDATORY):
+IMPORTANT — Tools (MANDATORY):
 - You have two tools: WikipediaSearchTool (returns a Wikipedia article URL) and WikimediaCommonsSearchTool (returns a direct image URL on upload.wikimedia.org).
 - You MUST call WikipediaSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription" to get the article URL. Put the result in wikiUrl (or null if empty).
 - You MUST call WikimediaCommonsSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription". Put the result in mediaUrl (or null if empty). The tool returns a direct image URL only—never use or invent a commons.wikimedia.org/wiki/File: page URL.
 - Do NOT guess or invent URLs. Use only the strings returned by the tools. If a tool returns empty, set that field to null.
 - The seed object must include: concept, shortDescription, wikiUrl, and mediaUrl (from these tools).
 
-IMPORTANT - Concept Chaining:
-- The first concept should be laterally related to the seed concept (level 2 or higher)
-- The second concept should be laterally related to the first concept (not the seed) (level 2 to the first concept or higher, level 3 or higher to the seed concept)
-- The third concept should be laterally related to the second concept, and so on (level 2 to the second concept or higher, level 3 or higher to the first concept, level 4 or higher to the seed concept)
-- The fourth concept should be laterally related to the third concept, and so on (level 2 to the third concept or higher, level 3 or higher to the second concept, level 4 or higher to the first concept, level 5 or higher to the seed concept)
-- Each concept builds on the previous one, creating a chain of lateral connections
-
-For each related concept you generate, you MUST use these exact field names in your structured output:
+For each related concept you MUST use these exact field names in your structured output:
 - `concept` (string): A clear, concise concept name
-- `shortDescription` (string): A short description (1-2 sentences) explaining what the concept is
-- `larelality` (integer, 1-5): The laterality level of the concept to the seed concept
-- `wikiUrl` (string, nullable): The Wikipedia article URL for the concept (use tools to fetch this)
-- `mediaUrl` (string, nullable): The Wikimedia Commons image URL for the concept (use tools to fetch this)
+- `shortDescription` (string): **Required, non-empty.** 1–2 sentences: what the thing is; for larelality 2+ avoid the obvious link to the seed, but never leave blank
+- `larelality` (integer, 1–5): Distance from the **seed** per the scale above
+- `wikiUrl` (string, nullable): From WikipediaSearchTool
+- `mediaUrl` (string, nullable): From WikimediaCommonsSearchTool
 
-CRITICAL: You must use the exact field names `concept`, `shortDescription`, `larelality`, `wikiUrl`, and `mediaUrl` as defined in the schema. Do not use variations like "name", "description", "laterality", etc.
-
-Focus on generating diverse, creative connections that encourage lateral thinking rather than obvious, direct relationships.
+CRITICAL: Use the exact field names `concept`, `shortDescription`, `larelality`, `wikiUrl`, and `mediaUrl`. Do not use `name`, `description`, or `laterality`.
 INSTRUCTIONS;
     }
 
@@ -73,8 +58,8 @@ INSTRUCTIONS;
     public function tools(): iterable
     {
         return [
-            new WikipediaSearchTool(),
-            new WikimediaCommonsSearchTool(),
+            new WikipediaSearchTool,
+            new WikimediaCommonsSearchTool,
         ];
     }
 
@@ -86,7 +71,7 @@ INSTRUCTIONS;
         return [
             'seed' => $schema->object([
                 'concept' => $schema->string()->required(),
-                'shortDescription' => $schema->string()->required(),
+                'shortDescription' => $schema->string()->min(1)->required(),
                 // URLs are populated via tools; may be null if tools fail
                 'wikiUrl' => $schema->string(),
                 'mediaUrl' => $schema->string(),
@@ -94,7 +79,7 @@ INSTRUCTIONS;
             'related_concepts' => $schema->array(
                 $schema->object([
                     'concept' => $schema->string()->required(),
-                    'shortDescription' => $schema->string()->required(),
+                    'shortDescription' => $schema->string()->min(1)->required(),
                     // Laterality level 1–5 as described in the instructions
                     'larelality' => $schema->integer()->min(1)->max(5)->required(),
                     // URLs are populated via tools; may be null if tools fail
@@ -111,6 +96,7 @@ INSTRUCTIONS;
     public function provider(): Lab|array|string|null
     {
         $providerName = config('ai.default', 'ollama');
+
         return $this->getProviderEnum($providerName);
     }
 

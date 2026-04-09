@@ -25,4 +25,15 @@ return [
         'randomness',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default concept complexity (POST /api/concepts/relationships)
+    |--------------------------------------------------------------------------
+    |
+    | 1 = very simple labels (e.g. "Ball", "Fire"). 5 = dense academic named ideas.
+    | Clients may override per request with the "complexity" JSON field (1–5).
+    |
+    */
+    'default_complexity' => env('CONCEPTS_DEFAULT_COMPLEXITY', 2),
+
 ];
