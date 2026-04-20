@@ -6,7 +6,7 @@
 set -e
 
 OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:9b}"
 SAIL_SCRIPT="./vendor/bin/sail"
 
 # Colors for output
@@ -27,7 +27,7 @@ check_ollama() {
 # Function to start Ollama
 start_ollama() {
     echo -e "${YELLOW}Starting Ollama...${NC}"
-    
+
     # Try to open Ollama app on macOS
     if [[ "$OSTYPE" == "darwin"* ]]; then
         if [ -d "/Applications/Ollama.app" ]; then
@@ -55,12 +55,12 @@ start_ollama() {
             exit 1
         fi
     fi
-    
+
     # Wait for Ollama to be ready
     echo -e "${YELLOW}Waiting for Ollama to be ready...${NC}"
     local max_attempts=30
     local attempt=0
-    
+
     while [ $attempt -lt $max_attempts ]; do
         if check_ollama; then
             echo -e "${GREEN}Ollama is running${NC}"
@@ -69,7 +69,7 @@ start_ollama() {
         attempt=$((attempt + 1))
         sleep 1
     done
-    
+
     echo -e "${RED}Error: Ollama failed to start after ${max_attempts} seconds${NC}"
     exit 1
 }
@@ -102,30 +102,30 @@ pull_model() {
 # Function to start services
 up() {
     echo -e "${GREEN}Starting Lateralzr API development environment...${NC}"
-    
+
     # Check if Sail script exists
     if [ ! -f "$SAIL_SCRIPT" ]; then
         echo -e "${RED}Error: Sail script not found. Run 'composer install' first.${NC}"
         exit 1
     fi
-    
+
     # Check and start Ollama
     if ! check_ollama; then
         start_ollama
     else
         echo -e "${GREEN}Ollama is already running${NC}"
     fi
-    
+
     # Check and pull model if needed
     pull_model
-    
+
     # Start Sail
     echo -e "${YELLOW}Starting Laravel Sail...${NC}"
     $SAIL_SCRIPT up -d
-    
+
     # Wait a moment for services to be ready
     sleep 3
-    
+
     # Print summary
     echo ""
     echo -e "${GREEN}========================================${NC}"
@@ -147,15 +147,15 @@ up() {
 # Function to stop services
 down() {
     local stop_ollama=false
-    
+
     # Check for --all flag
     if [[ "$1" == "--all" ]]; then
         stop_ollama=true
     fi
-    
+
     echo -e "${YELLOW}Stopping Laravel Sail...${NC}"
     $SAIL_SCRIPT stop
-    
+
     if [ "$stop_ollama" = true ]; then
         echo -e "${YELLOW}Stopping Ollama...${NC}"
         if [[ "$OSTYPE" == "darwin"* ]]; then
