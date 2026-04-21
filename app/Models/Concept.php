@@ -20,8 +20,14 @@ class Concept extends Model
      */
     protected $fillable = [
         'concept',
+        'complexity',
+        'short_description',
         'wiki_url',
         'media_url',
+    ];
+
+    protected $casts = [
+        'complexity' => 'integer',
     ];
 
     /**

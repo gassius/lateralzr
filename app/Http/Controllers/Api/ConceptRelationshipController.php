@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Services\ConceptRelationshipService;
+use App\Services\ConceptGraphQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 class ConceptRelationshipController
 {
     public function __construct(
-        protected ConceptRelationshipService $service
+        protected ConceptGraphQuery $query
     ) {}
 
     /**
@@ -33,11 +33,21 @@ class ConceptRelationshipController
             : null;
 
         try {
-            $result = $this->service->generateRelationships(
+            $complexity = $validated['complexity'] ?? null;
+            $complexity = $complexity !== null ? (int) $complexity : (int) config('concepts.default_complexity', 2);
+
+            $result = $this->query->getFromDb(
                 seedConcept: $seed,
                 count: $validated['count'] ?? null,
-                complexity: $validated['complexity'] ?? null
+                complexity: $complexity
             );
+
+            if ($result === null) {
+                return response()->json([
+                    'message' => 'No prefetched relationships found for this seed yet.',
+                    'status' => 'error',
+                ], 404);
+            }
 
             return response()->json([
                 'data' => $result,
@@ -45,7 +55,7 @@ class ConceptRelationshipController
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to generate concept relationships: '.$e->getMessage(),
+                'message' => 'Failed to fetch concept relationships: '.$e->getMessage(),
                 'status' => 'error',
             ], 500);
         }
