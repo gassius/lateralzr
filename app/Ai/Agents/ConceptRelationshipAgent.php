@@ -105,7 +105,7 @@ INSTRUCTIONS;
      */
     public function model(): ?string
     {
-        return config('ai.models.text', 'llama3.2:3b');
+        return config('ai.models.text', 'phi3.5:latest');
     }
 
     /**
