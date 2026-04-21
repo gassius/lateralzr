@@ -23,6 +23,16 @@ export type ConceptRelationshipsResponse = {
 /** Default complexity when not specified — matches API `concepts.default_complexity` (2). */
 export const DEFAULT_CONCEPT_COMPLEXITY = 2;
 
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 export async function fetchConceptRelationships(
   options?: { seed?: string; count?: number; complexity?: number }
 ): Promise<ConceptRelationshipsResponse['data']> {
@@ -40,7 +50,10 @@ export async function fetchConceptRelationships(
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error((err as { message?: string }).message ?? 'Failed to fetch concepts');
+    throw new ApiError(
+      (err as { message?: string }).message ?? 'Failed to fetch concepts',
+      res.status,
+    );
   }
 
   const json = (await res.json()) as ConceptRelationshipsResponse;

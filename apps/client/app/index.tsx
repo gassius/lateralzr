@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
-import { fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
+import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { mergeUniqueRelated } from '@/lib/mergeConcepts';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
@@ -76,6 +76,35 @@ export default function HomeScreen() {
 
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
+  const fetchBatch = useCallback(
+    async (requestedComplexity: number, seed?: string) => {
+      const trimmedSeed = seed?.trim() ?? '';
+      try {
+        return await fetchConceptRelationships({
+          seed: trimmedSeed !== '' ? trimmedSeed : undefined,
+          count: 5,
+          complexity: requestedComplexity,
+        });
+      } catch (e) {
+        // Backend only has prefetched data for some complexities (often just 2).
+        // If the requested complexity isn't prefetched yet, fall back to the default tier.
+        if (e instanceof ApiError && e.status === 404 && requestedComplexity !== DEFAULT_CONCEPT_COMPLEXITY) {
+          const data = await fetchConceptRelationships({
+            seed: trimmedSeed !== '' ? trimmedSeed : undefined,
+            count: 5,
+            complexity: DEFAULT_CONCEPT_COMPLEXITY,
+          });
+          complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
+          setComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          return data;
+        }
+        throw e;
+      }
+    },
+    [setComplexity],
+  );
+
   function clearEmptyRetry() {
     if (emptyRetryTimerRef.current != null) {
       clearTimeout(emptyRetryTimerRef.current);
@@ -99,7 +128,8 @@ export default function HomeScreen() {
     clearEmptyRetry();
     emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
     try {
-      const data = await fetchConceptRelationships({ count: 5, complexity: complexityRef.current });
+      // Initial load: never send a seed (cold start)
+      const data = await fetchBatch(complexityRef.current);
       const list: ConceptItem[] = [data.seed, ...data.related_concepts];
       setConcepts(list);
       setCurrentIndex(0);
@@ -108,7 +138,7 @@ export default function HomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchBatch]);
 
   useEffect(() => {
     if (!complexityHydrated) return;
@@ -123,18 +153,34 @@ export default function HomeScreen() {
     const list = conceptsRef.current;
     if (list.length === 0) return;
 
-    const seed = list[list.length - 1]?.concept?.trim();
-    if (!seed) return;
-
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setLoadMoreError(false);
 
     try {
-      const data = await fetchConceptRelationships({ seed, count: 5, complexity: complexityRef.current });
-      const related = data.related_concepts ?? [];
+      // Load more: try to continue the chain using the last card as the next seed.
+      // If that seed has no prefetched relationships yet (404), fall back to cold start.
+      const seed = list[list.length - 1]?.concept?.trim() ?? '';
+      let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
+      try {
+        data = await fetchBatch(complexityRef.current, seed);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) {
+          data = await fetchBatch(complexityRef.current);
+        } else {
+          throw e;
+        }
+      }
 
-      const merged = mergeUniqueRelated(conceptsRef.current, related);
+      const batch: ConceptItem[] = [data.seed, ...(data.related_concepts ?? [])];
+      const existing = conceptsRef.current;
+      const seen = new Set(existing.map((c) => c.concept.trim().toLowerCase()));
+      const freshBatch = batch.filter((c) => {
+        const k = c.concept.trim().toLowerCase();
+        return k.length > 0 && !seen.has(k);
+      });
+
+      const merged = freshBatch.length > 0 ? freshBatch : [];
 
       if (merged.length === 0) {
         const delay = emptyRetryDelayRef.current;
@@ -147,9 +193,13 @@ export default function HomeScreen() {
         emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
         clearEmptyRetry();
         setConcepts((prev) => {
-          const fresh = mergeUniqueRelated(prev, related);
-          if (fresh.length === 0) return prev;
-          const next = [...prev, ...fresh];
+          const nextSeen = new Set(prev.map((c) => c.concept.trim().toLowerCase()));
+          const add = merged.filter((c) => {
+            const k = c.concept.trim().toLowerCase();
+            return k.length > 0 && !nextSeen.has(k);
+          });
+          if (add.length === 0) return prev;
+          const next = [...prev, ...add];
           if (pendingEndDeckLoadRef.current) {
             queueMicrotask(() => {
               setCurrentIndex(prev.length);
@@ -166,7 +216,7 @@ export default function HomeScreen() {
       loadMoreInFlightRef.current = false;
       setLoadingMore(false);
     }
-  }, []);
+  }, [fetchBatch]);
 
   useEffect(() => {
     loadMoreConceptsRef.current = loadMoreConcepts;
