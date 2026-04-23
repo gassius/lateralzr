@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Concept;
+use App\Models\ConceptTerm;
 use Illuminate\Support\Facades\Log;
 
 class ConceptUrlCache
@@ -10,21 +10,29 @@ class ConceptUrlCache
     /**
      * Find a concept URL record by normalized concept name.
      */
-    public function findByConcept(string $concept): ?Concept
+    public function findByConcept(string $concept): ?ConceptTerm
     {
-        $normalized = Concept::normalizeConcept($concept);
+        $locale = (string) config('concepts.default_locale', 'en');
+        $normalized = ConceptTerm::normalizeTerm($concept);
 
-        return Concept::query()->where('concept', $normalized)->first();
+        return ConceptTerm::query()
+            ->where('locale', $locale)
+            ->where('normalized_term', $normalized)
+            ->first();
     }
 
     /**
      * Find or create a concept URL record; update URLs if provided.
      */
-    public function remember(string $concept, ?string $wikiUrl, ?string $mediaUrl): Concept
+    public function remember(string $concept, ?string $wikiUrl, ?string $mediaUrl): ConceptTerm
     {
-        $normalized = Concept::normalizeConcept($concept);
+        $locale = (string) config('concepts.default_locale', 'en');
+        $normalized = ConceptTerm::normalizeTerm($concept);
 
-        $record = Concept::query()->where('concept', $normalized)->first();
+        $record = ConceptTerm::query()
+            ->where('locale', $locale)
+            ->where('normalized_term', $normalized)
+            ->first();
 
         if ($record) {
             $updated = false;
@@ -43,13 +51,22 @@ class ConceptUrlCache
             return $record;
         }
 
-        $record = Concept::query()->create([
-            'concept' => $normalized,
-            'wiki_url' => $wikiUrl,
-            'media_url' => $mediaUrl,
-        ]);
+        $canonicalizer = app(ConceptCanonicalizer::class);
+        $conceptModel = $canonicalizer->resolveOrCreate(
+            term: $concept,
+            locale: $locale,
+            shortDescription: null,
+            wikiUrl: $wikiUrl,
+            mediaUrl: $mediaUrl
+        );
 
-        Log::info('ConceptUrlCache: created new record', ['concept' => $normalized]);
+        $record = ConceptTerm::query()
+            ->where('concept_id', $conceptModel->id)
+            ->where('locale', $locale)
+            ->where('normalized_term', $normalized)
+            ->firstOrFail();
+
+        Log::info('ConceptUrlCache: created new term record', ['concept' => $normalized, 'locale' => $locale]);
 
         return $record;
     }

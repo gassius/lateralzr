@@ -13,13 +13,20 @@ class ConceptsTable
     {
         return $table
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('concept')
+                \Filament\Tables\Columns\TextColumn::make('display_term')
+                    ->label('Term')
                     ->searchable()
                     ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('wiki_url')
+                \Filament\Tables\Columns\TextColumn::make('canonical_key')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+                \Filament\Tables\Columns\TextColumn::make('display_wiki_url')
+                    ->label('Wiki URL')
                     ->limit(50)
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('media_url')
+                \Filament\Tables\Columns\TextColumn::make('display_media_url')
+                    ->label('Media URL')
                     ->limit(50)
                     ->toggleable(),
                 \Filament\Tables\Columns\TextColumn::make('created_at')

@@ -7,6 +7,7 @@ use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
 use App\Models\Concept;
+use App\Models\ConceptTerm;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -202,9 +203,10 @@ PROMPT;
      */
     protected function resolveRandomSeed(): string
     {
-        $fromDb = Concept::query()->inRandomOrder()->first()?->concept;
+        $locale = (string) config('concepts.default_locale', 'en');
+        $fromDb = ConceptTerm::query()->where('locale', $locale)->inRandomOrder()->first()?->term;
         if ($fromDb !== null && $fromDb !== '') {
-            return $fromDb;
+            return (string) $fromDb;
         }
 
         $defaults = config('concepts.default_seeds', []);
@@ -225,7 +227,7 @@ PROMPT;
     {
         $concept = $item['concept'] ?? '';
         $shortDescription = $item['shortDescription'] ?? '';
-        $normalized = Concept::normalizeConcept($concept);
+        $normalized = ConceptTerm::normalizeTerm($concept);
 
         $cached = $this->urlCache->findByConcept($concept);
 

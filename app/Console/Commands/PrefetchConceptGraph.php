@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Jobs\GenerateConceptGraphJob;
-use App\Models\Concept;
+use App\Models\ConceptTerm;
 use Illuminate\Console\Command;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -82,7 +82,7 @@ class PrefetchConceptGraph extends Command
         }
 
         // Normalize, unique.
-        $seeds = array_map(fn (string $s) => Concept::normalizeConcept($s), $seeds);
+        $seeds = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $seeds);
         $seeds = array_values(array_unique($seeds));
 
         return $seeds;
@@ -93,10 +93,12 @@ class PrefetchConceptGraph extends Command
      */
     protected function randomSeeds(int $n): array
     {
-        $fromDb = Concept::query()
+        $locale = (string) config('concepts.default_locale', 'en');
+        $fromDb = ConceptTerm::query()
+            ->where('locale', $locale)
             ->inRandomOrder()
             ->limit($n)
-            ->pluck('concept')
+            ->pluck('term')
             ->all();
 
         if (count($fromDb) > 0) {
@@ -110,7 +112,7 @@ class PrefetchConceptGraph extends Command
                 $picked[] = (string) Arr::random($defaults);
             }
 
-            $picked = array_map(fn (string $s) => Concept::normalizeConcept($s), $picked);
+            $picked = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $picked);
 
             return array_values(array_unique($picked));
         }

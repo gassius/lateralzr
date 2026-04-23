@@ -36,4 +36,15 @@ return [
     */
     'default_complexity' => env('CONCEPTS_DEFAULT_COMPLEXITY', 2),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default locale for concept terms
+    |--------------------------------------------------------------------------
+    |
+    | Canonical concept nodes are stored in `concepts`. Human-facing labels,
+    | descriptions, and URLs live in `concept_terms` per locale.
+    |
+    */
+    'default_locale' => env('CONCEPTS_DEFAULT_LOCALE', 'en'),
+
 ];

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Concept;
 use App\Models\ConceptRelationship;
-use Illuminate\Support\Arr;
 
 class ConceptGraphQuery
 {
@@ -24,9 +23,10 @@ class ConceptGraphQuery
         }
 
         $edges = ConceptRelationship::query()
-            ->with('toConcept')
+            ->with(['toConcept.preferredTerm', 'fromConcept.preferredTerm'])
             ->where('from_concept_id', $seed->id)
             ->where('complexity', $complexity)
+            ->where('relationship_type', 'lateral')
             ->orderByDesc('strength')
             ->orderByDesc('llm_occurrences')
             ->limit($limit)
@@ -39,20 +39,20 @@ class ConceptGraphQuery
         return [
             'complexity' => $complexity,
             'seed' => [
-                'concept' => $seed->concept,
-                'shortDescription' => (string) ($seed->short_description ?? ''),
-                'wikiUrl' => $seed->wiki_url,
-                'mediaUrl' => $seed->media_url,
+                'concept' => (string) ($seed->display_term ?? ''),
+                'shortDescription' => (string) ($seed->display_short_description ?? ''),
+                'wikiUrl' => $seed->display_wiki_url,
+                'mediaUrl' => $seed->display_media_url,
             ],
             'related_concepts' => $edges->map(function (ConceptRelationship $edge) {
                 $to = $edge->toConcept;
 
                 return [
-                    'concept' => $to?->concept ?? '',
-                    'shortDescription' => (string) ($to?->short_description ?? ''),
-                    'larelality' => (int) ($edge->larelality ?? 1),
-                    'wikiUrl' => $to?->wiki_url,
-                    'mediaUrl' => $to?->media_url,
+                    'concept' => (string) ($to?->display_term ?? ''),
+                    'shortDescription' => (string) ($to?->display_short_description ?? ''),
+                    'larelality' => (int) ($edge->last_larelality ?? 1),
+                    'wikiUrl' => $to?->display_wiki_url,
+                    'mediaUrl' => $to?->display_media_url,
                 ];
             })->values()->all(),
         ];
@@ -61,21 +61,27 @@ class ConceptGraphQuery
     protected function resolveSeed(?string $seedConcept, int $complexity): ?Concept
     {
         if ($seedConcept !== null && trim($seedConcept) !== '') {
-            $normalized = Concept::normalizeConcept($seedConcept);
+            $normalized = \App\Models\ConceptTerm::normalizeTerm($seedConcept);
 
-            // If the client requests a seed explicitly, only serve it if it exists in DB.
-            // Do not silently swap to a random seed.
-            return Concept::query()->where('concept', $normalized)->first();
+            // Resolve via term in default locale; do not silently swap to a random seed.
+            $locale = (string) config('concepts.default_locale', 'en');
+
+            return Concept::query()
+                ->whereHas('terms', function ($q) use ($locale, $normalized) {
+                    $q->where('locale', $locale)->where('normalized_term', $normalized);
+                })
+                ->first();
         }
 
         // Prefer concepts that actually have outgoing edges at this complexity.
         $seedId = ConceptRelationship::query()
             ->where('complexity', $complexity)
+            ->where('relationship_type', 'lateral')
             ->inRandomOrder()
             ->value('from_concept_id');
 
         if ($seedId) {
-            return Concept::query()->find($seedId);
+            return Concept::query()->with('preferredTerm')->find($seedId);
         }
 
         // No prefetched graph yet.

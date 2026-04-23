@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Concept extends Model
 {
@@ -19,22 +21,45 @@ class Concept extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'concept',
-        'complexity',
-        'short_description',
-        'wiki_url',
-        'media_url',
+        'canonical_key',
+        'merged_into_concept_id',
     ];
 
     protected $casts = [
-        'complexity' => 'integer',
+        'merged_into_concept_id' => 'integer',
     ];
 
-    /**
-     * Normalize a concept string for consistent lookup (trim + lowercase).
-     */
-    public static function normalizeConcept(string $concept): string
+    public function terms(): HasMany
     {
-        return strtolower(trim($concept));
+        return $this->hasMany(ConceptTerm::class);
+    }
+
+    public function preferredTerm(): HasOne
+    {
+        $locale = (string) config('concepts.default_locale', 'en');
+
+        return $this->hasOne(ConceptTerm::class)
+            ->where('locale', $locale)
+            ->where('is_preferred', true);
+    }
+
+    public function getDisplayTermAttribute(): ?string
+    {
+        return $this->preferredTerm?->term;
+    }
+
+    public function getDisplayShortDescriptionAttribute(): ?string
+    {
+        return $this->preferredTerm?->short_description;
+    }
+
+    public function getDisplayWikiUrlAttribute(): ?string
+    {
+        return $this->preferredTerm?->wiki_url;
+    }
+
+    public function getDisplayMediaUrlAttribute(): ?string
+    {
+        return $this->preferredTerm?->media_url;
     }
 }

@@ -285,8 +285,9 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->service->generateRelationships('newness', null, $mockAgent);
 
         $this->assertDatabaseCount('concepts', 1);
-        $this->assertDatabaseHas('concepts', [
-            'concept' => 'newness',
+        $this->assertDatabaseHas('concept_terms', [
+            'locale' => config('concepts.default_locale', 'en'),
+            'normalized_term' => \App\Models\ConceptTerm::normalizeTerm('newness'),
         ]);
     }
 

@@ -12,24 +12,22 @@ class ConceptRelationship extends Model
     protected $fillable = [
         'from_concept_id',
         'to_concept_id',
+        'relationship_type',
         'complexity',
-        'larelality',
+        'strength',
+        'last_generated_at',
         'llm_occurrences',
         'user_weight',
-        'strength',
-        'provider',
-        'model',
-        'last_run_uuid',
-        'last_generated_at',
+        'last_larelality',
     ];
 
     protected $casts = [
         'complexity' => 'integer',
-        'larelality' => 'integer',
         'llm_occurrences' => 'integer',
         'user_weight' => 'integer',
         'strength' => 'decimal:5',
         'last_generated_at' => 'datetime',
+        'last_larelality' => 'integer',
     ];
 
     public function fromConcept(): BelongsTo

@@ -4,11 +4,16 @@ namespace App\Services;
 
 use App\Models\Concept;
 use App\Models\ConceptRelationship;
+use App\Models\RelationshipEvidence;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 class ConceptGraphStore
 {
+    public function __construct(
+        protected ConceptCanonicalizer $canonicalizer
+    ) {}
+
     /**
      * Persist seed + related concepts and their edges (seed -> related).
      *
@@ -24,40 +29,45 @@ class ConceptGraphStore
         ?string $runUuid
     ): void {
         DB::transaction(function () use ($seed, $related, $complexity, $provider, $model, $runUuid) {
-            $seedConcept = $this->upsertConcept($seed, $complexity);
+            $locale = $this->canonicalizer->defaultLocale();
+            $seedConcept = $this->canonicalizer->resolveOrCreate(
+                term: (string) ($seed['concept'] ?? ''),
+                locale: $locale,
+                shortDescription: $seed['shortDescription'] ?? null,
+                wikiUrl: $seed['wikiUrl'] ?? null,
+                mediaUrl: $seed['mediaUrl'] ?? null
+            );
 
             foreach ($related as $item) {
-                $toConcept = $this->upsertConcept($item, $complexity);
+                $toConcept = $this->canonicalizer->resolveOrCreate(
+                    term: (string) ($item['concept'] ?? ''),
+                    locale: $locale,
+                    shortDescription: $item['shortDescription'] ?? null,
+                    wikiUrl: $item['wikiUrl'] ?? null,
+                    mediaUrl: $item['mediaUrl'] ?? null
+                );
 
-                $this->upsertEdge(
+                $edge = $this->upsertEdge(
                     from: $seedConcept,
                     to: $toConcept,
                     complexity: $complexity,
                     larelality: (int) ($item['larelality'] ?? 1),
-                    provider: $provider,
-                    model: $model,
-                    runUuid: $runUuid
+                    relationshipType: 'lateral'
                 );
+
+                RelationshipEvidence::query()->create([
+                    'concept_relationship_id' => $edge->id,
+                    'provider' => $provider,
+                    'model' => $model,
+                    'run_uuid' => $runUuid,
+                    'larelality' => (int) ($item['larelality'] ?? 1),
+                    'seed_term' => (string) ($seed['concept'] ?? ''),
+                    'related_term' => (string) ($item['concept'] ?? ''),
+                    'raw_json' => $item,
+                    'created_at' => CarbonImmutable::now(),
+                ]);
             }
         });
-    }
-
-    /**
-     * @param  array{concept:string,shortDescription?:string,wikiUrl?:?string,mediaUrl?:?string}  $item
-     */
-    protected function upsertConcept(array $item, int $complexity): Concept
-    {
-        $normalized = Concept::normalizeConcept((string) ($item['concept'] ?? ''));
-
-        return Concept::query()->updateOrCreate(
-            ['concept' => $normalized],
-            [
-                'complexity' => $complexity,
-                'short_description' => isset($item['shortDescription']) ? (string) $item['shortDescription'] : null,
-                'wiki_url' => $item['wikiUrl'] ?? null,
-                'media_url' => $item['mediaUrl'] ?? null,
-            ]
-        );
     }
 
     protected function upsertEdge(
@@ -65,9 +75,7 @@ class ConceptGraphStore
         Concept $to,
         int $complexity,
         int $larelality,
-        ?string $provider,
-        ?string $model,
-        ?string $runUuid
+        string $relationshipType
     ): ConceptRelationship {
         $now = CarbonImmutable::now();
 
@@ -75,17 +83,15 @@ class ConceptGraphStore
             'from_concept_id' => $from->id,
             'to_concept_id' => $to->id,
             'complexity' => $complexity,
+            'relationship_type' => $relationshipType,
         ]);
 
-        $edge->larelality = max(1, min(5, $larelality));
+        $edge->last_larelality = max(1, min(5, $larelality));
         $edge->llm_occurrences = (int) ($edge->llm_occurrences ?? 0) + 1;
-        $edge->provider = $provider;
-        $edge->model = $model;
-        $edge->last_run_uuid = $runUuid;
         $edge->last_generated_at = $now;
 
         $edge->strength = $this->calculateStrength(
-            larelality: (int) $edge->larelality,
+            larelality: (int) ($edge->last_larelality ?? 3),
             llmOccurrences: (int) $edge->llm_occurrences,
             userWeight: (int) ($edge->user_weight ?? 0)
         );
