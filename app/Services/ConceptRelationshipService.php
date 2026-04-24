@@ -81,10 +81,10 @@ PROMPT;
             $seedData = ['concept' => is_string($seedData) ? $seedData : $seedConcept];
         }
 
-        $seedConceptName = $this->applyConceptWordLimit(
-            (string) ($seedData['concept'] ?? $seedData['name'] ?? $seedConcept),
-            $complexity
-        );
+        // Do not truncate concept labels to match complexity caps.
+        // Complexity is a *request hint* for the model; importer must keep whatever label the model returns
+        // (truncation can produce meaningless tokens like "The").
+        $seedConceptName = trim((string) ($seedData['concept'] ?? $seedData['name'] ?? $seedConcept));
 
         $seed = [
             'concept' => $seedConceptName,
@@ -104,15 +104,12 @@ PROMPT;
             $related = [];
         }
 
-        $related = array_map(function ($concept) use ($complexity) {
+        $related = array_map(function ($concept) {
             if (! is_array($concept)) {
                 return $concept;
             }
 
-            $name = $this->applyConceptWordLimit(
-                (string) ($concept['concept'] ?? $concept['name'] ?? ''),
-                $complexity
-            );
+            $name = trim((string) ($concept['concept'] ?? $concept['name'] ?? ''));
 
             return [
                 'concept' => $name,
@@ -137,41 +134,7 @@ PROMPT;
         ];
     }
 
-    /**
-     * Enforce max word count for `concept` labels (LLMs often ignore prompt caps). Uses Unicode-aware splitting.
-     */
-    protected function applyConceptWordLimit(string $concept, int $complexity): string
-    {
-        $maxWords = match ($complexity) {
-            1 => 1,
-            2 => 2,
-            3 => 4,
-            4 => 4,
-            5 => 6,
-            default => 2,
-        };
-
-        $trimmed = trim($concept);
-        if ($trimmed === '') {
-            return $trimmed;
-        }
-
-        $words = preg_split('/\s+/u', $trimmed, -1, PREG_SPLIT_NO_EMPTY);
-        if ($words === false || count($words) <= $maxWords) {
-            return $trimmed;
-        }
-
-        $limited = implode(' ', array_slice($words, 0, $maxWords));
-
-        Log::info('ConceptRelationshipService: concept label truncated to match complexity', [
-            'complexity' => $complexity,
-            'max_words' => $maxWords,
-            'original' => $trimmed,
-            'truncated' => $limited,
-        ]);
-
-        return $limited;
-    }
+    // Note: concept label truncation removed intentionally (see above).
 
     /**
      * Ensure shortDescription is never blank (models sometimes omit when asked to stay "oblique").

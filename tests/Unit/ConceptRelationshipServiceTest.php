@@ -184,7 +184,7 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertArrayHasKey('mediaUrl', $result['related_concepts'][0]);
     }
 
-    public function test_generate_relationships_truncates_concept_labels_to_match_complexity_two(): void
+    public function test_generate_relationships_does_not_truncate_concept_labels_even_if_over_complexity_cap(): void
     {
         $mockResponse = Mockery::mock(StructuredAgentResponse::class);
         $mockResponse->shouldReceive('toArray')
@@ -213,7 +213,7 @@ class ConceptRelationshipServiceTest extends TestCase
         $result = $this->service->generateRelationships('creativity', null, $mockAgent, 2);
 
         $this->assertSame(2, $result['complexity']);
-        $this->assertSame("Benoît Mandelbrot's", $result['related_concepts'][0]['concept']);
+        $this->assertSame("Benoît Mandelbrot's work on fractals in literature", $result['related_concepts'][0]['concept']);
     }
 
     public function test_generate_relationships_fills_empty_short_descriptions(): void
