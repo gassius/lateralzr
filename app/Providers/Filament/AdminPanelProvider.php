@@ -9,6 +9,7 @@ use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Assets\Js;
 use Filament\Support\Colors\Color;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
@@ -31,6 +32,10 @@ class AdminPanelProvider extends PanelProvider
             ->registration(false)
             ->colors([
                 'primary' => Color::Amber,
+            ])
+            ->assets([
+                // Used by ConceptGraphExplorer (window.cytoscape).
+                Js::make('cytoscape', 'https://unpkg.com/cytoscape@3.33.2/dist/cytoscape.min.js')->defer(),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

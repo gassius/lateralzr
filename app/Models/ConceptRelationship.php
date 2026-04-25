@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ConceptRelationship extends Model
 {
@@ -38,6 +39,16 @@ class ConceptRelationship extends Model
     public function toConcept(): BelongsTo
     {
         return $this->belongsTo(Concept::class, 'to_concept_id');
+    }
+
+    public function evidences(): HasMany
+    {
+        return $this->hasMany(RelationshipEvidence::class, 'concept_relationship_id');
+    }
+
+    public function feedback(): HasMany
+    {
+        return $this->hasMany(RelationshipFeedback::class, 'concept_relationship_id');
     }
 }
 

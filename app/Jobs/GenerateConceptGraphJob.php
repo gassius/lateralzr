@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptGraphStore;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Bus\Queueable;
@@ -25,6 +26,18 @@ class GenerateConceptGraphJob implements ShouldQueue
 
     public function handle(ConceptRelationshipService $service, ConceptGraphStore $store): void
     {
+        if ($this->runUuid && $this->seed) {
+            ConceptGraphRunJob::query()
+                ->where('run_uuid', $this->runUuid)
+                ->where('seed', $this->seed)
+                ->update([
+                    'status' => 'processing',
+                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'started_at' => now(),
+                    'error_message' => null,
+                ]);
+        }
+
         $previousProvider = config('ai.default');
         $previousModel = config('ai.models.text');
 
@@ -51,6 +64,31 @@ class GenerateConceptGraphJob implements ShouldQueue
                 model: $this->model ?? $previousModel,
                 runUuid: $this->runUuid
             );
+
+            if ($this->runUuid && $this->seed) {
+                ConceptGraphRunJob::query()
+                    ->where('run_uuid', $this->runUuid)
+                    ->where('seed', $this->seed)
+                    ->update([
+                        'status' => 'succeeded',
+                        'attempts' => (int) (($this->attempts() ?? 0)),
+                        'finished_at' => now(),
+                    ]);
+            }
+        } catch (\Throwable $e) {
+            if ($this->runUuid && $this->seed) {
+                ConceptGraphRunJob::query()
+                    ->where('run_uuid', $this->runUuid)
+                    ->where('seed', $this->seed)
+                    ->update([
+                        'status' => 'failed',
+                        'attempts' => (int) (($this->attempts() ?? 0)),
+                        'finished_at' => now(),
+                        'error_message' => $e->getMessage(),
+                    ]);
+            }
+
+            throw $e;
         } finally {
             config()->set('ai.default', $previousProvider);
             config()->set('ai.models.text', $previousModel);
