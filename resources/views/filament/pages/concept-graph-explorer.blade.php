@@ -69,7 +69,7 @@
                 <div
                     id="concept-graph"
                     class="w-full rounded-lg bg-gray-50 ring-1 ring-gray-950/5 dark:bg-gray-950 dark:ring-white/10"
-                    style="aspect-ratio: 2 / 1; height: auto; min-height: 420px; max-height: 70vh;"
+                    style="aspect-ratio: 4 / 3; height: auto; min-height: 520px; max-height: 80vh;"
                     wire:ignore
                 ></div>
     </div>
@@ -134,12 +134,6 @@
     <script>
             function renderConceptGraph(elements, attempt = 0) {
                 const container = document.getElementById('concept-graph');
-                console.log('[ConceptGraphExplorer] renderConceptGraph()', {
-                    attempt,
-                    hasContainer: !!container,
-                    elementsType: Array.isArray(elements) ? 'array' : typeof elements,
-                    elementsLength: Array.isArray(elements) ? elements.length : null,
-                });
                 if (!container) return;
 
                 if (!window.cytoscape) {
@@ -147,19 +141,12 @@
                         container.innerHTML = '<div class="p-4 text-sm text-gray-600">Graph library not loaded yet. Loading…</div>';
                     }
 
-                    console.log('[ConceptGraphExplorer] cytoscape not ready yet', { attempt });
                     if (attempt < 50) {
                         window.setTimeout(() => renderConceptGraph(elements, attempt + 1), 100);
                     }
 
                     return;
                 }
-
-                console.log('[ConceptGraphExplorer] cytoscape ready', {
-                    attempt,
-                    containerWidth: container.clientWidth,
-                    containerHeight: container.clientHeight,
-                });
 
                 if (window.__conceptGraphCy) {
                     window.__conceptGraphCy.destroy();
@@ -177,11 +164,11 @@
                                 'color': '#111827',
                                 'text-valign': 'center',
                                 'text-halign': 'center',
-                                'font-size': 10,
+                                'font-size': 8,
                                 'text-wrap': 'wrap',
-                                'text-max-width': 110,
-                                'width': 28,
-                                'height': 28,
+                                'text-max-width': 90,
+                                'width': 18,
+                                'height': 18,
                             }
                         },
                         {
@@ -193,7 +180,7 @@
                                 'target-arrow-color': '#6b7280',
                                 'line-color': '#6b7280',
                                 'width': 'mapData(strength, 0, 1, 1, 6)',
-                                'font-size': 9,
+                                'font-size': 10,
                                 'text-rotation': 'autorotate',
                                 'text-margin-y': -8,
                                 'color': '#374151',
@@ -210,19 +197,19 @@
                     layout: {
                         name: 'cose',
                         animate: false,
+                        // Spread nodes further apart.
+                        idealEdgeLength: 140,
+                        nodeRepulsion: 900000,
+                        edgeElasticity: 100,
+                        gravity: 0.01,
+                        numIter: 30000,
                     }
-                });
-
-                console.log('[ConceptGraphExplorer] cy created', {
-                    nodes: cy.nodes().length,
-                    edges: cy.edges().length,
                 });
 
                 cy.on('tap', 'edge', function (evt) {
                     cy.edges().removeClass('selected');
                     evt.target.addClass('selected');
                     const id = evt.target.data('relationship_id');
-                    console.log('[ConceptGraphExplorer] edge tapped', { relationshipId: id });
                     if (window.Livewire) {
                         window.Livewire.dispatch('selectRelationship', { relationshipId: id });
                     }
@@ -232,7 +219,6 @@
                     const nodeId = evt.target.id(); // e.g. c123
                     const conceptId = evt.target.data('concept_id') ?? parseInt(String(nodeId).replace(/^c/, ''), 10);
                     const openEdit = evt.originalEvent?.metaKey || evt.originalEvent?.ctrlKey;
-                    console.log('[ConceptGraphExplorer] node tapped', { nodeId, conceptId, openEdit });
                     if (Number.isFinite(conceptId) && window.Livewire) {
                         if (openEdit) {
                             window.Livewire.dispatch('navigateToConcept', { conceptId });
@@ -248,21 +234,17 @@
             // Filament may run in SPA mode; DOMContentLoaded won't fire on internal navigations.
             // We render on page load and on Livewire navigations, with retry until Cytoscape is available.
             window.addEventListener('load', () => {
-                console.log('[ConceptGraphExplorer] window load');
                 renderConceptGraph(@js($graphElements));
             });
             document.addEventListener('livewire:navigated', () => {
-                console.log('[ConceptGraphExplorer] livewire:navigated');
                 renderConceptGraph(@js($graphElements));
             });
 
             document.addEventListener('livewire:init', () => {
                 if (!window.Livewire) return;
-                console.log('[ConceptGraphExplorer] livewire:init');
                 window.Livewire.on('concept-graph-updated', (payload) => {
                     // Livewire v3 may pass params as (payload) or as an array of args.
                     const data = Array.isArray(payload) ? (payload[0] ?? {}) : (payload ?? {});
-                    console.log('[ConceptGraphExplorer] concept-graph-updated', { payload, data });
                     renderConceptGraph(data.elements ?? []);
                 });
             });
