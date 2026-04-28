@@ -52,26 +52,28 @@ Update `.env` with your configuration (Sail will handle most Docker-related sett
 Start the Docker containers:
 
 ```bash
+./sail up -d
+```
+
+The repository includes a root `./sail` wrapper for `./vendor/bin/sail`. You may also use the long form directly:
+
+```bash
 ./vendor/bin/sail up -d
 ```
 
-Or if you've configured the shell alias:
-
-```bash
-sail up -d
-```
+Do not run Laravel backend commands directly on the host with `php artisan` or `composer`; the `.env` database host is configured for Sail containers.
 
 ### 4. Generate Application Key
 
 ```bash
-sail artisan key:generate
+./sail artisan key:generate
 ```
 
 ### 5. Run Migrations and Seed (optional)
 
 ```bash
-sail artisan migrate
-sail artisan db:seed   # Seeds roles and, in local, the admin user test@lateralzr.com
+./sail artisan migrate
+./sail artisan db:seed   # Seeds roles and, in local, the admin user test@lateralzr.com
 ```
 
 ### 6. Start Development Environment
@@ -106,7 +108,7 @@ This repository is a **monorepo**: the **Laravel API** lives at the **root**; th
 
 - **Node version**: Use the version in [.nvmrc](.nvmrc) (e.g. `nvm use` in the repo root) for both Vite and the Expo app. Alternatively, use the optional **Node Docker service** (profile `client`) to run client commands in a container. Ensure pnpm is available (e.g. `corepack enable && corepack prepare pnpm@9.15.0 --activate` in the image or use a pnpm-aware image), then from the repo root:  
   `docker compose --profile client run --rm node sh -c "pnpm install --frozen-lockfile && pnpm turbo run dev --filter=client"`.
-- **Run the API**: from the repo root, `./vendor/bin/sail up -d` (or `./dev.sh up`); see [Installation](#installation).
+- **Run the API**: from the repo root, `./sail up -d` (or `./vendor/bin/sail up -d`, or `./dev.sh up`); see [Installation](#installation).
 - **Run the client**: from the repo root, `cd apps/client && pnpm exec expo start`, then choose web (`w`), iOS (`i`), or Android (`a`). Or use Turbo: `pnpm turbo run dev --filter=client` (from root).
 - **Independent deployment**: In CI, deploy only the API when changes are outside `apps/client/**`; deploy only the client when changes are under `apps/client/**`.
 
@@ -125,47 +127,53 @@ A Filament 5 admin panel is available at **`/admin`** for quick inspection and m
 - **Local seed user** (created only when `APP_ENV=local`):  
   - Email: `test@lateralzr.com`  
   - Password: `!12345678`  
-  After running `sail artisan migrate` and `sail artisan db:seed`, this user exists in local and can log in to the backoffice.
+  After running `./sail artisan migrate` and `./sail artisan db:seed`, this user exists in local and can log in to the backoffice.
 
 ### Common Sail Commands
 
 ```bash
 # Start containers
-sail up -d
+./sail up -d
 
 # Stop containers
-sail stop
+./sail stop
 
 # View logs
-sail logs
+./sail logs
 
 # Run Artisan commands
-sail artisan <command>
+./sail artisan <command>
+
+# Process concept graph jobs manually
+./sail artisan queue:work --queue=default --timeout=300
 
 # Run Composer commands
-sail composer <command>
+./sail composer <command>
 
 # Run tests
-sail test
+./sail test
+
+# Run Pint
+./sail pint
 
 # Access container shell
-sail shell
+./sail shell
 
 # Access Tinker
-sail tinker
+./sail tinker
 ```
 
 ### Running Tests
 
 ```bash
 # Run all tests
-sail test
+./sail test
 
 # Run specific test file
-sail test tests/Feature/ApiHealthTest.php
+./sail test tests/Feature/ApiHealthTest.php
 
 # Run with coverage
-sail test --coverage
+./sail test --coverage
 ```
 
 ## API Endpoints
@@ -299,10 +307,10 @@ OLLAMA_MODEL=llama3.2:1b  # For faster responses
 Run tests:
 ```bash
 # Unit and feature tests (mocked)
-sail test
+./sail test
 
 # Smoke tests with real Ollama (requires Ollama running)
-AI_SMOKE_TESTS=1 sail test --group=ollama
+AI_SMOKE_TESTS=1 ./sail test --group=ollama
 ```
 
 For detailed setup instructions, troubleshooting, and model recommendations, see [.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md).
@@ -324,7 +332,7 @@ Configuration files:
 1. Create a feature branch
 2. Make your changes
 3. Write or update tests
-4. Ensure all tests pass: `sail test`
+4. Ensure all tests pass: `./sail test`
 5. Submit a pull request
 
 ## Testing
@@ -338,7 +346,7 @@ This project emphasizes test-driven development. All new features should include
 Run the test suite:
 
 ```bash
-sail test
+./sail test
 ```
 
 ## License

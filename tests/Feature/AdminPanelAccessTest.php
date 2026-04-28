@@ -43,4 +43,14 @@ class AdminPanelAccessTest extends TestCase
 
         $response->assertSuccessful();
     }
+
+    public function test_authenticated_super_admin_can_access_concept_graph_explorer(): void
+    {
+        $user = User::factory()->create();
+        $user->assignRole('super_admin');
+
+        $response = $this->actingAs($user)->get('/admin/concept-graph-explorer');
+
+        $response->assertSuccessful();
+    }
 }

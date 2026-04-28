@@ -5,8 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
-import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
-import { mergeUniqueRelated } from '@/lib/mergeConcepts';
+import { ApiError, fetchConceptRelationships, graphNodesToConceptItems, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 
@@ -81,8 +80,9 @@ export default function HomeScreen() {
       const trimmedSeed = seed?.trim() ?? '';
       try {
         return await fetchConceptRelationships({
-          seed: trimmedSeed !== '' ? trimmedSeed : undefined,
-          count: 5,
+          start: trimmedSeed !== '' ? trimmedSeed : undefined,
+          limit: 12,
+          depth: 2,
           complexity: requestedComplexity,
         });
       } catch (e) {
@@ -90,8 +90,9 @@ export default function HomeScreen() {
         // If the requested complexity isn't prefetched yet, fall back to the default tier.
         if (e instanceof ApiError && e.status === 404 && requestedComplexity !== DEFAULT_CONCEPT_COMPLEXITY) {
           const data = await fetchConceptRelationships({
-            seed: trimmedSeed !== '' ? trimmedSeed : undefined,
-            count: 5,
+            start: trimmedSeed !== '' ? trimmedSeed : undefined,
+            limit: 12,
+            depth: 2,
             complexity: DEFAULT_CONCEPT_COMPLEXITY,
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
@@ -130,7 +131,7 @@ export default function HomeScreen() {
     try {
       // Initial load: never send a seed (cold start)
       const data = await fetchBatch(complexityRef.current);
-      const list: ConceptItem[] = [data.seed, ...data.related_concepts];
+      const list: ConceptItem[] = graphNodesToConceptItems(data);
       setConcepts(list);
       setCurrentIndex(0);
     } catch (e) {
@@ -172,7 +173,7 @@ export default function HomeScreen() {
         }
       }
 
-      const batch: ConceptItem[] = [data.seed, ...(data.related_concepts ?? [])];
+      const batch: ConceptItem[] = graphNodesToConceptItems(data);
       const existing = conceptsRef.current;
       const seen = new Set(existing.map((c) => c.concept.trim().toLowerCase()));
       const freshBatch = batch.filter((c) => {

@@ -21,6 +21,9 @@ class ConceptsTable
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
+                \Filament\Tables\Columns\TextColumn::make('display_complexity')
+                    ->label('Complexity')
+                    ->sortable(),
                 \Filament\Tables\Columns\TextColumn::make('display_wiki_url')
                     ->label('Wiki URL')
                     ->limit(50)

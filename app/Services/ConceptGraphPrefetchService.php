@@ -12,33 +12,40 @@ use Illuminate\Support\Str;
 class ConceptGraphPrefetchService
 {
     /**
-     * @param  list<string>  $seeds
+     * @param  list<string>  $starts
      */
     public function dispatch(
-        array $seeds,
-        int $nIfNoneProvided,
-        ?int $relatedCount,
+        array $starts,
+        int $randomExisting,
+        bool $randomIdea,
+        int $targetCount,
+        int $batchSize,
         int $complexity,
         ?string $provider,
         ?string $model,
         string $queue
     ): ConceptGraphRun {
         $complexity = max(1, min(5, $complexity));
+        $targetCount = max(1, min(1000, $targetCount));
+        $batchSize = max(1, min(100, $batchSize));
 
         $provider = $provider !== null && $provider !== '' ? $provider : (string) config('ai.default', 'ollama');
         $model = $model !== null && $model !== '' ? $model : (string) config('ai.models.text');
 
-        if ($relatedCount !== null) {
-            $relatedCount = max(1, min(10, $relatedCount));
+        $starts = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $starts);
+        $starts = array_values(array_unique(array_filter($starts, fn ($v) => $v !== '')));
+
+        if ($randomExisting > 0) {
+            $starts = array_merge($starts, $this->randomStarts($randomExisting));
         }
 
-        $seeds = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $seeds);
-        $seeds = array_values(array_unique(array_filter($seeds, fn ($v) => $v !== '')));
+        $starts = array_values(array_unique($starts));
 
-        if (count($seeds) === 0) {
-            $seeds = $this->randomSeeds(max(1, $nIfNoneProvided));
+        if (count($starts) === 0 && ! $randomIdea) {
+            $starts = $this->randomStarts(1);
         }
 
+        $jobsToCreate = max(1, (int) ceil($targetCount / $batchSize));
         $runUuid = (string) Str::uuid();
 
         $run = ConceptGraphRun::query()->create([
@@ -47,37 +54,84 @@ class ConceptGraphPrefetchService
             'model' => $model,
             'complexity' => $complexity,
             'queue' => $queue,
-            'seed_count' => count($seeds),
-            'seeds' => $seeds,
-            'related_count' => $relatedCount,
+            'seed_count' => count($starts) + ($randomIdea ? 1 : 0),
+            'seeds' => [
+                'starts' => $starts,
+                'randomIdea' => $randomIdea,
+                'targetCount' => $targetCount,
+                'batchSize' => $batchSize,
+            ],
+            'related_count' => $targetCount,
             'dispatched_at' => now(),
         ]);
 
-        foreach ($seeds as $seed) {
-            ConceptGraphRunJob::query()->create([
-                'run_uuid' => $runUuid,
-                'seed' => $seed,
-                'status' => 'pending',
-                'attempts' => 0,
-            ]);
-
-            GenerateConceptGraphJob::dispatch(
-                seed: $seed,
-                count: $relatedCount,
+        foreach ($starts as $start) {
+            $this->dispatchBatches(
+                runUuid: $runUuid,
+                start: $start,
+                jobsToCreate: $jobsToCreate,
+                batchSize: $batchSize,
                 complexity: $complexity,
                 provider: $provider,
                 model: $model,
-                runUuid: $runUuid
-            )->onQueue($queue);
+                queue: $queue
+            );
+        }
+
+        if ($randomIdea) {
+            $this->dispatchBatches(
+                runUuid: $runUuid,
+                start: null,
+                jobsToCreate: $jobsToCreate,
+                batchSize: $batchSize,
+                complexity: $complexity,
+                provider: $provider,
+                model: $model,
+                queue: $queue
+            );
         }
 
         return $run;
     }
 
+    protected function dispatchBatches(
+        string $runUuid,
+        ?string $start,
+        int $jobsToCreate,
+        int $batchSize,
+        int $complexity,
+        ?string $provider,
+        ?string $model,
+        string $queue
+    ): void {
+        $baseKey = $start ?? 'random-idea';
+
+        for ($batch = 1; $batch <= $jobsToCreate; $batch++) {
+            $jobKey = "{$baseKey}#{$batch}";
+
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $runUuid,
+                'seed' => $jobKey,
+                'status' => 'pending',
+                'attempts' => 0,
+            ]);
+
+            GenerateConceptGraphJob::dispatch(
+                seed: $start,
+                count: $batchSize,
+                complexity: $complexity,
+                provider: $provider,
+                model: $model,
+                runUuid: $runUuid,
+                jobKey: $jobKey
+            )->onQueue($queue);
+        }
+    }
+
     /**
      * @return list<string>
      */
-    protected function randomSeeds(int $n): array
+    protected function randomStarts(int $n): array
     {
         $locale = (string) config('concepts.default_locale', 'en');
         $fromDb = ConceptTerm::query()
@@ -106,4 +160,3 @@ class ConceptGraphPrefetchService
         return ['creativity'];
     }
 }
-

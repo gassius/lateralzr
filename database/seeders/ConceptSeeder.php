@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\ConceptRelationship;
-use App\Models\ConceptTerm;
 use App\Models\RelationshipEvidence;
 use App\Services\ConceptCanonicalizer;
 use Illuminate\Database\Seeder;
@@ -18,79 +17,68 @@ class ConceptSeeder extends Seeder
     public function run(): void
     {
         $locale = (string) config('concepts.default_locale', 'en');
-        $complexity = (int) config('concepts.default_complexity', 2);
         $runUuid = (string) Str::uuid();
 
         /** @var ConceptCanonicalizer $canonicalizer */
         $canonicalizer = app(ConceptCanonicalizer::class);
 
-        $seed = $canonicalizer->resolveOrCreate(
-            term: 'pattern',
-            locale: $locale,
-            shortDescription: 'A repeated decorative design or sequence of shapes.',
-            wikiUrl: 'https://en.wikipedia.org/wiki/Pattern',
-            mediaUrl: null
-        );
-
-        // Seed a small “URL cache” set used by ConceptRelationshipService unit tests.
-        $canonicalizer->resolveOrCreate(
-            term: 'creativity',
-            locale: $locale,
-            shortDescription: 'The use of imagination or original ideas to create something.',
-            wikiUrl: 'https://en.wikipedia.org/wiki/Creativity',
-            mediaUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Creativity.jpg/960px-Creativity.jpg',
-        );
-        $canonicalizer->resolveOrCreate(
-            term: 'constraint',
-            locale: $locale,
-            shortDescription: 'A limitation or restriction.',
-            wikiUrl: 'https://en.wikipedia.org/wiki/Constraint',
-            mediaUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Constraint.jpg/960px-Constraint.jpg',
-        );
-
-        $relatedTerms = [
-            [
-                'term' => 'ambiguity',
-                'desc' => 'A state of uncertainty or inexactness regarding meaning, truth, or significance.',
-                'wiki' => 'https://en.wikipedia.org/wiki/Ambiguity',
-                'media' => null,
-                'larelality' => 4,
-            ],
-            [
-                'term' => 'harbor',
-                'desc' => 'A sheltered body of water where ships can anchor safely.',
-                'wiki' => 'https://en.wikipedia.org/wiki/Harbor',
-                'media' => null,
-                'larelality' => 3,
-            ],
-            [
-                'term' => 'metronome',
-                'desc' => 'A device that produces a steady beat to help musicians keep time.',
-                'wiki' => 'https://en.wikipedia.org/wiki/Metronome',
-                'media' => null,
-                'larelality' => 4,
-            ],
+        $nodes = [
+            'Cleopatra' => ['desc' => 'The last active ruler of the Ptolemaic Kingdom of Egypt.', 'wiki' => 'https://en.wikipedia.org/wiki/Cleopatra', 'media' => null, 'complexity' => 2],
+            'The Lumineers' => ['desc' => 'An American folk rock band known for narrative songs and acoustic arrangements.', 'wiki' => 'https://en.wikipedia.org/wiki/The_Lumineers', 'media' => null, 'complexity' => 2],
+            'Denver' => ['desc' => 'The capital city of Colorado, located near the Rocky Mountains.', 'wiki' => 'https://en.wikipedia.org/wiki/Denver', 'media' => null, 'complexity' => 1],
+            'Alexandria' => ['desc' => 'A Mediterranean port city in Egypt founded by Alexander the Great.', 'wiki' => 'https://en.wikipedia.org/wiki/Alexandria', 'media' => null, 'complexity' => 1],
+            'Lighthouse' => ['desc' => 'A tower or structure that emits light to guide ships and mark hazards.', 'wiki' => 'https://en.wikipedia.org/wiki/Lighthouse', 'media' => null, 'complexity' => 1],
+            'Signal flags' => ['desc' => 'Flags used by ships to communicate messages over distance.', 'wiki' => 'https://en.wikipedia.org/wiki/International_maritime_signal_flags', 'media' => null, 'complexity' => 2],
+            'Jazz improvisation' => ['desc' => 'The spontaneous creation of melodies, rhythms, and harmonies in jazz performance.', 'wiki' => 'https://en.wikipedia.org/wiki/Jazz_improvisation', 'media' => null, 'complexity' => 2],
+            'Constraint' => ['desc' => 'A limitation or restriction.', 'wiki' => 'https://en.wikipedia.org/wiki/Constraint', 'media' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Constraint.jpg/960px-Constraint.jpg', 'complexity' => 1],
+            'Pattern' => ['desc' => 'A repeated decorative design or sequence of shapes.', 'wiki' => 'https://en.wikipedia.org/wiki/Pattern', 'media' => null, 'complexity' => 1],
+            'Creativity' => ['desc' => 'The use of imagination or original ideas to create something.', 'wiki' => 'https://en.wikipedia.org/wiki/Creativity', 'media' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Creativity.jpg/960px-Creativity.jpg', 'complexity' => 1],
+            'Harbor' => ['desc' => 'A sheltered body of water where ships can anchor safely.', 'wiki' => 'https://en.wikipedia.org/wiki/Harbor', 'media' => null, 'complexity' => 1],
+            'Metronome' => ['desc' => 'A device that produces a steady beat to help musicians keep time.', 'wiki' => 'https://en.wikipedia.org/wiki/Metronome', 'media' => null, 'complexity' => 1],
         ];
 
-        foreach ($relatedTerms as $rt) {
-            $to = $canonicalizer->resolveOrCreate(
-                term: $rt['term'],
+        $concepts = [];
+        foreach ($nodes as $term => $node) {
+            $concepts[$term] = $canonicalizer->resolveOrCreate(
+                term: $term,
                 locale: $locale,
-                shortDescription: $rt['desc'],
-                wikiUrl: $rt['wiki'],
-                mediaUrl: $rt['media']
+                shortDescription: $node['desc'],
+                wikiUrl: $node['wiki'],
+                mediaUrl: $node['media'],
+                complexity: (int) $node['complexity'],
             );
+        }
 
+        $edges = [
+            ['Cleopatra', 'The Lumineers', 5, 0.72],
+            ['The Lumineers', 'Denver', 3, 0.68],
+            ['Cleopatra', 'Alexandria', 2, 0.55],
+            ['Alexandria', 'Lighthouse', 3, 0.61],
+            ['Lighthouse', 'Signal flags', 3, 0.64],
+            ['Signal flags', 'Jazz improvisation', 5, 0.70],
+            ['Jazz improvisation', 'Constraint', 4, 0.66],
+            ['Constraint', 'Pattern', 3, 0.62],
+            ['Pattern', 'Creativity', 4, 0.67],
+            ['Creativity', 'The Lumineers', 4, 0.58],
+            ['Denver', 'Harbor', 5, 0.51],
+            ['Harbor', 'Lighthouse', 2, 0.73],
+            ['Metronome', 'Jazz improvisation', 2, 0.77],
+            ['Metronome', 'Pattern', 3, 0.57],
+            ['Signal flags', 'Pattern', 4, 0.53],
+            ['Alexandria', 'Harbor', 2, 0.69],
+            ['Cleopatra', 'Constraint', 4, 0.48],
+            ['Denver', 'Metronome', 5, 0.46],
+        ];
+
+        foreach ($edges as [$from, $to, $laterality, $strength]) {
             $edge = ConceptRelationship::query()->create([
-                'from_concept_id' => $seed->id,
-                'to_concept_id' => $to->id,
-                'relationship_type' => 'lateral',
-                'complexity' => $complexity,
+                'from_concept_id' => $concepts[$from]->id,
+                'to_concept_id' => $concepts[$to]->id,
                 'llm_occurrences' => 1,
                 'user_weight' => 0,
-                'last_larelality' => (int) $rt['larelality'],
+                'last_laterality' => (int) $laterality,
                 'last_generated_at' => now(),
-                'strength' => 0.5,
+                'strength' => $strength,
             ]);
 
             RelationshipEvidence::query()->create([
@@ -98,15 +86,13 @@ class ConceptSeeder extends Seeder
                 'provider' => 'seed',
                 'model' => 'seed',
                 'run_uuid' => $runUuid,
-                'larelality' => (int) $rt['larelality'],
-                'seed_term' => 'pattern',
-                'related_term' => $rt['term'],
+                'laterality' => (int) $laterality,
+                'from_term' => $from,
+                'to_term' => $to,
                 'raw_json' => [
-                    'concept' => $rt['term'],
-                    'shortDescription' => $rt['desc'],
-                    'larelality' => (int) $rt['larelality'],
-                    'wikiUrl' => $rt['wiki'],
-                    'mediaUrl' => $rt['media'],
+                    'from' => $from,
+                    'to' => $to,
+                    'laterality' => (int) $laterality,
                 ],
                 'created_at' => now(),
             ]);

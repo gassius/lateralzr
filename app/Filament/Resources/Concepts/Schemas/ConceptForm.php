@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Concepts\Schemas;
 
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
 class ConceptForm
@@ -23,6 +23,13 @@ class ConceptForm
                     ->label('Short description (en)')
                     ->rows(3)
                     ->maxLength(65535),
+                TextInput::make('complexity')
+                    ->label('Concept label complexity')
+                    ->numeric()
+                    ->default((int) config('concepts.default_complexity', 2))
+                    ->minValue(1)
+                    ->maxValue(5)
+                    ->required(),
                 TextInput::make('wiki_url')
                     ->label('Wikipedia URL (en)')
                     ->url()

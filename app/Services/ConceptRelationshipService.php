@@ -22,24 +22,24 @@ class ConceptRelationshipService
     ) {}
 
     /**
-     * Generate laterally related concepts from a seed concept.
+     * Generate an interwoven concept graph from a starting concept.
      * Phase 1: Get concepts from LLM (no URL tools). Phase 2: Resolve URLs from cache or tools, persist misses.
-     * When $seedConcept is null or empty, a random seed is chosen (from DB or config).
+     * When $startConcept is null or empty, a random starting concept is chosen (from DB or config).
      *
-     * @param  string|null  $seedConcept  The seed concept to generate relationships from; null for cold start (random seed)
-     * @param  int|null  $count  Optional number of concepts to generate (default: 3-5)
+     * @param  string|null  $startConcept  Starting concept; null for cold start (random start)
+     * @param  int|null  $count  Optional number of concepts to generate (default: 12)
      * @param  object|null  $agent  Optional agent instance (for testing; must implement prompt() and return StructuredAgentResponse)
      * @param  int|null  $complexity  Concept name complexity 1–5; null uses config `concepts.default_complexity`
-     * @return array{complexity: int, seed: array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}, related_concepts: array<int, array{concept: string, shortDescription: string, larelality: int, wikiUrl: string|null, mediaUrl: string|null}>}
+     * @return array{complexity: int, start_concept: string, concepts: array<int, array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}>, edges: array<int, array{from: string, to: string, laterality: int}>}
      *
      * @throws \Exception
      */
-    public function generateRelationships(?string $seedConcept, ?int $count = null, ?object $agent = null, ?int $complexity = null): array
+    public function generateRelationships(?string $startConcept, ?int $count = null, ?object $agent = null, ?int $complexity = null): array
     {
-        if ($seedConcept === null || trim($seedConcept) === '') {
-            $seedConcept = $this->resolveRandomSeed();
+        if ($startConcept === null || trim($startConcept) === '') {
+            $startConcept = $this->resolveRandomSeed();
         } else {
-            $seedConcept = trim($seedConcept);
+            $startConcept = trim($startConcept);
         }
 
         $agent = $agent ?? new ConceptsOnlyAgent;
@@ -47,25 +47,25 @@ class ConceptRelationshipService
         $complexity = $complexity ?? (int) config('concepts.default_complexity', 2);
         $complexity = max(1, min(5, $complexity));
 
-        $countText = $count
-            ? "Generate exactly {$count} related concepts."
-            : 'Generate 3 to 5 related concepts.';
+        $count = $count !== null ? max(3, min(100, (int) $count)) : 12;
+        $countText = "Generate exactly {$count} concepts (including the starting concept).";
 
         $complexityBlock = LateralConceptAgentInstructions::complexityUserInstructions($complexity);
 
         $userPrompt = <<<PROMPT
-Seed concept: "{$seedConcept}"
+Starting concept: "{$startConcept}"
 
 {$countText}
 
 {$complexityBlock}
 
 Requirements:
-- The first related concept must not be a same-domain / encyclopedia-neighbor of the seed (avoid catalog walks in one field).
-- If a candidate is really just "more of the same subject area" as the seed, score it 1 and pick a different concept instead.
-- Only explain an obvious vertical link to the seed in shortDescription when larelality is 1; for 2+ keep the description neutral or oblique (see system instructions).
+- Concepts must be interwoven: include cross-links between non-start concepts. Avoid star graphs.
+- Every concept must have at least one edge.
+- At least 30% of concepts must have degree >= 2.
+- Avoid obvious neighbor clusters (do not keep returning to the same domain).
 - Every `shortDescription` must be non-empty (at least one sentence describing what the concept is). Never return blank descriptions.
-- Leave wikiUrl and mediaUrl null for every item; follow the schema and system instructions.
+- Leave wikiUrl and mediaUrl null for every concept; follow the schema and system instructions.
 PROMPT;
 
         $response = $agent->prompt($userPrompt);
@@ -76,40 +76,28 @@ PROMPT;
 
         $data = $response->toArray();
 
-        $seedData = $data['seed'] ?? [];
-        if (! is_array($seedData)) {
-            $seedData = ['concept' => is_string($seedData) ? $seedData : $seedConcept];
+        $startConceptName = trim((string) ($data['start_concept'] ?? $startConcept));
+        if ($startConceptName === '') {
+            $startConceptName = $startConcept;
         }
 
-        // Do not truncate concept labels to match complexity caps.
-        // Complexity is a *request hint* for the model; importer must keep whatever label the model returns
-        // (truncation can produce meaningless tokens like "The").
-        $seedConceptName = trim((string) ($seedData['concept'] ?? $seedData['name'] ?? $seedConcept));
-
-        $seed = [
-            'concept' => $seedConceptName,
-            'shortDescription' => $this->normalizeShortDescription(
-                $seedConceptName,
-                $seedData['shortDescription'] ?? $seedData['description'] ?? ''
-            ),
-            'wikiUrl' => $seedData['wikiUrl'] ?? null,
-            'mediaUrl' => $seedData['mediaUrl'] ?? null,
-        ];
-
-        $related = $data['related_concepts'] ?? [];
-        if (! is_array($related)) {
-            Log::warning('ConceptRelationshipService: related_concepts was not an array', [
-                'type' => gettype($related),
+        $concepts = $data['concepts'] ?? [];
+        if (! is_array($concepts)) {
+            Log::warning('ConceptRelationshipService: concepts was not an array', [
+                'type' => gettype($concepts),
             ]);
-            $related = [];
+            $concepts = [];
         }
 
-        $related = array_map(function ($concept) {
+        $concepts = array_values(array_filter(array_map(function ($concept) use ($complexity) {
             if (! is_array($concept)) {
-                return $concept;
+                return null;
             }
 
             $name = trim((string) ($concept['concept'] ?? $concept['name'] ?? ''));
+            if ($name === '') {
+                return null;
+            }
 
             return [
                 'concept' => $name,
@@ -117,20 +105,61 @@ PROMPT;
                     $name,
                     $concept['shortDescription'] ?? $concept['description'] ?? ''
                 ),
-                'larelality' => $concept['larelality'] ?? $concept['laterality'] ?? 1,
+                'complexity' => max(1, min(5, (int) ($concept['complexity'] ?? $complexity))),
                 'wikiUrl' => $concept['wikiUrl'] ?? null,
                 'mediaUrl' => $concept['mediaUrl'] ?? null,
             ];
-        }, $related);
+        }, $concepts)));
 
-        // Phase 2: Resolve URLs from cache or tools for seed and each related concept
-        $seed = $this->resolveUrlsForConcept($seed);
-        $related = array_map(fn ($c) => $this->resolveUrlsForConcept($c), $related);
+        // Ensure starting concept exists as a node.
+        $hasStart = collect($concepts)->contains(fn ($c) => isset($c['concept']) && ConceptTerm::normalizeTerm((string) $c['concept']) === ConceptTerm::normalizeTerm($startConceptName));
+        if (! $hasStart) {
+            array_unshift($concepts, [
+                'concept' => $startConceptName,
+                'shortDescription' => $this->normalizeShortDescription($startConceptName, ''),
+                'complexity' => $complexity,
+                'wikiUrl' => null,
+                'mediaUrl' => null,
+            ]);
+        }
+
+        $edges = $data['edges'] ?? [];
+        if (! is_array($edges)) {
+            Log::warning('ConceptRelationshipService: edges was not an array', [
+                'type' => gettype($edges),
+            ]);
+            $edges = [];
+        }
+
+        $edges = array_values(array_filter(array_map(function ($edge) {
+            if (! is_array($edge)) {
+                return null;
+            }
+
+            $from = trim((string) ($edge['from'] ?? ''));
+            $to = trim((string) ($edge['to'] ?? ''));
+            if ($from === '' || $to === '' || ConceptTerm::normalizeTerm($from) === ConceptTerm::normalizeTerm($to)) {
+                return null;
+            }
+
+            $laterality = (int) ($edge['laterality'] ?? $edge['larelality'] ?? 3);
+            $laterality = max(1, min(5, $laterality));
+
+            return [
+                'from' => $from,
+                'to' => $to,
+                'laterality' => $laterality,
+            ];
+        }, $edges)));
+
+        // Phase 2: Resolve URLs from cache or tools for each concept node
+        $concepts = array_map(fn ($c) => $this->resolveUrlsForConcept($c), $concepts);
 
         return [
             'complexity' => $complexity,
-            'seed' => $seed,
-            'related_concepts' => $related,
+            'start_concept' => $startConceptName,
+            'concepts' => $concepts,
+            'edges' => $edges,
         ];
     }
 

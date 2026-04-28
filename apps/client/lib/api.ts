@@ -5,17 +5,36 @@ const API_URL = resolveApiBaseUrl();
 export type ConceptItem = {
   concept: string;
   shortDescription: string;
-  larelality?: number;
+  laterality?: number;
+  complexity?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
 };
 
-export type ConceptRelationshipsResponse = {
+export type ConceptGraphNode = {
+  id: number;
+  label: string;
+  shortDescription: string;
+  complexity: number;
+  wikiUrl: string | null;
+  mediaUrl: string | null;
+  degree: number;
+};
+
+export type ConceptGraphEdge = {
+  id: number;
+  from: number;
+  to: number;
+  strength: number;
+  laterality: number;
+};
+
+export type ConceptGraphResponse = {
   data: {
-    /** 1 = simplest labels … 5 = dense academic; echoed from request or server default */
-    complexity: number;
-    seed: ConceptItem;
-    related_concepts: ConceptItem[];
+    start: { id: number; label: string };
+    nodes: ConceptGraphNode[];
+    edges: ConceptGraphEdge[];
+    meta: { depth: number; limit: number; minStrength: number; hasMore: boolean };
   };
   status: string;
 };
@@ -34,13 +53,14 @@ export class ApiError extends Error {
 }
 
 export async function fetchConceptRelationships(
-  options?: { seed?: string; count?: number; complexity?: number }
-): Promise<ConceptRelationshipsResponse['data']> {
-  const body: { seed?: string; count?: number; complexity?: number } = {};
-  if (options?.seed != null && options.seed.trim() !== '') body.seed = options.seed.trim();
-  if (options?.count != null) body.count = options.count;
-  // Always send complexity so the API and proxies see an explicit tier (defaults to 2).
-  body.complexity = options?.complexity ?? DEFAULT_CONCEPT_COMPLEXITY;
+  options?: { start?: string; seed?: string; limit?: number; depth?: number; minStrength?: number; complexity?: number }
+): Promise<ConceptGraphResponse['data']> {
+  const body: { start?: string; limit?: number; depth?: number; minStrength?: number } = {};
+  const start = options?.start ?? options?.seed;
+  if (start != null && start.trim() !== '') body.start = start.trim();
+  if (options?.limit != null) body.limit = options.limit;
+  if (options?.depth != null) body.depth = options.depth;
+  if (options?.minStrength != null) body.minStrength = options.minStrength;
 
   const res = await fetch(`${API_URL}/api/concepts/relationships`, {
     method: 'POST',
@@ -56,9 +76,19 @@ export async function fetchConceptRelationships(
     );
   }
 
-  const json = (await res.json()) as ConceptRelationshipsResponse;
+  const json = (await res.json()) as ConceptGraphResponse;
   if (json.status !== 'success' || !json.data) {
     throw new Error('Invalid response from API');
   }
   return json.data;
+}
+
+export function graphNodesToConceptItems(data: ConceptGraphResponse['data']): ConceptItem[] {
+  return data.nodes.map((node) => ({
+    concept: node.label,
+    shortDescription: node.shortDescription,
+    complexity: node.complexity,
+    wikiUrl: node.wikiUrl,
+    mediaUrl: node.mediaUrl,
+  }));
 }

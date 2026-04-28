@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Arr;
 
@@ -22,26 +23,39 @@ class ListConceptGraphRuns extends ListRecords
                 ->label('Prefetch concept graph')
                 ->modalHeading('Prefetch concept graph')
                 ->form([
-                    TagsInput::make('seeds')
-                        ->label('Seeds (optional)')
-                        ->placeholder('e.g. creativity, attention, empathy')
-                        ->helperText('If empty, we’ll pick random seeds from the DB.')
+                    TagsInput::make('starts')
+                        ->label('Starting concepts (optional)')
+                        ->placeholder('e.g. Cleopatra, The Lumineers, Denver')
+                        ->helperText('If empty, use random existing starts or enable random idea.')
                         ->separator(',')
                         ->suggestions(fn () => [])
                         ->columnSpanFull(),
-                    TextInput::make('n')
-                        ->label('Random seeds (if none provided)')
+                    TextInput::make('random_existing')
+                        ->label('Random existing starts')
                         ->numeric()
-                        ->default(25)
-                        ->minValue(1)
+                        ->default(0)
+                        ->minValue(0)
                         ->required(),
+                    Toggle::make('random_idea')
+                        ->label('Random idea start')
+                        ->default(false),
                     TextInput::make('count')
-                        ->label('Related concepts per seed (optional)')
+                        ->label('Target concepts')
                         ->numeric()
+                        ->default(100)
                         ->minValue(1)
-                        ->maxValue(10),
+                        ->maxValue(1000)
+                        ->required(),
+                    TextInput::make('batch_size')
+                        ->label('Batch size')
+                        ->helperText('Concepts requested per queued LLM batch.')
+                        ->numeric()
+                        ->default(10)
+                        ->minValue(1)
+                        ->maxValue(100)
+                        ->required(),
                     TextInput::make('complexity')
-                        ->label('Complexity (1–5)')
+                        ->label('Concept label complexity (1–5)')
                         ->numeric()
                         ->default((int) config('concepts.default_complexity', 2))
                         ->minValue(1)
@@ -64,13 +78,15 @@ class ListConceptGraphRuns extends ListRecords
                         ->required(),
                 ])
                 ->action(function (array $data): void {
-                    $seeds = Arr::wrap($data['seeds'] ?? []);
-                    $seeds = array_values(array_filter(array_map('strval', $seeds), fn ($v) => trim($v) !== ''));
+                    $starts = Arr::wrap($data['starts'] ?? []);
+                    $starts = array_values(array_filter(array_map('strval', $starts), fn ($v) => trim($v) !== ''));
 
                     app(ConceptGraphPrefetchService::class)->dispatch(
-                        seeds: $seeds,
-                        nIfNoneProvided: (int) ($data['n'] ?? 25),
-                        relatedCount: ($data['count'] ?? null) !== null ? (int) $data['count'] : null,
+                        starts: $starts,
+                        randomExisting: (int) ($data['random_existing'] ?? 0),
+                        randomIdea: (bool) ($data['random_idea'] ?? false),
+                        targetCount: (int) ($data['count'] ?? 100),
+                        batchSize: (int) ($data['batch_size'] ?? 10),
                         complexity: (int) ($data['complexity'] ?? 2),
                         provider: ($data['provider'] ?? null) ? (string) $data['provider'] : null,
                         model: ($data['model'] ?? null) ? (string) $data['model'] : null,
@@ -81,4 +97,3 @@ class ListConceptGraphRuns extends ListRecords
         ];
     }
 }
-

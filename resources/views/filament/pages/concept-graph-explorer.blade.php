@@ -2,25 +2,15 @@
     <div class="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
                 <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <div>
-                        <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Seed (preferred term)</label>
+                        <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Start concept</label>
                         <input
                             type="text"
                             class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
                             wire:model.defer="seed"
-                            placeholder="e.g. creativity"
+                            placeholder="e.g. Cleopatra"
                         />
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Complexity</label>
-                            <input
-                                type="number"
-                                min="1"
-                                max="5"
-                                class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
-                                wire:model.defer="complexity"
-                            />
-                        </div>
                         <div>
                             <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Limit</label>
                             <input
@@ -29,6 +19,16 @@
                                 max="500"
                                 class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
                                 wire:model.defer="limit"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Depth</label>
+                            <input
+                                type="number"
+                                min="1"
+                                max="5"
+                                class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
+                                wire:model.defer="depth"
                             />
                         </div>
                     </div>
@@ -45,13 +45,9 @@
                             />
                         </div>
                         <div>
-                            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Relationship type (optional)</label>
-                            <input
-                                type="text"
-                                class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
-                                wire:model.defer="relationshipType"
-                                placeholder="lateral"
-                            />
+                            <div class="mt-7 text-xs text-gray-600 dark:text-gray-300">
+                                Tip: click a node to re-center. Shift+click expands one more hop. Cmd/Ctrl+click edits the concept. Hover for 2 seconds to see the description.
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -72,6 +68,10 @@
                     style="aspect-ratio: 4 / 3; height: auto; min-height: 520px; max-height: 80vh;"
                     wire:ignore
                 ></div>
+                <div
+                    id="concept-graph-tooltip"
+                    class="fixed z-50 hidden max-w-sm rounded-lg bg-white p-3 text-sm text-gray-800 shadow-lg ring-1 ring-gray-950/10 dark:bg-gray-900 dark:text-gray-100 dark:ring-white/10"
+                ></div>
     </div>
 
     <div class="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
@@ -83,15 +83,6 @@
                     </div>
 
                     <div class="grid grid-cols-1 gap-3">
-                        <div>
-                            <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Relationship type</label>
-                            <input
-                                type="text"
-                                class="mt-1 w-full rounded-lg border-gray-300 bg-white text-gray-900 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-gray-950 dark:text-gray-100"
-                                wire:model.defer="edgeForm.relationship_type"
-                            />
-                        </div>
-
                         <div>
                             <label class="text-sm font-medium text-gray-700 dark:text-gray-200">Strength (0..1)</label>
                             <input
@@ -135,10 +126,24 @@
             function renderConceptGraph(elements, attempt = 0) {
                 const container = document.getElementById('concept-graph');
                 if (!container) return;
+                const tooltip = document.getElementById('concept-graph-tooltip');
+                let tooltipTimer = null;
+
+                function hideTooltip() {
+                    if (tooltipTimer) {
+                        window.clearTimeout(tooltipTimer);
+                        tooltipTimer = null;
+                    }
+                    if (tooltip) tooltip.classList.add('hidden');
+                }
 
                 if (!window.cytoscape) {
                     if (attempt === 0) {
-                        container.innerHTML = '<div class="p-4 text-sm text-gray-600">Graph library not loaded yet. Loading…</div>';
+                        container.replaceChildren();
+                        const loading = document.createElement('div');
+                        loading.className = 'p-4 text-sm text-gray-600';
+                        loading.textContent = 'Graph library not loaded yet. Loading...';
+                        container.appendChild(loading);
                     }
 
                     if (attempt < 50) {
@@ -176,8 +181,6 @@
                             style: {
                                 'label': 'data(label)',
                                 'curve-style': 'bezier',
-                                'target-arrow-shape': 'triangle',
-                                'target-arrow-color': '#6b7280',
                                 'line-color': '#6b7280',
                                 'width': 'mapData(strength, 0, 1, 1, 6)',
                                 'font-size': 10,
@@ -190,7 +193,6 @@
                             selector: '.selected',
                             style: {
                                 'line-color': '#f59e0b',
-                                'target-arrow-color': '#f59e0b',
                             }
                         }
                     ],
@@ -219,14 +221,91 @@
                     const nodeId = evt.target.id(); // e.g. c123
                     const conceptId = evt.target.data('concept_id') ?? parseInt(String(nodeId).replace(/^c/, ''), 10);
                     const openEdit = evt.originalEvent?.metaKey || evt.originalEvent?.ctrlKey;
+                    const expand = evt.originalEvent?.shiftKey;
                     if (Number.isFinite(conceptId) && window.Livewire) {
                         if (openEdit) {
                             window.Livewire.dispatch('navigateToConcept', { conceptId });
+                        } else if (expand) {
+                            window.Livewire.dispatch('expandConcept', { conceptId });
                         } else {
                             window.Livewire.dispatch('setSeedFromConcept', { conceptId });
                         }
                     }
                 });
+
+                cy.on('mouseover', 'node', function (evt) {
+                    hideTooltip();
+                    if (!tooltip) return;
+
+                    const node = evt.target;
+                    const position = evt.renderedPosition ?? { x: 0, y: 0 };
+                    tooltipTimer = window.setTimeout(() => {
+                        const label = String(node.data('label') ?? '');
+                        const description = String(node.data('shortDescription') ?? '');
+                        const complexity = String(node.data('complexity') ?? '');
+                        const degree = String(node.data('degree') ?? '');
+                        const wikiUrl = node.data('wikiUrl');
+                        const mediaUrl = node.data('mediaUrl');
+
+                        tooltip.replaceChildren();
+
+                        const title = document.createElement('div');
+                        title.className = 'font-semibold';
+                        title.textContent = label;
+                        tooltip.appendChild(title);
+
+                        const descriptionEl = document.createElement('div');
+                        descriptionEl.className = 'mt-1';
+                        descriptionEl.textContent = description;
+                        tooltip.appendChild(descriptionEl);
+
+                        const meta = document.createElement('div');
+                        meta.className = 'mt-2 text-xs opacity-75';
+                        meta.textContent = `Complexity ${complexity} · Degree ${degree}`;
+                        tooltip.appendChild(meta);
+
+                        const links = document.createElement('div');
+                        links.className = 'mt-2 pointer-events-auto';
+                        let hasLinks = false;
+
+                        if (wikiUrl) {
+                            const wiki = document.createElement('a');
+                            wiki.className = 'text-primary-600 underline';
+                            wiki.href = String(wikiUrl);
+                            wiki.target = '_blank';
+                            wiki.rel = 'noreferrer';
+                            wiki.textContent = 'Wikipedia';
+                            links.appendChild(wiki);
+                            hasLinks = true;
+                        }
+
+                        if (mediaUrl) {
+                            if (hasLinks) {
+                                links.appendChild(document.createTextNode(' · '));
+                            }
+                            const media = document.createElement('a');
+                            media.className = 'text-primary-600 underline';
+                            media.href = String(mediaUrl);
+                            media.target = '_blank';
+                            media.rel = 'noreferrer';
+                            media.textContent = 'Media';
+                            links.appendChild(media);
+                            hasLinks = true;
+                        }
+
+                        if (hasLinks) {
+                            tooltip.appendChild(links);
+                        }
+
+                        const rect = container.getBoundingClientRect();
+                        tooltip.style.left = `${Math.min(window.innerWidth - 280, rect.left + position.x + 16)}px`;
+                        tooltip.style.top = `${Math.max(12, rect.top + position.y + 16)}px`;
+                        tooltip.classList.remove('hidden');
+                    }, 2000);
+                });
+
+                cy.on('mouseout', 'node', hideTooltip);
+                cy.on('pan zoom drag', hideTooltip);
 
                 window.__conceptGraphCy = cy;
             }

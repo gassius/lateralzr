@@ -17,12 +17,11 @@ class EvidencesRelationManager extends RelationManager
                 TextColumn::make('provider')->sortable()->toggleable(),
                 TextColumn::make('model')->sortable()->toggleable(),
                 TextColumn::make('run_uuid')->label('Run UUID')->copyable()->toggleable(),
-                TextColumn::make('larelality')->sortable()->toggleable(),
-                TextColumn::make('seed_term')->limit(50)->toggleable(),
-                TextColumn::make('related_term')->limit(50)->toggleable(),
+                TextColumn::make('laterality')->sortable()->toggleable(),
+                TextColumn::make('from_term')->limit(50)->toggleable(),
+                TextColumn::make('to_term')->limit(50)->toggleable(),
                 TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->defaultSort('created_at', 'desc');
     }
 }
-

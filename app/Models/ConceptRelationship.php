@@ -13,22 +13,19 @@ class ConceptRelationship extends Model
     protected $fillable = [
         'from_concept_id',
         'to_concept_id',
-        'relationship_type',
-        'complexity',
         'strength',
         'last_generated_at',
         'llm_occurrences',
         'user_weight',
-        'last_larelality',
+        'last_laterality',
     ];
 
     protected $casts = [
-        'complexity' => 'integer',
         'llm_occurrences' => 'integer',
         'user_weight' => 'integer',
         'strength' => 'decimal:5',
         'last_generated_at' => 'datetime',
-        'last_larelality' => 'integer',
+        'last_laterality' => 'integer',
     ];
 
     public function fromConcept(): BelongsTo
@@ -51,4 +48,3 @@ class ConceptRelationship extends Model
         return $this->hasMany(RelationshipFeedback::class, 'concept_relationship_id');
     }
 }
-

@@ -26,6 +26,7 @@ class CreateConcept extends CreateRecord
             'term' => $data['term'],
             'normalized_term' => ConceptTerm::normalizeTerm($data['term']),
             'short_description' => $data['short_description'] ?? null,
+            'complexity' => max(1, min(5, (int) ($data['complexity'] ?? config('concepts.default_complexity', 2)))),
             'wiki_url' => $data['wiki_url'] ?? null,
             'media_url' => $data['media_url'] ?? null,
             'is_preferred' => true,

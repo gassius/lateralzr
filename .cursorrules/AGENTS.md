@@ -43,7 +43,9 @@ This document provides context and guidelines for AI agents working on the Later
 ### Monorepo
 - **API** lives at the **repository root** (Laravel, Sail, `app/`, `routes/`, `compose.yaml`). **Expo client** lives in **`apps/client`**. Turborepo orchestrates the root package (admin/Vite) and the client (Expo) so their build and dev tasks do not collide.
 - **Node version** is defined in [.nvmrc](.nvmrc); use NVM on the host or the optional Node Docker service (profile `client`) for client tooling.
-- **Agents must not assume a single app**: run API tests from the repo root with Sail (`./vendor/bin/sail test`). Run client commands from `apps/client` (e.g. `pnpm exec expo start`, `pnpm exec expo start --web`) or from the root with Turbo: `pnpm turbo run dev --filter=client`. The project uses **pnpm** as the package manager (see [pnpm-workspace.yaml](pnpm-workspace.yaml)).
+- **Agents must not assume a single app**: run API commands from the repo root with Sail (`./sail ...`, wrapper for `./vendor/bin/sail`). Run client commands from `apps/client` (e.g. `pnpm exec expo start`, `pnpm exec expo start --web`) or from the root with Turbo: `pnpm turbo run dev --filter=client`. The project uses **pnpm** as the package manager (see [pnpm-workspace.yaml](pnpm-workspace.yaml)).
+- **Critical Sail rule**: Do not run `php artisan`, `composer`, `vendor/bin/pint`, or `vendor/bin/phpunit` directly on the host. The `.env` database host (`mysql`) is resolved inside Sail containers. Use `./sail artisan <command>`, `./sail composer <command>`, `./sail test`, and `./sail pint`.
+- **Concept graph queue workers**: concept generation can spend more than 60 seconds in the LLM plus URL enrichment path. When processing these jobs manually, use `./sail artisan queue:work --queue=default --timeout=300`.
 
 ### Expo client
 - **Stack**: Expo SDK, React Native, TypeScript, Expo Router. The client fetches concepts from the API and displays them as flip/swipe cards.
@@ -205,7 +207,7 @@ app/Http/Resources/RelationshipResource.php
 - Maintain consistency with established patterns
 - Ask for clarification if requirements are ambiguous
 - Prioritize testability and maintainability
-- **CRITICAL: Always run `./vendor/bin/sail test` after making code changes to ensure tests pass and the app is not broken**
+- **CRITICAL: Always run `./sail test` after making code changes to ensure tests pass and the app is not broken**
 
 ## Future Considerations
 

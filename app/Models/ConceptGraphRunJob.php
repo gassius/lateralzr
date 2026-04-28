@@ -25,9 +25,36 @@ class ConceptGraphRunJob extends Model
         'finished_at' => 'datetime',
     ];
 
+    public function getDisplayStatusAttribute(): string
+    {
+        if ($this->isStaleProcessing()) {
+            return 'timed_out';
+        }
+
+        return (string) $this->status;
+    }
+
+    public function getDisplayErrorAttribute(): ?string
+    {
+        if ($this->error_message) {
+            return $this->error_message;
+        }
+
+        if ($this->isStaleProcessing()) {
+            return 'Still marked processing after the expected worker timeout. This is probably a legacy timeout before failure details were recorded; check failed queue jobs or retry this batch.';
+        }
+
+        return null;
+    }
+
+    protected function isStaleProcessing(): bool
+    {
+        return $this->status === 'processing'
+            && $this->started_at?->lt(now()->subMinutes(5));
+    }
+
     public function run(): BelongsTo
     {
         return $this->belongsTo(ConceptGraphRun::class, 'run_uuid', 'run_uuid');
     }
 }
-

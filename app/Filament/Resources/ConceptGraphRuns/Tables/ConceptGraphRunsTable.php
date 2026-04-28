@@ -24,12 +24,16 @@ class ConceptGraphRunsTable
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('complexity')
+                    ->label('Label complexity')
                     ->sortable(),
                 TextColumn::make('queue')
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('seed_count')
-                    ->label('Seeds')
+                    ->label('Starts')
+                    ->sortable(),
+                TextColumn::make('related_count')
+                    ->label('Target concepts')
                     ->sortable(),
                 TextColumn::make('pending_jobs_count')
                     ->label('Pending')
@@ -54,4 +58,3 @@ class ConceptGraphRunsTable
             ->defaultSort('dispatched_at', 'desc');
     }
 }
-

@@ -6,6 +6,7 @@ use App\Filament\Resources\Concepts\ConceptResource;
 use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
+use App\Services\ConceptGraphQuery;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,13 +24,11 @@ class ConceptGraphExplorer extends Page
 
     public ?string $seed = null;
 
-    public int $complexity = 2;
-
-    public ?string $relationshipType = null;
-
     public float $minStrength = 0.0;
 
     public int $limit = 60;
+
+    public int $depth = 2;
 
     /** @var array<int, array<string, mixed>> */
     public array $graphElements = [];
@@ -41,9 +40,9 @@ class ConceptGraphExplorer extends Page
 
     public function mount(): void
     {
-        $this->complexity = (int) config('concepts.default_complexity', 2);
         $this->minStrength = 0.0;
         $this->limit = 60;
+        $this->depth = 2;
 
         if (! filled($this->seed)) {
             $this->seed = $this->defaultSeedWithEdges() ?? $this->defaultSeed();
@@ -73,89 +72,52 @@ class ConceptGraphExplorer extends Page
             return;
         }
 
-        $conceptId = $this->resolveConceptId($seed);
-        if (! $conceptId) {
+        $graph = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: $seed,
+            limit: $this->limit,
+            depth: $this->depth,
+            minStrength: $this->minStrength,
+        );
+
+        if ($graph === null) {
             $this->graphElements = [];
             $this->selectedRelationshipId = null;
 
             return;
         }
 
-        $seedConcept = Concept::query()
-            ->with('preferredTerm')
-            ->find($conceptId);
-
-        $query = ConceptRelationship::query()
-            ->where('complexity', $this->complexity)
-            ->where('strength', '>=', $this->minStrength)
-            ->where(function (Builder $q) use ($conceptId) {
-                $q->where('from_concept_id', $conceptId)
-                    ->orWhere('to_concept_id', $conceptId);
-            });
-
-        if ($this->relationshipType) {
-            $query->where('relationship_type', $this->relationshipType);
-        }
-
-        $edges = $query
-            ->with(['fromConcept.preferredTerm', 'toConcept.preferredTerm'])
-            ->orderByDesc('strength')
-            ->limit(max(1, $this->limit))
-            ->get();
-
-        $nodes = [];
         $elements = [];
 
-        // Always include the seed node, even if it has no qualifying edges.
-        if ($seedConcept) {
-            $nodes[$seedConcept->id] = [
-                'data' => [
-                    'id' => 'c'.$seedConcept->id,
-                    'concept_id' => $seedConcept->id,
-                    'label' => $seedConcept->display_term ?? ('concept#'.$seedConcept->id),
-                ],
-            ];
-        }
-
-        foreach ($edges as $edge) {
-            $from = $edge->fromConcept;
-            $to = $edge->toConcept;
-
-            if ($from) {
-                $nodes[$from->id] = [
-                    'data' => [
-                        'id' => 'c'.$from->id,
-                        'concept_id' => $from->id,
-                        'label' => $from->display_term ?? ('concept#'.$from->id),
-                    ],
-                ];
-            }
-            if ($to) {
-                $nodes[$to->id] = [
-                    'data' => [
-                        'id' => 'c'.$to->id,
-                        'concept_id' => $to->id,
-                        'label' => $to->display_term ?? ('concept#'.$to->id),
-                    ],
-                ];
-            }
-
+        foreach ($graph['nodes'] as $node) {
             $elements[] = [
                 'data' => [
-                    'id' => 'r'.$edge->id,
-                    'relationship_id' => $edge->id,
-                    'source' => 'c'.$edge->from_concept_id,
-                    'target' => 'c'.$edge->to_concept_id,
-                    'label' => $edge->relationship_type.' • '.number_format((float) $edge->strength, 3),
-                    'strength' => (float) $edge->strength,
-                    'relationship_type' => $edge->relationship_type,
-                    'user_weight' => (int) $edge->user_weight,
+                    'id' => 'c'.$node['id'],
+                    'concept_id' => (int) $node['id'],
+                    'label' => $node['label'] ?: ('concept#'.$node['id']),
+                    'shortDescription' => $node['shortDescription'] ?? '',
+                    'complexity' => (int) ($node['complexity'] ?? 2),
+                    'wikiUrl' => $node['wikiUrl'] ?? null,
+                    'mediaUrl' => $node['mediaUrl'] ?? null,
+                    'degree' => (int) ($node['degree'] ?? 0),
                 ],
             ];
         }
 
-        $this->graphElements = array_values($nodes);
-        $this->graphElements = array_merge($this->graphElements, $elements);
+        foreach ($graph['edges'] as $edge) {
+            $elements[] = [
+                'data' => [
+                    'id' => 'r'.$edge['id'],
+                    'relationship_id' => (int) $edge['id'],
+                    'source' => 'c'.$edge['from'],
+                    'target' => 'c'.$edge['to'],
+                    'label' => number_format((float) $edge['strength'], 3).' / L'.$edge['laterality'],
+                    'strength' => (float) $edge['strength'],
+                    'laterality' => (int) $edge['laterality'],
+                ],
+            ];
+        }
+
+        $this->graphElements = $elements;
 
         $this->dispatch('concept-graph-updated', elements: $this->graphElements);
     }
@@ -173,7 +135,6 @@ class ConceptGraphExplorer extends Page
 
         $this->selectedRelationshipId = $rel->id;
         $this->edgeForm = [
-            'relationship_type' => $rel->relationship_type,
             'strength' => (float) $rel->strength,
             'user_weight' => (int) $rel->user_weight,
         ];
@@ -206,6 +167,13 @@ class ConceptGraphExplorer extends Page
         }
     }
 
+    #[On('expandConcept')]
+    public function expandConcept(int $conceptId): void
+    {
+        $this->depth = min(5, $this->depth + 1);
+        $this->setSeedFromConcept($conceptId);
+    }
+
     public function saveEdge(): void
     {
         if (! $this->selectedRelationshipId) {
@@ -218,7 +186,6 @@ class ConceptGraphExplorer extends Page
         }
 
         $rel->update([
-            'relationship_type' => (string) ($this->edgeForm['relationship_type'] ?? $rel->relationship_type),
             'strength' => (float) ($this->edgeForm['strength'] ?? $rel->strength),
             'user_weight' => (int) ($this->edgeForm['user_weight'] ?? $rel->user_weight),
         ]);
@@ -270,7 +237,6 @@ class ConceptGraphExplorer extends Page
     protected function defaultSeedWithEdges(): ?string
     {
         $fromConceptId = ConceptRelationship::query()
-            ->where('complexity', $this->complexity)
             ->where('strength', '>', 0)
             ->inRandomOrder()
             ->value('from_concept_id');
@@ -290,4 +256,3 @@ class ConceptGraphExplorer extends Page
         return is_string($term) && trim($term) !== '' ? trim($term) : null;
     }
 }
-

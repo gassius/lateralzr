@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Concepts\Pages;
 use App\Filament\Resources\Concepts\ConceptResource;
 use App\Models\ConceptTerm;
 use Filament\Actions\DeleteAction;
-use Illuminate\Database\Eloquent\Model;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
 
 class EditConcept extends EditRecord
 {
@@ -22,6 +22,7 @@ class EditConcept extends EditRecord
 
         $data['term'] = $term?->term;
         $data['short_description'] = $term?->short_description;
+        $data['complexity'] = (int) ($term?->complexity ?? config('concepts.default_complexity', 2));
         $data['wiki_url'] = $term?->wiki_url;
         $data['media_url'] = $term?->media_url;
 
@@ -44,6 +45,7 @@ class EditConcept extends EditRecord
                 'term' => $data['term'],
                 'normalized_term' => ConceptTerm::normalizeTerm($data['term']),
                 'short_description' => $data['short_description'] ?? null,
+                'complexity' => max(1, min(5, (int) ($data['complexity'] ?? config('concepts.default_complexity', 2)))),
                 'wiki_url' => $data['wiki_url'] ?? null,
                 'media_url' => $data['media_url'] ?? null,
                 'is_preferred' => true,

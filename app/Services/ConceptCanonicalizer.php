@@ -30,12 +30,16 @@ class ConceptCanonicalizer
         ?string $locale = null,
         ?string $shortDescription = null,
         ?string $wikiUrl = null,
-        ?string $mediaUrl = null
+        ?string $mediaUrl = null,
+        ?int $complexity = null
     ): Concept {
         $locale = $locale ?: $this->defaultLocale();
         $normalized = ConceptTerm::normalizeTerm($term);
+        $complexity = $complexity !== null
+            ? max(1, min(5, $complexity))
+            : (int) config('concepts.default_complexity', 2);
 
-        return DB::transaction(function () use ($term, $locale, $normalized, $shortDescription, $wikiUrl, $mediaUrl) {
+        return DB::transaction(function () use ($term, $locale, $normalized, $shortDescription, $wikiUrl, $mediaUrl, $complexity) {
             $existingTerm = ConceptTerm::query()
                 ->where('locale', $locale)
                 ->where('normalized_term', $normalized)
@@ -52,6 +56,9 @@ class ConceptCanonicalizer
                 }
                 if ($mediaUrl !== null && ($existingTerm->media_url === null || $existingTerm->media_url === '')) {
                     $updates['media_url'] = $mediaUrl;
+                }
+                if ((int) ($existingTerm->complexity ?? 0) !== $complexity) {
+                    $updates['complexity'] = $complexity;
                 }
                 if ($updates !== []) {
                     $existingTerm->fill($updates)->save();
@@ -72,6 +79,7 @@ class ConceptCanonicalizer
                 'short_description' => $shortDescription,
                 'wiki_url' => $wikiUrl,
                 'media_url' => $mediaUrl,
+                'complexity' => $complexity,
                 'is_preferred' => true,
             ]);
 
@@ -79,4 +87,3 @@ class ConceptCanonicalizer
         });
     }
 }
-

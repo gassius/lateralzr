@@ -15,12 +15,6 @@ class ConceptRelationshipForm
                     ->disabled(),
                 TextInput::make('to_concept_id')
                     ->disabled(),
-                TextInput::make('relationship_type')
-                    ->required()
-                    ->maxLength(32),
-                TextInput::make('complexity')
-                    ->numeric()
-                    ->disabled(),
                 TextInput::make('strength')
                     ->numeric()
                     ->minValue(0)
@@ -33,10 +27,9 @@ class ConceptRelationshipForm
                 TextInput::make('user_weight')
                     ->numeric()
                     ->required(),
-                TextInput::make('last_larelality')
+                TextInput::make('last_laterality')
                     ->numeric()
                     ->disabled(),
             ]);
     }
 }
-

@@ -8,16 +8,17 @@ use Illuminate\Console\Command;
 class PrefetchConceptGraph extends Command
 {
     protected $signature = 'concepts:prefetch
-        {--seed= : Seed concept to generate from (optional)}
-        {--seeds= : Comma-separated seed concepts (optional)}
-        {--n=25 : How many seeds to enqueue if none provided}
-        {--count= : Related concepts per seed (default: 3-5 per agent)}
-        {--complexity= : Complexity 1-5 (default from config)}
+        {--starts= : Comma-separated starting concepts (optional)}
+        {--random-existing=0 : How many random existing concepts to use as starts}
+        {--random-idea : Ask the generator to begin from its cold-start/random path}
+        {--count=100 : Target concept count for this run}
+        {--batch-size=10 : Concept count requested per queued batch}
+        {--complexity= : Concept label complexity 1-5 (default from config)}
         {--provider= : AI provider (ollama|openai|anthropic|gemini) (default from config)}
         {--model= : AI model (default from config)}
         {--queue=default : Queue name}';
 
-    protected $description = 'Prefetch concept relationships into the database (async queued jobs).';
+    protected $description = 'Prefetch an interwoven concept graph into the database (async queued jobs).';
 
     public function handle(): int
     {
@@ -27,25 +28,28 @@ class PrefetchConceptGraph extends Command
         $provider = $this->option('provider') ? (string) $this->option('provider') : null;
         $model = $this->option('model') ? (string) $this->option('model') : null;
 
-        $count = $this->option('count') !== null ? (int) $this->option('count') : null;
+        $count = max(1, (int) ($this->option('count') ?? 100));
+        $batchSize = max(1, min(100, (int) ($this->option('batch-size') ?? 10)));
 
         $queue = (string) $this->option('queue');
 
-        $seeds = $this->resolveSeeds();
-        $n = (int) $this->option('n');
-        $n = max(1, $n);
+        $starts = $this->resolveStarts();
+        $randomExisting = max(0, (int) $this->option('random-existing'));
+        $randomIdea = (bool) $this->option('random-idea');
 
         $run = app(ConceptGraphPrefetchService::class)->dispatch(
-            seeds: $seeds,
-            nIfNoneProvided: $n,
-            relatedCount: $count,
+            starts: $starts,
+            randomExisting: $randomExisting,
+            randomIdea: $randomIdea,
+            targetCount: $count,
+            batchSize: $batchSize,
             complexity: $complexity,
             provider: $provider,
             model: $model,
             queue: $queue
         );
 
-        $this->info("Enqueued {$run->seed_count} seed(s). run_uuid={$run->run_uuid} provider={$run->provider} model={$run->model} complexity={$run->complexity} queue={$run->queue}");
+        $this->info("Enqueued {$run->seed_count} start(s). run_uuid={$run->run_uuid} provider={$run->provider} model={$run->model} target={$run->related_count} batch_size={$batchSize} complexity={$run->complexity} queue={$run->queue}");
 
         return self::SUCCESS;
     }
@@ -53,27 +57,21 @@ class PrefetchConceptGraph extends Command
     /**
      * @return list<string>
      */
-    protected function resolveSeeds(): array
+    protected function resolveStarts(): array
     {
-        $seeds = [];
+        $starts = [];
 
-        $single = $this->option('seed');
-        if (is_string($single) && trim($single) !== '') {
-            $seeds[] = trim($single);
-        }
-
-        $csv = $this->option('seeds');
+        $csv = $this->option('starts');
         if (is_string($csv) && trim($csv) !== '') {
             $parts = array_map('trim', explode(',', $csv));
             $parts = array_values(array_filter($parts, fn ($v) => $v !== ''));
-            $seeds = array_merge($seeds, $parts);
+            $starts = array_merge($starts, $parts);
         }
 
         // Normalize, unique.
-        $seeds = array_map(fn (string $s) => \App\Models\ConceptTerm::normalizeTerm($s), $seeds);
-        $seeds = array_values(array_unique($seeds));
+        $starts = array_map(fn (string $s) => \App\Models\ConceptTerm::normalizeTerm($s), $starts);
+        $starts = array_values(array_unique($starts));
 
-        return $seeds;
+        return $starts;
     }
 }
-

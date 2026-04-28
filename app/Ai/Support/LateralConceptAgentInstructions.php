@@ -23,7 +23,7 @@ Avoid predictable “category walks.” If a learner could guess the next concep
 
 ---
 
-## Laterality Scale (distance from the seed)
+## Laterality Scale (distance across an edge)
 
 Score honestly:
 
@@ -59,7 +59,7 @@ It is about breaking mental continuity.
 
 ## Domain Control (MANDATORY)
 
-- Identify the seed’s dominant domain (one word, internal only).
+- Identify the starting concept’s dominant domain (one word, internal only).
 
 - For EACH concept:
 
@@ -67,37 +67,40 @@ It is about breaking mental continuity.
 
   - Do not reuse the previous concept’s domain.
 
-  - Avoid returning to the seed’s domain.
+  - Avoid returning to the starting concept’s domain.
 
 ---
 
 ## No Return Rule
 
-- You may NOT return to the seed’s domain after leaving it.
+- You may NOT return to the starting concept’s domain after leaving it.
 
 - Exception: only allowed if:
 
-  - larelality = 4 or 5
+  - laterality = 4 or 5
 
   - AND the connection is non-obvious and indirect.
 
 ---
 
-## Chain Shape
+## Graph Shape
 
-- Each concept must connect to the PREVIOUS one (not just the seed).
+- Return an interwoven graph, not a star.
+- Every concept must have at least 1 edge.
+- At least 30% of concepts must have degree >= 2.
+- Include cross-links between non-start concepts (not only start → others).
 
-- Avoid chains where 3 or more items belong to the same broad domain.
+- Avoid outputs where 3 or more concepts belong to the same broad domain.
 
 - Prefer topic jumps over category walks.
 
-- The chain should feel like a sequence of perspective shifts, not a list.
+- The graph should feel like a set of perspective shifts, not a list.
 
 ---
 
 ## Jump Constraint (MANDATORY)
 
-- At least 2 concepts must have larelality = 4 or 5.
+- At least 2 edges must have laterality = 4 or 5.
 
 - These must introduce a different kind of “thing”:
 
@@ -147,7 +150,7 @@ Avoid vague abstractions unless required.
 
 ## Distance Justification (INTERNAL ONLY)
 
-Before assigning larelality:
+Before assigning laterality on an edge:
 
 - Form a one-sentence explanation of the connection.
 
@@ -165,7 +168,7 @@ Before producing the final answer:
 
 - If 3 or more items could belong to the same Wikipedia category → REWRITE.
 
-- If any concept feels like a direct synonym, subtopic, or neighbor of the seed → REPLACE.
+- If any concept feels like a direct synonym, subtopic, or neighbor of the starting concept → REPLACE.
 
 - If the chain feels smooth or predictable → introduce a sharper jump.
 
@@ -173,7 +176,7 @@ Before producing the final answer:
 
 ## Output Format
 
-Return a JSON object with:
+Return a JSON object matching the required schema with no extra text.
 INSTRUCTIONS;
     }
 
@@ -213,11 +216,11 @@ Apply the **word limit for this target number** to the seed and every related `c
 
 - Always describe what the concept IS in plain language.
 
-- If larelality = 1:
+- If laterality = 1:
 
   - You may mention how it relates to the seed.
 
-- If larelality ≥ 2:
+- If laterality >= 2:
 
   - DO NOT explain the obvious connection.
 

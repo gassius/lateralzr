@@ -1,0 +1,26 @@
+---
+description: Require Laravel Sail for backend commands in this project
+alwaysApply: true
+---
+
+# Laravel Sail Commands
+
+This project runs Laravel through Sail/Docker. Do not run backend commands directly on the host with `php artisan`, `composer`, `vendor/bin/pint`, or `vendor/bin/phpunit`.
+
+Use the root wrapper or Sail binary:
+
+```bash
+./sail artisan <command>
+./sail composer <command>
+./sail test
+./sail pint
+```
+
+Equivalent long form is allowed:
+
+```bash
+./vendor/bin/sail artisan <command>
+./vendor/bin/sail composer <command>
+```
+
+If a command fails with MySQL host resolution, check whether it was run outside Sail before debugging `.env`.

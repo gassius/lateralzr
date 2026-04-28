@@ -16,16 +16,16 @@ class RelationshipEvidence extends Model
         'provider',
         'model',
         'run_uuid',
-        'larelality',
-        'seed_term',
-        'related_term',
+        'laterality',
+        'from_term',
+        'to_term',
         'raw_json',
         'created_at',
     ];
 
     protected $casts = [
         'raw_json' => 'array',
-        'larelality' => 'integer',
+        'laterality' => 'integer',
         'created_at' => 'datetime',
     ];
 
@@ -34,4 +34,3 @@ class RelationshipEvidence extends Model
         return $this->belongsTo(ConceptRelationship::class, 'concept_relationship_id');
     }
 }
-

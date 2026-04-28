@@ -20,80 +20,67 @@ class ConceptRelationshipApiTest extends TestCase
     public function test_generate_endpoint_returns_success_with_valid_seed(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')->once()->andReturn([
-            'complexity' => 2,
-            'seed' => [
-                'concept' => 'creativity',
-                'shortDescription' => 'The use of imagination or original ideas to create something',
-                'wikiUrl' => 'https://en.wikipedia.org/wiki/Creativity',
-                'mediaUrl' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Creativity.jpg/960px-Creativity.jpg',
+        $mockQuery->shouldReceive('getGraph')->once()->andReturn([
+            'start' => ['id' => 1, 'label' => 'creativity'],
+            'nodes' => [
+                ['id' => 1, 'label' => 'creativity', 'shortDescription' => 'The use of imagination or original ideas to create something', 'complexity' => 1, 'wikiUrl' => 'https://en.wikipedia.org/wiki/Creativity', 'mediaUrl' => null, 'degree' => 1],
+                ['id' => 2, 'label' => 'constraint', 'shortDescription' => 'A limitation or restriction.', 'complexity' => 1, 'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint', 'mediaUrl' => null, 'degree' => 1],
             ],
-            'related_concepts' => [
-                [
-                    'concept' => 'constraint',
-                    'shortDescription' => 'Limitations that can spark creative solutions',
-                    'larelality' => 3,
-                    'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint',
-                    'mediaUrl' => 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Constraint.jpg/960px-Constraint.jpg',
-                ],
+            'edges' => [
+                ['id' => 10, 'from' => 1, 'to' => 2, 'strength' => 0.72, 'laterality' => 3],
             ],
+            'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false],
         ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'creativity',
+            'start' => 'creativity',
         ]);
 
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
-                    'complexity',
-                    'seed' => [
-                        'concept',
-                        'shortDescription',
-                        'wikiUrl',
-                        'mediaUrl',
-                    ],
-                    'related_concepts' => [
+                    'start' => ['id', 'label'],
+                    'nodes' => [
                         '*' => [
-                            'concept',
+                            'id',
+                            'label',
                             'shortDescription',
-                            'larelality',
+                            'complexity',
                             'wikiUrl',
                             'mediaUrl',
+                            'degree',
                         ],
                     ],
+                    'edges' => [
+                        '*' => ['id', 'from', 'to', 'strength', 'laterality'],
+                    ],
+                    'meta',
                 ],
                 'status',
             ])
             ->assertJson([
                 'status' => 'success',
                 'data' => [
-                    'seed' => [
-                        'concept' => 'creativity',
-                    ],
+                    'start' => ['label' => 'creativity'],
                 ],
             ]);
     }
 
-    public function test_generate_endpoint_accepts_count_parameter(): void
+    public function test_generate_endpoint_accepts_limit_parameter(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')->once()->andReturn([
-            'complexity' => 2,
-            'seed' => [
-                'concept' => 'innovation',
-                'shortDescription' => 'The introduction of something new',
-                'wikiUrl' => null,
-                'mediaUrl' => null,
-            ],
-            'related_concepts' => [],
+        $mockQuery->shouldReceive('getGraph')->once()->andReturn([
+            'start' => ['id' => 1, 'label' => 'innovation'],
+            'nodes' => [['id' => 1, 'label' => 'innovation', 'shortDescription' => 'The introduction of something new', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+            'edges' => [],
+            'meta' => ['depth' => 2, 'limit' => 5, 'minStrength' => 0.0, 'hasMore' => false],
         ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'innovation',
-            'count' => 5,
+            'start' => 'innovation',
+            'limit' => 5,
         ]);
 
         $response->assertStatus(200);
@@ -102,15 +89,11 @@ class ConceptRelationshipApiTest extends TestCase
     public function test_generate_endpoint_accepts_empty_body_and_uses_random_seed(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')->once()->andReturn([
-            'complexity' => 2,
-            'seed' => [
-                'concept' => 'creativity',
-                'shortDescription' => 'Cold start seed',
-                'wikiUrl' => null,
-                'mediaUrl' => null,
-            ],
-            'related_concepts' => [],
+        $mockQuery->shouldReceive('getGraph')->once()->andReturn([
+            'start' => ['id' => 1, 'label' => 'creativity'],
+            'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Cold start', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+            'edges' => [],
+            'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false],
         ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
@@ -118,99 +101,93 @@ class ConceptRelationshipApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJson(['status' => 'success'])
-            ->assertJsonStructure(['data' => ['seed' => ['concept'], 'related_concepts']]);
+            ->assertJsonStructure(['data' => ['start' => ['label'], 'nodes', 'edges']]);
     }
 
     public function test_generate_endpoint_validates_seed_is_string(): void
     {
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 123,
+            'start' => 123,
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['seed']);
+            ->assertJsonValidationErrors(['start']);
     }
 
     public function test_generate_endpoint_treats_whitespace_only_seed_as_cold_start(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')->once()->andReturn([
-            'complexity' => 2,
-            'seed' => [
-                'concept' => 'innovation',
-                'shortDescription' => 'Cold start',
-                'wikiUrl' => null,
-                'mediaUrl' => null,
-            ],
-            'related_concepts' => [],
+        $mockQuery->shouldReceive('getGraph')->once()->andReturn([
+            'start' => ['id' => 1, 'label' => 'innovation'],
+            'nodes' => [['id' => 1, 'label' => 'innovation', 'shortDescription' => 'Cold start', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+            'edges' => [],
+            'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false],
         ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => '   ',  // only whitespace → normalized to null (cold start)
+            'start' => '   ',  // only whitespace -> normalized to null (cold start)
         ]);
 
         $response->assertStatus(200)
             ->assertJson(['status' => 'success']);
     }
 
-    public function test_generate_endpoint_validates_count_range(): void
+    public function test_generate_endpoint_validates_limit_range(): void
     {
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'test',
-            'count' => 15, // Exceeds max of 10
+            'start' => 'test',
+            'limit' => 501,
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['count']);
+            ->assertJsonValidationErrors(['limit']);
     }
 
-    public function test_generate_endpoint_validates_complexity_range(): void
+    public function test_generate_endpoint_validates_depth_range(): void
     {
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'test',
-            'complexity' => 6,
+            'start' => 'test',
+            'depth' => 6,
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonValidationErrors(['complexity']);
+            ->assertJsonValidationErrors(['depth']);
     }
 
-    public function test_generate_endpoint_passes_complexity_to_db_query(): void
+    public function test_generate_endpoint_passes_graph_options_to_db_query(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')
+        $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', null, 4)
+            ->with('creativity', 40, 3, 0.2)
             ->andReturn([
-                'complexity' => 4,
-                'seed' => [
-                    'concept' => 'creativity',
-                    'shortDescription' => 'Desc',
-                    'wikiUrl' => null,
-                    'mediaUrl' => null,
-                ],
-                'related_concepts' => [],
+                'start' => ['id' => 1, 'label' => 'creativity'],
+                'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 3, 'limit' => 40, 'minStrength' => 0.2, 'hasMore' => false],
             ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'creativity',
-            'complexity' => 4,
+            'start' => 'creativity',
+            'limit' => 40,
+            'depth' => 3,
+            'minStrength' => 0.2,
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.complexity', 4);
+            ->assertJsonPath('data.meta.depth', 3);
     }
 
     public function test_generate_endpoint_returns_404_when_not_prefetched(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
-        $mockQuery->shouldReceive('getFromDb')->once()->andReturn(null);
+        $mockQuery->shouldReceive('getGraph')->once()->andReturn(null);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'test',
+            'start' => 'test',
         ]);
 
         $response->assertStatus(404)

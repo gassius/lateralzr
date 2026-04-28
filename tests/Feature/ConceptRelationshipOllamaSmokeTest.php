@@ -36,7 +36,9 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
     public function test_api_endpoint_returns_success_response(): void
     {
         $response = $this->postJson('/api/concepts/relationships', [
-            'seed' => 'innovation',
+            'start' => 'Cleopatra',
+            'limit' => 20,
+            'depth' => 2,
         ]);
 
         $response->assertStatus(200)
@@ -45,21 +47,35 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
             ])
             ->assertJsonStructure([
                 'data' => [
-                    'complexity',
-                    'seed' => [
-                        'concept',
-                        'shortDescription',
-                        'wikiUrl',
-                        'mediaUrl',
+                    'start' => [
+                        'id',
+                        'label',
                     ],
-                    'related_concepts' => [
+                    'nodes' => [
                         '*' => [
-                            'concept',
+                            'id',
+                            'label',
                             'shortDescription',
-                            'larelality',
+                            'complexity',
                             'wikiUrl',
                             'mediaUrl',
+                            'degree',
                         ],
+                    ],
+                    'edges' => [
+                        '*' => [
+                            'id',
+                            'from',
+                            'to',
+                            'strength',
+                            'laterality',
+                        ],
+                    ],
+                    'meta' => [
+                        'depth',
+                        'limit',
+                        'minStrength',
+                        'hasMore',
                     ],
                 ],
                 'status',
@@ -67,29 +83,24 @@ class ConceptRelationshipOllamaSmokeTest extends TestCase
 
         $data = $response->json('data');
 
-        // Check seed structure
-        $this->assertIsArray($data['seed']);
-        $this->assertArrayHasKey('concept', $data['seed']);
-        $this->assertArrayHasKey('shortDescription', $data['seed']);
-        $this->assertArrayHasKey('wikiUrl', $data['seed']);
-        $this->assertArrayHasKey('mediaUrl', $data['seed']);
+        $this->assertIsArray($data['start']);
+        $this->assertArrayHasKey('id', $data['start']);
+        $this->assertArrayHasKey('label', $data['start']);
 
-        $this->assertIsArray($data['related_concepts']);
+        $this->assertIsArray($data['nodes']);
+        $this->assertIsArray($data['edges']);
 
-        // If no concepts returned, log the full response for debugging
-        if (count($data['related_concepts']) === 0) {
-            $this->fail('No concepts returned. Full response: '.json_encode($data, JSON_PRETTY_PRINT));
+        if (count($data['edges']) === 0) {
+            $this->fail('No graph edges returned. Full response: '.json_encode($data, JSON_PRETTY_PRINT));
         }
 
-        $this->assertGreaterThan(0, count($data['related_concepts']));
+        $this->assertGreaterThan(0, count($data['nodes']));
+        $this->assertGreaterThan(0, count($data['edges']));
 
-        // Check that at least one concept has the expected structure
-        $firstConcept = $data['related_concepts'][0];
-        $this->assertArrayHasKey('concept', $firstConcept);
-        $this->assertArrayHasKey('shortDescription', $firstConcept);
-        $this->assertArrayHasKey('larelality', $firstConcept);
-        $this->assertArrayHasKey('wikiUrl', $firstConcept);
-        $this->assertArrayHasKey('mediaUrl', $firstConcept);
-        // URLs may be null if tools fail, but keys should exist
+        $firstNode = $data['nodes'][0];
+        $this->assertArrayHasKey('label', $firstNode);
+        $this->assertArrayHasKey('shortDescription', $firstNode);
+        $this->assertArrayHasKey('wikiUrl', $firstNode);
+        $this->assertArrayHasKey('mediaUrl', $firstNode);
     }
 }

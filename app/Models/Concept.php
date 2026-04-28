@@ -62,4 +62,9 @@ class Concept extends Model
     {
         return $this->preferredTerm?->media_url;
     }
+
+    public function getDisplayComplexityAttribute(): int
+    {
+        return (int) ($this->preferredTerm?->complexity ?? config('concepts.default_complexity', 2));
+    }
 }

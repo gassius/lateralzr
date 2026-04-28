@@ -6,7 +6,6 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -35,11 +34,6 @@ class ConceptRelationshipsTable
                         });
                     })
                     ->sortable(),
-                TextColumn::make('relationship_type')
-                    ->badge()
-                    ->sortable(),
-                TextColumn::make('complexity')
-                    ->sortable(),
                 TextColumn::make('strength')
                     ->numeric(decimalPlaces: 5)
                     ->sortable(),
@@ -54,23 +48,6 @@ class ConceptRelationshipsTable
                     ->sortable()
                     ->toggleable(),
             ])
-            ->filters([
-                SelectFilter::make('relationship_type')
-                    ->options(fn () => [
-                        'lateral' => 'lateral',
-                        'broader' => 'broader',
-                        'narrower' => 'narrower',
-                        'related' => 'related',
-                    ]),
-                SelectFilter::make('complexity')
-                    ->options([
-                        1 => '1',
-                        2 => '2',
-                        3 => '3',
-                        4 => '4',
-                        5 => '5',
-                    ]),
-            ])
             ->recordActions([
                 EditAction::make(),
             ])
@@ -82,4 +59,3 @@ class ConceptRelationshipsTable
             ->defaultSort('strength', 'desc');
     }
 }
-

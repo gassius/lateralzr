@@ -34,19 +34,20 @@ class ConceptRelationshipAgent implements Agent, HasStructuredOutput, HasTools
 
 IMPORTANT — Tools (MANDATORY):
 - You have two tools: WikipediaSearchTool (returns a Wikipedia article URL) and WikimediaCommonsSearchTool (returns a direct image URL on upload.wikimedia.org).
-- You MUST call WikipediaSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription" to get the article URL. Put the result in wikiUrl (or null if empty).
-- You MUST call WikimediaCommonsSearchTool for the seed and for EACH related concept. Pass "concept" and "shortDescription". Put the result in mediaUrl (or null if empty). The tool returns a direct image URL only—never use or invent a commons.wikimedia.org/wiki/File: page URL.
+- You MUST call WikipediaSearchTool for EACH concept. Pass "concept" and "shortDescription" to get the article URL. Put the result in wikiUrl (or null if empty).
+- You MUST call WikimediaCommonsSearchTool for EACH concept. Pass "concept" and "shortDescription". Put the result in mediaUrl (or null if empty). The tool returns a direct image URL only—never use or invent a commons.wikimedia.org/wiki/File: page URL.
 - Do NOT guess or invent URLs. Use only the strings returned by the tools. If a tool returns empty, set that field to null.
-- The seed object must include: concept, shortDescription, wikiUrl, and mediaUrl (from these tools).
 
-For each related concept you MUST use these exact field names in your structured output:
+Each concept object MUST use these exact field names:
 - `concept` (string): A clear, concise concept name
-- `shortDescription` (string): **Required, non-empty.** 1–2 sentences: what the thing is; for larelality 2+ avoid the obvious link to the seed, but never leave blank
-- `larelality` (integer, 1–5): Distance from the **seed** per the scale above
+- `shortDescription` (string): **Required, non-empty.** 1–2 sentences: what the thing is; avoid obvious connection explanations
+- `complexity` (integer, 1–5): Label complexity for this concept
 - `wikiUrl` (string, nullable): From WikipediaSearchTool
 - `mediaUrl` (string, nullable): From WikimediaCommonsSearchTool
 
-CRITICAL: Use the exact field names `concept`, `shortDescription`, `larelality`, `wikiUrl`, and `mediaUrl`. Do not use `name`, `description`, or `laterality`.
+Each edge object MUST use: `from`, `to`, and `laterality` (integer, 1–5).
+
+CRITICAL: Return `start_concept`, `concepts`, and `edges`. Do not use `related_concepts`, `seed`, `name`, or `description`.
 INSTRUCTIONS;
     }
 
@@ -69,22 +70,22 @@ INSTRUCTIONS;
     public function schema(JsonSchema $schema): array
     {
         return [
-            'seed' => $schema->object([
-                'concept' => $schema->string()->required(),
-                'shortDescription' => $schema->string()->min(1)->required(),
-                // URLs are populated via tools; may be null if tools fail
-                'wikiUrl' => $schema->string(),
-                'mediaUrl' => $schema->string(),
-            ])->required(),
-            'related_concepts' => $schema->array(
+            'start_concept' => $schema->string()->min(1)->required(),
+            'concepts' => $schema->array(
                 $schema->object([
-                    'concept' => $schema->string()->required(),
+                    'concept' => $schema->string()->min(1)->required(),
                     'shortDescription' => $schema->string()->min(1)->required(),
-                    // Laterality level 1–5 as described in the instructions
-                    'larelality' => $schema->integer()->min(1)->max(5)->required(),
+                    'complexity' => $schema->integer()->min(1)->max(5)->required(),
                     // URLs are populated via tools; may be null if tools fail
                     'wikiUrl' => $schema->string(),
                     'mediaUrl' => $schema->string(),
+                ])
+            )->required(),
+            'edges' => $schema->array(
+                $schema->object([
+                    'from' => $schema->string()->min(1)->required(),
+                    'to' => $schema->string()->min(1)->required(),
+                    'laterality' => $schema->integer()->min(1)->max(5)->required(),
                 ])
             )->required(),
         ];

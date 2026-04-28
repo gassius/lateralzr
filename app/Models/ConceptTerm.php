@@ -17,11 +17,13 @@ class ConceptTerm extends Model
         'short_description',
         'wiki_url',
         'media_url',
+        'complexity',
         'is_preferred',
     ];
 
     protected $casts = [
         'is_preferred' => 'boolean',
+        'complexity' => 'integer',
     ];
 
     public function concept(): BelongsTo
@@ -38,4 +40,3 @@ class ConceptTerm extends Model
         return $t;
     }
 }
-
