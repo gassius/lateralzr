@@ -61,7 +61,8 @@ class ConceptGraphPrefetchService
                 'targetCount' => $targetCount,
                 'batchSize' => $batchSize,
             ],
-            'related_count' => $targetCount,
+            // `related_count` is legacy tinyint; keep it small and use `seeds.targetCount` for the real value.
+            'related_count' => min(255, $targetCount),
             'dispatched_at' => now(),
         ]);
 

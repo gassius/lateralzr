@@ -29,9 +29,15 @@ class ConceptGraphRun extends Model
         'dispatched_at' => 'datetime',
     ];
 
+    public function getTargetCountAttribute(): ?int
+    {
+        $value = data_get($this->seeds, 'targetCount');
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
     public function jobs(): HasMany
     {
         return $this->hasMany(ConceptGraphRunJob::class, 'run_uuid', 'run_uuid');
     }
 }
-

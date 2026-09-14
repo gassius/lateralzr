@@ -32,8 +32,9 @@ class ConceptGraphRunsTable
                 TextColumn::make('seed_count')
                     ->label('Starts')
                     ->sortable(),
-                TextColumn::make('related_count')
+                TextColumn::make('target_count')
                     ->label('Target concepts')
+                    ->state(fn ($record): ?int => $record->target_count)
                     ->sortable(),
                 TextColumn::make('pending_jobs_count')
                     ->label('Pending')
