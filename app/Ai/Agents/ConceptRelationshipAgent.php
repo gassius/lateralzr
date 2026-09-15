@@ -116,6 +116,7 @@ INSTRUCTIONS;
     {
         return match (strtolower($providerName)) {
             'ollama' => Lab::Ollama,
+            'openrouter' => Lab::OpenRouter,
             'openai' => Lab::OpenAI,
             'anthropic' => Lab::Anthropic,
             'gemini' => Lab::Gemini,
