@@ -349,6 +349,17 @@ Run the test suite:
 ./sail test
 ```
 
+## Production Deployment
+
+For production deployment to the Hetzner VPS with Docker Compose and Traefik, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+Quick deployment summary:
+- Production stack: `docker-compose.prod.yml`
+- Deployment script: `./deploy-prod.sh`
+- Uses shared Traefik reverse proxy and MySQL
+- Public host: https://api.lateralzr.com
+- Services: nginx, app (PHP-FPM), queue worker, scheduler
+
 ## License
 
 [To be determined]

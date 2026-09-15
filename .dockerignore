@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+.cursor
+.cursorrules
+
+# Documentation and plans
+README.md
+Plans/
+.cursor/plans/
+
+# Node modules and build artifacts
+node_modules/
+apps/client/node_modules/
+.turbo/
+pnpm-lock.yaml
+
+# Laravel Sail
+compose.yaml
+sail
+vendor/laravel/sail/
+
+# Tests
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# Development files
+.env.example
+.env.local
+.env.*.example
+dev.sh
+
+# Build artifacts
+storage/framework/cache/
+storage/framework/sessions/
+storage/framework/testing/
+storage/framework/views/
+storage/logs/
+bootstrap/cache/*.php
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+Thumbs.db

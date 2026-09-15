@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Lateralzr Production Deployment Script
+# Usage: ./deploy-prod.sh [action]
+# Actions: build, deploy, restart, logs, shell, migrate, optimize
+
+ACTION="${1:-deploy}"
+COMPOSE_FILE="docker-compose.prod.yml"
+
+echo "🚀 Lateralzr Production Deployment"
+echo "=================================="
+
+case "$ACTION" in
+    build)
+        echo "📦 Building Docker images..."
+        docker compose -f "$COMPOSE_FILE" build --pull
+        echo "✅ Build complete!"
+        ;;
+    
+    deploy)
+        echo "🔄 Pulling latest code..."
+        git pull origin main
+        
+        echo "📦 Building images..."
+        docker compose -f "$COMPOSE_FILE" build --pull
+        
+        echo "🛑 Stopping services..."
+        docker compose -f "$COMPOSE_FILE" down
+        
+        echo "🗄️  Running migrations..."
+        docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
+        
+        echo "⚡ Optimizing Laravel..."
+        docker compose -f "$COMPOSE_FILE" run --rm app php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" run --rm app php artisan route:cache
+        docker compose -f "$COMPOSE_FILE" run --rm app php artisan view:cache
+        
+        echo "🚀 Starting services..."
+        docker compose -f "$COMPOSE_FILE" up -d
+        
+        echo ""
+        echo "✅ Deployment complete!"
+        echo "📊 Service status:"
+        docker compose -f "$COMPOSE_FILE" ps
+        ;;
+    
+    restart)
+        echo "🔄 Restarting services..."
+        docker compose -f "$COMPOSE_FILE" restart
+        echo "✅ Services restarted!"
+        ;;
+    
+    stop)
+        echo "🛑 Stopping services..."
+        docker compose -f "$COMPOSE_FILE" down
+        echo "✅ Services stopped!"
+        ;;
+    
+    logs)
+        echo "📋 Showing logs (Ctrl+C to exit)..."
+        docker compose -f "$COMPOSE_FILE" logs -f
+        ;;
+    
+    shell)
+        echo "🐚 Opening shell in app container..."
+        docker compose -f "$COMPOSE_FILE" exec app sh
+        ;;
+    
+    migrate)
+        echo "🗄️  Running migrations..."
+        docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
+        echo "✅ Migrations complete!"
+        ;;
+    
+    optimize)
+        echo "⚡ Optimizing Laravel..."
+        docker compose -f "$COMPOSE_FILE" exec app php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" exec app php artisan route:cache
+        docker compose -f "$COMPOSE_FILE" exec app php artisan view:cache
+        echo "✅ Optimization complete!"
+        ;;
+    
+    clear)
+        echo "🧹 Clearing Laravel caches..."
+        docker compose -f "$COMPOSE_FILE" exec app php artisan cache:clear
+        docker compose -f "$COMPOSE_FILE" exec app php artisan config:clear
+        docker compose -f "$COMPOSE_FILE" exec app php artisan route:clear
+        docker compose -f "$COMPOSE_FILE" exec app php artisan view:clear
+        echo "✅ Caches cleared!"
+        ;;
+    
+    status)
+        echo "📊 Service status:"
+        docker compose -f "$COMPOSE_FILE" ps
+        ;;
+    
+    test)
+        echo "🧪 Testing API endpoint..."
+        echo ""
+        curl -f https://api.lateralzr.com/api/hello && echo "" || echo "❌ API test failed!"
+        ;;
+    
+    *)
+        echo "Usage: $0 [action]"
+        echo ""
+        echo "Actions:"
+        echo "  build    - Build Docker images"
+        echo "  deploy   - Full deployment (pull, build, migrate, optimize, restart)"
+        echo "  restart  - Restart all services"
+        echo "  stop     - Stop all services"
+        echo "  logs     - Show and follow logs"
+        echo "  shell    - Open shell in app container"
+        echo "  migrate  - Run database migrations"
+        echo "  optimize - Cache config, routes, views"
+        echo "  clear    - Clear all Laravel caches"
+        echo "  status   - Show service status"
+        echo "  test     - Test API health endpoint"
+        exit 1
+        ;;
+esac
