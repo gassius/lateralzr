@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Nginx web server with Traefik labels for public access
+  nginx:
+    image: nginx:alpine
+    container_name: lateralzr_nginx
+    restart: unless-stopped
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - gonzalezrico_platform
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lateralzr-api.rule=Host(`api.lateralzr.com`)"
+      - "traefik.http.routers.lateralzr-api.entrypoints=websecure"
+      - "traefik.http.routers.lateralzr-api.tls=true"
+      - "traefik.http.routers.lateralzr-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.lateralzr-api.loadbalancer.server.port=80"
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.lateralzr-api-http.rule=Host(`api.lateralzr.com`)"
+      - "traefik.http.routers.lateralzr-api-http.entrypoints=web"
+      - "traefik.http.routers.lateralzr-api-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+  # PHP-FPM application container
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: lateralzr_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./:/var/www/html
+      - ./storage:/var/www/html/storage
+    networks:
+      - gonzalezrico_platform
+
+  # Queue worker for background jobs
+  queue:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: lateralzr_queue
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: php artisan queue:work --queue=default --tries=3 --timeout=300 --sleep=3 --max-jobs=1000
+    volumes:
+      - ./:/var/www/html
+      - ./storage:/var/www/html/storage
+    networks:
+      - gonzalezrico_platform
+    depends_on:
+      - app
+
+  # Scheduler for Laravel's cron tasks
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: lateralzr_scheduler
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: php artisan schedule:work
+    volumes:
+      - ./:/var/www/html
+      - ./storage:/var/www/html/storage
+    networks:
+      - gonzalezrico_platform
+    depends_on:
+      - app
+
+networks:
+  gonzalezrico_platform:
+    external: true
