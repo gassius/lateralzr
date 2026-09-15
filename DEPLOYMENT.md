@@ -2,6 +2,44 @@
 
 This guide covers deploying the Lateralzr Laravel API to a production environment on the Hetzner VPS alongside the gonzalezrico project, using shared Traefik reverse proxy and MySQL database.
 
+> **⚠️ Important**: This deployment stack is completely independent of the gonzalezrico project. All deployment operations are scoped to `/home/cgonzalez/lateralzr` and use only `docker-compose.prod.yml`. The GitHub Actions workflow and deployment scripts **never** touch the gonzalezrico compose stack.
+
+## Deployment Methods
+
+### 1. GitHub Actions (Recommended)
+
+Automated deployment via GitHub Actions runs on every push to `main` or can be triggered manually.
+
+**Prerequisites**:
+- GitHub repository secrets configured (see [GitHub Actions Setup](#github-actions-setup))
+- Initial server setup completed (see [Initial Setup](#initial-setup))
+
+**How it works**:
+1. Push to `main` branch triggers the workflow
+2. GitHub Actions SSHes to the VPS at `/home/cgonzalez/lateralzr`
+3. Runs `bin/deploy-prod` script (dirty-tree guard, fetch, build, migrate, optimize, compose up)
+4. Verifies deployment and API health
+
+**Manual trigger**:
+Go to Actions → Deploy to Production → Run workflow
+
+### 2. Manual Deployment
+
+SSH to the VPS and run the deployment script directly:
+
+```bash
+ssh cgonzalez@<vps-host>
+cd /home/cgonzalez/lateralzr
+./bin/deploy-prod
+```
+
+The `bin/deploy-prod` script:
+- Guards against uncommitted changes (dirty tree)
+- Fetches and pulls latest from git
+- Builds Docker images (`docker-compose.prod.yml` only)
+- Runs migrations and optimizes Laravel caches
+- Restarts services with zero-downtime
+
 ## Architecture Overview
 
 The production setup consists of:
@@ -22,6 +60,7 @@ All services connect to:
 - MySQL database `lateralzr` with user credentials
 - DNS record for `api.lateralzr.com` pointing to the VPS
 - Repository cloned to `/home/cgonzalez/lateralzr`
+- For GitHub Actions: Environment secrets configured in GitHub repository
 
 ## Initial Setup
 
@@ -136,33 +175,83 @@ Expected response:
 }
 ```
 
+## GitHub Actions Setup
+
+### Configuring GitHub Environment Secrets
+
+The automated deployment workflow requires a GitHub environment named `prod` with the following secrets:
+
+1. Go to your repository on GitHub
+2. Navigate to **Settings** → **Environments** → **New environment**
+3. Name it `prod`
+4. Add the following secrets:
+
+| Secret Name | Description | Example |
+|------------|-------------|---------|
+| `PROD_HOST` | VPS hostname or IP address | `your-vps.com` or `1.2.3.4` |
+| `PROD_USER` | SSH username on the VPS | `cgonzalez` |
+| `PROD_SSH_KEY` | Private SSH key for authentication | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| `PROD_PORT` | SSH port (default 22) | `22` |
+| `PROD_PATH` | Absolute path to lateralzr on VPS | `/home/cgonzalez/lateralzr` |
+
+**Generating the SSH key** (if needed):
+
+```bash
+# On your local machine
+ssh-keygen -t ed25519 -C "github-actions-lateralzr" -f ~/.ssh/lateralzr_deploy
+
+# Copy the public key to the VPS
+ssh-copy-id -i ~/.ssh/lateralzr_deploy.pub cgonzalez@<vps-host>
+
+# Copy the private key content for GitHub secret
+cat ~/.ssh/lateralzr_deploy
+```
+
+Paste the **entire private key** (including `-----BEGIN` and `-----END` lines) into the `PROD_SSH_KEY` secret.
+
+### First Deployment vs Recurring Deployments
+
+**First-time deployment**:
+1. Complete [Initial Setup](#initial-setup) manually via SSH (clone repo, create `.env`, run migrations, etc.)
+2. Configure GitHub environment secrets
+3. Push to `main` or trigger workflow manually
+
+**Recurring deployments** (after initial setup):
+- Simply push to `main` or trigger the workflow
+- The GitHub Action will automatically pull, build, migrate, and deploy
+
+### Workflow File
+
+The workflow is defined in `.github/workflows/deploy-prod.yml` and:
+- Triggers on push to `main` or manual dispatch
+- SSHes to the VPS and runs `bin/deploy-prod`
+- Verifies deployment by checking service status and API health
+- Fails if uncommitted changes exist on the server (dirty tree guard)
+
 ## Updates and Maintenance
 
 ### Deploying Updates
 
+**Via GitHub Actions** (recommended):
 ```bash
-# Pull latest code
-cd /home/cgonzalez/lateralzr
-git pull origin main
-
-# Rebuild images (if Dockerfile changed)
-docker compose -f docker-compose.prod.yml build
-
-# Stop services
-docker compose -f docker-compose.prod.yml down
-
-# Run migrations (if any)
-docker compose -f docker-compose.prod.yml run --rm app php artisan migrate --force
-
-# Clear and recache
-docker compose -f docker-compose.prod.yml run --rm app php artisan config:clear
-docker compose -f docker-compose.prod.yml run --rm app php artisan config:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan route:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan view:cache
-
-# Restart services
-docker compose -f docker-compose.prod.yml up -d
+git push origin main
 ```
+The workflow handles everything automatically.
+
+**Manually via SSH**:
+```bash
+ssh cgonzalez@<vps-host>
+cd /home/cgonzalez/lateralzr
+./bin/deploy-prod
+```
+
+The `bin/deploy-prod` script performs:
+1. Dirty tree guard (refuses to deploy with uncommitted changes)
+2. Git fetch and pull
+3. Docker build
+4. Database migrations
+5. Laravel cache optimization
+6. Service restart (`docker-compose.prod.yml` only)
 
 ### View Logs
 
@@ -324,6 +413,18 @@ The production Docker setup **does not affect** local development with Laravel S
 
 Both configurations can coexist - they use different compose files and don't interfere with each other.
 
+## Separation from gonzalezrico
+
+The Lateralzr deployment is **completely isolated** from the gonzalezrico project:
+
+- **Different paths**: `/home/cgonzalez/lateralzr` vs `/home/cgonzalez/gonzalezrico`
+- **Different compose files**: `docker-compose.prod.yml` (lateralzr) vs gonzalezrico's compose stack
+- **Different containers**: `lateralzr_*` prefix vs `gonzalezrico_*` prefix
+- **Shared network only**: Both connect to `gonzalezrico_platform` for Traefik and MySQL access
+- **Independent deployments**: Deploying Lateralzr never runs `docker compose` commands in the gonzalezrico directory
+
+The GitHub Actions workflow and `bin/deploy-prod` script are scoped to `/home/cgonzalez/lateralzr` and **never touch** the gonzalezrico compose stack.
+
 ## Security Considerations
 
 1. **Never expose the production `.env` file** - it contains database passwords and API keys
@@ -332,6 +433,7 @@ Both configurations can coexist - they use different compose files and don't int
 4. **Regularly update dependencies**: `composer update` (test in staging first)
 5. **Monitor logs** for suspicious activity
 6. **Keep Docker images updated**: rebuild periodically with `docker compose -f docker-compose.prod.yml build --pull`
+7. **Protect GitHub secrets**: Only grant repository access to trusted collaborators; the `PROD_SSH_KEY` provides full SSH access to the VPS
 
 ## Health Checks
 

@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Lateralzr Production Deployment
+# Designed to run in /home/cgonzalez/lateralzr ONLY
+# Never touches the gonzalezrico compose stack
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="docker-compose.prod.yml"
+
+cd "$PROJECT_ROOT"
+
+echo "🚀 Lateralzr Production Deployment"
+echo "==================================="
+echo "Working directory: $(pwd)"
+echo ""
+
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "❌ Error: $COMPOSE_FILE not found in $(pwd)"
+    exit 1
+fi
+
+if [[ ! -f .env ]]; then
+    echo "❌ Error: .env file not found"
+    echo "   Create .env from .env.production.example and configure it"
+    exit 1
+fi
+
+echo "🔍 Checking git status..."
+if [[ -n $(git status --porcelain) ]]; then
+    echo "⚠️  Warning: Working directory has uncommitted changes"
+    echo ""
+    git status --short
+    echo ""
+    echo "❌ Refusing to deploy with dirty working tree"
+    echo "   Commit or stash changes before deploying"
+    exit 1
+fi
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "📍 Current branch: $CURRENT_BRANCH"
+
+echo "🔄 Fetching latest from origin..."
+git fetch origin "$CURRENT_BRANCH"
+
+LOCAL_REV=$(git rev-parse HEAD)
+REMOTE_REV=$(git rev-parse "origin/$CURRENT_BRANCH")
+
+if [[ "$LOCAL_REV" != "$REMOTE_REV" ]]; then
+    echo "⬇️  Pulling latest changes..."
+    git pull origin "$CURRENT_BRANCH"
+else
+    echo "✅ Already up to date with origin/$CURRENT_BRANCH"
+fi
+
+echo ""
+echo "📦 Building Docker images..."
+docker compose -f "$COMPOSE_FILE" build --pull
+
+echo ""
+echo "🗄️  Running database migrations..."
+docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
+
+echo ""
+echo "⚡ Optimizing Laravel caches..."
+docker compose -f "$COMPOSE_FILE" run --rm app php artisan config:cache
+docker compose -f "$COMPOSE_FILE" run --rm app php artisan route:cache
+docker compose -f "$COMPOSE_FILE" run --rm app php artisan view:cache
+
+echo ""
+echo "🚀 Starting services (docker-compose.prod.yml only)..."
+docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+echo ""
+echo "✅ Deployment complete!"
+echo ""
+echo "📊 Service status:"
+docker compose -f "$COMPOSE_FILE" ps
+
+echo ""
+echo "🔗 API endpoint: https://api.lateralzr.com"
+echo "   Test with: curl https://api.lateralzr.com/api/hello"
