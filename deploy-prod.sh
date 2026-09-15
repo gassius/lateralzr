@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-set -e
+# Lateralzr Production Deployment - Wrapper Script
+# This script wraps bin/deploy-prod and provides additional utility commands
+# For automated deployment, use bin/deploy-prod (used by GitHub Actions)
 
-# Lateralzr Production Deployment Script
-# Usage: ./deploy-prod.sh [action]
-# Actions: build, deploy, restart, logs, shell, migrate, optimize
+set -e
 
 ACTION="${1:-deploy}"
 COMPOSE_FILE="docker-compose.prod.yml"
@@ -13,37 +13,21 @@ echo "🚀 Lateralzr Production Deployment"
 echo "=================================="
 
 case "$ACTION" in
+    deploy)
+        # Use the bin/deploy-prod script for deployment
+        # It includes dirty-tree guard, git operations, build, migrate, optimize
+        if [[ -x ./bin/deploy-prod ]]; then
+            exec ./bin/deploy-prod
+        else
+            echo "❌ Error: bin/deploy-prod not found or not executable"
+            exit 1
+        fi
+        ;;
+    
     build)
         echo "📦 Building Docker images..."
         docker compose -f "$COMPOSE_FILE" build --pull
         echo "✅ Build complete!"
-        ;;
-    
-    deploy)
-        echo "🔄 Pulling latest code..."
-        git pull origin main
-        
-        echo "📦 Building images..."
-        docker compose -f "$COMPOSE_FILE" build --pull
-        
-        echo "🛑 Stopping services..."
-        docker compose -f "$COMPOSE_FILE" down
-        
-        echo "🗄️  Running migrations..."
-        docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
-        
-        echo "⚡ Optimizing Laravel..."
-        docker compose -f "$COMPOSE_FILE" run --rm app php artisan config:cache
-        docker compose -f "$COMPOSE_FILE" run --rm app php artisan route:cache
-        docker compose -f "$COMPOSE_FILE" run --rm app php artisan view:cache
-        
-        echo "🚀 Starting services..."
-        docker compose -f "$COMPOSE_FILE" up -d
-        
-        echo ""
-        echo "✅ Deployment complete!"
-        echo "📊 Service status:"
-        docker compose -f "$COMPOSE_FILE" ps
         ;;
     
     restart)
@@ -106,8 +90,8 @@ case "$ACTION" in
         echo "Usage: $0 [action]"
         echo ""
         echo "Actions:"
+        echo "  deploy   - Full deployment (pull, build, migrate, optimize, restart) [uses bin/deploy-prod]"
         echo "  build    - Build Docker images"
-        echo "  deploy   - Full deployment (pull, build, migrate, optimize, restart)"
         echo "  restart  - Restart all services"
         echo "  stop     - Stop all services"
         echo "  logs     - Show and follow logs"
@@ -117,6 +101,8 @@ case "$ACTION" in
         echo "  clear    - Clear all Laravel caches"
         echo "  status   - Show service status"
         echo "  test     - Test API health endpoint"
+        echo ""
+        echo "Note: For automated deployment via GitHub Actions, see bin/deploy-prod"
         exit 1
         ;;
 esac

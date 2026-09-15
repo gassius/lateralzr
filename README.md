@@ -353,12 +353,21 @@ Run the test suite:
 
 For production deployment to the Hetzner VPS with Docker Compose and Traefik, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
-Quick deployment summary:
+**Automated deployment** (recommended):
+- GitHub Actions workflow (`.github/workflows/deploy-prod.yml`)
+- Triggers on push to `main` or manual dispatch
+- Deploys to `/home/cgonzalez/lateralzr` via SSH
+
+**Manual deployment**:
+- SSH to VPS and run `./bin/deploy-prod`
+- Includes dirty-tree guard, git fetch/pull, build, migrate, optimize
+
+Quick specs:
 - Production stack: `docker-compose.prod.yml`
-- Deployment script: `./deploy-prod.sh`
-- Uses shared Traefik reverse proxy and MySQL
+- Uses shared Traefik reverse proxy and MySQL from `gonzalezrico_platform` network
 - Public host: https://api.lateralzr.com
 - Services: nginx, app (PHP-FPM), queue worker, scheduler
+- **Isolated from gonzalezrico**: Deployment never touches the gonzalezrico compose stack
 
 ## License
 

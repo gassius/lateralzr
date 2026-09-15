@@ -1,0 +1,75 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    environment: prod
+    
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT }}
+          script: |
+            set -e
+            
+            echo "🚀 Starting Lateralzr deployment"
+            echo "================================"
+            
+            cd ${{ secrets.PROD_PATH }}
+            
+            if [[ ! -d .git ]]; then
+              echo "❌ Error: Not a git repository: $(pwd)"
+              exit 1
+            fi
+            
+            echo "📍 Repository: $(git remote get-url origin 2>/dev/null || echo 'unknown')"
+            echo "📂 Working directory: $(pwd)"
+            
+            if [[ "$(pwd)" != "/home/cgonzalez/lateralzr" ]]; then
+              echo "⚠️  Warning: Expected /home/cgonzalez/lateralzr, got $(pwd)"
+            fi
+            
+            echo ""
+            echo "🔄 Running deployment script..."
+            ./bin/deploy-prod
+            
+            echo ""
+            echo "✅ Deployment complete!"
+            echo "🔗 API: https://api.lateralzr.com"
+      
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_PORT }}
+          script: |
+            cd ${{ secrets.PROD_PATH }}
+            
+            echo "🔍 Verifying services..."
+            docker compose -f docker-compose.prod.yml ps
+            
+            echo ""
+            echo "📊 Recent logs (last 20 lines):"
+            docker compose -f docker-compose.prod.yml logs --tail=20
+            
+            echo ""
+            echo "🧪 Testing API endpoint..."
+            if curl -f -s https://api.lateralzr.com/api/hello > /dev/null; then
+              echo "✅ API is responding"
+            else
+              echo "⚠️  API health check failed"
+              exit 1
+            fi
