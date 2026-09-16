@@ -84,4 +84,35 @@ docker compose -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "🔗 API endpoint: https://api.lateralzr.com"
-echo "   Test with: curl https://api.lateralzr.com/api/hello"
+echo ""
+echo "🔍 Running health check (will retry to allow for ACME cert issuance)..."
+
+# Health check with retry to allow for Let's Encrypt certificate issuance
+MAX_ATTEMPTS=5
+RETRY_DELAY=3
+attempt=1
+
+while [ $attempt -le $MAX_ATTEMPTS ]; do
+    echo "   Attempt $attempt/$MAX_ATTEMPTS: Testing API endpoint..."
+    
+    if curl -fsS --max-time 10 https://api.lateralzr.com/api/hello >/dev/null 2>&1; then
+        echo "✅ Health check passed!"
+        echo ""
+        echo "   Test with: curl https://api.lateralzr.com/api/hello"
+        exit 0
+    fi
+    
+    if [ $attempt -lt $MAX_ATTEMPTS ]; then
+        echo "   ⏳ Health check failed, retrying in ${RETRY_DELAY}s..."
+        sleep $RETRY_DELAY
+    fi
+    
+    attempt=$((attempt + 1))
+done
+
+echo ""
+echo "⚠️  Health check failed after $MAX_ATTEMPTS attempts"
+echo "   This may be normal if Let's Encrypt cert is still being issued"
+echo "   Verify manually: curl https://api.lateralzr.com/api/hello"
+echo ""
+exit 1
