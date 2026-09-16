@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build lateralzr_app:prod from docker-compose.prod.yml (app service only).
+# Build production images from docker-compose.prod.yml (app + nginx).
 # Shared by bin/deploy-prod and deploy-prod.sh.
 #
 # Exit codes:
-#   0   success (image verified present)
+#   0   success (images verified present)
 #   1   build failed or image missing after success exit
 #   130 interrupted (SIGINT) — may still leave a usable image
 #   143 interrupted (SIGTERM)
@@ -11,8 +11,8 @@
 set -euo pipefail
 
 COMPOSE_FILE="${1:-docker-compose.prod.yml}"
-IMAGE="${PROD_APP_IMAGE:-lateralzr_app:prod}"
-SERVICE="${PROD_BUILD_SERVICE:-app}"
+APP_IMAGE="${PROD_APP_IMAGE:-lateralzr_app:prod}"
+NGINX_IMAGE="${PROD_NGINX_IMAGE:-lateralzr_nginx:prod}"
 
 export DOCKER_BUILDKIT=1
 export BUILDKIT_PROGRESS="${BUILDKIT_PROGRESS:-plain}"
@@ -29,25 +29,27 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
     exit 1
 fi
 
-echo "📦 Building Docker image ${IMAGE} (service: ${SERVICE})..."
+echo "📦 Building Docker images ${APP_IMAGE} + ${NGINX_IMAGE}..."
 echo "   COMPOSE_BAKE=${COMPOSE_BAKE} BUILDX_NO_DEFAULT_ATTESTATIONS=${BUILDX_NO_DEFAULT_ATTESTATIONS}"
 
 build_ec=0
-# Only the app service has a build stanza; queue/scheduler reuse the tag.
-docker compose -f "$COMPOSE_FILE" build --pull --progress=plain "$SERVICE" || build_ec=$?
+# app (PHP-FPM) and nginx (public assets from app stage). queue/scheduler reuse app tag.
+docker compose -f "$COMPOSE_FILE" build --pull --progress=plain app nginx || build_ec=$?
 
 if [[ "$build_ec" -ne 0 ]]; then
     if [[ "$build_ec" -eq 130 || "$build_ec" -eq 143 ]]; then
         echo ""
         echo "⚠️  Docker build interrupted (exit ${build_ec}) — not treated as a compile failure."
-        if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "   Image ${IMAGE} is present on this host."
+        if docker image inspect "$APP_IMAGE" >/dev/null 2>&1; then
+            echo "   Image ${APP_IMAGE} is present on this host."
             echo "   If logs showed exporting/naming DONE, finish deploy without rebuilding:"
             echo "     docker compose -f ${COMPOSE_FILE} run --rm app php artisan migrate --force"
-            echo "     docker compose -f ${COMPOSE_FILE} run --rm app php artisan config:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} run --rm app php artisan route:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} run --rm app php artisan view:cache"
             echo "     docker compose -f ${COMPOSE_FILE} up -d --remove-orphans"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan config:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan route:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan view:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T queue php artisan config:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T scheduler php artisan config:cache"
         fi
         exit "$build_ec"
     fi
@@ -56,10 +58,15 @@ if [[ "$build_ec" -ne 0 ]]; then
     exit 1
 fi
 
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-    echo ""
-    echo "❌ Build exited successfully but image ${IMAGE} was not found"
+missing=0
+for img in "$APP_IMAGE" "$NGINX_IMAGE"; do
+    if ! docker image inspect "$img" >/dev/null 2>&1; then
+        echo "❌ Build exited successfully but image ${img} was not found"
+        missing=1
+    fi
+done
+if [[ "$missing" -ne 0 ]]; then
     exit 1
 fi
 
-echo "✅ Image ${IMAGE} ready"
+echo "✅ Images ${APP_IMAGE} and ${NGINX_IMAGE} ready"

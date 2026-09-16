@@ -62,6 +62,8 @@ case "$ACTION" in
         docker compose -f "$COMPOSE_FILE" exec app php artisan config:cache
         docker compose -f "$COMPOSE_FILE" exec app php artisan route:cache
         docker compose -f "$COMPOSE_FILE" exec app php artisan view:cache
+        docker compose -f "$COMPOSE_FILE" exec queue php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" exec scheduler php artisan config:cache
         echo "✅ Optimization complete!"
         ;;
     
