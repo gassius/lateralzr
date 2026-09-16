@@ -129,10 +129,10 @@ lateralzr/
 The following dependency is required for successful Expo web builds on Vercel:
 
 ```json
-"@expo/metro-runtime": "~4.0.1"
+"@expo/metro-runtime": "~6.1.2"
 ```
 
-This package is required by Metro bundler during `expo export --platform web`. It was added explicitly to fix build failures on Vercel.
+This package is required by Metro bundler during `expo export --platform web` and must match the version expected by `expo-router@6.0.23`. It was added explicitly to fix build failures on Vercel.
 
 ## Testing the Deployment
 
