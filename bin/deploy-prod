@@ -56,14 +56,7 @@ else
 fi
 
 echo ""
-echo "📦 Building Docker images..."
-export DOCKER_BUILDKIT=1
-export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
-if ! docker compose -f "$COMPOSE_FILE" build --pull --progress plain; then
-    echo ""
-    echo "❌ Docker build failed (see output above)"
-    exit 1
-fi
+"$SCRIPT_DIR/build-prod-image" "$COMPOSE_FILE"
 
 echo ""
 echo "🗄️  Running database migrations..."

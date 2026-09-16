@@ -353,6 +353,28 @@ tar -czf storage-backup-$(date +%Y%m%d).tar.gz storage/
 
 ## Troubleshooting
 
+### Build hangs after “exporting to image” / “DONE”
+
+Compose v2.37+ may use **buildx bake** by default. Bake (and related BuildKit post-export work) can leave the CLI hung after the image is already written (`naming to ... lateralzr_app:prod done`). Multiple Ctrl+C then prints `forcing shutdown`, and older deploy scripts mislabeled that as “Docker build failed”.
+
+`bin/deploy-prod` now builds via `bin/build-prod-image` with `COMPOSE_BAKE=false`, builds only the `app` service, and verifies `lateralzr_app:prod` exists before migrate/up.
+
+**Interim (image already built, no lateralzr containers):**
+
+```bash
+cd /home/cgonzalez/lateralzr
+docker image inspect lateralzr_app:prod   # confirm image exists
+docker compose -f docker-compose.prod.yml run --rm app php artisan migrate --force
+docker compose -f docker-compose.prod.yml run --rm app php artisan config:cache
+docker compose -f docker-compose.prod.yml run --rm app php artisan route:cache
+docker compose -f docker-compose.prod.yml run --rm app php artisan view:cache
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+docker compose -f docker-compose.prod.yml ps
+curl -fsS https://api.lateralzr.com/api/hello
+```
+
+Do **not** run `docker compose ... down` on other stacks; stay on `docker-compose.prod.yml` only.
+
 ### Service Won't Start
 
 ```bash
@@ -432,7 +454,7 @@ The GitHub Actions workflow and `bin/deploy-prod` script are scoped to `/home/cg
 3. **Use strong passwords** for database and admin accounts
 4. **Regularly update dependencies**: `composer update` (test in staging first)
 5. **Monitor logs** for suspicious activity
-6. **Keep Docker images updated**: rebuild periodically with `docker compose -f docker-compose.prod.yml build --pull`
+6. **Keep Docker images updated**: rebuild periodically with `./bin/build-prod-image` (or `./deploy-prod.sh build`)
 7. **Protect GitHub secrets**: Only grant repository access to trusted collaborators; the `PROD_SSH_KEY` provides full SSH access to the VPS
 
 ## Health Checks
