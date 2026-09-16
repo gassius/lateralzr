@@ -19,8 +19,8 @@ return [
 
     'allowed_methods' => ['*'],
 
-    20|    'allowed_origins' => env('CORS_ALLOWED_ORIGINS') 
-        ? explode(',', env('CORS_ALLOWED_ORIGINS')) 
+    20|    'allowed_origins' => env('CORS_ALLOWED_ORIGINS') !== null
+        ? array_filter(explode(',', env('CORS_ALLOWED_ORIGINS')))
         : ['*'],
 
     'allowed_origins_patterns' => [],
