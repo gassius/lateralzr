@@ -12,7 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // CORS middleware is automatically applied via fruitcake/php-cors
+        // Configuration is in config/cors.php
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
