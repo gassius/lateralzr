@@ -17,7 +17,7 @@ Automated deployment via GitHub Actions runs on every push to `main` or can be t
 **How it works**:
 1. Push to `main` branch triggers the workflow
 2. GitHub Actions SSHes to the VPS at `/home/cgonzalez/lateralzr`
-3. Runs `bin/deploy-prod` script (dirty-tree guard, fetch, build, migrate, optimize, compose up)
+3. Runs `bin/deploy-prod` script (dirty-tree guard, fetch, build, migrate, compose up, optimize)
 4. Verifies deployment and API health
 
 **Manual trigger**:
@@ -37,17 +37,26 @@ The `bin/deploy-prod` script:
 - Guards against uncommitted changes (dirty tree)
 - Fetches and pulls latest from git
 - Builds Docker images (`docker-compose.prod.yml` only)
-- Runs migrations and optimizes Laravel caches
+- Runs migrations
+- Starts services, then optimizes Laravel caches inside running containers
 - Restarts services with zero-downtime
 
 ## Architecture Overview
 
 The production setup consists of:
 
-- **nginx** - Web server exposing the Laravel API via Traefik
-- **app** - PHP-FPM container running the Laravel application
-- **queue** - Background job worker for async tasks
-- **scheduler** - Laravel's task scheduler for cron jobs
+- **nginx** (`lateralzr_nginx:prod`) - Web server with `public/` baked from the app image; Traefik labels for HTTPS
+- **app** (`lateralzr_app:prod`) - PHP-FPM; application code and `vendor/` live **in the image**
+- **queue** - Background job worker (same app image)
+- **scheduler** - Laravel's task scheduler (same app image)
+
+Volumes (intentionally narrow — do **not** bind-mount the host repo over `/var/www/html`):
+
+- `./storage` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, logs, cache)
+- `./docker/nginx/prod.conf` → nginx config (read-only)
+- `.env` via `env_file` (not copied into the image)
+
+A full-repo bind-mount would hide image `vendor/` and `public/build` (the VPS checkout typically has neither).
 
 All services connect to:
 - Shared **MySQL** (`mysql_db_1`) on the `gonzalezrico_platform` network
@@ -132,21 +141,21 @@ docker compose -f docker-compose.prod.yml run --rm app php artisan db:seed --for
 
 Note: The seeder creates a test admin user (`test@lateralzr.com`) only in `local` environment by default. For production, create admin users manually or adjust the seeder.
 
-### 7. Optimize Laravel
+### 7. Start Services, then Optimize Laravel
 
-```bash
-docker compose -f docker-compose.prod.yml run --rm app php artisan config:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan route:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan view:cache
-```
-
-## Deployment
-
-### Start Services
+Caches must be written into **running** containers (`exec`). `run --rm` discards `bootstrap/cache` writes when the ephemeral container exits.
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
+
+docker compose -f docker-compose.prod.yml exec -T app php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T app php artisan route:cache
+docker compose -f docker-compose.prod.yml exec -T app php artisan view:cache
+docker compose -f docker-compose.prod.yml exec -T queue php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T scheduler php artisan config:cache
 ```
+
+## Deployment
 
 This will start:
 - `lateralzr_nginx` - Web server (accessible via Traefik at https://api.lateralzr.com)
@@ -357,18 +366,20 @@ tar -czf storage-backup-$(date +%Y%m%d).tar.gz storage/
 
 Compose v2.37+ may use **buildx bake** by default. Bake (and related BuildKit post-export work) can leave the CLI hung after the image is already written (`naming to ... lateralzr_app:prod done`). Multiple Ctrl+C then prints `forcing shutdown`, and older deploy scripts mislabeled that as “Docker build failed”.
 
-`bin/deploy-prod` now builds via `bin/build-prod-image` with `COMPOSE_BAKE=false`, builds only the `app` service, and verifies `lateralzr_app:prod` exists before migrate/up.
+`bin/deploy-prod` now builds via `bin/build-prod-image` with `COMPOSE_BAKE=false`, builds `app` + `nginx`, and verifies `lateralzr_app:prod` and `lateralzr_nginx:prod` exist before migrate/up.
 
-**Interim (image already built, no lateralzr containers):**
+**Interim (images already built, no lateralzr containers):**
 
 ```bash
 cd /home/cgonzalez/lateralzr
-docker image inspect lateralzr_app:prod   # confirm image exists
+docker image inspect lateralzr_app:prod lateralzr_nginx:prod   # confirm images exist
 docker compose -f docker-compose.prod.yml run --rm app php artisan migrate --force
-docker compose -f docker-compose.prod.yml run --rm app php artisan config:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan route:cache
-docker compose -f docker-compose.prod.yml run --rm app php artisan view:cache
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
+docker compose -f docker-compose.prod.yml exec -T app php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T app php artisan route:cache
+docker compose -f docker-compose.prod.yml exec -T app php artisan view:cache
+docker compose -f docker-compose.prod.yml exec -T queue php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T scheduler php artisan config:cache
 docker compose -f docker-compose.prod.yml ps
 curl -fsS https://api.lateralzr.com/api/hello
 ```

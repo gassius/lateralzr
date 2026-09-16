@@ -60,17 +60,21 @@ echo ""
 
 echo ""
 echo "🗄️  Running database migrations..."
+# Uses image filesystem (vendor/ included). Do not bind-mount host source over /var/www/html.
 docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
-
-echo ""
-echo "⚡ Optimizing Laravel caches..."
-docker compose -f "$COMPOSE_FILE" run --rm app php artisan config:cache
-docker compose -f "$COMPOSE_FILE" run --rm app php artisan route:cache
-docker compose -f "$COMPOSE_FILE" run --rm app php artisan view:cache
 
 echo ""
 echo "🚀 Starting services (docker-compose.prod.yml only)..."
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+echo ""
+echo "⚡ Optimizing Laravel caches..."
+# Cache into running containers (run --rm would discard bootstrap/cache writes).
+docker compose -f "$COMPOSE_FILE" exec -T app php artisan config:cache
+docker compose -f "$COMPOSE_FILE" exec -T app php artisan route:cache
+docker compose -f "$COMPOSE_FILE" exec -T app php artisan view:cache
+docker compose -f "$COMPOSE_FILE" exec -T queue php artisan config:cache
+docker compose -f "$COMPOSE_FILE" exec -T scheduler php artisan config:cache
 
 echo ""
 echo "✅ Deployment complete!"

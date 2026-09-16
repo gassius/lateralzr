@@ -1,13 +1,18 @@
 version: '3.8'
 
 services:
-  # Nginx web server with Traefik labels for public access
+  # Nginx web server with Traefik labels for public access.
+  # Public assets come from the image (built from Dockerfile.prod nginx stage),
+  # not from a host bind-mount — the VPS checkout has no vendor/ or public/build.
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      target: nginx
+    image: lateralzr_nginx:prod
     container_name: lateralzr_nginx
     restart: unless-stopped
     volumes:
-      - ./:/var/www/html
       - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - app
@@ -26,18 +31,19 @@ services:
       - "traefik.http.routers.lateralzr-api-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
-  # PHP-FPM application container
+  # PHP-FPM application container — code and vendor/ live in the image.
+  # Only mount writable storage from the host.
   app:
     build:
       context: .
       dockerfile: Dockerfile.prod
+      target: app
     image: lateralzr_app:prod
     container_name: lateralzr_app
     restart: unless-stopped
     env_file:
       - .env
     volumes:
-      - ./:/var/www/html
       - ./storage:/var/www/html/storage
     networks:
       - gonzalezrico_platform
@@ -51,7 +57,6 @@ services:
       - .env
     command: php artisan queue:work --queue=default --tries=3 --timeout=300 --sleep=3 --max-jobs=1000
     volumes:
-      - ./:/var/www/html
       - ./storage:/var/www/html/storage
     networks:
       - gonzalezrico_platform
@@ -67,7 +72,6 @@ services:
       - .env
     command: php artisan schedule:work
     volumes:
-      - ./:/var/www/html
       - ./storage:/var/www/html/storage
     networks:
       - gonzalezrico_platform
