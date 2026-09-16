@@ -139,21 +139,23 @@ Mirrors **Botore** `apps/game/vercel.json` structure:
 
 **Location**: `/.npmrc` (monorepo root)
 
-Mirrors **Botore's working configuration** for Expo + Metro + pnpm compatibility:
+Mirrors **Botore's working configuration** with additional hoisting for expo-router:
 
 ```
 strict-peer-dependencies=false
 auto-install-peers=true
 resolution-mode=highest
+shamefully-hoist=true
 ```
 
 ### Why This Matters:
 
-- **auto-install-peers=true**: Automatically installs missing peer dependencies that Metro bundler needs at build time
-- **strict-peer-dependencies=false**: Allows pnpm to proceed even with peer dependency warnings
-- **resolution-mode=highest**: Always resolves to the highest compatible version, reducing conflicts
+- **auto-install-peers=true**: Automatically installs missing peer dependencies
+- **strict-peer-dependencies=false**: Allows pnpm to proceed with peer dependency warnings
+- **resolution-mode=highest**: Always resolves to highest compatible version
+- **shamefully-hoist=true**: **Critical for expo-router** - hoists ALL packages to root node_modules
 
-This avoids the Metro resolution issues that occurred with manual hoisting patterns. Botore's approach has proven reliable for Expo web exports on Vercel.
+**expo-router 6.0.24 + Metro bundler requirement**: Unlike Botore's simpler game app, Lateralzr uses expo-router which has a deep dependency tree (`@react-navigation/*`, `use-latest-callback`, `react-native-is-edge-to-edge`, etc.). Metro bundler needs direct access to ALL transitive dependencies. Botore's `auto-install-peers` alone is insufficient; `shamefully-hoist=true` is required for Vercel builds to succeed.
 
 ## Dependencies
 
