@@ -1,7 +1,5 @@
 <?php
 
-$corsOrigins = env('CORS_ALLOWED_ORIGINS');
-
 return [
 
     /*
@@ -21,7 +19,9 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => $corsOrigins ? explode(',', $corsOrigins) : ['*'],
+    'allowed_origins' => function_exists('env') && is_string(env('CORS_ALLOWED_ORIGINS'))
+        ? array_filter(array_map('trim', explode(',', env('CORS_ALLOWED_ORIGINS'))))
+        : ['*'],
 
     'allowed_origins_patterns' => [],
 

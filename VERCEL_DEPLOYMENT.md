@@ -161,13 +161,24 @@ shamefully-hoist=true
 
 ### Critical Build Dependencies
 
-The following dependency is required for successful Expo web builds on Vercel:
+The following dependencies are explicitly declared for Expo SDK 54 + expo-router compatibility:
 
 ```json
+"@babel/runtime": "^7.25.0"
 "@expo/metro-runtime": "~6.1.2"
+"expo-modules-core": "~3.0.30"
+"@react-navigation/core": "^7.14.0"
+"use-latest-callback": "^0.2.4"
 ```
 
-This package is required by Metro bundler during `expo export --platform web` and must match the version expected by `expo-router@6.0.23`. It was added explicitly to fix build failures on Vercel.
+**Why explicit dependencies?**
+- **@babel/runtime**: Required by react-native-web (Botore also declares this explicitly)
+- **@expo/metro-runtime**: Required by Metro bundler and expo-router@6.0.23
+- **expo-modules-core**: SDK 54 runtime (tag: sdk-54)
+- **@react-navigation/core**: Ensures Metro can resolve navigation dependencies
+- **use-latest-callback**: expo-router navigation dependency
+
+Even with `shamefully-hoist=true`, these packages must be declared in `apps/client/package.json` to ensure pnpm includes them in the install tree. Botore's simpler app (no expo-router) needs fewer explicit declarations.
 
 ## Testing the Deployment
 
