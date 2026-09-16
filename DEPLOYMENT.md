@@ -360,6 +360,26 @@ docker exec mysql_db_1 mysqldump -u lateralzr -p lateralzr > backup-$(date +%Y%m
 tar -czf storage-backup-$(date +%Y%m%d).tar.gz storage/
 ```
 
+## Disk space and maintenance
+
+Production deploys need free space for `git pull`, Docker layer downloads, and `Dockerfile.prod` builds (Composer, pnpm, apt packages). On a small VPS, Docker **build cache**, **old image layers**, and **container logs** accumulate quickly. Before PR #4, `docker-compose.prod.yml` triggered **three parallel builds** of the same image (`app`, `queue`, `scheduler`), which temporarily tripled peak disk use during deploy.
+
+**Check space before deploy** (also runs automatically in `bin/deploy-prod`):
+
+```bash
+./bin/deploy-disk-check.sh
+# Default minimum: 3GB free (override with DEPLOY_MIN_FREE_GB=5)
+```
+
+**Conservative cleanup** (does not remove named volumes used by gonzalezrico/MySQL):
+
+```bash
+./bin/deploy-cleanup-docker
+# or: ./deploy-prod.sh cleanup-docker
+```
+
+If `git pull` fails with **No space left on device**, SSH to the VPS, run cleanup above, then `git pull` and `./bin/deploy-prod`. To bypass the deploy guard in an emergency: `SKIP_DISK_CHECK=1 ./bin/deploy-prod` (only after freeing space).
+
 ## Troubleshooting
 
 ### Build hangs after “exporting to image” / “DONE”
