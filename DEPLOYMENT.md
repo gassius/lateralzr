@@ -317,10 +317,12 @@ All production services connect to the `gonzalezrico_platform` external network,
 The nginx service is configured with Traefik labels in `docker-compose.prod.yml`:
 
 - **Host**: `api.lateralzr.com`
-- **HTTPS**: Automatic via Let's Encrypt (`letsencrypt` certresolver)
-- **HTTP → HTTPS**: Automatic redirect
+- **HTTPS**: Automatic via Let's Encrypt (uses the platform's `resolver0` certresolver)
+- **HTTP → HTTPS**: Automatic redirect via `redirect_http_to_https@docker` middleware
 
 No manual Traefik configuration is needed; the labels handle everything.
+
+> **Note**: The shared gonzalezrico Traefik ACME resolver is named `resolver0`, not `letsencrypt`. The `docker-compose.prod.yml` labels must reference `certresolver=resolver0` to obtain a valid Let's Encrypt certificate.
 
 ## Database
 

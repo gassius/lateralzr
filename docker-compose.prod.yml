@@ -23,13 +23,12 @@ services:
       - "traefik.http.routers.lateralzr-api.rule=Host(`api.lateralzr.com`)"
       - "traefik.http.routers.lateralzr-api.entrypoints=websecure"
       - "traefik.http.routers.lateralzr-api.tls=true"
-      - "traefik.http.routers.lateralzr-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.lateralzr-api.tls.certresolver=resolver0"
       - "traefik.http.services.lateralzr-api.loadbalancer.server.port=80"
       # HTTP to HTTPS redirect
       - "traefik.http.routers.lateralzr-api-http.rule=Host(`api.lateralzr.com`)"
       - "traefik.http.routers.lateralzr-api-http.entrypoints=web"
-      - "traefik.http.routers.lateralzr-api-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.lateralzr-api-http.middlewares=redirect_http_to_https@docker"
 
   # PHP-FPM application container — code and vendor/ live in the image.
   # Only mount writable storage from the host.
