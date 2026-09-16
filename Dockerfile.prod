@@ -1,31 +1,38 @@
 # Production Dockerfile for Lateralzr Laravel API
-FROM php:8.5-fpm
+FROM php:8.5-fpm-bookworm
 
-# Set working directory
+ENV DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /var/www/html
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    libzip-dev \
-    supervisor \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        git \
+        curl \
+        ca-certificates \
+        libpng-dev \
+        libonig-dev \
+        libxml2-dev \
+        libzip-dev \
+        zip \
+        unzip \
+        supervisor \
+    ; \
+    docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring exif pcntl bcmath gd zip; \
+    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Install Node.js and pnpm for asset building (Filament admin panel)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g pnpm \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; \
+    apt-get install -y --no-install-recommends nodejs; \
+    npm install -g pnpm; \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy application files
 COPY . /var/www/html

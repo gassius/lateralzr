@@ -57,7 +57,13 @@ fi
 
 echo ""
 echo "📦 Building Docker images..."
-docker compose -f "$COMPOSE_FILE" build --pull
+export DOCKER_BUILDKIT=1
+export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
+if ! docker compose -f "$COMPOSE_FILE" build --pull --progress plain; then
+    echo ""
+    echo "❌ Docker build failed (see output above)"
+    exit 1
+fi
 
 echo ""
 echo "🗄️  Running database migrations..."
