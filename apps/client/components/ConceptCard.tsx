@@ -287,7 +287,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'left',
     width: '100%',
-    wordWrap: 'normal',
   },
   conceptName: {
     fontSize: 30,
