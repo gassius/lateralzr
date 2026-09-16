@@ -12,20 +12,37 @@ This document describes the Vercel deployment configuration for the Lateralzr Ex
 
 ## Build Configuration
 
+### Approach: Botore Parity
+
+This deployment mirrors the **working Botore Expo web setup** (`gassius/botore` → `apps/game` → Vercel project `botore-game`), adapted for Lateralzr's Expo SDK 54 + expo-router.
+
+**Key alignment with Botore:**
+- Root `.npmrc` uses `auto-install-peers=true` and `resolution-mode=highest` for pnpm peer dependency handling
+- Turbo filter uses dependency closure syntax: `--filter=client...`
+- Web output mode: `"single"` (matches Botore; creates single-page bundle)
+
+**Lateralzr differences from Botore:**
+- Expo SDK **~54** (vs Botore's SDK 52)
+- Uses **expo-router** for file-based routing (Botore game app does not)
+- Additional navigation dependencies: `@expo/metro-runtime@~6.1.2`, `expo-modules-core@~3.0.30`, `@react-navigation/core@^7.14.0`
+
 ### Build Command
 The build is handled by Turbo in the monorepo root. The Vercel project is configured with:
 
 ```bash
 # Build command (in apps/client/vercel.json):
-cd ../.. && pnpm install && pnpm turbo run build --filter=client
+cd ../.. && pnpm install && pnpm turbo run build --filter=client...
 
 # This runs: expo export --platform web
 ```
 
+The `...` suffix includes dependencies in the build scope (Turbo dependency closure).
+
 ### Output Directory
 - **Directory**: `dist/`
-- The Expo web export outputs static files to the `dist/` directory
-- Configured in `apps/client/app.json` with `web.output: "static"`
+- The Expo web export outputs a single-page bundle to the `dist/` directory
+- Configured in `apps/client/app.json` with `web.output: "single"` (matches Botore)
+- Single-page mode bundles the entire app into one HTML file with embedded assets
 
 ### Ignore Build
 ```bash
@@ -82,11 +99,12 @@ This must be set in the production `.env` file on the VPS at `/home/cgonzalez/la
 
 ```
 lateralzr/
+├── .npmrc                   # Botore-style pnpm config (auto-install-peers, resolution-mode)
 ├── apps/
 │   └── client/              # Expo app (THIS is the Root Directory)
-│       ├── vercel.json      # Vercel configuration
-│       ├── package.json     # includes @expo/metro-runtime
-│       ├── app.json         # Expo config (web.output: static)
+│       ├── vercel.json      # Vercel configuration (mirrors Botore apps/game)
+│       ├── package.json     # includes Expo SDK 54 + expo-router deps
+│       ├── app.json         # Expo config (web.output: single)
 │       ├── lib/
 │       │   └── apiBaseUrl.ts  # Reads EXPO_PUBLIC_API_URL
 │       └── .env.example     # Documents env vars
@@ -99,28 +117,43 @@ lateralzr/
 
 **Location**: `apps/client/vercel.json`
 
+Mirrors **Botore** `apps/game/vercel.json` structure:
+
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../.. && pnpm install && pnpm turbo run build --filter=client",
+  "buildCommand": "cd ../.. && pnpm install && pnpm turbo run build --filter=client...",
   "outputDirectory": "dist",
-  "installCommand": "echo 'Skipping default install - handled in buildCommand'",
-  "framework": null,
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
+  "installCommand": "echo 'Skipping default install, using buildCommand'"
 }
 ```
 
 ### Key Configuration Notes:
 
-1. **buildCommand**: Navigates to monorepo root to run pnpm install and turbo build
-2. **installCommand**: Skipped because install is handled in buildCommand
-3. **framework**: null (prevents Vercel from auto-detecting and using wrong build commands)
-4. **rewrites**: SPA routing - all routes serve index.html for client-side navigation
+1. **buildCommand**: Navigates to monorepo root, runs pnpm install, then turbo build with dependency closure
+2. **installCommand**: Skipped because install is handled in buildCommand (matches Botore)
+3. **No framework override**: Removed (not needed; Botore doesn't set it)
+4. **No rewrites**: Removed; single-page output mode handles routing internally
+
+## pnpm Configuration
+
+**Location**: `/.npmrc` (monorepo root)
+
+Mirrors **Botore's working configuration** for Expo + Metro + pnpm compatibility:
+
+```
+strict-peer-dependencies=false
+auto-install-peers=true
+resolution-mode=highest
+```
+
+### Why This Matters:
+
+- **auto-install-peers=true**: Automatically installs missing peer dependencies that Metro bundler needs at build time
+- **strict-peer-dependencies=false**: Allows pnpm to proceed even with peer dependency warnings
+- **resolution-mode=highest**: Always resolves to the highest compatible version, reducing conflicts
+
+This avoids the Metro resolution issues that occurred with manual hoisting patterns. Botore's approach has proven reliable for Expo web exports on Vercel.
 
 ## Dependencies
 
