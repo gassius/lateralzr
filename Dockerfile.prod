@@ -16,11 +16,12 @@ RUN set -eux; \
         libonig-dev \
         libxml2-dev \
         libzip-dev \
+        libicu-dev \
         zip \
         unzip \
         supervisor \
     ; \
-    docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring exif pcntl bcmath gd zip; \
+    docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring exif pcntl bcmath gd zip intl; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
     rm -rf /var/lib/apt/lists/*
 
