@@ -1,5 +1,7 @@
 <?php
 
+$corsOrigins = env('CORS_ALLOWED_ORIGINS');
+
 return [
 
     /*
@@ -9,7 +11,7 @@ return [
     |
     | Here you may configure your settings for cross-origin resource sharing
     | or "CORS". This determines what cross-origin operations may execute
-    10|    | in web browsers. You are free to adjust these settings as needed.
+    | in web browsers. You are free to adjust these settings as needed.
     |
     | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
     |
@@ -19,9 +21,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    20|    'allowed_origins' => env('CORS_ALLOWED_ORIGINS') !== null
-        ? array_filter(explode(',', env('CORS_ALLOWED_ORIGINS')))
-        : ['*'],
+    'allowed_origins' => $corsOrigins ? explode(',', $corsOrigins) : ['*'],
 
     'allowed_origins_patterns' => [],
 
@@ -31,6 +31,6 @@ return [
 
     'max_age' => 0,
 
-    30|    'supports_credentials' => false,
+    'supports_credentials' => false,
 
 ];
