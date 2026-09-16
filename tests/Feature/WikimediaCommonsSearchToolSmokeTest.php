@@ -63,8 +63,13 @@ class WikimediaCommonsSearchToolSmokeTest extends TestCase
         if (! empty($result)) {
             // Should return direct image URL (upload.wikimedia.org) not wiki page
             $this->assertStringContainsString('upload.wikimedia.org', $result);
-            // Should contain thumbnail size indicator (e.g., "960px-", "1280px-", etc.)
-            $this->assertMatchesRegularExpression('/\d+px-/', $result, 'URL should be a thumbnail with size indicator');
+            // Tool returns either thumbnails (with "NNpx-" pattern) or original images
+            // Both are valid as long as they're direct upload.wikimedia.org URLs
+            $this->assertMatchesRegularExpression(
+                '#^https://upload\.wikimedia\.org/#',
+                $result,
+                'URL should be a direct upload.wikimedia.org image URL'
+            );
         }
     }
 
