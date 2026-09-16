@@ -86,6 +86,24 @@ case "$ACTION" in
         echo ""
         curl -f https://api.lateralzr.com/api/hello && echo "" || echo "❌ API test failed!"
         ;;
+
+    cleanup-docker)
+        if [[ -x ./bin/deploy-cleanup-docker ]]; then
+            exec ./bin/deploy-cleanup-docker
+        else
+            echo "❌ Error: bin/deploy-cleanup-docker not found or not executable"
+            exit 1
+        fi
+        ;;
+
+    disk-check)
+        if [[ -x ./bin/deploy-disk-check.sh ]]; then
+            exec ./bin/deploy-disk-check.sh
+        else
+            echo "❌ Error: bin/deploy-disk-check.sh not found or not executable"
+            exit 1
+        fi
+        ;;
     
     *)
         echo "Usage: $0 [action]"
@@ -102,6 +120,8 @@ case "$ACTION" in
         echo "  clear    - Clear all Laravel caches"
         echo "  status   - Show service status"
         echo "  test     - Test API health endpoint"
+        echo "  cleanup-docker - Prune Docker build cache and dangling images (conservative)"
+        echo "  disk-check     - Verify free disk before deploy"
         echo ""
         echo "Note: For automated deployment via GitHub Actions, see bin/deploy-prod"
         exit 1
