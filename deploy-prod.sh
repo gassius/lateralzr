@@ -25,15 +25,8 @@ case "$ACTION" in
         ;;
     
     build)
-        echo "📦 Building Docker images..."
-        export DOCKER_BUILDKIT=1
-        export COMPOSE_PARALLEL_LIMIT="${COMPOSE_PARALLEL_LIMIT:-1}"
-        if ! docker compose -f "$COMPOSE_FILE" build --pull --progress plain; then
-            echo ""
-            echo "❌ Docker build failed (see output above)"
-            exit 1
-        fi
-        echo "✅ Build complete!"
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        "$SCRIPT_DIR/bin/build-prod-image" "$COMPOSE_FILE"
         ;;
     
     restart)
