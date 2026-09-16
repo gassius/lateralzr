@@ -18,7 +18,8 @@ Plans/
 node_modules/
 apps/client/node_modules/
 .turbo/
-pnpm-lock.yaml
+# Keep pnpm-lock.yaml in the build context — Dockerfile.prod runs
+# `pnpm install --frozen-lockfile` after composer install.
 
 # Laravel Sail
 compose.yaml
@@ -30,7 +31,9 @@ tests/
 phpunit.xml
 .phpunit.result.cache
 
-# Development files
+# Development / host env — never bake secrets into the image.
+# Runtime uses env_file + bind mounts from docker-compose.prod.yml.
+.env
 .env.example
 .env.local
 .env.*.example
