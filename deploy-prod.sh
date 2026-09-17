@@ -51,6 +51,15 @@ case "$ACTION" in
         docker compose -f "$COMPOSE_FILE" exec app sh
         ;;
     
+    artisan)
+        shift
+        if [[ -x ./bin/artisan ]]; then
+            exec ./bin/artisan "$@"
+        fi
+        echo "❌ Error: bin/artisan not found or not executable"
+        exit 1
+        ;;
+
     migrate)
         echo "🗄️  Running migrations..."
         docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
@@ -115,6 +124,7 @@ case "$ACTION" in
         echo "  stop     - Stop all services"
         echo "  logs     - Show and follow logs"
         echo "  shell    - Open shell in app container"
+        echo "  artisan  - Run a Laravel artisan command in the app container (alias for bin/artisan)"
         echo "  migrate  - Run database migrations"
         echo "  optimize - Cache config, routes, views"
         echo "  clear    - Clear all Laravel caches"

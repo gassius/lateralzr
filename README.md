@@ -366,7 +366,8 @@ Quick specs:
 - Production stack: `docker-compose.prod.yml`
 - Uses shared Traefik reverse proxy and MySQL from `gonzalezrico_platform` network
 - Public host: https://api.lateralzr.com
-- Services: nginx, app (PHP-FPM), queue worker, scheduler
+- Services: nginx, app (PHP-FPM), queue worker, scheduler (`php artisan schedule:work` — no VPS crontab)
+- On the VPS, run artisan with `./bin/artisan <command>` (never host `php artisan`)
 - **Isolated from gonzalezrico**: Deployment never touches the gonzalezrico compose stack
 
 ## License

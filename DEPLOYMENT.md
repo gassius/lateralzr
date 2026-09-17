@@ -274,10 +274,67 @@ docker compose -f docker-compose.prod.yml logs -f queue
 docker compose -f docker-compose.prod.yml logs -f scheduler
 ```
 
+### Run Artisan commands from the VPS host
+
+Do **not** run `php artisan` on the VPS host. The app lives in Docker (`lateralzr_app`), so host PHP would miss `vendor/`, the production `.env` database host (`mysql_db_1`), and the image filesystem.
+
+From `/home/cgonzalez/lateralzr` use the wrapper (preferred):
+
+```bash
+./bin/artisan <command>
+# or: ./deploy-prod.sh artisan <command>
+```
+
+Examples:
+
+```bash
+./bin/artisan about
+./bin/artisan migrate --force
+./bin/artisan schedule:list
+./bin/artisan scheduler:test
+./bin/artisan tinker
+```
+
+That is a thin wrapper around `docker compose -f docker-compose.prod.yml exec app php artisan ...` (or `run --rm` if the app container is down). Interactive commands like `tinker` get a TTY automatically.
+
+Equivalent raw compose (only if you cannot use the wrapper):
+
+```bash
+docker compose -f docker-compose.prod.yml exec app php artisan <command>
+```
+
+### Laravel scheduler (no host crontab)
+
+Host cron cannot see Laravel inside the container. Production does **not** use the VPS crontab. `docker-compose.prod.yml` runs a dedicated `scheduler` service (`lateralzr_scheduler`) with:
+
+```text
+php artisan schedule:work --verbose
+```
+
+That process invokes `schedule:run` every minute inside the image. Scheduled tasks are defined in `routes/console.php` (Laravel 12). `App\Console\Kernel` is not used.
+
+A heartbeat task `scheduler:test` runs every 15 minutes and logs:
+
+```text
+Scheduler Test ran at HH:MM:SS on DD/MM/YYYY
+```
+
+Check that it is running:
+
+```bash
+./bin/artisan schedule:list
+docker compose -f docker-compose.prod.yml logs -f scheduler
+tail -f storage/logs/laravel.log
+tail -f storage/logs/scheduler-test.log
+```
+
+`storage/` is bind-mounted from the VPS checkout, so those log files are on the host.
+
 ### Access Application Shell
 
 ```bash
 docker compose -f docker-compose.prod.yml exec app sh
+# or: ./deploy-prod.sh shell
 ```
 
 ### Restart Services

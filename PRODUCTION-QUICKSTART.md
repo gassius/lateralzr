@@ -38,8 +38,16 @@ cd /home/cgonzalez/lateralzr
 ./deploy-prod.sh logs      # View logs
 ./deploy-prod.sh restart   # Restart all
 ./deploy-prod.sh shell     # Enter app container
+./deploy-prod.sh artisan <command>  # Run artisan in the app container
 ./deploy-prod.sh test      # Test API endpoint
+
+# Preferred artisan wrapper (same as deploy-prod.sh artisan):
+./bin/artisan migrate --force
+./bin/artisan schedule:list
+./bin/artisan scheduler:test
 ```
+
+Do not run `php artisan` on the VPS host. The scheduler is the `lateralzr_scheduler` container (`schedule:work`), not host cron. Heartbeat logs every 15 minutes: `storage/logs/laravel.log` and `storage/logs/scheduler-test.log`.
 
 ## Architecture
 

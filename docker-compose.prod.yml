@@ -69,7 +69,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    command: php artisan schedule:work
+    command: php artisan schedule:work --verbose
     volumes:
       - ./storage:/var/www/html/storage
     networks:

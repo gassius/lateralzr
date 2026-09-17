@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Intentionally empty; add schedules in production (e.g. concepts:prefetch).
+        // Laravel 12 loads schedules from routes/console.php, not this kernel.
+        // Add new scheduled tasks there (see Schedule::command('scheduler:test')).
     }
 
     /**
