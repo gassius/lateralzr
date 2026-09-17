@@ -4,7 +4,6 @@ use App\Http\Middleware\EnsureStorageDirectoriesExist;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Throwable;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,7 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         // Mirror reportable exceptions to PHP's error_log so PHP-FPM/docker
         // logs capture Filament 500s even when storage/logs is not writable.
-        $exceptions->reportable(function (Throwable $e): void {
+        $exceptions->reportable(function (\Throwable $e): void {
             error_log('[laravel] '.$e);
         });
     })->create();
