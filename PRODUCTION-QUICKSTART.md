@@ -45,6 +45,10 @@ cd /home/cgonzalez/lateralzr
 ./bin/artisan migrate --force
 ./bin/artisan schedule:list
 ./bin/artisan scheduler:test
+
+# Filament admin (do not use make:filament-user alone)
+./bin/artisan users:create-filament-admin you@example.com --name="Your Name" --password='choose-a-strong-password'
+./bin/artisan users:promote-filament-admin you@example.com
 ```
 
 Do not run `php artisan` on the VPS host. The scheduler is the `lateralzr_scheduler` container (`schedule:work`), not host cron. Heartbeat logs every 15 minutes: `storage/logs/laravel.log` and `storage/logs/scheduler-test.log`.
@@ -121,6 +125,8 @@ tail -n 100 storage/logs/laravel.log
 ```
 
 **Filament `/admin/login` 500?** See [DEPLOYMENT.md](DEPLOYMENT.md) "Filament `/admin/login` 500". Check **docker logs** as well as `laravel.log` — PHP-FPM used to drop fatals.
+
+**Filament login rejected with a correct password?** The user needs the `super_admin` role. Do not use `make:filament-user` alone. Promote with `./bin/artisan users:promote-filament-admin {email}` or create with `./bin/artisan users:create-filament-admin {email} --name="..." --password='...'`.
 
 **Queue not working?**
 ```bash

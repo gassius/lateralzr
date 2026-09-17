@@ -3,9 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Support\SuperAdminRole;
+use Filament\Auth\Pages\Login;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
-use Spatie\Permission\Models\Role;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class AdminPanelAccessTest extends TestCase
@@ -15,7 +18,8 @@ class AdminPanelAccessTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Role::create(['name' => 'super_admin', 'guard_name' => 'web']);
+        SuperAdminRole::ensureExists();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
     }
 
     public function test_unauthenticated_user_redirected_to_login(): void
@@ -50,6 +54,8 @@ class AdminPanelAccessTest extends TestCase
     {
         $user = User::factory()->create();
 
+        $this->assertFalse($user->canAccessPanel(Filament::getPanel('admin')));
+
         $response = $this->actingAs($user)->get('/admin');
 
         $response->assertStatus(403);
@@ -58,7 +64,9 @@ class AdminPanelAccessTest extends TestCase
     public function test_authenticated_super_admin_can_access_panel(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('super_admin');
+        $user->assignRole(SuperAdminRole::NAME);
+
+        $this->assertTrue($user->canAccessPanel(Filament::getPanel('admin')));
 
         $response = $this->actingAs($user)->get('/admin');
 
@@ -68,10 +76,46 @@ class AdminPanelAccessTest extends TestCase
     public function test_authenticated_super_admin_can_access_concept_graph_explorer(): void
     {
         $user = User::factory()->create();
-        $user->assignRole('super_admin');
+        $user->assignRole(SuperAdminRole::NAME);
 
         $response = $this->actingAs($user)->get('/admin/concept-graph-explorer');
 
         $response->assertSuccessful();
+    }
+
+    public function test_login_fails_when_user_has_no_super_admin_role(): void
+    {
+        $user = User::factory()->create([
+            'password' => 'password',
+        ]);
+
+        Livewire::test(Login::class)
+            ->fillForm([
+                'email' => $user->email,
+                'password' => 'password',
+            ])
+            ->call('authenticate')
+            ->assertHasFormErrors(['email']);
+
+        $this->assertGuest();
+    }
+
+    public function test_login_succeeds_when_user_has_super_admin_role(): void
+    {
+        $user = User::factory()->create([
+            'password' => 'password',
+        ]);
+        $user->assignRole(SuperAdminRole::NAME);
+
+        Livewire::test(Login::class)
+            ->fillForm([
+                'email' => $user->email,
+                'password' => 'password',
+            ])
+            ->call('authenticate')
+            ->assertHasNoFormErrors()
+            ->assertRedirect();
+
+        $this->assertAuthenticatedAs($user);
     }
 }
