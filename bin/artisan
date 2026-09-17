@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# Run Laravel artisan inside the production Docker stack from the VPS host.
+# Usage (from /home/cgonzalez/lateralzr):
+#   ./bin/artisan <command> [options]
+# Examples:
+#   ./bin/artisan migrate --force
+#   ./bin/artisan schedule:list
+#   ./bin/artisan scheduler:test
+#   ./bin/artisan tinker
+#
+# Override compose file or service:
+#   COMPOSE_FILE=docker-compose.prod.yml ARTISAN_SERVICE=app ./bin/artisan about
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
+SERVICE="${ARTISAN_SERVICE:-app}"
+
+cd "$PROJECT_ROOT"
+
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "❌ Error: $COMPOSE_FILE not found in $PROJECT_ROOT" >&2
+    exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo "❌ Error: docker is not installed or not in PATH" >&2
+    exit 1
+fi
+
+compose=(docker compose -f "$COMPOSE_FILE")
+
+# Allocate a TTY only when stdin/stdout are terminals (tinker, prompts).
+exec_tty=()
+run_tty=()
+if [[ -t 0 && -t 1 ]]; then
+    run_tty=(-it)
+else
+    exec_tty=(-T)
+    run_tty=(-T)
+fi
+
+container_id="$("${compose[@]}" ps -q "$SERVICE" 2>/dev/null || true)"
+
+if [[ -n "$container_id" ]]; then
+    running="$(docker inspect -f '{{.State.Running}}' "$container_id" 2>/dev/null || echo false)"
+    if [[ "$running" == "true" ]]; then
+        exec "${compose[@]}" exec "${exec_tty[@]}" "$SERVICE" php artisan "$@"
+    fi
+fi
+
+echo "⚠️  Service '$SERVICE' is not running; starting a one-off container..." >&2
+exec "${compose[@]}" run --rm "${run_tty[@]}" "$SERVICE" php artisan "$@"
