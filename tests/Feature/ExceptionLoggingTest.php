@@ -17,6 +17,14 @@ class ExceptionLoggingTest extends TestCase
         $this->assertSame('php://stderr', config('logging.channels.emergency.path'));
     }
 
+    public function test_bootstrap_does_not_use_non_compound_throwable_import(): void
+    {
+        $contents = (string) file_get_contents(base_path('bootstrap/app.php'));
+
+        $this->assertStringNotContainsString('use Throwable;', $contents);
+        $this->assertMatchesRegularExpression('/function\s*\(\s*\\\\Throwable\s+\$e\s*\)/', $contents);
+    }
+
     public function test_exceptions_are_mirrored_to_php_error_log(): void
     {
         $path = tempnam(sys_get_temp_dir(), 'lz-error-log-');
