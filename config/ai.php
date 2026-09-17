@@ -34,9 +34,9 @@ return [
         ],
 
         'openrouter' => [
-            'driver' => 'openrouter',
+            'driver' => 'openai',
             'key' => env('OPENROUTER_API_KEY'),
-            'url' => env('OPENROUTER_BASE_URL'),
+            'url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/chat/completions'),
         ],
 
         'openai' => [
