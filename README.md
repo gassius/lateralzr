@@ -122,7 +122,7 @@ This repository is a **monorepo**: the **Laravel API** lives at the **root**; th
 
 A Filament 5 admin panel is available at **`/admin`** for quick inspection and management of data (e.g. Concepts, Users).
 
-- **URL**: `http://localhost/admin` (or your app URL + `/admin`)
+- **URL**: `http://localhost/admin` (or your app URL + `/admin`). Production: `https://api.lateralzr.com/admin`.
 - **Auth**: Login required. Access is restricted to users with the `super_admin` role (Spatie Laravel Permission).
 - **Local seed user** (created only when `APP_ENV=local`):  
   - Email: `test@lateralzr.com`  

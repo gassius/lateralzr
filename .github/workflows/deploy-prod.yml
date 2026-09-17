@@ -66,10 +66,19 @@ jobs:
             docker compose -f docker-compose.prod.yml logs --tail=20
             
             echo ""
-            echo "🧪 Testing API endpoint..."
+            echo "🧪 Testing API and admin login..."
             if curl -f -s https://api.lateralzr.com/api/hello > /dev/null; then
               echo "✅ API is responding"
             else
               echo "⚠️  API health check failed"
+              exit 1
+            fi
+            admin_code="$(curl -s -o /dev/null -w '%{http_code}' https://api.lateralzr.com/admin/login || true)"
+            if [[ "$admin_code" == "200" ]]; then
+              echo "✅ Admin login is responding (HTTP 200)"
+            else
+              echo "⚠️  Admin login health check failed (HTTP ${admin_code:-000})"
+              docker compose -f docker-compose.prod.yml logs --tail=80 app
+              tail -n 80 storage/logs/laravel.log || true
               exit 1
             fi

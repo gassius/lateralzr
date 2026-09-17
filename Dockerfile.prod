@@ -21,6 +21,7 @@ RUN set -eux; \
         zip \
         unzip \
         supervisor \
+        gosu \
     ; \
     docker-php-ext-install -j"$(nproc)" pdo_mysql mbstring exif pcntl bcmath gd zip intl; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
@@ -66,9 +67,17 @@ RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
+# PHP/FPM error logging → container stderr (stock image has log_errors=Off).
+# Entrypoint chowns the bind-mounted storage tree and links public/storage.
+RUN cp docker/php/zz-logging.ini "$PHP_INI_DIR/conf.d/zz-logging.ini" \
+    && cp docker/php/zz-fpm-logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf \
+    && cp docker/app-entrypoint.sh /usr/local/bin/app-entrypoint.sh \
+    && chmod 755 /usr/local/bin/app-entrypoint.sh
+
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000
 
+ENTRYPOINT ["/usr/local/bin/app-entrypoint.sh"]
 CMD ["php-fpm"]
 
 # Nginx serves public/ from the app image (built assets + index.php path).

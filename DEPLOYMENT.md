@@ -53,8 +53,11 @@ The production setup consists of:
 Volumes (intentionally narrow — do **not** bind-mount the host repo over `/var/www/html`):
 
 - `./storage` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, logs, cache)
+- `./storage/app/public` → `/var/www/html/public/storage` on nginx (public disk files)
 - `./docker/nginx/prod.conf` → nginx config (read-only)
 - `.env` via `env_file` (not copied into the image)
+
+The app image **entrypoint** (`docker/app-entrypoint.sh`) runs on every start: it recreates `storage/framework/*` and `storage/logs` on the bind mount, `chown`s them to `www-data`, and symlinks `public/storage`. Queue and scheduler artisan processes are dropped to `www-data` so they cannot recreate `laravel.log` as `root:root`.
 
 A full-repo bind-mount would hide image `vendor/` and `public/build` (the VPS checkout typically has neither).
 
@@ -148,11 +151,11 @@ Caches must be written into **running** containers (`exec`). `run --rm` discards
 ```bash
 docker compose -f docker-compose.prod.yml up -d
 
-docker compose -f docker-compose.prod.yml exec -T app php artisan config:cache
-docker compose -f docker-compose.prod.yml exec -T app php artisan route:cache
-docker compose -f docker-compose.prod.yml exec -T app php artisan view:cache
-docker compose -f docker-compose.prod.yml exec -T queue php artisan config:cache
-docker compose -f docker-compose.prod.yml exec -T scheduler php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan route:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan view:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data queue php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data scheduler php artisan config:cache
 ```
 
 ## Deployment
@@ -264,15 +267,32 @@ The `bin/deploy-prod` script performs:
 
 ### View Logs
 
+Filament / Laravel **web** 500s must show up in **both** places below. If `laravel.log` is quiet, check Docker (PHP-FPM used to swallow worker stderr).
+
 ```bash
+# Laravel file log (host bind-mount of storage/)
+tail -n 200 storage/logs/laravel.log
+
+# PHP-FPM + Laravel stderr (PHP fatals, reportable exceptions)
+docker compose -f docker-compose.prod.yml logs --tail=200 app
+
 # All services
 docker compose -f docker-compose.prod.yml logs -f
 
-# Specific service
-docker compose -f docker-compose.prod.yml logs -f app
-docker compose -f docker-compose.prod.yml logs -f queue
-docker compose -f docker-compose.prod.yml logs -f scheduler
+# Queue / scheduler (these also run as www-data)
+docker compose -f docker-compose.prod.yml logs --tail=100 queue
+docker compose -f docker-compose.prod.yml logs --tail=100 scheduler
 ```
+
+Confirm PHP error logging inside the running image:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T app php -r 'echo "log_errors=".ini_get("log_errors")." error_log=".ini_get("error_log").PHP_EOL;'
+```
+
+Expected: `log_errors=1` and `error_log=/proc/self/fd/2`.
+
+The production log stack is `single` (storage/logs/laravel.log) **plus** `stderr`. `ignore_exceptions` is enabled so a root-owned laravel.log cannot silence docker logs. Emergency fallback is `php://stderr`.
 
 ### Run Artisan commands from the VPS host
 
@@ -295,12 +315,12 @@ Examples:
 ./bin/artisan tinker
 ```
 
-That is a thin wrapper around `docker compose -f docker-compose.prod.yml exec app php artisan ...` (or `run --rm` if the app container is down). Interactive commands like `tinker` get a TTY automatically.
+That is a thin wrapper around `docker compose -f docker-compose.prod.yml exec -u www-data app php artisan ...` (or `run --rm` if the app container is down). Interactive commands like `tinker` get a TTY automatically.
 
 Equivalent raw compose (only if you cannot use the wrapper):
 
 ```bash
-docker compose -f docker-compose.prod.yml exec app php artisan <command>
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan <command>
 ```
 
 ### Laravel scheduler (no host crontab)
@@ -351,10 +371,10 @@ docker compose -f docker-compose.prod.yml restart queue
 
 ```bash
 # Monitor queue jobs
-docker compose -f docker-compose.prod.yml exec app php artisan queue:monitor
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan queue:monitor
 
 # Clear failed jobs
-docker compose -f docker-compose.prod.yml exec app php artisan queue:flush
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan queue:flush
 
 # Restart queue worker (if you change job code)
 docker compose -f docker-compose.prod.yml restart queue
@@ -396,11 +416,26 @@ DB_PASSWORD=<provided-by-admin>
 
 ## Storage and Permissions
 
-Laravel's `storage/` directory needs write permissions:
+The host `./storage` bind-mount hides the image's storage tree. The **app entrypoint** (not a one-off `chown` on the VPS) is the durable fix:
+
+- Creates `storage/framework/{cache/data,sessions,testing,views}` and `storage/logs` if missing
+- `chown www-data:www-data` and `chmod ug+rwX` so PHP-FPM workers can compile Blade views and append laravel.log
+- Symlinks `public/storage` → `storage/app/public` (shown by `php artisan about`)
+
+Queue and scheduler also use that entrypoint and run artisan **as www-data**, so they cannot recreate `storage/logs/laravel.log` as `root:root`.
+
+After a deploy you should see:
+
+```bash
+ls -ld storage/logs storage/framework/views
+# drwxrwxr-x www-data www-data ...
+```
+
+Manual repair is only needed if you skip a rebuild/restart:
 
 ```bash
 docker compose -f docker-compose.prod.yml exec app chown -R www-data:www-data /var/www/html/storage
-docker compose -f docker-compose.prod.yml exec app chmod -R 755 /var/www/html/storage
+docker compose -f docker-compose.prod.yml exec app chmod -R ug+rwX /var/www/html/storage
 ```
 
 ## Backups
@@ -454,11 +489,11 @@ cd /home/cgonzalez/lateralzr
 docker image inspect lateralzr_app:prod lateralzr_nginx:prod   # confirm images exist
 docker compose -f docker-compose.prod.yml run --rm app php artisan migrate --force
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
-docker compose -f docker-compose.prod.yml exec -T app php artisan config:cache
-docker compose -f docker-compose.prod.yml exec -T app php artisan route:cache
-docker compose -f docker-compose.prod.yml exec -T app php artisan view:cache
-docker compose -f docker-compose.prod.yml exec -T queue php artisan config:cache
-docker compose -f docker-compose.prod.yml exec -T scheduler php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan route:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data app php artisan view:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data queue php artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data scheduler php artisan config:cache
 docker compose -f docker-compose.prod.yml ps
 curl -fsS https://api.lateralzr.com/api/hello
 ```
@@ -484,15 +519,43 @@ docker compose -f docker-compose.prod.yml exec app ping mysql_db_1
 2. Check `.env` credentials match database setup
 3. Test connection from app container:
    ```bash
-   docker compose -f docker-compose.prod.yml exec app php artisan db:show
+   docker compose -f docker-compose.prod.yml exec -u www-data app php artisan db:show
    ```
 
 ### Permission Errors
 
+The entrypoint should fix this on every container start. If you still see `Permission denied` writing `storage/logs/laravel.log` or compiled views:
+
 ```bash
 docker compose -f docker-compose.prod.yml exec app chown -R www-data:www-data /var/www/html/storage
-docker compose -f docker-compose.prod.yml exec app chown -R www-data:www-data /var/www/html/bootstrap/cache
+docker compose -f docker-compose.prod.yml restart app queue scheduler
 ```
+
+### Filament `/admin/login` 500 (intermittent)
+
+`/api/hello` can work while `/admin/login` (and sometimes `/up`) 500s: the hello endpoint is JSON and does not compile Blade views or start a web session the way Filament/Livewire does.
+
+Typical causes in this Docker setup, all hardened in-repo:
+
+| Cause | What happens | Durable fix |
+| --- | --- | --- |
+| Bind-mount missing `storage/framework/views` | Blade: "Please provide a valid cache path" | Entrypoint + `EnsureApplicationStorage` middleware |
+| `storage/logs` owned `root:root` | PHP-FPM (`www-data`) cannot append laravel.log; queue (was root) still can | Entrypoint `chown`; artisan as `www-data` |
+| PHP `log_errors=Off`, FPM `catch_workers_output=no` | Fatals never reach `docker compose logs app` | `docker/php/zz-logging.ini` + `zz-fpm-logging.conf` |
+| Missing `public/storage` link | `artisan about` reports not linked; public disk 404s | Entrypoint `ln -sfn` + nginx mount |
+| Nginx regex location for `*.js` | Livewire `/livewire/*.js` served as static 404 | `try_files` fallback + `^~ /livewire/` |
+| Empty `APP_KEY` | EncryptCookies / session 500 | `bin/deploy-prod` refuses to deploy |
+
+Where to look when it 500s:
+
+```bash
+curl -i https://api.lateralzr.com/admin/login
+docker compose -f docker-compose.prod.yml logs --tail=200 app
+tail -n 200 storage/logs/laravel.log
+./bin/artisan about
+```
+
+Do **not** turn `APP_DEBUG=true` on the public VPS. Rebuild/redeploy this image instead.
 
 ### Queue Not Processing Jobs
 
@@ -504,16 +567,16 @@ docker compose -f docker-compose.prod.yml ps queue
 docker compose -f docker-compose.prod.yml logs -f queue
 
 # Manually process queue
-docker compose -f docker-compose.prod.yml exec app php artisan queue:work --once
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan queue:work --once
 ```
 
 ### Clear All Caches
 
 ```bash
-docker compose -f docker-compose.prod.yml exec app php artisan cache:clear
-docker compose -f docker-compose.prod.yml exec app php artisan config:clear
-docker compose -f docker-compose.prod.yml exec app php artisan route:clear
-docker compose -f docker-compose.prod.yml exec app php artisan view:clear
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan cache:clear
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan config:clear
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan route:clear
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan view:clear
 ```
 
 ## Local Development
@@ -555,8 +618,11 @@ Test endpoints:
 # Basic health check
 curl https://api.lateralzr.com/api/hello
 
-# Admin panel (requires login)
-curl https://api.lateralzr.com/admin
+# Laravel health
+curl -i https://api.lateralzr.com/up
+
+# Admin login (Filament guest page — expect HTTP 200)
+curl -i https://api.lateralzr.com/admin/login
 ```
 
 ## Support

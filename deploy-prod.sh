@@ -68,20 +68,20 @@ case "$ACTION" in
     
     optimize)
         echo "⚡ Optimizing Laravel..."
-        docker compose -f "$COMPOSE_FILE" exec app php artisan config:cache
-        docker compose -f "$COMPOSE_FILE" exec app php artisan route:cache
-        docker compose -f "$COMPOSE_FILE" exec app php artisan view:cache
-        docker compose -f "$COMPOSE_FILE" exec queue php artisan config:cache
-        docker compose -f "$COMPOSE_FILE" exec scheduler php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan route:cache
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan view:cache
+        docker compose -f "$COMPOSE_FILE" exec -u www-data queue php artisan config:cache
+        docker compose -f "$COMPOSE_FILE" exec -u www-data scheduler php artisan config:cache
         echo "✅ Optimization complete!"
         ;;
     
     clear)
         echo "🧹 Clearing Laravel caches..."
-        docker compose -f "$COMPOSE_FILE" exec app php artisan cache:clear
-        docker compose -f "$COMPOSE_FILE" exec app php artisan config:clear
-        docker compose -f "$COMPOSE_FILE" exec app php artisan route:clear
-        docker compose -f "$COMPOSE_FILE" exec app php artisan view:clear
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan cache:clear
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan config:clear
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan route:clear
+        docker compose -f "$COMPOSE_FILE" exec -u www-data app php artisan view:clear
         echo "✅ Caches cleared!"
         ;;
     
@@ -91,9 +91,10 @@ case "$ACTION" in
         ;;
     
     test)
-        echo "🧪 Testing API endpoint..."
+        echo "🧪 Testing API and admin login..."
         echo ""
         curl -f https://api.lateralzr.com/api/hello && echo "" || echo "❌ API test failed!"
+        curl -f -o /dev/null -w "admin/login HTTP %{http_code}\n" https://api.lateralzr.com/admin/login || echo "❌ Admin login test failed!"
         ;;
 
     cleanup-docker)

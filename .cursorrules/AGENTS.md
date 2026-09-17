@@ -23,7 +23,7 @@ This document provides context and guidelines for AI agents working on the Later
 - **Laravel Boost**: MCP integration for AI-assisted development
 - **MySQL**: Primary database (via Sail)
 - **PHPUnit**: Testing framework
-- **Admin backoffice**: Filament 5 panel at `/admin`; access restricted to users with the `super_admin` role (Spatie Laravel Permission). Roles/permissions are extensible; the first role is `super_admin` with full capabilities. Filament resources provide quick CRUD for models (e.g. Concept, User). The Concept model (table `concepts`) is the main entity for concept/URL data; User model holds app users and roles.
+- **Admin backoffice**: Filament 5 panel at `/admin`; access restricted to users with the `super_admin` role (Spatie Laravel Permission). Roles/permissions are extensible; the first role is `super_admin` with full capabilities. Filament resources provide quick CRUD for models (e.g. Concept, User). The Concept model (table `concepts`) is the main entity for concept/URL data; User model holds app users and roles. Production Filament is served at `https://api.lateralzr.com/admin`. Web 500s must appear in `storage/logs/laravel.log` **and** `docker compose logs app` (PHP `log_errors=On`, FPM `catch_workers_output`, Laravel stack includes `stderr`).
 
 ### API Design Principles
 - RESTful API design
@@ -45,7 +45,7 @@ This document provides context and guidelines for AI agents working on the Later
 - **Node version** is defined in [.nvmrc](.nvmrc); use NVM on the host or the optional Node Docker service (profile `client`) for client tooling.
 - **Agents must not assume a single app**: run API commands from the repo root with Sail (`./sail ...`, wrapper for `./vendor/bin/sail`). Run client commands from `apps/client` (e.g. `pnpm exec expo start`, `pnpm exec expo start --web`) or from the root with Turbo: `pnpm turbo run dev --filter=client`. The project uses **pnpm** as the package manager (see [pnpm-workspace.yaml](pnpm-workspace.yaml)).
 - **Critical Sail rule (local)**: Do not run `php artisan`, `composer`, `vendor/bin/pint`, or `vendor/bin/phpunit` directly on the host. The `.env` database host (`mysql`) is resolved inside Sail containers. Use `./sail artisan <command>`, `./sail composer <command>`, `./sail test`, and `./sail pint`.
-- **Production VPS artisan**: On the Hetzner VPS (`/home/cgonzalez/lateralzr`) do not run `php artisan` on the host either. Use `./bin/artisan <command>` (or `./deploy-prod.sh artisan <command>`). That execs into `lateralzr_app` via `docker-compose.prod.yml`.
+- **Production VPS artisan**: On the Hetzner VPS (`/home/cgonzalez/lateralzr`) do not run `php artisan` on the host either. Use `./bin/artisan <command>` (or `./deploy-prod.sh artisan <command>`). That execs into `lateralzr_app` as `www-data` via `docker-compose.prod.yml`. The app image entrypoint chowns the `./storage` bind-mount and links `public/storage` on every start.
 - **Production scheduler**: Host crontab cannot trigger Laravel inside Docker. The `scheduler` service in `docker-compose.prod.yml` runs `php artisan schedule:work --verbose`. Define tasks in `routes/console.php` (not `app/Console/Kernel.php`). `scheduler:test` runs every 15 minutes and logs `Scheduler Test ran at HH:MM:SS on DD/MM/YYYY` to `storage/logs/laravel.log` and `storage/logs/scheduler-test.log`.
 - **Concept graph queue workers**: concept generation can spend more than 60 seconds in the LLM plus URL enrichment path. When processing these jobs manually, use `./sail artisan queue:work --queue=default --timeout=300`.
 

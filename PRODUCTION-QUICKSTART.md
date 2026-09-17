@@ -112,10 +112,15 @@ docker network ls | grep gonzalezrico_platform
 docker compose -f docker-compose.prod.yml exec app php artisan db:show
 ```
 
-**Permission errors?**
+**Permission errors?** The image entrypoint chowns `storage/` to `www-data` on start. Confirm:
+
 ```bash
-docker compose -f docker-compose.prod.yml exec app chown -R www-data:www-data storage/
+docker compose -f docker-compose.prod.yml exec app ls -ld storage/logs
+docker compose -f docker-compose.prod.yml logs --tail=100 app
+tail -n 100 storage/logs/laravel.log
 ```
+
+**Filament `/admin/login` 500?** See [DEPLOYMENT.md](DEPLOYMENT.md) "Filament `/admin/login` 500". Check **docker logs** as well as `laravel.log` — PHP-FPM used to drop fatals.
 
 **Queue not working?**
 ```bash
