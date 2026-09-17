@@ -45,11 +45,11 @@ if [[ "$build_ec" -ne 0 ]]; then
             echo "   If logs showed exporting/naming DONE, finish deploy without rebuilding:"
             echo "     docker compose -f ${COMPOSE_FILE} run --rm app php artisan migrate --force"
             echo "     docker compose -f ${COMPOSE_FILE} up -d --remove-orphans"
-            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan config:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan route:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} exec -T app php artisan view:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} exec -T queue php artisan config:cache"
-            echo "     docker compose -f ${COMPOSE_FILE} exec -T scheduler php artisan config:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T -u www-data app php artisan config:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T -u www-data app php artisan route:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T -u www-data app php artisan view:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T -u www-data queue php artisan config:cache"
+            echo "     docker compose -f ${COMPOSE_FILE} exec -T -u www-data scheduler php artisan config:cache"
         fi
         exit "$build_ec"
     fi

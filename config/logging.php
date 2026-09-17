@@ -5,6 +5,17 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 
+$stackChannels = array_values(array_filter(array_map(
+    static fn (string $channel): string => trim($channel),
+    explode(',', (string) env('LOG_STACK', 'single')),
+)));
+
+// Always mirror to stderr so `docker compose logs app` captures web 500s even
+// when the VPS .env still has LOG_STACK=single and storage/logs is unwritable.
+if (! in_array('stderr', $stackChannels, true)) {
+    $stackChannels[] = 'stderr';
+}
+
 return [
 
     /*
@@ -54,8 +65,10 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+            'channels' => $stackChannels,
+            // If laravel.log is not writable (root:root bind-mount), still
+            // write the remaining channels instead of dropping the record.
+            'ignore_exceptions' => true,
         ],
 
         'single' => [
@@ -124,7 +137,7 @@ return [
         ],
 
         'emergency' => [
-            'path' => storage_path('logs/laravel.log'),
+            'path' => 'php://stderr',
         ],
 
     ],

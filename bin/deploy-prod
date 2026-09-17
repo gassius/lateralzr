@@ -28,6 +28,24 @@ if [[ ! -f .env ]]; then
     exit 1
 fi
 
+APP_KEY_VALUE="$(grep -E '^APP_KEY=' .env | head -n1 | cut -d= -f2- | sed 's/#.*//' | tr -d '[:space:]' | tr -d '"' | tr -d "'")"
+if [[ -z "$APP_KEY_VALUE" ]]; then
+    echo "❌ Error: APP_KEY is empty in .env"
+    echo "   Generate with: docker compose -f $COMPOSE_FILE run --rm app php artisan key:generate --show"
+    exit 1
+fi
+
+echo "📁 Ensuring host storage directories exist..."
+mkdir -p \
+    storage/app/public \
+    storage/app/private \
+    storage/framework/cache/data \
+    storage/framework/sessions \
+    storage/framework/testing \
+    storage/framework/views \
+    storage/logs
+echo ""
+
 # shellcheck source=deploy-disk-check.sh
 source "$SCRIPT_DIR/deploy-disk-check.sh"
 if ! check_deploy_disk_space "$PROJECT_ROOT"; then
@@ -77,11 +95,12 @@ docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 echo ""
 echo "⚡ Optimizing Laravel caches..."
 # Cache into running containers (run --rm would discard bootstrap/cache writes).
-docker compose -f "$COMPOSE_FILE" exec -T app php artisan config:cache
-docker compose -f "$COMPOSE_FILE" exec -T app php artisan route:cache
-docker compose -f "$COMPOSE_FILE" exec -T app php artisan view:cache
-docker compose -f "$COMPOSE_FILE" exec -T queue php artisan config:cache
-docker compose -f "$COMPOSE_FILE" exec -T scheduler php artisan config:cache
+# Run as www-data so compiled views/logs are not recreated as root:root.
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data app php artisan config:cache
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data app php artisan route:cache
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data app php artisan view:cache
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data queue php artisan config:cache
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data scheduler php artisan config:cache
 
 echo ""
 echo "✅ Deployment complete!"
@@ -92,20 +111,29 @@ docker compose -f "$COMPOSE_FILE" ps
 echo ""
 echo "🔗 API endpoint: https://api.lateralzr.com"
 echo ""
-echo "🔍 Running health check (will retry to allow for ACME cert issuance)..."
+echo "🔍 Running health checks (will retry to allow for ACME cert issuance)..."
 
 # Health check with retry to allow for Let's Encrypt certificate issuance
 MAX_ATTEMPTS=5
 RETRY_DELAY=3
 attempt=1
 
+health_ok() {
+    curl -fsS --max-time 10 https://api.lateralzr.com/api/hello >/dev/null 2>&1 \
+        && curl -fsS --max-time 10 https://api.lateralzr.com/up >/dev/null 2>&1 \
+        && curl -fsS --max-time 10 https://api.lateralzr.com/admin/login >/dev/null 2>&1
+}
+
 while [ $attempt -le $MAX_ATTEMPTS ]; do
-    echo "   Attempt $attempt/$MAX_ATTEMPTS: Testing API endpoint..."
-    
-    if curl -fsS --max-time 10 https://api.lateralzr.com/api/hello >/dev/null 2>&1; then
-        echo "✅ Health check passed!"
+    echo "   Attempt $attempt/$MAX_ATTEMPTS: Testing /api/hello, /up, and /admin/login..."
+
+    if health_ok; then
+        echo "✅ Health checks passed!"
         echo ""
-        echo "   Test with: curl https://api.lateralzr.com/api/hello"
+        echo "   API:   curl https://api.lateralzr.com/api/hello"
+        echo "   Admin: curl -I https://api.lateralzr.com/admin/login"
+        echo "   Logs:  docker compose -f $COMPOSE_FILE logs --tail=100 app"
+        echo "          tail -n 100 storage/logs/laravel.log"
         exit 0
     fi
     
@@ -120,6 +148,12 @@ done
 echo ""
 echo "⚠️  Health check failed after $MAX_ATTEMPTS attempts"
 echo "   This may be normal if Let's Encrypt cert is still being issued"
-echo "   Verify manually: curl https://api.lateralzr.com/api/hello"
+echo "   Verify manually:"
+echo "     curl -i https://api.lateralzr.com/api/hello"
+echo "     curl -i https://api.lateralzr.com/up"
+echo "     curl -i https://api.lateralzr.com/admin/login"
+echo "   Logs:"
+echo "     docker compose -f $COMPOSE_FILE logs --tail=200 app"
+echo "     tail -n 200 storage/logs/laravel.log"
 echo ""
 exit 1
