@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Listeners\LogOllamaRequests;
 use App\Support\EnsureApplicationStorage;
+use App\Support\SuperAdminRole;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
@@ -32,7 +33,7 @@ class AppServiceProvider extends ServiceProvider
 
         // Super admins bypass all permission checks
         Gate::before(function ($user, $ability) {
-            if ($user && method_exists($user, 'hasRole') && $user->hasRole('super_admin')) {
+            if ($user && method_exists($user, 'hasRole') && $user->hasRole(SuperAdminRole::NAME)) {
                 return true;
             }
 

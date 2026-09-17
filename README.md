@@ -128,6 +128,7 @@ A Filament 5 admin panel is available at **`/admin`** for quick inspection and m
   - Email: `test@lateralzr.com`  
   - Password: `!12345678`  
   After running `./sail artisan migrate` and `./sail artisan db:seed`, this user exists in local and can log in to the backoffice.
+- **Production**: do not use `make:filament-user` alone (it does not assign `super_admin`). Create or promote an admin with `./bin/artisan users:create-filament-admin {email} --name="..." --password='...'` or `./bin/artisan users:promote-filament-admin {email}`. See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Common Sail Commands
 

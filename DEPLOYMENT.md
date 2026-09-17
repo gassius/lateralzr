@@ -136,13 +136,23 @@ Copy the output and add it to your `.env` as `APP_KEY`.
 docker compose -f docker-compose.prod.yml run --rm app php artisan migrate --force
 ```
 
-### 6. Seed Database (optional, for initial admin user)
+### 6. Create a Filament admin (required for `/admin`)
+
+Do **not** use `php artisan make:filament-user` alone. That command creates a user with **no Spatie roles**. `User::canAccessPanel()` requires `super_admin`, so Filament then shows “These credentials do not match our records.” even when the password is correct. `RoleSeeder` is the source of truth for the `super_admin` / `web` role; the commands below call the same `firstOrCreate` logic, so they work even when seeders have never been run in production.
+
+Create or update an admin (hashes the password and assigns `super_admin`):
 
 ```bash
-docker compose -f docker-compose.prod.yml run --rm app php artisan db:seed --force
+./bin/artisan users:create-filament-admin you@example.com --name="Your Name" --password='choose-a-strong-password'
 ```
 
-Note: The seeder creates a test admin user (`test@lateralzr.com`) only in `local` environment by default. For production, create admin users manually or adjust the seeder.
+Promote an existing user (for example after a bare `make:filament-user`, or a prod user whose `roles` are empty):
+
+```bash
+./bin/artisan users:promote-filament-admin you@example.com
+```
+
+Do **not** run `db:seed` in production. `AdminUserSeeder` only creates `test@lateralzr.com` when `APP_ENV=local`.
 
 ### 7. Start Services, then Optimize Laravel
 
@@ -312,6 +322,8 @@ Examples:
 ./bin/artisan migrate --force
 ./bin/artisan schedule:list
 ./bin/artisan scheduler:test
+./bin/artisan users:create-filament-admin you@example.com --name="Your Name" --password='...'
+./bin/artisan users:promote-filament-admin you@example.com
 ./bin/artisan tinker
 ```
 
@@ -556,6 +568,18 @@ tail -n 200 storage/logs/laravel.log
 ```
 
 Do **not** turn `APP_DEBUG=true` on the public VPS. Rebuild/redeploy this image instead.
+
+### Filament login: “These credentials do not match our records.”
+
+If the password is correct, the user is almost certainly missing the `super_admin` role (or the `roles` table was never seeded). Filament maps a failed `canAccessPanel()` check to the same generic login error.
+
+```bash
+./bin/artisan users:promote-filament-admin you@example.com
+# or create/reset:
+./bin/artisan users:create-filament-admin you@example.com --name="Your Name" --password='choose-a-strong-password'
+```
+
+Do not weaken `canAccessPanel()` to allow every user.
 
 ### Queue Not Processing Jobs
 
