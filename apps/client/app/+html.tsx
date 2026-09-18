@@ -19,6 +19,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <ScrollViewStyleReset />
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
+        {/* Letterbox + full-viewport root: web-only (+html never ships in native builds). */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
         {/* Add any additional <head> elements that you want globally available on web... */}
       </head>
@@ -31,18 +32,24 @@ const responsiveBackground = `
 html, body {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 body {
-  background-color: #135b77;
+  /* Letterbox around the web-only phone frame (see WebPhoneFrame.web.tsx). */
+  background-color: #111111;
 }
 body > div {
+  height: 100%;
   min-height: 100%;
   display: flex;
   flex-direction: column;
   flex: 1;
 }
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #111111;
-  }
+#web-phone-stage {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+#web-phone-frame {
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
 }`;

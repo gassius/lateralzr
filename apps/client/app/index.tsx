@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
+import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
@@ -23,6 +24,9 @@ const MAX_EMPTY_RETRY_MS = 30_000;
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  // Web phone frame reports its inner size; native hook is a no-op (null).
+  const phoneFrame = useWebPhoneFrameSize();
+  const layoutHeight = phoneFrame?.height ?? windowHeight;
   const [concepts, setConcepts] = useState<ConceptItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -288,7 +292,7 @@ export default function HomeScreen() {
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
 
-  const usableHeight = windowHeight - insets.top - insets.bottom;
+  const usableHeight = layoutHeight - insets.top - insets.bottom;
 
   if (!complexityHydrated || (loading && concepts.length === 0)) {
     return (
@@ -319,8 +323,8 @@ export default function HomeScreen() {
         {
           paddingTop: insets.top,
           paddingBottom: insets.bottom,
-          minHeight: windowHeight,
-          height: windowHeight,
+          minHeight: layoutHeight,
+          height: layoutHeight,
         },
       ]}
     >
