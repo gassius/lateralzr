@@ -15,6 +15,7 @@ import {
   LOGO_SVG_WHITE_DOT_PATHS,
   LOGO_SVG_WHITE_REST,
 } from '@/assets/images/lateralzrLogoLayers';
+import { LOGO_PULSE_HALF_MS, LOGO_STAGGER_MS } from '@/lib/introLogo';
 
 /** Opacity on the parent View often does not affect SvgXml on native; animate SvgXml directly. */
 const AnimatedSvgXml = Animated.createAnimatedComponent(SvgXml);
@@ -54,14 +55,14 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
     }
     const pulse = withRepeat(
       withSequence(
-        withTiming(0.28, { duration: 380 }),
-        withTiming(1, { duration: 380 }),
+        withTiming(0.28, { duration: LOGO_PULSE_HALF_MS }),
+        withTiming(1, { duration: LOGO_PULSE_HALF_MS }),
       ),
       -1,
       false,
     );
     opacities.forEach((s, i) => {
-      s.value = withDelay(i * 160, pulse);
+      s.value = withDelay(i * LOGO_STAGGER_MS, pulse);
     });
     return () => {
       opacities.forEach((s) => {

@@ -10,6 +10,7 @@ import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_
 import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
+import { remainingIntroMs } from '@/lib/introLogo';
 
 /**
  * Prefetch the next API batch when at most this many concepts remain **ahead** of the
@@ -31,6 +32,9 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** False until the intro logo has been on screen for at least one animation cycle (~3s). */
+  const [introGateOpen, setIntroGateOpen] = useState(false);
+  const introStartedAtRef = useRef(Date.now());
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
@@ -73,6 +77,13 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Hold the brand logo for one full pulse cycle even when the API is fast.
+  useEffect(() => {
+    const remaining = remainingIntroMs(introStartedAtRef.current, Date.now());
+    const timer = setTimeout(() => setIntroGateOpen(true), remaining);
+    return () => clearTimeout(timer);
   }, []);
 
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
@@ -294,7 +305,12 @@ export default function HomeScreen() {
 
   const usableHeight = layoutHeight - insets.top - insets.bottom;
 
-  if (!complexityHydrated || (loading && concepts.length === 0)) {
+  // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
+  // Errors skip the intro gate so failures are not delayed.
+  const showIntroLogo =
+    !complexityHydrated || (loading && concepts.length === 0) || (!error && concepts.length > 0 && !introGateOpen);
+
+  if (showIntroLogo) {
     return (
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
