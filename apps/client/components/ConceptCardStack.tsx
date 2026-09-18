@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -12,6 +12,8 @@ import Animated, {
 import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
 import type { ConceptItem } from '@/lib/api';
+import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { displayMediaUrl } from '@/lib/remoteImage';
 
 type ConceptCardStackProps = {
   concepts: ConceptItem[];
@@ -465,7 +467,7 @@ function ConceptCardForIndex({
   preloadedMediaUrls: ReadonlySet<string>;
 }) {
   const item = concepts[currentIndex]!;
-  const mediaUri = item.mediaUrl?.trim() ?? '';
+  const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
   const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
   return <ConceptCard item={item} flipped={flipped} isMediaPrefetched={isMediaPrefetched} />;
 }

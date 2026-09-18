@@ -197,6 +197,14 @@ Returns a simple health check response.
 }
 ```
 
+### Media proxy
+
+**GET** `/api/media?url=`
+
+Allowlisted reverse proxy for concept card images. The Expo **web** client loads Wikimedia (and other allowlisted) `mediaUrl`s through this endpoint so display does not depend on third-party CORS. Native clients should keep requesting the original `mediaUrl` directly (Wikimedia is fine there; browsers are not).
+
+Only `https` URLs on `upload.wikimedia.org` with a raster image extension are fetched. SVG is rejected. Responses are cached by browsers (`Cache-Control`) and the route is throttled.
+
 ### Generate Concept Relationships
 
 **POST** `/api/concepts/relationships`

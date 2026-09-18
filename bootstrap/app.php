@@ -18,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(EnsureStorageDirectoriesExist::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->shouldRenderJsonWhen(function ($request, \Throwable $e) {
+            return $request->is('api/*') || $request->expectsJson();
+        });
+
         // Mirror reportable exceptions to PHP's error_log so PHP-FPM/docker
         // logs capture Filament 500s even when storage/logs is not writable.
         $exceptions->reportable(function (\Throwable $e): void {
