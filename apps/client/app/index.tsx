@@ -5,7 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
-import { ApiError, fetchConceptRelationships, graphNodesToConceptItems, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
+import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
+import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const conceptsRef = useRef(concepts);
   const currentIndexRef = useRef(currentIndex);
   const loadMoreInFlightRef = useRef(false);
+  const fetchGenRef = useRef(0);
   const emptyRetryDelayRef = useRef(INITIAL_EMPTY_RETRY_MS);
   const emptyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
@@ -55,10 +57,6 @@ export default function HomeScreen() {
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
-
-  useEffect(() => {
-    pendingEndDeckLoadRef.current = pendingEndDeckLoad;
-  }, [pendingEndDeckLoad]);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,23 +119,30 @@ export default function HomeScreen() {
   );
 
   const loadConcepts = useCallback(async () => {
+    const gen = ++fetchGenRef.current;
     setLoading(true);
     setError(null);
     setLoadMoreError(false);
-    setPendingEndDeckLoad(false);
     pendingEndDeckLoadRef.current = false;
+    setPendingEndDeckLoad(false);
     clearEmptyRetry();
     emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
     try {
       // Initial load: never send a seed (cold start)
       const data = await fetchBatch(complexityRef.current);
-      const list: ConceptItem[] = graphNodesToConceptItems(data);
+      if (gen !== fetchGenRef.current) return;
+      const list: ConceptItem[] = graphToDeckItems(data);
+      conceptsRef.current = list;
+      currentIndexRef.current = 0;
       setConcepts(list);
       setCurrentIndex(0);
     } catch (e) {
+      if (gen !== fetchGenRef.current) return;
       setError(e instanceof Error ? e.message : 'Failed to load concepts');
     } finally {
-      setLoading(false);
+      if (gen === fetchGenRef.current) {
+        setLoading(false);
+      }
     }
   }, [fetchBatch]);
 
@@ -154,68 +159,72 @@ export default function HomeScreen() {
     const list = conceptsRef.current;
     if (list.length === 0) return;
 
+    const gen = fetchGenRef.current;
+    const stillCurrent = () => gen === fetchGenRef.current;
+
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
     setLoadMoreError(false);
 
     try {
-      // Load more: try to continue the chain using the last card as the next seed.
-      // If that seed has no prefetched relationships yet (404), fall back to cold start.
+      // Continue the chain from the last *walk-ordered* card (frontier), not DB-order last.
       const seed = list[list.length - 1]?.concept?.trim() ?? '';
+      let didUseSeed = seed.length > 0;
       let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
       try {
-        data = await fetchBatch(complexityRef.current, seed);
+        data = await fetchBatch(complexityRef.current, didUseSeed ? seed : undefined);
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) {
           data = await fetchBatch(complexityRef.current);
+          didUseSeed = false;
         } else {
           throw e;
         }
       }
 
-      const batch: ConceptItem[] = graphNodesToConceptItems(data);
-      const existing = conceptsRef.current;
-      const seen = new Set(existing.map((c) => c.concept.trim().toLowerCase()));
-      const freshBatch = batch.filter((c) => {
-        const k = c.concept.trim().toLowerCase();
-        return k.length > 0 && !seen.has(k);
-      });
+      if (!stillCurrent()) return;
 
-      const merged = freshBatch.length > 0 ? freshBatch : [];
+      let incoming = graphToDeckItems(data);
+      let plan = planLoadMoreMerge(conceptsRef.current, incoming, didUseSeed);
 
-      if (merged.length === 0) {
+      // Same neighborhood as the first batch (common when seed was the original start):
+      // cold-start a different random component instead of retrying the same seed forever.
+      if (plan.action === 'coldStart') {
+        data = await fetchBatch(complexityRef.current);
+        if (!stillCurrent()) return;
+        incoming = graphToDeckItems(data);
+        plan = planLoadMoreMerge(conceptsRef.current, incoming, false);
+      }
+
+      if (plan.action !== 'append') {
         const delay = emptyRetryDelayRef.current;
         emptyRetryTimerRef.current = setTimeout(() => {
           emptyRetryTimerRef.current = null;
           void loadMoreConceptsRef.current();
         }, delay);
         emptyRetryDelayRef.current = Math.min(delay * 2, MAX_EMPTY_RETRY_MS);
-      } else {
-        emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
-        clearEmptyRetry();
-        setConcepts((prev) => {
-          const nextSeen = new Set(prev.map((c) => c.concept.trim().toLowerCase()));
-          const add = merged.filter((c) => {
-            const k = c.concept.trim().toLowerCase();
-            return k.length > 0 && !nextSeen.has(k);
-          });
-          if (add.length === 0) return prev;
-          const next = [...prev, ...add];
-          if (pendingEndDeckLoadRef.current) {
-            queueMicrotask(() => {
-              setCurrentIndex(prev.length);
-              pendingEndDeckLoadRef.current = false;
-              setPendingEndDeckLoad(false);
-            });
-          }
-          return next;
-        });
+        return;
+      }
+
+      emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
+      clearEmptyRetry();
+
+      const applied = applyAppendedBatch(conceptsRef.current, plan.add, pendingEndDeckLoadRef.current);
+      conceptsRef.current = applied.concepts;
+      pendingEndDeckLoadRef.current = applied.pendingEndDeckLoad;
+      setConcepts(applied.concepts);
+      setPendingEndDeckLoad(applied.pendingEndDeckLoad);
+      if (applied.nextIndex != null) {
+        currentIndexRef.current = applied.nextIndex;
+        setCurrentIndex(applied.nextIndex);
       }
     } catch {
-      setLoadMoreError(true);
+      if (stillCurrent()) setLoadMoreError(true);
     } finally {
       loadMoreInFlightRef.current = false;
-      setLoadingMore(false);
+      if (stillCurrent()) {
+        setLoadingMore(false);
+      }
     }
   }, [fetchBatch]);
 
