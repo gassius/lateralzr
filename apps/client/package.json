@@ -9,7 +9,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "tsx --test lib/conceptDeck.test.ts && node lib/webPhoneFrame.test.cjs",
+    "test": "tsx --test lib/conceptDeck.test.ts lib/remoteImage.test.ts && node lib/webPhoneFrame.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

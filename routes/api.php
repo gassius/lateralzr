@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\ConceptRelationshipController;
+use App\Http\Controllers\Api\RemoteMediaController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/hello', function () {
@@ -11,3 +12,7 @@ Route::get('/hello', function () {
 });
 
 Route::post('/concepts/relationships', [ConceptRelationshipController::class, 'generate']);
+
+Route::get('/media', [RemoteMediaController::class, 'show'])
+    ->middleware('throttle:180,1')
+    ->name('media.show');

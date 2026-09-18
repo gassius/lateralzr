@@ -1,20 +1,26 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import type { ConceptItem } from '@/lib/api';
-import { REMOTE_IMAGE_HEADERS } from '@/lib/remoteImage';
+import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { displayMediaUrl, remoteImageHeadersForPlatform } from '@/lib/remoteImage';
 
 const BATCH_DEBOUNCE_MS = 200;
 
-const prefetchOpts = {
-  cachePolicy: 'memory-disk' as const,
-  headers: REMOTE_IMAGE_HEADERS,
-};
+function prefetchOpts() {
+  const headers = remoteImageHeadersForPlatform(Platform.OS);
+  return {
+    cachePolicy: 'memory-disk' as const,
+    ...(headers ? { headers } : {}),
+  };
+}
 
 function uniqueMediaUrls(concepts: ConceptItem[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
+  const apiBaseUrl = resolveApiBaseUrl();
   for (const c of concepts) {
-    const u = c.mediaUrl?.trim();
+    const u = displayMediaUrl(c.mediaUrl, Platform.OS, apiBaseUrl);
     if (!u || seen.has(u)) continue;
     seen.add(u);
     out.push(u);
@@ -24,7 +30,7 @@ function uniqueMediaUrls(concepts: ConceptItem[]): string[] {
 
 async function prefetchOne(url: string): Promise<boolean> {
   try {
-    return await Image.prefetch(url, prefetchOpts);
+    return await Image.prefetch(url, prefetchOpts());
   } catch {
     return false;
   }
@@ -46,7 +52,7 @@ export function useConceptMediaPreload(concepts: ConceptItem[], currentIndex: nu
 
   /** Current card first — helps first flip after load or after swipe before batch finishes. */
   useEffect(() => {
-    const url = concepts[currentIndex]?.mediaUrl?.trim();
+    const url = displayMediaUrl(concepts[currentIndex]?.mediaUrl, Platform.OS, resolveApiBaseUrl());
     if (!url) return;
 
     let cancelled = false;

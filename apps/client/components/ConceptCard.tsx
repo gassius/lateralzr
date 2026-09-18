@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -11,7 +11,8 @@ import Animated, {
 import { Text } from '@/components/Themed';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
-import { REMOTE_IMAGE_HEADERS } from '@/lib/remoteImage';
+import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { remoteImageSource } from '@/lib/remoteImage';
 
 const FLIP_MS = 420;
 
@@ -29,7 +30,8 @@ type ConceptCardProps = {
 
 export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
-  const mediaUri = item.mediaUrl?.trim() ?? '';
+  const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
+  const mediaUri = imageSource?.uri ?? '';
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
@@ -59,8 +61,6 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
       setMediaError(false);
     }
   }, [mediaUri, isMediaPrefetched]);
-
-  const imageSource = mediaUri ? { uri: mediaUri, headers: REMOTE_IMAGE_HEADERS } : null;
 
   const frontFaceStyle = useAnimatedStyle(() => {
     const rot = interpolate(flipProgress.value, [0, 1], [0, -90]);
