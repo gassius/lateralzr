@@ -1,4 +1,5 @@
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { graphToDeckItems } from '@/lib/conceptDeck';
 
 const API_URL = resolveApiBaseUrl();
 
@@ -84,11 +85,5 @@ export async function fetchConceptRelationships(
 }
 
 export function graphNodesToConceptItems(data: ConceptGraphResponse['data']): ConceptItem[] {
-  return data.nodes.map((node) => ({
-    concept: node.label,
-    shortDescription: node.shortDescription,
-    complexity: node.complexity,
-    wikiUrl: node.wikiUrl,
-    mediaUrl: node.mediaUrl,
-  }));
+  return graphToDeckItems(data);
 }

@@ -60,3 +60,7 @@ jobs:
       - name: Client type check
         run: pnpm exec tsc --noEmit
         working-directory: apps/client
+
+      - name: Client unit tests
+        run: pnpm test
+        working-directory: apps/client

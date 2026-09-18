@@ -8,7 +8,9 @@
     "build": "expo export --platform web",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "tsx --test lib/conceptDeck.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@babel/runtime": "^7.25.0",
@@ -44,6 +46,7 @@
     "@types/react": "~19.1.0",
     "@types/react-dom": "^19.2.3",
     "react-test-renderer": "19.1.0",
+    "tsx": "^4.20.5",
     "typescript": "~5.9.2"
   },
   "private": true
