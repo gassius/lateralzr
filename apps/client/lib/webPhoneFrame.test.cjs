@@ -104,6 +104,7 @@ describe('native isolation', () => {
     assert.match(webSrc, /webPhoneFrameSize\(/);
     assert.match(webSrc, /web-phone-stage/);
     assert.match(webSrc, /web-phone-frame/);
+    assert.match(webSrc, /lateralzr-web-phone-frame/);
   });
 });
 
