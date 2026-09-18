@@ -2,8 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Ai\Support\AiProviders;
 use App\Services\ConceptGraphPrefetchService;
 use Illuminate\Console\Command;
+use InvalidArgumentException;
 
 class PrefetchConceptGraph extends Command
 {
@@ -14,8 +16,8 @@ class PrefetchConceptGraph extends Command
         {--count=100 : Target concept count for this run}
         {--batch-size=10 : Concept count requested per queued batch}
         {--complexity= : Concept label complexity 1-5 (default from config)}
-        {--provider= : AI provider (ollama|openai|anthropic|gemini) (default from config)}
-        {--model= : AI model (default from config)}
+        {--provider= : AI provider (ollama|openrouter|openai|anthropic|gemini) (default from config)}
+        {--model= : AI model (default from provider config)}
         {--queue=default : Queue name}';
 
     protected $description = 'Prefetch an interwoven concept graph into the database (async queued jobs).';
@@ -28,6 +30,14 @@ class PrefetchConceptGraph extends Command
         $provider = $this->option('provider') ? (string) $this->option('provider') : null;
         $model = $this->option('model') ? (string) $this->option('model') : null;
 
+        try {
+            $provider = $provider !== null && $provider !== '' ? AiProviders::normalize($provider) : null;
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
         $count = max(1, (int) ($this->option('count') ?? 100));
         $batchSize = max(1, min(100, (int) ($this->option('batch-size') ?? 10)));
 
@@ -37,17 +47,23 @@ class PrefetchConceptGraph extends Command
         $randomExisting = max(0, (int) $this->option('random-existing'));
         $randomIdea = (bool) $this->option('random-idea');
 
-        $run = app(ConceptGraphPrefetchService::class)->dispatch(
-            starts: $starts,
-            randomExisting: $randomExisting,
-            randomIdea: $randomIdea,
-            targetCount: $count,
-            batchSize: $batchSize,
-            complexity: $complexity,
-            provider: $provider,
-            model: $model,
-            queue: $queue
-        );
+        try {
+            $run = app(ConceptGraphPrefetchService::class)->dispatch(
+                starts: $starts,
+                randomExisting: $randomExisting,
+                randomIdea: $randomIdea,
+                targetCount: $count,
+                batchSize: $batchSize,
+                complexity: $complexity,
+                provider: $provider,
+                model: $model,
+                queue: $queue
+            );
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
 
         $this->info("Enqueued {$run->seed_count} start(s). run_uuid={$run->run_uuid} provider={$run->provider} model={$run->model} target={$run->related_count} batch_size={$batchSize} complexity={$run->complexity} queue={$run->queue}");
 

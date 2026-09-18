@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Ai\Support\AiRequestError;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptGraphStore;
 use App\Services\ConceptRelationshipService;
@@ -10,6 +11,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use RuntimeException;
+use Throwable;
 
 class GenerateConceptGraphJob implements ShouldQueue
 {
@@ -22,6 +25,17 @@ class GenerateConceptGraphJob implements ShouldQueue
     public int $timeout = 300;
 
     public bool $failOnTimeout = true;
+
+    /**
+     * Limited retries for transient OpenRouter timeouts/429/5xx. Permanent
+     * errors (invalid model, invalid schema, auth) fail immediately.
+     */
+    public int $tries = 3;
+
+    public function backoff(): array
+    {
+        return [20, 60];
+    }
 
     public function __construct(
         public ?string $seed,
@@ -84,19 +98,30 @@ class GenerateConceptGraphJob implements ShouldQueue
                         'status' => 'succeeded',
                         'attempts' => (int) (($this->attempts() ?? 0)),
                         'finished_at' => now(),
+                        'error_message' => null,
                     ]);
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
+            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model);
+            $retryable = AiRequestError::isRetryable($e);
+            $willRetry = $retryable && $this->attempts() < $this->tries;
+
             if ($this->runUuid && $trackingKey) {
                 ConceptGraphRunJob::query()
                     ->where('run_uuid', $this->runUuid)
                     ->where('seed', $trackingKey)
                     ->update([
-                        'status' => 'failed',
+                        'status' => $willRetry ? 'processing' : 'failed',
                         'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => now(),
-                        'error_message' => $e->getMessage(),
+                        'finished_at' => $willRetry ? null : now(),
+                        'error_message' => $mapped,
                     ]);
+            }
+
+            if (! $retryable) {
+                $this->fail(new RuntimeException($mapped, 0, $e));
+
+                return;
             }
 
             throw $e;
@@ -106,13 +131,17 @@ class GenerateConceptGraphJob implements ShouldQueue
         }
     }
 
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         $trackingKey = $this->jobKey ?? $this->seed;
 
         if (! $this->runUuid || ! $trackingKey) {
             return;
         }
+
+        $message = $exception
+            ? AiRequestError::displayMessage($exception, $this->provider, $this->model)
+            : 'Job failed or timed out.';
 
         ConceptGraphRunJob::query()
             ->where('run_uuid', $this->runUuid)
@@ -121,7 +150,7 @@ class GenerateConceptGraphJob implements ShouldQueue
                 'status' => 'failed',
                 'attempts' => max(1, (int) (($this->attempts() ?? 0))),
                 'finished_at' => now(),
-                'error_message' => $exception?->getMessage() ?? 'Job failed or timed out.',
+                'error_message' => $message,
             ]);
     }
 }

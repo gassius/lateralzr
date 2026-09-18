@@ -105,6 +105,11 @@ DB_DATABASE=lateralzr
 DB_USERNAME=lateralzr
 DB_PASSWORD=<your-mysql-password>
 
+# Production LLM: OpenRouter via laravel/ai (not Ollama)
+AI_DEFAULT_PROVIDER=openrouter
+OPENROUTER_API_KEY=<your-openrouter-key>
+OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
+
 # Set appropriate mail driver for production
 MAIL_MAILER=smtp
 MAIL_HOST=<your-smtp-host>
@@ -324,6 +329,9 @@ Examples:
 ./bin/artisan scheduler:test
 ./bin/artisan users:create-filament-admin you@example.com --name="Your Name" --password='...'
 ./bin/artisan users:promote-filament-admin you@example.com
+./bin/artisan ai:ping --provider=openrouter --dry-run
+./bin/artisan ai:ping --provider=openrouter
+./bin/artisan concepts:prefetch --provider=openrouter --model=openai/gpt-4o-mini --count=10
 ./bin/artisan tinker
 ```
 
@@ -378,6 +386,41 @@ docker compose -f docker-compose.prod.yml restart
 # Restart specific service
 docker compose -f docker-compose.prod.yml restart queue
 ```
+
+## AI / OpenRouter (concept graph queue)
+
+Production prefetch (`concepts:prefetch` and Filament "Prefetch concept graph") runs on the `queue` worker through `GenerateConceptGraphJob` → `ConceptsOnlyAgent` → laravel/ai OpenRouter driver. Do **not** point production at Ollama.
+
+**VPS `.env` (required):**
+
+```env
+AI_DEFAULT_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
+```
+
+- `OPENROUTER_DEFAULT_MODEL` must be a real OpenRouter model id from https://openrouter.ai/models (example: `openai/gpt-4o-mini`). Invented slugs such as `deepseek/deepseek-v4-flash-0731` return HTTP 404.
+- Empty `OPENROUTER_DEFAULT_MODEL` falls back to `openai/gpt-4o-mini`.
+- Do **not** set `OPENROUTER_BASE_URL` to `https://openrouter.ai/api/v1/chat/completions`. laravel/ai 0.1 config is `driver` + `key` only; Prism already uses base `https://openrouter.ai/api/v1`.
+
+After changing AI env vars:
+
+```bash
+./bin/artisan config:cache
+docker compose -f docker-compose.prod.yml exec -T -u www-data queue php artisan config:cache
+docker compose -f docker-compose.prod.yml restart queue
+```
+
+**Sanity check from the VPS (no host `php artisan`):**
+
+```bash
+./bin/artisan ai:ping --provider=openrouter --dry-run
+./bin/artisan ai:ping --provider=openrouter
+./bin/artisan concepts:prefetch --provider=openrouter --model=openai/gpt-4o-mini --count=10 --batch-size=5
+docker compose -f docker-compose.prod.yml logs --tail=100 queue
+```
+
+Queue workers retry transient OpenRouter timeouts/429/5xx a few times, then stop. Invalid model ids and structured-output schema errors fail immediately with a clear `error_message` on the run job (Filament Concept Graph Runs).
 
 ### Queue Management
 
@@ -591,8 +634,27 @@ docker compose -f docker-compose.prod.yml ps queue
 docker compose -f docker-compose.prod.yml logs -f queue
 
 # Manually process queue
-docker compose -f docker-compose.prod.yml exec -u www-data app php artisan queue:work --once
+docker compose -f docker-compose.prod.yml exec -u www-data app php artisan queue:work --once --timeout=300
 ```
+
+### Concept graph jobs fail against OpenRouter
+
+Most failures are **invalid model id** or **structured-output schema**, not a missing driver.
+
+```bash
+./bin/artisan ai:ping --provider=openrouter --dry-run
+./bin/artisan ai:ping --provider=openrouter
+docker compose -f docker-compose.prod.yml logs --tail=200 queue
+```
+
+| Symptom | Fix |
+| --- | --- |
+| `array schema missing items` / `Invalid schema for response_format` | Deploy this schema fix (`ConceptGraphStructuredSchema` uses `array()->items(...)`). Recycle queue. |
+| HTTP 404 / `No endpoints found` for the model | Set `OPENROUTER_DEFAULT_MODEL` to a listed id (`openai/gpt-4o-mini`). Do not invent slugs. |
+| cURL timeout / 429 / 502–504 | Transient; jobs retry a few times. If persistent, check OpenRouter status and VPS egress. |
+| `Unknown AI provider` | `--provider=openrouter` (CLI help used to omit it). |
+
+After env changes: `./bin/artisan config:cache`, cache config in the queue container, `docker compose -f docker-compose.prod.yml restart queue`.
 
 ### Clear All Caches
 

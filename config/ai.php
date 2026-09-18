@@ -1,5 +1,9 @@
 <?php
 
+$defaultProvider = env('AI_DEFAULT_PROVIDER', 'ollama');
+$openrouterModel = env('OPENROUTER_DEFAULT_MODEL');
+$ollamaModel = env('OLLAMA_MODEL');
+
 return [
 
     /*
@@ -11,9 +15,11 @@ return [
     | Laravel AI SDK. You may change this value to use a different provider
     | as needed for your application.
     |
+    | Local Sail: ollama. Production VPS: openrouter.
+    |
     */
 
-    'default' => env('AI_DEFAULT_PROVIDER', 'ollama'),
+    'default' => $defaultProvider,
 
     /*
     |--------------------------------------------------------------------------
@@ -22,6 +28,10 @@ return [
     |
     | Here you may configure the AI providers available to your application.
     | Each provider requires specific credentials and configuration options.
+    |
+    | laravel/ai v0.1.x OpenRouter config is driver + key only. Prism defaults
+    | the OpenRouter base URL to https://openrouter.ai/api/v1. Do not set a
+    | full /chat/completions path — Prism already appends that route.
     |
     */
 
@@ -36,7 +46,6 @@ return [
         'openrouter' => [
             'driver' => 'openrouter',
             'key' => env('OPENROUTER_API_KEY'),
-            'url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/chat/completions'),
         ],
 
         'openai' => [
@@ -69,15 +78,21 @@ return [
     | The text model selection respects the AI_DEFAULT_PROVIDER setting:
     | - When using 'openrouter', it reads OPENROUTER_DEFAULT_MODEL
     | - When using 'ollama', it reads OLLAMA_MODEL
-    | - Otherwise, falls back to OLLAMA_MODEL for backward compatibility
+    | - Empty OPENROUTER_DEFAULT_MODEL falls back to openai/gpt-4o-mini
+    |
+    | Use a real OpenRouter model id from https://openrouter.ai/models
+    | (e.g. openai/gpt-4o-mini). Invented slugs 404.
     |
     */
 
     'models' => [
-        'text' => match (env('AI_DEFAULT_PROVIDER', 'ollama')) {
-            'openrouter' => env('OPENROUTER_DEFAULT_MODEL', 'openai/gpt-4o-mini'),
-            'ollama' => env('OLLAMA_MODEL', 'llama3.2:3b'),
-            default => env('OLLAMA_MODEL', 'llama3.2:3b'),
+        'text' => match ($defaultProvider) {
+            'openrouter' => (is_string($openrouterModel) && trim($openrouterModel) !== '')
+                ? trim($openrouterModel)
+                : 'openai/gpt-4o-mini',
+            default => (is_string($ollamaModel) && trim($ollamaModel) !== '')
+                ? trim($ollamaModel)
+                : 'llama3.2:3b',
         },
         'image' => env('AI_IMAGE_MODEL'),
         'audio' => env('AI_AUDIO_MODEL'),

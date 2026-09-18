@@ -101,6 +101,10 @@ DB_HOST=mysql_db_1
 DB_DATABASE=lateralzr
 DB_USERNAME=lateralzr
 DB_PASSWORD=<secret>
+
+AI_DEFAULT_PROVIDER=openrouter
+OPENROUTER_API_KEY=<secret>
+OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
 ```
 
 ## Troubleshooting
@@ -132,7 +136,10 @@ tail -n 100 storage/logs/laravel.log
 ```bash
 docker compose -f docker-compose.prod.yml logs queue
 docker compose -f docker-compose.prod.yml restart queue
+./bin/artisan ai:ping --provider=openrouter --dry-run
 ```
+
+Concept graph prefetch in production uses OpenRouter (`AI_DEFAULT_PROVIDER=openrouter`). Verify with `./bin/artisan ai:ping --provider=openrouter`. Use a real model id (`openai/gpt-4o-mini`); invented slugs 404. See [DEPLOYMENT.md](DEPLOYMENT.md) "AI / OpenRouter".
 
 ## See Full Documentation
 [DEPLOYMENT.md](DEPLOYMENT.md)
