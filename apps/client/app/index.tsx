@@ -10,6 +10,7 @@ import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_
 import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
+import { remainingIntroMs, waitMs } from '@/lib/introLogo';
 
 /**
  * Prefetch the next API batch when at most this many concepts remain **ahead** of the
@@ -124,6 +125,7 @@ export default function HomeScreen() {
 
   const loadConcepts = useCallback(async () => {
     const gen = ++fetchGenRef.current;
+    const introStartedAt = Date.now();
     setLoading(true);
     setError(null);
     setLoadMoreError(false);
@@ -136,6 +138,14 @@ export default function HomeScreen() {
       const data = await fetchBatch(complexityRef.current);
       if (gen !== fetchGenRef.current) return;
       const list: ConceptItem[] = graphToDeckItems(data);
+
+      // Hold the animated logo until at least one full circle pulse cycle (~3s)
+      // so a fast API response does not flash past the brand.
+      if (list.length > 0) {
+        await waitMs(remainingIntroMs(introStartedAt, Date.now()));
+        if (gen !== fetchGenRef.current) return;
+      }
+
       conceptsRef.current = list;
       currentIndexRef.current = 0;
       setConcepts(list);
