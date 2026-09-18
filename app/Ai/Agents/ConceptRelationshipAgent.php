@@ -2,12 +2,15 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Support\AiProviders;
+use App\Ai\Support\ConceptGraphStructuredSchema;
 use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Ai\Tools\WikimediaCommonsSearchTool;
 use App\Ai\Tools\WikipediaSearchTool;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\Temperature;
+use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Contracts\HasTools;
@@ -18,6 +21,7 @@ use Stringable;
 
 #[MaxSteps(25)]
 #[Temperature(0.88)]
+#[Timeout(120)]
 class ConceptRelationshipAgent implements Agent, HasStructuredOutput, HasTools
 {
     use Promptable;
@@ -69,26 +73,7 @@ INSTRUCTIONS;
      */
     public function schema(JsonSchema $schema): array
     {
-        return [
-            'start_concept' => $schema->string()->min(1)->required(),
-            'concepts' => $schema->array(
-                $schema->object([
-                    'concept' => $schema->string()->min(1)->required(),
-                    'shortDescription' => $schema->string()->min(1)->required(),
-                    'complexity' => $schema->integer()->min(1)->max(5)->required(),
-                    // URLs are populated via tools; may be null if tools fail
-                    'wikiUrl' => $schema->string(),
-                    'mediaUrl' => $schema->string(),
-                ])
-            )->required(),
-            'edges' => $schema->array(
-                $schema->object([
-                    'from' => $schema->string()->min(1)->required(),
-                    'to' => $schema->string()->min(1)->required(),
-                    'laterality' => $schema->integer()->min(1)->max(5)->required(),
-                ])
-            )->required(),
-        ];
+        return ConceptGraphStructuredSchema::definition($schema);
     }
 
     /**
@@ -96,9 +81,7 @@ INSTRUCTIONS;
      */
     public function provider(): Lab|array|string|null
     {
-        $providerName = config('ai.default', 'ollama');
-
-        return $this->getProviderEnum($providerName);
+        return AiProviders::toLab((string) config('ai.default', 'ollama'));
     }
 
     /**
@@ -106,21 +89,6 @@ INSTRUCTIONS;
      */
     public function model(): ?string
     {
-        return config('ai.models.text', 'phi3.5:latest');
-    }
-
-    /**
-     * Map provider string from config to Lab enum.
-     */
-    private function getProviderEnum(string $providerName): Lab
-    {
-        return match (strtolower($providerName)) {
-            'ollama' => Lab::Ollama,
-            'openrouter' => Lab::OpenRouter,
-            'openai' => Lab::OpenAI,
-            'anthropic' => Lab::Anthropic,
-            'gemini' => Lab::Gemini,
-            default => Lab::Ollama, // Fallback to Ollama
-        };
+        return AiProviders::defaultTextModel((string) config('ai.default', 'ollama'));
     }
 }

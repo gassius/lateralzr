@@ -148,6 +148,10 @@ A Filament 5 admin panel is available at **`/admin`** for quick inspection and m
 # Process concept graph jobs manually
 ./sail artisan queue:work --queue=default --timeout=300
 
+# Verify AI provider/model (OpenRouter in prod)
+./sail artisan ai:ping --provider=openrouter --dry-run
+./sail artisan concepts:prefetch --provider=openrouter --starts=creativity --count=10
+
 # Run Composer commands
 ./sail composer <command>
 

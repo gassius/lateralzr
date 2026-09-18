@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Ai\Support\AiProviders;
 use App\Jobs\GenerateConceptGraphJob;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
@@ -29,8 +30,8 @@ class ConceptGraphPrefetchService
         $targetCount = max(1, min(1000, $targetCount));
         $batchSize = max(1, min(100, $batchSize));
 
-        $provider = $provider !== null && $provider !== '' ? $provider : (string) config('ai.default', 'ollama');
-        $model = $model !== null && $model !== '' ? $model : (string) config('ai.models.text');
+        $provider = AiProviders::normalize($provider);
+        $model = $model !== null && $model !== '' ? $model : AiProviders::defaultTextModel($provider);
 
         $starts = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $starts);
         $starts = array_values(array_unique(array_filter($starts, fn ($v) => $v !== '')));
