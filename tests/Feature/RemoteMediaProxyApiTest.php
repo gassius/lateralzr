@@ -15,7 +15,9 @@ class RemoteMediaProxyApiTest extends TestCase
 
     public function test_requires_url(): void
     {
-        $this->get('/api/media')->assertStatus(422);
+        $this->get('/api/media')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['url']);
     }
 
     public function test_rejects_disallowed_host(): void
