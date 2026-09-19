@@ -4,7 +4,6 @@ namespace App\Filament\Resources\ConceptGraphRuns\Pages;
 
 use App\Ai\Support\AiProviders;
 use App\Filament\Resources\ConceptGraphRuns\ConceptGraphRunResource;
-use App\Services\ConceptCompleteInfoDispatchService;
 use App\Services\ConceptGraphPrefetchService;
 use App\Services\ConceptLocalizeDispatchService;
 use App\Support\ConceptLocale;
@@ -26,66 +25,6 @@ class ListConceptGraphRuns extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('enqueueCompleteInfo')
-                ->label('Complete concept info')
-                ->modalHeading('Enqueue Wikipedia / media backfill')
-                ->form([
-                    Select::make('locale')
-                        ->label('Locale (optional)')
-                        ->options(fn (): array => array_combine(ConceptLocale::supported(), ConceptLocale::supported()))
-                        ->placeholder('All locales')
-                        ->helperText('Leave empty to backfill terms in every supported locale.'),
-                    Select::make('mode')
-                        ->label('What to fill')
-                        ->options([
-                            'both' => 'Wikipedia + media (missing either)',
-                            'wiki' => 'Wikipedia URLs only',
-                            'media' => 'Wikimedia media only',
-                        ])
-                        ->default('both')
-                        ->required(),
-                    TextInput::make('limit')
-                        ->label('Limit (optional)')
-                        ->numeric()
-                        ->minValue(1),
-                    TextInput::make('batch_size')
-                        ->label('Batch size')
-                        ->helperText('Terms per queued Wikipedia / Wikimedia batch.')
-                        ->numeric()
-                        ->default(20)
-                        ->minValue(1)
-                        ->maxValue(50)
-                        ->required(),
-                    TextInput::make('queue')
-                        ->label('Queue')
-                        ->default('default')
-                        ->required(),
-                ])
-                ->action(function (array $data): void {
-                    try {
-                        $limit = $data['limit'] ?? null;
-                        $limit = $limit !== null && $limit !== '' ? (int) $limit : null;
-                        $locale = $data['locale'] ?? null;
-                        $locale = is_string($locale) && trim($locale) !== '' ? (string) $locale : null;
-
-                        app(ConceptCompleteInfoDispatchService::class)->dispatch(
-                            locale: $locale,
-                            mode: (string) ($data['mode'] ?? 'both'),
-                            limit: $limit,
-                            batchSize: (int) ($data['batch_size'] ?? 20),
-                            queue: (string) ($data['queue'] ?? 'default'),
-                        );
-                    } catch (InvalidArgumentException $e) {
-                        Notification::make()
-                            ->title('Complete info not enqueued')
-                            ->body($e->getMessage())
-                            ->danger()
-                            ->send();
-
-                        throw new Halt;
-                    }
-                })
-                ->successNotificationTitle('Complete info enqueued'),
             Action::make('enqueueLocalize')
                 ->label('Localize concepts')
                 ->modalHeading('Enqueue concept localization')

@@ -15,16 +15,8 @@ class ConceptGraphRunsTable
             ->columns([
                 TextColumn::make('type')
                     ->badge()
-                    ->formatStateUsing(fn (?string $state): string => match ($state) {
-                        'localize' => 'localize',
-                        'complete_info' => 'complete_info',
-                        default => 'graph',
-                    })
-                    ->color(fn (?string $state): string => match ($state) {
-                        'localize' => 'info',
-                        'complete_info' => 'success',
-                        default => 'gray',
-                    })
+                    ->formatStateUsing(fn (?string $state): string => $state === 'localize' ? 'localize' : 'graph')
+                    ->color(fn (?string $state): string => $state === 'localize' ? 'info' : 'gray')
                     ->sortable(),
                 TextColumn::make('run_uuid')
                     ->label('Run UUID')
@@ -78,7 +70,6 @@ class ConceptGraphRunsTable
                     ->options([
                         'graph' => 'graph',
                         'localize' => 'localize',
-                        'complete_info' => 'complete_info',
                     ]),
             ])
             ->recordActions([

@@ -13,8 +13,6 @@ class ConceptGraphRun extends Model
 
     public const TYPE_LOCALIZE = 'localize';
 
-    public const TYPE_COMPLETE_INFO = 'complete_info';
-
     protected $fillable = [
         'run_uuid',
         'type',
@@ -41,14 +39,9 @@ class ConceptGraphRun extends Model
         return $this->type === self::TYPE_LOCALIZE;
     }
 
-    public function isCompleteInfo(): bool
-    {
-        return $this->type === self::TYPE_COMPLETE_INFO;
-    }
-
     public function isGraph(): bool
     {
-        return $this->type === self::TYPE_GRAPH || (! $this->isLocalize() && ! $this->isCompleteInfo());
+        return ! $this->isLocalize();
     }
 
     public function getTargetCountAttribute(): ?int
@@ -66,14 +59,6 @@ class ConceptGraphRun extends Model
             $missing = data_get($this->seeds, 'missingOnly', true) ? 'missing-only' : 'all';
 
             return "{$from} → {$to} ({$missing})";
-        }
-
-        if ($this->isCompleteInfo()) {
-            $locale = data_get($this->seeds, 'locale');
-            $mode = (string) data_get($this->seeds, 'mode', 'both');
-            $localeLabel = is_string($locale) && $locale !== '' ? $locale : 'all locales';
-
-            return "{$localeLabel} · {$mode}";
         }
 
         $starts = data_get($this->seeds, 'starts', []);
