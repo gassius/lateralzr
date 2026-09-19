@@ -10,7 +10,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "tsx --test 'lib/**/*.test.ts' && node --test 'lib/**/*.test.cjs'",
+    "test": "tsx --test lib/*.test.ts && node --test lib/*.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
