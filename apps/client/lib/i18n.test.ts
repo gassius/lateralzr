@@ -26,20 +26,21 @@ describe('i18n locale catalogs', () => {
 });
 
 describe('resolveLocalePreference', () => {
-  it('prefers URL locale over device locale', () => {
-    assert.equal(
-      resolveLocalePreference({ urlLocale: 'es', deviceLocale: 'en-US' }),
-      'es',
-    );
+  it('prefers URL locale over default', () => {
+    assert.equal(resolveLocalePreference({ urlLocale: 'es' }), 'es');
+    assert.equal(resolveLocalePreference({ urlLocale: 'en-US' }), 'en');
   });
 
-  it('falls back to device then default', () => {
-    assert.equal(resolveLocalePreference({ urlLocale: null, deviceLocale: 'es-MX' }), 'es');
-    assert.equal(resolveLocalePreference({ urlLocale: null, deviceLocale: 'de-DE' }), DEFAULT_LOCALE);
+  it('defaults to en when URL locale is missing or unsupported', () => {
+    assert.equal(resolveLocalePreference({ urlLocale: null }), DEFAULT_LOCALE);
+    assert.equal(resolveLocalePreference({}), DEFAULT_LOCALE);
+    assert.equal(resolveLocalePreference({ urlLocale: 'fr' }), DEFAULT_LOCALE);
+    assert.equal(resolveLocalePreference({ urlLocale: 'es-MX' }), 'es');
   });
 
-  it('ignores unsupported URL locale and uses device', () => {
-    assert.equal(resolveLocalePreference({ urlLocale: 'fr', deviceLocale: 'es' }), 'es');
+  it('never uses device/browser locale as the default', () => {
+    assert.equal(resolveLocalePreference({ urlLocale: null }), 'en');
+    assert.equal(DEFAULT_LOCALE, 'en');
   });
 });
 

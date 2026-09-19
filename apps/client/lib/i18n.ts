@@ -76,17 +76,15 @@ export function getActiveLocale(): AppLocale {
 
 /**
  * Pure locale preference resolution (no platform APIs).
- * Order: URL override → device/browser → default.
+ * Order: explicit URL override → default (`en`).
+ * Device/browser locale is never used so Spanish devices still default to English
+ * unless `?locale=` (or an explicit urlLocale) selects another supported locale.
  */
 export function resolveLocalePreference(options?: {
   urlLocale?: string | null;
-  deviceLocale?: string | null;
 }): AppLocale {
   const fromUrl = normalizeLocaleTag(options?.urlLocale);
   if (fromUrl) return fromUrl;
-
-  const fromDevice = normalizeLocaleTag(options?.deviceLocale);
-  if (fromDevice) return fromDevice;
 
   return DEFAULT_LOCALE;
 }

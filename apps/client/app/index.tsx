@@ -10,7 +10,7 @@ import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_
 import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
-import { t } from '@/lib/i18n';
+import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
 import { applyResolvedLocale } from '@/lib/locale';
 
@@ -105,6 +105,7 @@ export default function HomeScreen() {
           limit: 12,
           depth: 2,
           complexity: requestedComplexity,
+          locale: getActiveLocale(),
         });
       } catch (e) {
         // Backend only has prefetched data for some complexities (often just 2).
@@ -115,6 +116,7 @@ export default function HomeScreen() {
             limit: 12,
             depth: 2,
             complexity: DEFAULT_CONCEPT_COMPLEXITY,
+            locale: getActiveLocale(),
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
           setComplexity(DEFAULT_CONCEPT_COMPLEXITY);
