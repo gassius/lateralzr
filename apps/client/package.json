@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
+    "start:mcp": "EXPO_UNSTABLE_MCP_SERVER=1 expo start",
     "dev": "expo start",
     "build": "expo export --platform web",
     "android": "expo start --android",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "@types/react-dom": "^19.2.3",
+    "expo-mcp": "~0.2.1",
     "react-test-renderer": "19.1.0",
     "tsx": "^4.20.5",
     "typescript": "~5.9.2"

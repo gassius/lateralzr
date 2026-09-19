@@ -50,8 +50,11 @@ This document provides context and guidelines for AI agents working on the Later
 - **Concept graph queue workers**: concept generation can spend more than 60 seconds in the LLM plus URL enrichment path. When processing these jobs manually, use `./sail artisan queue:work --queue=default --timeout=300`.
 
 ### Expo client
-- **Stack**: Expo SDK, React Native, TypeScript, Expo Router. The client fetches concepts from the API and displays them as flip/swipe cards.
-- **Expo AI Skills**: When editing or adding code in `apps/client`, agents should use **Expo AI Skills** for accurate Expo/React Native guidance. To enable in Cursor: **Settings → Rules & Command → Project Rules → Add Rule → Remote Rule (GitHub)** → `https://github.com/expo/skills.git`. Skills are auto-discovered for prompts about Expo, UI, data fetching, and deployment (see [expo/skills README](https://github.com/expo/skills/blob/main/README.md)).
+- **Stack**: Expo SDK 54, React Native, TypeScript, Expo Router. Lives in **`apps/client`**. The client fetches concepts from the API and displays them as flip/swipe cards (web export today; native builds when needed).
+- **Agent context**: Cursor/Codex read [`apps/client/AGENTS.md`](../apps/client/AGENTS.md). Claude Code imports it via `apps/client/CLAUDE.md` and `.claude/settings.json` (Expo plugin enabled).
+- **Expo Skills**: Install once per machine with `pnpm dlx skills add expo/skills` (or Cursor Remote Rule → `https://github.com/expo/skills.git`). Skills auto-apply on Expo-related prompts — see https://docs.expo.dev/skills.md.
+- **Expo MCP**: Registered in [`.cursor/mcp.json`](../.cursor/mcp.json) as remote server `https://mcp.expo.dev/mcp` (OAuth in Cursor Settings → Tools & MCP). Local capabilities (screenshots, tap automation, DevTools) need `expo-mcp` and `pnpm start:mcp` from `apps/client` (`EXPO_UNSTABLE_MCP_SERVER=1`). Docs: https://docs.expo.dev/mcp.md · https://docs.expo.dev/agents/cursor.md.
+- When working under `apps/client`, prefer Expo Skills + Expo MCP over inventing APIs or package versions from training data.
 
 ## Laravel Conventions to Follow
 
