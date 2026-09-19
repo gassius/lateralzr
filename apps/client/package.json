@@ -10,7 +10,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "tsx --test lib/conceptDeck.test.ts lib/remoteImage.test.ts lib/introLogo.test.ts && node lib/webPhoneFrame.test.cjs",
+    "test": "tsx --test lib/conceptDeck.test.ts lib/remoteImage.test.ts lib/introLogo.test.ts lib/i18n.test.ts && node lib/webPhoneFrame.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "expo-font": "~14.0.11",
     "expo-image": "~3.0.11",
     "expo-linking": "~8.0.11",
+    "expo-localization": "~17.0.9",
     "expo-modules-core": "~3.0.30",
     "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",

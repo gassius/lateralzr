@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Concept;
 use App\Models\ConceptRelationship;
+use App\Models\ConceptTerm;
+use App\Support\ConceptLocale;
 
 class ConceptGraphQuery
 {
@@ -12,13 +14,19 @@ class ConceptGraphQuery
      *
      * @return array{start:array{id:int,label:string},nodes:array<int,array<string,mixed>>,edges:array<int,array<string,mixed>>,meta:array<string,mixed>}|null
      */
-    public function getGraph(?string $startConcept, int $limit = 100, int $depth = 2, float $minStrength = 0.0): ?array
-    {
+    public function getGraph(
+        ?string $startConcept,
+        int $limit = 100,
+        int $depth = 2,
+        float $minStrength = 0.0,
+        ?string $locale = null
+    ): ?array {
         $limit = max(1, min(500, $limit));
         $depth = max(1, min(5, $depth));
         $minStrength = max(0.0, min(1.0, $minStrength));
+        $locale = ConceptLocale::resolve($locale);
 
-        $start = $this->resolveStart($startConcept);
+        $start = $this->resolveStart($startConcept, $locale);
         if ($start === null) {
             return null;
         }
@@ -32,7 +40,7 @@ class ConceptGraphQuery
         for ($hop = 1; $hop <= $depth && $frontier !== [] && count($edgeMap) < $limit; $hop++) {
             $remaining = $limit - count($edgeMap);
             $edges = ConceptRelationship::query()
-                ->with(['fromConcept.preferredTerm', 'toConcept.preferredTerm'])
+                ->with(['fromConcept.terms', 'toConcept.terms'])
                 ->where('strength', '>=', $minStrength)
                 ->where(function ($q) use ($frontier) {
                     $q->whereIn('from_concept_id', $frontier)
@@ -69,17 +77,19 @@ class ConceptGraphQuery
         }
 
         $nodes = Concept::query()
-            ->with('preferredTerm')
+            ->with('terms')
             ->whereIn('id', array_keys($nodeIds))
             ->get()
-            ->map(fn (Concept $concept) => $this->formatNode($concept))
+            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale))
             ->values()
             ->all();
+
+        $startLabel = (string) ($start->termForLocale($locale)?->term ?? $start->display_term ?? '');
 
         return [
             'start' => [
                 'id' => (int) $start->id,
-                'label' => (string) ($start->display_term ?? ''),
+                'label' => $startLabel,
             ],
             'nodes' => $nodes,
             'edges' => collect($edgeMap)
@@ -91,22 +101,34 @@ class ConceptGraphQuery
                 'limit' => $limit,
                 'minStrength' => $minStrength,
                 'hasMore' => $hasMore,
+                'locale' => $locale,
             ],
         ];
     }
 
-    protected function resolveStart(?string $startConcept): ?Concept
+    protected function resolveStart(?string $startConcept, string $locale): ?Concept
     {
         if ($startConcept !== null && trim($startConcept) !== '') {
-            $normalized = \App\Models\ConceptTerm::normalizeTerm($startConcept);
+            $normalized = ConceptTerm::normalizeTerm($startConcept);
 
-            // Resolve via term in default locale; do not silently swap to a random start.
-            $locale = (string) config('concepts.default_locale', 'en');
-
-            return Concept::query()
-                ->with('preferredTerm')
+            // Prefer an exact match in the requested locale.
+            $concept = Concept::query()
+                ->with('terms')
                 ->whereHas('terms', function ($q) use ($locale, $normalized) {
                     $q->where('locale', $locale)->where('normalized_term', $normalized);
+                })
+                ->first();
+
+            if ($concept !== null) {
+                return $concept;
+            }
+
+            // Fall back to any locale match so Spanish clients can seed with English labels
+            // (or vice versa) and still receive localized node payloads when available.
+            return Concept::query()
+                ->with('terms')
+                ->whereHas('terms', function ($q) use ($normalized) {
+                    $q->where('normalized_term', $normalized);
                 })
                 ->first();
         }
@@ -117,7 +139,7 @@ class ConceptGraphQuery
             ->value('from_concept_id');
 
         if ($startId) {
-            return Concept::query()->with('preferredTerm')->find($startId);
+            return Concept::query()->with('terms')->find($startId);
         }
 
         // No prefetched graph yet.
@@ -160,15 +182,17 @@ class ConceptGraphQuery
         ];
     }
 
-    protected function formatNode(Concept $concept): array
+    protected function formatNode(Concept $concept, string $locale): array
     {
+        $term = $concept->termForLocale($locale);
+
         return [
             'id' => (int) $concept->id,
-            'label' => (string) ($concept->display_term ?? ''),
-            'shortDescription' => (string) ($concept->display_short_description ?? ''),
-            'complexity' => (int) $concept->display_complexity,
-            'wikiUrl' => $concept->display_wiki_url,
-            'mediaUrl' => $concept->display_media_url,
+            'label' => (string) ($term?->term ?? ''),
+            'shortDescription' => (string) ($term?->short_description ?? ''),
+            'complexity' => (int) ($term?->complexity ?? config('concepts.default_complexity', 2)),
+            'wikiUrl' => $term?->wiki_url,
+            'mediaUrl' => $term?->media_url,
             'degree' => ConceptRelationship::query()
                 ->where('from_concept_id', $concept->id)
                 ->orWhere('to_concept_id', $concept->id)

@@ -10,7 +10,9 @@ import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_
 import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
+import { t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
+import { applyResolvedLocale } from '@/lib/locale';
 
 /**
  * Prefetch the next API batch when at most this many concepts remain **ahead** of the
@@ -38,6 +40,7 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
+  const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
@@ -65,6 +68,11 @@ export default function HomeScreen() {
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    applyResolvedLocale();
+    setLocaleReady(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -153,7 +161,7 @@ export default function HomeScreen() {
       setCurrentIndex(0);
     } catch (e) {
       if (gen !== fetchGenRef.current) return;
-      setError(e instanceof Error ? e.message : 'Failed to load concepts');
+      setError(e instanceof Error ? e.message : t('failedToLoadConcepts'));
     } finally {
       if (gen === fetchGenRef.current) {
         setLoading(false);
@@ -162,9 +170,9 @@ export default function HomeScreen() {
   }, [fetchBatch]);
 
   useEffect(() => {
-    if (!complexityHydrated) return;
+    if (!complexityHydrated || !localeReady) return;
     void loadConcepts();
-  }, [complexityHydrated, loadConcepts]);
+  }, [complexityHydrated, localeReady, loadConcepts]);
 
   const loadMoreConcepts = useCallback(async () => {
     if (loadMoreInFlightRef.current) return;
@@ -308,7 +316,10 @@ export default function HomeScreen() {
   // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
   // Errors skip the intro gate so failures are not delayed.
   const showIntroLogo =
-    !complexityHydrated || (loading && concepts.length === 0) || (!error && concepts.length > 0 && !introGateOpen);
+    !complexityHydrated ||
+    !localeReady ||
+    (loading && concepts.length === 0) ||
+    (!error && concepts.length > 0 && !introGateOpen);
 
   if (showIntroLogo) {
     return (
@@ -326,7 +337,7 @@ export default function HomeScreen() {
         <LateralzrLogo animate={false} />
         <Text style={styles.error}>{error}</Text>
         <Pressable onPress={() => loadConcepts()} style={styles.retryBtn}>
-          <Text style={styles.retryText}>Tap to retry</Text>
+          <Text style={styles.retryText}>{t('tapToRetry')}</Text>
         </Pressable>
       </View>
     );

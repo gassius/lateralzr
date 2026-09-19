@@ -160,12 +160,12 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 40, 3, 0.2)
+            ->with('creativity', 40, 3, 0.2, 'en')
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
                 'edges' => [],
-                'meta' => ['depth' => 3, 'limit' => 40, 'minStrength' => 0.2, 'hasMore' => false],
+                'meta' => ['depth' => 3, 'limit' => 40, 'minStrength' => 0.2, 'hasMore' => false, 'locale' => 'en'],
             ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
@@ -178,6 +178,41 @@ class ConceptRelationshipApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.meta.depth', 3);
+    }
+
+    public function test_generate_endpoint_accepts_locale_and_defaults_to_en(): void
+    {
+        $mockQuery = Mockery::mock(ConceptGraphQuery::class);
+        $mockQuery->shouldReceive('getGraph')
+            ->once()
+            ->with('creativity', 100, 2, 0.0, 'es')
+            ->andReturn([
+                'start' => ['id' => 1, 'label' => 'creatividad'],
+                'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'es'],
+            ]);
+        $this->app->instance(ConceptGraphQuery::class, $mockQuery);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'locale' => 'es',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.meta.locale', 'es')
+            ->assertJsonPath('data.start.label', 'creatividad');
+    }
+
+    public function test_generate_endpoint_rejects_unsupported_locale(): void
+    {
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'locale' => 'fr',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['locale']);
     }
 
     public function test_generate_endpoint_returns_404_when_not_prefetched(): void

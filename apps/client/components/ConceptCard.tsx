@@ -12,6 +12,7 @@ import { Text } from '@/components/Themed';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 
 const FLIP_MS = 420;
@@ -90,7 +91,7 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
         </Text>
       </View>
       <Text style={styles.hint} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
-        Tap to flip
+        {t('tapToFlip')}
       </Text>
     </View>
   );
@@ -127,7 +128,7 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
               setMediaError(true);
             }}
             accessibilityRole="image"
-            accessibilityLabel={`Illustration for ${item.concept}`}
+            accessibilityLabel={t('illustrationFor', { concept: item.concept })}
           />
           {showLoadingOverlay ? (
             <View style={styles.mediaLoadingOverlay} pointerEvents="none">
@@ -137,14 +138,14 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           {mediaError ? (
             <View style={styles.mediaErrorOverlay} pointerEvents="none">
               <Text style={styles.mediaErrorText} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
-                Image unavailable
+                {t('imageUnavailable')}
               </Text>
             </View>
           ) : null}
         </View>
       ) : null}
       <Text style={styles.description} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
-        {item.shortDescription || 'No description.'}
+        {item.shortDescription || t('noDescription')}
       </Text>
       {item.wikiUrl ? (
         <Text
@@ -153,11 +154,11 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           darkColor={Palette.darkBlue}
           onPress={() => Linking.openURL(item.wikiUrl!)}
         >
-          Wikipedia
+          {t('wikipedia')}
         </Text>
       ) : null}
       <Text style={styles.hint} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
-        Tap to flip back
+        {t('tapToFlipBack')}
       </Text>
     </ScrollView>
   );
