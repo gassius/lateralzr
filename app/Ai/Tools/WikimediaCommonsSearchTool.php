@@ -27,8 +27,17 @@ class WikimediaCommonsSearchTool implements Tool
         $concept = $request['concept'] ?? '';
         $shortDescription = $request['shortDescription'] ?? '';
 
-        if (empty($concept)) {
+        return $this->lookup((string) $concept, (string) $shortDescription);
+    }
+
+    /**
+     * Direct lookup used by complete-info jobs/commands.
+     */
+    public function lookup(string $concept, string $shortDescription = ''): string
+    {
+        if ($concept === '') {
             Log::channel('single')->debug('WikimediaCommonsSearchTool: Empty concept provided');
+
             return '';
         }
 
@@ -49,12 +58,14 @@ class WikimediaCommonsSearchTool implements Tool
             }
 
             Log::channel('single')->debug('WikimediaCommonsSearchTool: No results found after all strategies', ['concept' => $concept]);
+
             return '';
         } catch (\Exception $e) {
             Log::channel('single')->warning('WikimediaCommonsSearchTool: Error searching for concept', [
                 'concept' => $concept,
                 'error' => $e->getMessage(),
             ]);
+
             return '';
         }
     }
