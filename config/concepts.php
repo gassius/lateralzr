@@ -53,8 +53,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | Comma-separated list in CONCEPTS_SUPPORTED_LOCALES. Graph generation
-    | always writes the default locale first; use `concepts:localize` to
-    | attach additional locale terms to the same canonical concepts.
+    | always writes the default locale first; use `concepts:localize`
+    | (queued by default; `--sync` for inline) to attach additional locale
+    | terms to the same canonical concepts. Track runs under Filament
+    | Worker Runs (`/admin/concept-graph-runs`, type=localize).
     |
     */
     'supported_locales' => array_values(array_filter(array_map(

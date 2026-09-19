@@ -5,6 +5,8 @@ namespace App\Filament\Resources\ConceptGraphRuns\Pages;
 use App\Ai\Support\AiProviders;
 use App\Filament\Resources\ConceptGraphRuns\ConceptGraphRunResource;
 use App\Services\ConceptGraphPrefetchService;
+use App\Services\ConceptLocalizeDispatchService;
+use App\Support\ConceptLocale;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
@@ -23,6 +25,72 @@ class ListConceptGraphRuns extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('enqueueLocalize')
+                ->label('Localize concepts')
+                ->modalHeading('Enqueue concept localization')
+                ->form([
+                    Select::make('from')
+                        ->label('From locale')
+                        ->options(fn (): array => array_combine(ConceptLocale::supported(), ConceptLocale::supported()))
+                        ->default(ConceptLocale::default())
+                        ->required(),
+                    Select::make('to')
+                        ->label('To locale')
+                        ->options(fn (): array => array_combine(ConceptLocale::supported(), ConceptLocale::supported()))
+                        ->default('es')
+                        ->required(),
+                    TextInput::make('limit')
+                        ->label('Limit (optional)')
+                        ->numeric()
+                        ->minValue(1),
+                    TextInput::make('batch_size')
+                        ->label('Batch size')
+                        ->helperText('Concepts per queued LLM + Wikipedia batch.')
+                        ->numeric()
+                        ->default(20)
+                        ->minValue(1)
+                        ->maxValue(50)
+                        ->required(),
+                    Toggle::make('missing_only')
+                        ->label('Missing target locale only')
+                        ->default(true),
+                    Select::make('provider')
+                        ->label('Provider (optional)')
+                        ->options(fn (): array => AiProviders::options())
+                        ->searchable(),
+                    TextInput::make('model')
+                        ->label('Model (optional)'),
+                    TextInput::make('queue')
+                        ->label('Queue')
+                        ->default('default')
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    try {
+                        $limit = $data['limit'] ?? null;
+                        $limit = $limit !== null && $limit !== '' ? (int) $limit : null;
+
+                        app(ConceptLocalizeDispatchService::class)->dispatch(
+                            fromLocale: (string) ($data['from'] ?? 'en'),
+                            toLocale: (string) ($data['to'] ?? 'es'),
+                            limit: $limit,
+                            missingOnly: (bool) ($data['missing_only'] ?? true),
+                            batchSize: (int) ($data['batch_size'] ?? 20),
+                            provider: ($data['provider'] ?? null) ? (string) $data['provider'] : null,
+                            model: ($data['model'] ?? null) ? (string) $data['model'] : null,
+                            queue: (string) ($data['queue'] ?? 'default'),
+                        );
+                    } catch (InvalidArgumentException $e) {
+                        Notification::make()
+                            ->title('Localize not enqueued')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+
+                        throw new Halt;
+                    }
+                })
+                ->successNotificationTitle('Localize enqueued'),
             Action::make('enqueuePrefetch')
                 ->label('Prefetch concept graph')
                 ->modalHeading('Prefetch concept graph')

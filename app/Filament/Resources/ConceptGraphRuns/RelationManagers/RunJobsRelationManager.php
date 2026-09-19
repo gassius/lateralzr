@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\ConceptGraphRuns\RelationManagers;
 
 use App\Jobs\GenerateConceptGraphJob;
+use App\Jobs\LocalizeConceptBatchJob;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -20,8 +22,8 @@ class RunJobsRelationManager extends RelationManager
         return $table
             ->columns([
                 TextColumn::make('seed')
-                    ->label('Start batch')
-                    ->description(fn ($record): string => $this->batchDescription((string) $record->seed))
+                    ->label('Batch')
+                    ->description(fn ($record): string => $this->batchDescription((string) $record->seed, $record->run))
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('status')
@@ -72,7 +74,6 @@ class RunJobsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->action(function (ConceptGraphRunJob $record): void {
                         $run = $record->run;
-                        $start = $this->startFromBatchKey((string) $record->seed);
 
                         $record->update([
                             'status' => 'pending',
@@ -81,6 +82,28 @@ class RunJobsRelationManager extends RelationManager
                             'finished_at' => null,
                             'error_message' => null,
                         ]);
+
+                        if ($run instanceof ConceptGraphRun && $run->isLocalize()) {
+                            $conceptIds = data_get($run->seeds, 'batches.'.$record->seed, []);
+                            if (! is_array($conceptIds) || $conceptIds === []) {
+                                return;
+                            }
+
+                            LocalizeConceptBatchJob::dispatch(
+                                conceptIds: array_values(array_map('intval', $conceptIds)),
+                                fromLocale: (string) data_get($run->seeds, 'from', 'en'),
+                                toLocale: (string) data_get($run->seeds, 'to', 'es'),
+                                missingOnly: (bool) data_get($run->seeds, 'missingOnly', true),
+                                provider: $run->provider,
+                                model: $run->model,
+                                runUuid: $run->run_uuid,
+                                jobKey: $record->seed,
+                            )->onQueue((string) $run->queue);
+
+                            return;
+                        }
+
+                        $start = $this->startFromBatchKey((string) $record->seed);
 
                         GenerateConceptGraphJob::dispatch(
                             seed: $start,
@@ -96,8 +119,15 @@ class RunJobsRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc');
     }
 
-    protected function batchDescription(string $seed): string
+    protected function batchDescription(string $seed, ?ConceptGraphRun $run): string
     {
+        if ($run?->isLocalize()) {
+            $ids = data_get($run->seeds, 'batches.'.$seed, []);
+            $count = is_array($ids) ? count($ids) : 0;
+
+            return "Localize batch · {$count} concept(s)";
+        }
+
         if (! str_contains($seed, '#')) {
             return 'Single batch';
         }

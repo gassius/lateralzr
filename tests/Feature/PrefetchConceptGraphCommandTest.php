@@ -40,6 +40,7 @@ class PrefetchConceptGraphCommandTest extends TestCase
         ])->assertSuccessful();
 
         $this->assertDatabaseHas('concept_graph_runs', [
+            'type' => 'graph',
             'provider' => 'openrouter',
             'model' => 'openai/gpt-4o-mini',
         ]);
