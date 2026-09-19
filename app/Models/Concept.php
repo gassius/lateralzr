@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\ConceptLocale;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -36,11 +37,46 @@ class Concept extends Model
 
     public function preferredTerm(): HasOne
     {
-        $locale = (string) config('concepts.default_locale', 'en');
+        $locale = ConceptLocale::default();
 
         return $this->hasOne(ConceptTerm::class)
             ->where('locale', $locale)
             ->where('is_preferred', true);
+    }
+
+    /**
+     * Preferred term for a locale, falling back to the default locale when missing.
+     */
+    public function termForLocale(?string $locale = null, bool $fallback = true): ?ConceptTerm
+    {
+        $locale = ConceptLocale::resolve($locale);
+
+        $terms = $this->relationLoaded('terms') ? $this->terms : null;
+
+        $match = function (string $wanted) use ($terms): ?ConceptTerm {
+            if ($terms !== null) {
+                return $terms
+                    ->where('locale', $wanted)
+                    ->sortByDesc(fn (ConceptTerm $term) => $term->is_preferred ? 1 : 0)
+                    ->first();
+            }
+
+            return $this->terms()
+                ->where('locale', $wanted)
+                ->orderByDesc('is_preferred')
+                ->first();
+        };
+
+        $term = $match($locale);
+        if ($term !== null) {
+            return $term;
+        }
+
+        if ($fallback && $locale !== ConceptLocale::default()) {
+            return $match(ConceptLocale::default());
+        }
+
+        return null;
     }
 
     public function getDisplayTermAttribute(): ?string

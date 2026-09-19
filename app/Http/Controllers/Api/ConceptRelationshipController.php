@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Services\ConceptGraphQuery;
+use App\Support\ConceptLocale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ConceptRelationshipController
@@ -28,6 +30,7 @@ class ConceptRelationshipController
             'limit' => ['sometimes', 'integer', 'min:1', 'max:500'],
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
         ]);
 
         $startValue = $validated['start'] ?? $validated['seed'] ?? null;
@@ -35,12 +38,15 @@ class ConceptRelationshipController
             ? trim((string) $startValue)
             : null;
 
+        $locale = ConceptLocale::resolve($validated['locale'] ?? null);
+
         try {
             $result = $this->query->getGraph(
                 startConcept: $start,
                 limit: (int) ($validated['limit'] ?? 100),
                 depth: (int) ($validated['depth'] ?? 2),
-                minStrength: (float) ($validated['minStrength'] ?? 0.0)
+                minStrength: (float) ($validated['minStrength'] ?? 0.0),
+                locale: $locale
             );
 
             if ($result === null) {

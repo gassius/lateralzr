@@ -47,4 +47,19 @@ return [
     */
     'default_locale' => env('CONCEPTS_DEFAULT_LOCALE', 'en'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Supported locales for concept terms + API
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated list in CONCEPTS_SUPPORTED_LOCALES. Graph generation
+    | always writes the default locale first; use `concepts:localize` to
+    | attach additional locale terms to the same canonical concepts.
+    |
+    */
+    'supported_locales' => array_values(array_filter(array_map(
+        static fn (string $locale) => strtolower(trim($locale)),
+        explode(',', (string) env('CONCEPTS_SUPPORTED_LOCALES', 'en,es'))
+    ))),
+
 ];

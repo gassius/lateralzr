@@ -4,55 +4,38 @@ namespace App\Filament\Resources\Concepts\Pages;
 
 use App\Filament\Resources\Concepts\ConceptResource;
 use App\Models\ConceptTerm;
+use App\Support\ConceptLocale;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Database\Eloquent\Model;
 
 class EditConcept extends EditRecord
 {
     protected static string $resource = ConceptResource::class;
 
-    protected function mutateFormDataBeforeFill(array $data): array
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
     {
-        $locale = (string) config('concepts.default_locale', 'en');
-        $term = $this->record->terms()
-            ->where('locale', $locale)
-            ->where('is_preferred', true)
-            ->first();
-
-        $data['term'] = $term?->term;
-        $data['short_description'] = $term?->short_description;
-        $data['complexity'] = (int) ($term?->complexity ?? config('concepts.default_complexity', 2));
-        $data['wiki_url'] = $term?->wiki_url;
-        $data['media_url'] = $term?->media_url;
+        unset($data['terms']);
 
         return $data;
     }
 
-    protected function handleRecordUpdate(Model $record, array $data): Model
+    protected function afterSave(): void
     {
-        $record->update([
-            'canonical_key' => $data['canonical_key'],
-        ]);
-
-        $locale = (string) config('concepts.default_locale', 'en');
-        ConceptTerm::query()->updateOrCreate(
-            [
-                'concept_id' => $record->id,
-                'locale' => $locale,
-            ],
-            [
-                'term' => $data['term'],
-                'normalized_term' => ConceptTerm::normalizeTerm($data['term']),
-                'short_description' => $data['short_description'] ?? null,
-                'complexity' => max(1, min(5, (int) ($data['complexity'] ?? config('concepts.default_complexity', 2)))),
-                'wiki_url' => $data['wiki_url'] ?? null,
-                'media_url' => $data['media_url'] ?? null,
-                'is_preferred' => true,
-            ]
-        );
-
-        return $record;
+        $this->record->terms()->each(function (ConceptTerm $term): void {
+            if ($term->locale === null || $term->locale === '') {
+                $term->locale = ConceptLocale::default();
+            }
+            $term->normalized_term = ConceptTerm::normalizeTerm((string) $term->term);
+            $term->complexity = max(1, min(5, (int) ($term->complexity ?? config('concepts.default_complexity', 2))));
+            if ($term->is_preferred === null) {
+                $term->is_preferred = true;
+            }
+            $term->save();
+        });
     }
 
     protected function getHeaderActions(): array

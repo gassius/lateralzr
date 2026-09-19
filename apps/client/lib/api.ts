@@ -1,5 +1,6 @@
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { graphToDeckItems } from '@/lib/conceptDeck';
+import { getActiveLocale, t } from '@/lib/i18n';
 
 const API_URL = resolveApiBaseUrl();
 
@@ -35,7 +36,7 @@ export type ConceptGraphResponse = {
     start: { id: number; label: string };
     nodes: ConceptGraphNode[];
     edges: ConceptGraphEdge[];
-    meta: { depth: number; limit: number; minStrength: number; hasMore: boolean };
+    meta: { depth: number; limit: number; minStrength: number; hasMore: boolean; locale?: string };
   };
   status: string;
 };
@@ -54,14 +55,23 @@ export class ApiError extends Error {
 }
 
 export async function fetchConceptRelationships(
-  options?: { start?: string; seed?: string; limit?: number; depth?: number; minStrength?: number; complexity?: number }
+  options?: {
+    start?: string;
+    seed?: string;
+    limit?: number;
+    depth?: number;
+    minStrength?: number;
+    complexity?: number;
+    locale?: string;
+  }
 ): Promise<ConceptGraphResponse['data']> {
-  const body: { start?: string; limit?: number; depth?: number; minStrength?: number } = {};
+  const body: { start?: string; limit?: number; depth?: number; minStrength?: number; locale?: string } = {};
   const start = options?.start ?? options?.seed;
   if (start != null && start.trim() !== '') body.start = start.trim();
   if (options?.limit != null) body.limit = options.limit;
   if (options?.depth != null) body.depth = options.depth;
   if (options?.minStrength != null) body.minStrength = options.minStrength;
+  body.locale = options?.locale ?? getActiveLocale();
 
   const res = await fetch(`${API_URL}/api/concepts/relationships`, {
     method: 'POST',
@@ -72,14 +82,14 @@ export async function fetchConceptRelationships(
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new ApiError(
-      (err as { message?: string }).message ?? 'Failed to fetch concepts',
+      (err as { message?: string }).message ?? t('failedToFetchConcepts'),
       res.status,
     );
   }
 
   const json = (await res.json()) as ConceptGraphResponse;
   if (json.status !== 'success' || !json.data) {
-    throw new Error('Invalid response from API');
+    throw new Error(t('invalidApiResponse'));
   }
   return json.data;
 }

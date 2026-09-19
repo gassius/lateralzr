@@ -2,6 +2,7 @@
 
 namespace App\Ai\Tools;
 
+use App\Support\ConceptLocale;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -16,7 +17,7 @@ class WikipediaSearchTool implements Tool
      */
     public function description(): Stringable|string
     {
-        return 'Search for a Wikipedia page URL for a given concept. Returns the Wikipedia article URL if found.';
+        return 'Search for a Wikipedia page URL for a given concept and locale. Returns the Wikipedia article URL if found.';
     }
 
     /**
@@ -26,13 +27,30 @@ class WikipediaSearchTool implements Tool
     {
         $concept = $request['concept'] ?? '';
         $shortDescription = $request['shortDescription'] ?? '';
+        $locale = ConceptLocale::resolve($request['locale'] ?? null);
 
-        if (empty($concept)) {
+        return $this->lookup((string) $concept, (string) $shortDescription, $locale);
+    }
+
+    /**
+     * Direct lookup used by localization jobs/commands.
+     */
+    public function lookup(string $concept, string $shortDescription = '', ?string $locale = null): string
+    {
+        $locale = ConceptLocale::resolve($locale);
+
+        if ($concept === '') {
             Log::channel('single')->debug('WikipediaSearchTool: Empty concept provided');
+
             return '';
         }
 
-        Log::channel('single')->debug('WikipediaSearchTool: Searching for concept', ['concept' => $concept]);
+        Log::channel('single')->debug('WikipediaSearchTool: Searching for concept', [
+            'concept' => $concept,
+            'locale' => $locale,
+        ]);
+
+        $host = $this->wikipediaHost($locale);
 
         try {
             // Normalize concept name: capitalize first letter of each word, replace spaces with underscores
@@ -45,29 +63,33 @@ class WikipediaSearchTool implements Tool
                 ->withHeaders([
                     'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
                 ])
-                ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$encodedTitle}");
+                ->get("https://{$host}/api/rest_v1/page/summary/{$encodedTitle}");
 
             if ($response->successful()) {
                 $data = $response->json();
                 $pageType = $data['type'] ?? 'standard';
 
                 // Skip disambiguation pages - try to find a more specific article using shortDescription
-                if ($pageType === 'disambiguation' && ! empty($shortDescription)) {
-                    $specificUrl = $this->searchForSpecificPage($concept, $shortDescription);
+                if ($pageType === 'disambiguation' && $shortDescription !== '') {
+                    $specificUrl = $this->searchForSpecificPage($concept, $shortDescription, $locale);
                     if ($specificUrl !== '') {
                         return $this->ensureEncodedUrl($specificUrl);
                     }
                     // No specific page found - don't return disambiguation page
                     Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page, no specific match found', [
                         'concept' => $concept,
+                        'locale' => $locale,
                     ]);
+
                     return '';
                 }
 
                 if ($pageType === 'disambiguation') {
                     Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page skipped (no shortDescription)', [
                         'concept' => $concept,
+                        'locale' => $locale,
                     ]);
+
                     return '';
                 }
 
@@ -76,6 +98,7 @@ class WikipediaSearchTool implements Tool
                 if ($url) {
                     Log::channel('single')->debug('WikipediaSearchTool: Found URL', [
                         'concept' => $concept,
+                        'locale' => $locale,
                         'url' => $url,
                     ]);
 
@@ -92,17 +115,18 @@ class WikipediaSearchTool implements Tool
                     ->withHeaders([
                         'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
                     ])
-                    ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$encodedUnderscored}");
+                    ->get("https://{$host}/api/rest_v1/page/summary/{$encodedUnderscored}");
 
                 if ($response->successful()) {
                     $data = $response->json();
                     $pageType = $data['type'] ?? 'standard';
 
-                    if ($pageType === 'disambiguation' && ! empty($shortDescription)) {
-                        $specificUrl = $this->searchForSpecificPage($concept, $shortDescription);
+                    if ($pageType === 'disambiguation' && $shortDescription !== '') {
+                        $specificUrl = $this->searchForSpecificPage($concept, $shortDescription, $locale);
                         if ($specificUrl !== '') {
                             return $this->ensureEncodedUrl($specificUrl);
                         }
+
                         return '';
                     }
 
@@ -115,8 +139,10 @@ class WikipediaSearchTool implements Tool
                     if ($url) {
                         Log::channel('single')->debug('WikipediaSearchTool: Found URL (with underscores)', [
                             'concept' => $concept,
+                            'locale' => $locale,
                             'url' => $url,
                         ]);
+
                         return $this->ensureEncodedUrl($url);
                     }
                 }
@@ -125,13 +151,17 @@ class WikipediaSearchTool implements Tool
             // No page found - return empty string
             Log::channel('single')->debug('WikipediaSearchTool: No page found', [
                 'concept' => $concept,
+                'locale' => $locale,
             ]);
+
             return '';
         } catch (\Exception $e) {
             Log::channel('single')->warning('WikipediaSearchTool: Error searching for concept', [
                 'concept' => $concept,
+                'locale' => $locale,
                 'error' => $e->getMessage(),
             ]);
+
             return '';
         }
     }
@@ -139,20 +169,22 @@ class WikipediaSearchTool implements Tool
     /**
      * Search Wikipedia for a more specific page using concept + shortDescription keywords.
      */
-    protected function searchForSpecificPage(string $concept, string $shortDescription): string
+    protected function searchForSpecificPage(string $concept, string $shortDescription, string $locale): string
     {
+        $host = $this->wikipediaHost($locale);
+
         // Build search query: concept plus first meaningful words from shortDescription (avoid common words)
         $stopWords = ['a', 'an', 'the', 'is', 'are', 'was', 'were', 'to', 'of', 'in', 'on', 'at', 'for', 'with', 'that', 'this', 'it', 'as', 'be', 'by', 'or', 'and'];
         $words = array_slice(preg_split('/\s+/', trim($shortDescription), -1, PREG_SPLIT_NO_EMPTY), 0, 5);
         $keywords = array_filter($words, fn ($w) => strlen($w) > 2 && ! in_array(strtolower($w), $stopWords, true));
-        $searchQuery = $concept . ' ' . implode(' ', array_slice($keywords, 0, 3));
+        $searchQuery = $concept.' '.implode(' ', array_slice($keywords, 0, 3));
 
         $response = Http::timeout(10)
             ->withoutVerifying()
             ->withHeaders([
                 'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
             ])
-            ->get('https://en.wikipedia.org/w/api.php', [
+            ->get("https://{$host}/w/api.php", [
                 'action' => 'query',
                 'format' => 'json',
                 'list' => 'search',
@@ -180,7 +212,7 @@ class WikipediaSearchTool implements Tool
                 ->withHeaders([
                     'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
                 ])
-                ->get("https://en.wikipedia.org/api/rest_v1/page/summary/{$encodedTitle}");
+                ->get("https://{$host}/api/rest_v1/page/summary/{$encodedTitle}");
 
             if ($summaryResponse->successful()) {
                 $summaryData = $summaryResponse->json();
@@ -194,6 +226,13 @@ class WikipediaSearchTool implements Tool
         }
 
         return '';
+    }
+
+    protected function wikipediaHost(string $locale): string
+    {
+        $locale = ConceptLocale::resolve($locale);
+
+        return $locale.'.wikipedia.org';
     }
 
     /**
@@ -211,13 +250,13 @@ class WikipediaSearchTool implements Tool
             fn ($s) => rawurlencode($s),
             $segments
         );
-        $encodedPath = '/' . implode('/', $encodedSegments);
-        $result = ($parsed['scheme'] ?? 'https') . '://' . ($parsed['host'] ?? '') . $encodedPath;
+        $encodedPath = '/'.implode('/', $encodedSegments);
+        $result = ($parsed['scheme'] ?? 'https').'://'.($parsed['host'] ?? '').$encodedPath;
         if (! empty($parsed['query'])) {
-            $result .= '?' . $parsed['query'];
+            $result .= '?'.$parsed['query'];
         }
         if (! empty($parsed['fragment'])) {
-            $result .= '#' . rawurlencode($parsed['fragment']);
+            $result .= '#'.rawurlencode($parsed['fragment']);
         }
 
         return $result;
@@ -231,6 +270,7 @@ class WikipediaSearchTool implements Tool
         return [
             'concept' => $schema->string()->required(),
             'shortDescription' => $schema->string()->nullable(),
+            'locale' => $schema->string()->nullable(),
         ];
     }
 
