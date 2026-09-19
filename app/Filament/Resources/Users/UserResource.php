@@ -20,9 +20,11 @@ class UserResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Access';
 
-    protected static ?string $modelLabel = 'User';
+    protected static ?string $modelLabel = 'Dashboard User';
 
-    protected static ?string $pluralModelLabel = 'Users';
+    protected static ?string $pluralModelLabel = 'Dashboard Users';
+
+    protected static ?string $navigationLabel = 'Dashboard Users';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
