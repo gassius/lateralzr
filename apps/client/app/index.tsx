@@ -362,6 +362,7 @@ export default function HomeScreen() {
         <ConceptCardStack
           concepts={concepts}
           currentIndex={currentIndex}
+          complexity={complexity}
           onSwipeLeft={onSwipeLeft}
           onSwipeRight={onSwipeRight}
           onSwipeForwardVertical={onSwipeForwardVertical}
