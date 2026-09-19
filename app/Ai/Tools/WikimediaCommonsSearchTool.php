@@ -90,9 +90,9 @@ class WikimediaCommonsSearchTool implements Tool
         $conceptEscaped = addslashes($concept);
 
         // Strategy 1: Concept + description keywords (best relevance when shortDescription is provided)
-        if (!empty($shortDescription)) {
+        if (! empty($shortDescription)) {
             $keywords = $this->extractKeywords($shortDescription);
-            if (!empty($keywords)) {
+            if (! empty($keywords)) {
                 $keywordTerms = implode(' ', array_slice($keywords, 0, 3));
                 $strategies[] = [
                     'query' => sprintf('%s %s filetype:bitmap filemime:image/jpeg', $conceptEscaped, addslashes($keywordTerms)),
@@ -139,7 +139,7 @@ class WikimediaCommonsSearchTool implements Tool
      */
     protected function isDirectImageUrl(string $url): bool
     {
-        return str_contains($url, 'upload.wikimedia.org') && !str_contains($url, 'commons.wikimedia.org/wiki/');
+        return str_contains($url, 'upload.wikimedia.org') && ! str_contains($url, 'commons.wikimedia.org/wiki/');
     }
 
     /**
@@ -149,7 +149,8 @@ class WikimediaCommonsSearchTool implements Tool
     {
         $stopWords = ['a', 'an', 'the', 'is', 'are', 'was', 'were', 'to', 'of', 'in', 'on', 'at', 'for', 'with', 'that', 'this', 'it', 'as', 'be', 'by', 'or', 'and'];
         $words = array_slice(preg_split('/\s+/', trim($description), -1, PREG_SPLIT_NO_EMPTY), 0, 5);
-        return array_filter($words, fn ($w) => strlen($w) > 2 && !in_array(strtolower($w), $stopWords, true));
+
+        return array_filter($words, fn ($w) => strlen($w) > 2 && ! in_array(strtolower($w), $stopWords, true));
     }
 
     /**
@@ -172,7 +173,7 @@ class WikimediaCommonsSearchTool implements Tool
                     'srlimit' => 3, // Get a few results to try
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return null;
             }
 
@@ -194,6 +195,7 @@ class WikimediaCommonsSearchTool implements Tool
                             'strategy' => $strategy['description'],
                             'url' => $imageUrl,
                         ]);
+
                         return $imageUrl;
                     }
                 }
@@ -205,6 +207,7 @@ class WikimediaCommonsSearchTool implements Tool
                 'strategy' => $strategy['description'],
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
@@ -239,21 +242,21 @@ class WikimediaCommonsSearchTool implements Tool
                 if ($response->successful()) {
                     $data = $response->json();
                     $pages = $data['query']['pages'] ?? [];
-                    
-                    if (!empty($pages)) {
+
+                    if (! empty($pages)) {
                         $page = reset($pages);
                         // Check for error in page (e.g., missing file)
                         if (isset($page['missing'])) {
                             continue;
                         }
-                        
+
                         $imageInfo = $page['imageinfo'][0] ?? null;
-                        
+
                         if ($imageInfo && isset($imageInfo['thumburl'])) {
                             $url = $imageInfo['thumburl'];
                             // Extract actual width from URL (e.g., "960px-Bird_shaped...")
                             if (preg_match('/(\d+)px-/', $url, $matches)) {
-                                $actualWidth = (int)$matches[1];
+                                $actualWidth = (int) $matches[1];
                                 $availableThumbnails[$actualWidth] = $url;
                             } else {
                                 // If no width in URL, use requested width as fallback
@@ -265,10 +268,11 @@ class WikimediaCommonsSearchTool implements Tool
             }
 
             // If we have multiple thumbnails, return second largest; otherwise return what we have (direct URL only)
-            if (!empty($availableThumbnails)) {
+            if (! empty($availableThumbnails)) {
                 krsort($availableThumbnails);
                 $sortedUrls = array_values($availableThumbnails);
                 $chosen = $sortedUrls[min(1, count($sortedUrls) - 1)] ?? $sortedUrls[0] ?? null;
+
                 return $chosen && $this->isDirectImageUrl($chosen) ? $chosen : null;
             }
 
@@ -289,11 +293,12 @@ class WikimediaCommonsSearchTool implements Tool
             if ($fallbackResponse->successful()) {
                 $fallbackData = $fallbackResponse->json();
                 $fallbackPages = $fallbackData['query']['pages'] ?? [];
-                if (!empty($fallbackPages)) {
+                if (! empty($fallbackPages)) {
                     $fallbackPage = reset($fallbackPages);
-                    if (!isset($fallbackPage['missing'])) {
+                    if (! isset($fallbackPage['missing'])) {
                         $fallbackInfo = $fallbackPage['imageinfo'][0] ?? null;
                         $url = $fallbackInfo['url'] ?? null;
+
                         return $url && $this->isDirectImageUrl($url) ? $url : null;
                     }
                 }
@@ -305,6 +310,7 @@ class WikimediaCommonsSearchTool implements Tool
                 'title' => $title,
                 'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
