@@ -20,9 +20,11 @@ class ConceptGraphRunResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Data';
 
-    protected static ?string $modelLabel = 'Concept Graph Run';
+    protected static ?string $modelLabel = 'Concept Worker Run';
 
-    protected static ?string $pluralModelLabel = 'Concept Graph Runs';
+    protected static ?string $pluralModelLabel = 'Concept Worker Runs';
+
+    protected static ?string $navigationLabel = 'Worker Runs';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 

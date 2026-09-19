@@ -20,6 +20,7 @@ class ConceptLocalizeService
     /**
      * Localize preferred terms from one locale onto another for the same concepts.
      *
+     * @param  list<int>|null  $conceptIds  When set, only these concept IDs are processed (queued batches).
      * @return array{processed:int,created:int,skipped:int,failed:int}
      */
     public function localize(
@@ -29,6 +30,7 @@ class ConceptLocalizeService
         bool $missingOnly = true,
         int $batchSize = 20,
         ?object $agent = null,
+        ?array $conceptIds = null,
     ): array {
         $fromLocale = ConceptLocale::resolve($fromLocale);
         $toLocale = ConceptLocale::resolve($toLocale);
@@ -45,12 +47,20 @@ class ConceptLocalizeService
             ->whereHas('terms', fn ($q) => $q->where('locale', $fromLocale)->where('is_preferred', true))
             ->orderBy('id');
 
-        if ($missingOnly) {
-            $query->whereDoesntHave('terms', fn ($q) => $q->where('locale', $toLocale));
-        }
+        if ($conceptIds !== null) {
+            $ids = array_values(array_unique(array_map('intval', $conceptIds)));
+            if ($ids === []) {
+                return $stats;
+            }
+            $query->whereIn('id', $ids);
+        } else {
+            if ($missingOnly) {
+                $query->whereDoesntHave('terms', fn ($q) => $q->where('locale', $toLocale));
+            }
 
-        if ($limit !== null) {
-            $query->limit(max(1, $limit));
+            if ($limit !== null) {
+                $query->limit(max(1, $limit));
+            }
         }
 
         $concepts = $query->get();

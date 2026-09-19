@@ -51,6 +51,7 @@ class ConceptGraphPrefetchService
 
         $run = ConceptGraphRun::query()->create([
             'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_GRAPH,
             'provider' => $provider,
             'model' => $model,
             'complexity' => $complexity,

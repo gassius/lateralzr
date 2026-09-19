@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ConceptGraphRuns\Tables;
 
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class ConceptGraphRunsTable
@@ -12,10 +13,20 @@ class ConceptGraphRunsTable
     {
         return $table
             ->columns([
+                TextColumn::make('type')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => $state === 'localize' ? 'localize' : 'graph')
+                    ->color(fn (?string $state): string => $state === 'localize' ? 'info' : 'gray')
+                    ->sortable(),
                 TextColumn::make('run_uuid')
                     ->label('Run UUID')
                     ->copyable()
                     ->searchable()
+                    ->toggleable(),
+                TextColumn::make('summary')
+                    ->label('Summary')
+                    ->state(fn ($record): string => $record->summary)
+                    ->wrap()
                     ->toggleable(),
                 TextColumn::make('provider')
                     ->sortable()
@@ -25,15 +36,16 @@ class ConceptGraphRunsTable
                     ->toggleable(),
                 TextColumn::make('complexity')
                     ->label('Label complexity')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('queue')
                     ->sortable()
                     ->toggleable(),
                 TextColumn::make('seed_count')
-                    ->label('Starts')
+                    ->label('Batches')
                     ->sortable(),
                 TextColumn::make('target_count')
-                    ->label('Target concepts')
+                    ->label('Target')
                     ->state(fn ($record): ?int => $record->target_count)
                     ->sortable(),
                 TextColumn::make('pending_jobs_count')
@@ -52,6 +64,13 @@ class ConceptGraphRunsTable
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
+            ])
+            ->filters([
+                SelectFilter::make('type')
+                    ->options([
+                        'graph' => 'graph',
+                        'localize' => 'localize',
+                    ]),
             ])
             ->recordActions([
                 ViewAction::make(),

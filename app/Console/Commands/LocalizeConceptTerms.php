@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Support\AiProviders;
+use App\Services\ConceptLocalizeDispatchService;
 use App\Services\ConceptLocalizeService;
 use App\Support\ConceptLocale;
 use Illuminate\Console\Command;
@@ -14,15 +15,17 @@ class LocalizeConceptTerms extends Command
         {--from=en : Source locale (preferred terms)}
         {--to=es : Target locale to create}
         {--limit= : Max concepts to process}
-        {--batch-size=20 : Concepts per AI translation batch}
+        {--batch-size=20 : Concepts per AI translation batch / queued job}
         {--missing-only : Only concepts missing the target locale (default true)}
         {--all : Also overwrite/refresh existing target locale terms}
         {--provider= : AI provider override}
-        {--model= : AI model override}';
+        {--model= : AI model override}
+        {--queue=default : Queue name for async dispatch}
+        {--sync : Run inline instead of enqueueing worker jobs}';
 
-    protected $description = 'Localize existing concept terms from one locale into another (same canonical concept).';
+    protected $description = 'Localize existing concept terms from one locale into another (queued by default).';
 
-    public function handle(ConceptLocalizeService $service): int
+    public function handle(ConceptLocalizeService $service, ConceptLocalizeDispatchService $dispatch): int
     {
         $fromRaw = strtolower(trim((string) $this->option('from')));
         $toRaw = strtolower(trim((string) $this->option('to')));
@@ -56,22 +59,47 @@ class LocalizeConceptTerms extends Command
             return self::FAILURE;
         }
 
-        if ($provider !== null && $provider !== '') {
-            config(['ai.default' => $provider]);
-        }
-        if ($model !== null && $model !== '') {
-            // Provider-specific model env keys are read via AiProviders; set text model default.
-            config(['ai.models.text' => $model]);
-        }
-
         $limit = $this->option('limit');
         $limit = $limit !== null && $limit !== '' ? (int) $limit : null;
         $missingOnly = ! (bool) $this->option('all');
         if ($this->option('missing-only')) {
             $missingOnly = true;
         }
+        $batchSize = (int) ($this->option('batch-size') ?? 20);
+        $queue = (string) $this->option('queue');
 
-        $this->info("Localizing concepts {$from} → {$to} (missing_only=".($missingOnly ? 'yes' : 'no').')');
+        if (! (bool) $this->option('sync')) {
+            try {
+                $run = $dispatch->dispatch(
+                    fromLocale: $from,
+                    toLocale: $to,
+                    limit: $limit,
+                    missingOnly: $missingOnly,
+                    batchSize: $batchSize,
+                    provider: $provider,
+                    model: $model,
+                    queue: $queue,
+                );
+            } catch (InvalidArgumentException $e) {
+                $this->error($e->getMessage());
+
+                return self::FAILURE;
+            }
+
+            $target = (int) data_get($run->seeds, 'targetCount', 0);
+            $this->info("Enqueued localize {$from} → {$to}. run_uuid={$run->run_uuid} batches={$run->seed_count} target={$target} provider={$run->provider} model={$run->model} queue={$run->queue}");
+
+            return self::SUCCESS;
+        }
+
+        if ($provider !== null && $provider !== '') {
+            config(['ai.default' => $provider]);
+        }
+        if ($model !== null && $model !== '') {
+            config(['ai.models.text' => $model]);
+        }
+
+        $this->info("Localizing concepts {$from} → {$to} sync (missing_only=".($missingOnly ? 'yes' : 'no').')');
 
         try {
             $stats = $service->localize(
@@ -79,7 +107,7 @@ class LocalizeConceptTerms extends Command
                 toLocale: $to,
                 limit: $limit,
                 missingOnly: $missingOnly,
-                batchSize: (int) ($this->option('batch-size') ?? 20),
+                batchSize: $batchSize,
             );
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
