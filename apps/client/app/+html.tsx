@@ -1,12 +1,17 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 
+import { gtmNoscriptUrl, parseGtmWebId } from '@/lib/gtmWeb';
+
 // This file is web-only and used to configure the root HTML for every
 // web page during static rendering.
 // The contents of this function only run in Node.js environments and
 // do not have access to the DOM or browser APIs.
+//
+// Expo `web.output: "single"` (current Vercel SPA) does not emit this file
+// into dist HTML. GTM still injects at runtime via `ensureGtmWebLoaded`.
+// Keep the snippet here so non-SPA / static export modes stay aligned.
 
-const gtmWebIdRaw = process.env.EXPO_PUBLIC_GTM_WEB?.trim() ?? '';
-const gtmWebId = /^GTM-[A-Z0-9]+$/i.test(gtmWebIdRaw) ? gtmWebIdRaw : '';
+const gtmWebId = parseGtmWebId(process.env.EXPO_PUBLIC_GTM_WEB) ?? '';
 
 export default function Root({ children }: { children: React.ReactNode }) {
   return (
@@ -41,7 +46,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         {gtmWebId ? (
           <noscript>
             <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${gtmWebId}`}
+              src={gtmNoscriptUrl(gtmWebId)}
               height="0"
               width="0"
               style={{ display: 'none', visibility: 'hidden' }}

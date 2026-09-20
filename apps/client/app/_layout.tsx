@@ -3,12 +3,13 @@ import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { WebPhoneFrame } from '@/components/WebPhoneFrame';
 import { Palette } from '@/constants/Colors';
+import { ensureGtmWebLoaded } from '@/lib/analytics';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -31,6 +32,10 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
+
+  useLayoutEffect(() => {
+    ensureGtmWebLoaded();
+  }, []);
 
   useEffect(() => {
     if (error) throw error;

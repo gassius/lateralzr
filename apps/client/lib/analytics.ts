@@ -45,6 +45,11 @@ export function getGtmContainerId(): string | undefined {
   return resolveNativeGtmId();
 }
 
+/** Web-only GTM snippet. Native builds must never load gtm.js. */
+export function ensureGtmWebLoaded(): boolean {
+  return false;
+}
+
 /**
  * Push a named event. Safe no-op when GTM/Firebase is not configured.
  * Native Firebase/GTM SDK integration can replace the __DEV__ log path later
