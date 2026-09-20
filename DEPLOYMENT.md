@@ -221,6 +221,16 @@ The automated deployment workflow requires a GitHub environment named `prod` wit
 | `PROD_PORT` | SSH port (default 22) | `22` |
 | `PROD_PATH` | Absolute path to lateralzr on VPS | `/home/cgonzalez/lateralzr` |
 
+**Client GTM container IDs** (not secrets; baked into public JS — never commit real values):
+
+| Variable | Where |
+|------------|-------------|
+| `EXPO_PUBLIC_GTM_WEB` | Vercel Production / Preview (dashboard) — web via Git integration |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment `prod` (or EAS later) — native only |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment `prod` (or EAS later) — native only |
+
+See `VERCEL_DEPLOYMENT.md` for Expo web deploys (Vercel Git integration; no Actions client deploy workflow).
+
 **Generating the SSH key** (if needed):
 
 ```bash

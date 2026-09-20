@@ -65,12 +65,26 @@ This environment variable is:
 - Used by `apps/client/lib/apiBaseUrl.ts` to determine the API endpoint
 - Required for browser-based API calls from the deployed web app
 
+### GTM: EXPO_PUBLIC_GTM_* (no hardcoded IDs)
+
+| Variable | Where |
+| --- | --- |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel** Production (dashboard; Preview optional) — baked into Git-integration web builds |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** or EAS later — native only; **not** on Vercel |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** or EAS later — native only; **not** on Vercel |
+
+Do **not** commit real container IDs.
+
+Web Production / Preview deploys use **Vercel Git integration** (push to the linked branch). Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_GTM_WEB` on the Vercel project dashboard — there is no GitHub Actions client deploy workflow.
+
 ### Local Development
 For local development, developers use:
 ```
 EXPO_PUBLIC_API_URL=http://localhost
 ```
 (or leave unset for localhost default)
+
+Leave `EXPO_PUBLIC_GTM_*` empty locally unless you are deliberately testing analytics.
 
 ## API and CORS Configuration
 

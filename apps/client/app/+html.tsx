@@ -4,6 +4,10 @@ import { ScrollViewStyleReset } from 'expo-router/html';
 // web page during static rendering.
 // The contents of this function only run in Node.js environments and
 // do not have access to the DOM or browser APIs.
+
+const gtmWebIdRaw = process.env.EXPO_PUBLIC_GTM_WEB?.trim() ?? '';
+const gtmWebId = /^GTM-[A-Z0-9]+$/i.test(gtmWebIdRaw) ? gtmWebIdRaw : '';
+
 export default function Root({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -21,9 +25,32 @@ export default function Root({ children }: { children: React.ReactNode }) {
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         {/* Letterbox + full-viewport root: web-only (+html never ships in native builds). */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
-        {/* Add any additional <head> elements that you want globally available on web... */}
+        {gtmWebId ? (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${gtmWebId}');`,
+            }}
+          />
+        ) : null}
       </head>
-      <body>{children}</body>
+      <body>
+        {gtmWebId ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${gtmWebId}`}
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+              title="Google Tag Manager"
+            />
+          </noscript>
+        ) : null}
+        {children}
+      </body>
     </html>
   );
 }

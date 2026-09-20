@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -11,13 +11,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
+import {
+  trackCardBackView,
+  trackCardView,
+  trackCardViewTime,
+  trackSwipe,
+  type CardFace,
+} from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { clampComplexity } from '@/lib/complexityStorage';
+import { getActiveLocale } from '@/lib/i18n';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
 type ConceptCardStackProps = {
   concepts: ConceptItem[];
   currentIndex: number;
+  /** Current concept complexity tier (1–5); used for analytics payloads. */
+  complexity: number;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   /** Same forward motion as swipe left; also adjusts complexity for the next API call. */
@@ -50,6 +61,7 @@ const BEHIND_PEEK_OFFSCREEN_X = -4096;
 export function ConceptCardStack({
   concepts,
   currentIndex,
+  complexity,
   onSwipeLeft,
   onSwipeRight,
   onSwipeForwardVertical,
@@ -80,10 +92,30 @@ export function ConceptCardStack({
   const [behindLockedIndex, setBehindLockedIndex] = useState<number | null>(null);
   const currentIndexRef = useRef(currentIndex);
   const navIntentRef = useRef<'forward' | 'backward' | 'backwardGesture' | null>(null);
+  const conceptsRef = useRef(concepts);
+  const complexityRef = useRef(complexity);
+  const flippedRef = useRef(flipped);
+  const showDeckStatusRef = useRef(false);
+  const dwellStartedAtRef = useRef<number>(Date.now());
+  const dwellFaceRef = useRef<CardFace>('front');
+  const dwellConceptRef = useRef<string | null>(null);
+  const dwellIndexRef = useRef<number>(-1);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
   }, [currentIndex]);
+
+  useEffect(() => {
+    conceptsRef.current = concepts;
+  }, [concepts]);
+
+  useEffect(() => {
+    complexityRef.current = complexity;
+  }, [complexity]);
+
+  useEffect(() => {
+    flippedRef.current = flipped;
+  }, [flipped]);
 
   const cardWidth = Math.max(0, containerW);
   const desiredCardHeight = cardWidth > 0 ? cardWidth * CARD_ASPECT : 0;
@@ -101,6 +133,89 @@ export function ConceptCardStack({
   );
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
+
+  const flushDwell = useCallback((nextFace?: CardFace, nextConcept?: string | null, nextIndex?: number) => {
+    const concept = dwellConceptRef.current;
+    const startedAt = dwellStartedAtRef.current;
+    const face = dwellFaceRef.current;
+    const index = dwellIndexRef.current;
+    if (concept != null && startedAt > 0) {
+      const durationMs = Date.now() - startedAt;
+      if (durationMs >= 0) {
+        trackCardViewTime({
+          concept,
+          locale: getActiveLocale(),
+          complexity: complexityRef.current,
+          index,
+          face,
+          duration_ms: durationMs,
+        });
+      }
+    }
+    dwellStartedAtRef.current = Date.now();
+    if (nextFace != null) dwellFaceRef.current = nextFace;
+    if (nextConcept !== undefined) dwellConceptRef.current = nextConcept;
+    if (nextIndex !== undefined) dwellIndexRef.current = nextIndex;
+  }, []);
+
+  const analyticsContextForIndex = useCallback((index: number) => {
+    const item = conceptsRef.current[index];
+    if (!item) return null;
+    return {
+      concept: item.concept,
+      locale: getActiveLocale(),
+      complexity: complexityRef.current,
+      index,
+    };
+  }, []);
+
+  // Card view + dwell: start when landing on a concept; flush previous on index / deck-status change.
+  const activeConcept = !showDeckStatus ? concepts[currentIndex]?.concept : undefined;
+  useEffect(() => {
+    if (showDeckStatus) {
+      showDeckStatusRef.current = true;
+      flushDwell('front', null, -1);
+      return;
+    }
+    showDeckStatusRef.current = false;
+    if (activeConcept == null) return;
+
+    const prevConcept = dwellConceptRef.current;
+    const prevIndex = dwellIndexRef.current;
+    if (prevConcept != null && (prevConcept !== activeConcept || prevIndex !== currentIndex)) {
+      flushDwell('front', activeConcept, currentIndex);
+    } else {
+      dwellConceptRef.current = activeConcept;
+      dwellIndexRef.current = currentIndex;
+      dwellFaceRef.current = 'front';
+      dwellStartedAtRef.current = Date.now();
+    }
+
+    trackCardView({
+      concept: activeConcept,
+      locale: getActiveLocale(),
+      complexity: complexityRef.current,
+      index: currentIndex,
+      face: 'front',
+    });
+  }, [activeConcept, currentIndex, showDeckStatus, flushDwell]);
+
+  // Flush dwell when app backgrounds or stack unmounts.
+  useEffect(() => {
+    const onAppState = (next: AppStateStatus) => {
+      if (next === 'background' || next === 'inactive') {
+        flushDwell(dwellFaceRef.current, dwellConceptRef.current, dwellIndexRef.current);
+        dwellStartedAtRef.current = 0;
+      } else if (next === 'active' && dwellConceptRef.current != null) {
+        dwellStartedAtRef.current = Date.now();
+      }
+    };
+    const sub = AppState.addEventListener('change', onAppState);
+    return () => {
+      sub.remove();
+      flushDwell();
+    };
+  }, [flushDwell]);
 
   useEffect(() => {
     canSwipeRightSV.value = currentIndex > 0 ? 1 : 0;
@@ -159,27 +274,61 @@ export function ConceptCardStack({
   }, [currentIndex, showDeckStatus]);
 
   const commitSwipeLeft = useCallback(() => {
+    const ctx = analyticsContextForIndex(currentIndexRef.current);
+    if (ctx) trackSwipe('left', ctx);
     navIntentRef.current = 'forward';
     onSwipeLeft();
-  }, [onSwipeLeft]);
+  }, [analyticsContextForIndex, onSwipeLeft]);
 
   const commitSwipeVertical = useCallback(
     (direction: 'up' | 'down') => {
+      const ctx = analyticsContextForIndex(currentIndexRef.current);
+      if (ctx) {
+        const complexityAfter = clampComplexity(
+          complexityRef.current + (direction === 'up' ? 1 : -1),
+        );
+        trackSwipe(direction, { ...ctx, complexity_after: complexityAfter });
+      }
       navIntentRef.current = 'forward';
       onSwipeForwardVertical(direction);
     },
-    [onSwipeForwardVertical],
+    [analyticsContextForIndex, onSwipeForwardVertical],
   );
 
   const commitSwipeRight = useCallback(() => {
+    const ctx = analyticsContextForIndex(currentIndexRef.current);
+    if (ctx) trackSwipe('right', ctx);
     // Gesture already animated the previous card into place; do not replay backward enter on index change.
     navIntentRef.current = 'backwardGesture';
     onSwipeRight();
-  }, [onSwipeRight]);
+  }, [analyticsContextForIndex, onSwipeRight]);
 
   const toggleFlip = useCallback(() => {
-    setFlipped((f) => !f);
-  }, []);
+    const wasFlipped = flippedRef.current;
+    const next = !wasFlipped;
+    const item = conceptsRef.current[currentIndexRef.current];
+    if (item && !showDeckStatusRef.current) {
+      if (next) {
+        flushDwell('back', item.concept, currentIndexRef.current);
+        trackCardBackView({
+          concept: item.concept,
+          locale: getActiveLocale(),
+          complexity: complexityRef.current,
+          index: currentIndexRef.current,
+        });
+      } else {
+        flushDwell('front', item.concept, currentIndexRef.current);
+        trackCardView({
+          concept: item.concept,
+          locale: getActiveLocale(),
+          complexity: complexityRef.current,
+          index: currentIndexRef.current,
+          face: 'front',
+        });
+      }
+    }
+    setFlipped(next);
+  }, [flushDwell]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
     const i = currentIndexRef.current - 1;

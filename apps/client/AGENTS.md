@@ -55,6 +55,22 @@ API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) �
 Use EAS to build, sign, and submit (`eas build`, `eas submit`) and for OTA updates (`eas update`) when native apps are needed. Prefer `pnpm exec eas-cli@latest` / `npx eas-cli@latest` over a bare `eas` if the CLI is not installed globally.
 Docs: https://docs.expo.dev/eas/index.md
 
+When native builds need GTM, map the same **names** from GitHub Environment `prod` into EAS secrets/env (see Analytics / GTM below). Do not paste container IDs into the repo.
+
+## Analytics / GTM
+
+Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never commit real container IDs (keep `.env.example` empty).
+
+| Variable | Where it lives |
+| --- | --- |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel** Production (and Preview if set) dashboard — web only |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** (or EAS) — native Android builds later |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** (or EAS) — native iOS builds later |
+
+- Production / Preview web deploys: **Vercel Git integration** (not a GitHub Actions client deploy workflow).
+- Do **not** put Android/iOS GTM IDs on Vercel (native only).
+- Local: leave unset, or copy values privately into `apps/client/.env` (gitignored).
+
 ## Rules
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
