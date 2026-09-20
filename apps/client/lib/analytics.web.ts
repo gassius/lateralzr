@@ -1,11 +1,12 @@
 /**
  * Web analytics transport — Google Tag Manager via `window.dataLayer`.
  *
- * Inject the GTM snippet from `app/+html.tsx` when `EXPO_PUBLIC_GTM_WEB` is set.
- * Event pushes always go to dataLayer so tags can be tested even before the
+ * SPA (`web.output: "single"`) does not emit `app/+html.tsx`, so the GTM
+ * bootstrap is injected at runtime from {@link ensureGtmWebLoaded}. Event
+ * pushes always go to dataLayer so tags can be tested even before the
  * container ID is assigned (snippet load is gated; pushes are always safe).
  *
- * Env (never hardcode IDs — use GitHub Environment `prod` / local .env):
+ * Env (never hardcode IDs — Vercel / local .env):
  * - EXPO_PUBLIC_GTM_WEB
  */
 import {
@@ -14,6 +15,7 @@ import {
   type AnalyticsEventName,
   type AnalyticsParams,
 } from './analyticsTypes';
+import { injectGtmWeb, parseGtmWebId } from './gtmWeb';
 
 export {
   AnalyticsEvent,
@@ -30,17 +32,24 @@ declare global {
 }
 
 function resolveWebGtmId(): string | undefined {
-  const id = process.env.EXPO_PUBLIC_GTM_WEB?.trim();
-  return id && id.length > 0 ? id : undefined;
+  return parseGtmWebId(process.env.EXPO_PUBLIC_GTM_WEB);
 }
 
-/** True when the web GTM container env var is set (snippet will load). */
+/** True when `EXPO_PUBLIC_GTM_WEB` is a GTM-XXXX container ID. */
 export function isAnalyticsConfigured(): boolean {
   return resolveWebGtmId() != null;
 }
 
 export function getGtmContainerId(): string | undefined {
   return resolveWebGtmId();
+}
+
+/**
+ * Load `gtm.js` once when a valid web container ID is present.
+ * Metro never ships this file to native iOS/Android.
+ */
+export function ensureGtmWebLoaded(): boolean {
+  return injectGtmWeb(resolveWebGtmId());
 }
 
 /**

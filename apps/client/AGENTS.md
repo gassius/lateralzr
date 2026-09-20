@@ -70,6 +70,7 @@ Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never com
 - Production / Preview web deploys: **Vercel Git integration** (not a GitHub Actions client deploy workflow).
 - Do **not** put Android/iOS GTM IDs on Vercel (native only).
 - Local: leave unset, or copy values privately into `apps/client/.env` (gitignored).
+- Expo SPA (`web.output: "single"`) does **not** emit `app/+html.tsx` into the static HTML served on Vercel. Keep the GTM snippet in `+html.tsx` for non-SPA modes, but **always inject `gtm.js` at runtime** (`lib/gtmWeb.ts` via `ensureGtmWebLoaded` in the root layout / `analytics.web.ts`). Same pitfall as the letterbox CSS in `WebPhoneFrame.web.tsx`.
 
 ## Rules
 
