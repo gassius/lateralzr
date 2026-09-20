@@ -225,11 +225,11 @@ The automated deployment workflow requires a GitHub environment named `prod` wit
 
 | Variable | Where |
 |------------|-------------|
-| `EXPO_PUBLIC_GTM_WEB` | Vercel Production env (dashboard, manual) |
-| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment `prod` (or EAS) — native only |
-| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment `prod` (or EAS) — native only |
+| `EXPO_PUBLIC_GTM_WEB` | Vercel Production / Preview (dashboard) — web via Git integration |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment `prod` (or EAS later) — native only |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment `prod` (or EAS later) — native only |
 
-Optional for Actions client deploy to Vercel (`.github/workflows/deploy-client.yml`): `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` as Environment secrets. See `VERCEL_DEPLOYMENT.md`.
+See `VERCEL_DEPLOYMENT.md` for Expo web deploys (Vercel Git integration; no Actions client deploy workflow).
 
 **Generating the SSH key** (if needed):
 

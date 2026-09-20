@@ -63,12 +63,12 @@ Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never com
 
 | Variable | Where it lives |
 | --- | --- |
-| `EXPO_PUBLIC_GTM_WEB` | **Vercel Production** env (dashboard, manual) — web only |
-| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** (or EAS) — native Android builds |
-| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** (or EAS) — native iOS builds |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel** Production (and Preview if set) dashboard — web only |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** (or EAS) — native Android builds later |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** (or EAS) — native iOS builds later |
 
+- Production / Preview web deploys: **Vercel Git integration** (not a GitHub Actions client deploy workflow).
 - Do **not** put Android/iOS GTM IDs on Vercel (native only).
-- Optional Actions deploy: `.github/workflows/deploy-client.yml` — pulls Vercel Production env (including `EXPO_PUBLIC_GTM_WEB`) via `vercel pull`.
 - Local: leave unset, or copy values privately into `apps/client/.env` (gitignored).
 
 ## Rules

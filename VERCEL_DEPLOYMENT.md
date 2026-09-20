@@ -69,13 +69,13 @@ This environment variable is:
 
 | Variable | Where |
 | --- | --- |
-| `EXPO_PUBLIC_GTM_WEB` | **Vercel Production** (dashboard, set manually) — baked into web builds |
-| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** or EAS — native only; **not** on Vercel |
-| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** or EAS — native only; **not** on Vercel |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel** Production (dashboard; Preview optional) — baked into Git-integration web builds |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** or EAS later — native only; **not** on Vercel |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** or EAS later — native only; **not** on Vercel |
 
 Do **not** commit real container IDs.
 
-Optional Actions deploy (`.github/workflows/deploy-client.yml`) uses `vercel pull` so Production env — including `EXPO_PUBLIC_GTM_WEB` — comes from the Vercel project. Requires Environment/`prod` secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+Web Production / Preview deploys use **Vercel Git integration** (push to the linked branch). Set `EXPO_PUBLIC_API_URL` and `EXPO_PUBLIC_GTM_WEB` on the Vercel project dashboard — there is no GitHub Actions client deploy workflow.
 
 ### Local Development
 For local development, developers use:
