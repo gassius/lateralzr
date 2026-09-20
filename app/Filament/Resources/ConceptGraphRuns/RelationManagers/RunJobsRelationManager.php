@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ConceptGraphRuns\RelationManagers;
 
+use App\Jobs\CompleteConceptInfoBatchJob;
 use App\Jobs\GenerateConceptGraphJob;
 use App\Jobs\LocalizeConceptBatchJob;
 use App\Models\ConceptGraphRun;
@@ -103,6 +104,22 @@ class RunJobsRelationManager extends RelationManager
                             return;
                         }
 
+                        if ($run instanceof ConceptGraphRun && $run->isCompleteInfo()) {
+                            $termIds = data_get($run->seeds, 'batches.'.$record->seed, []);
+                            if (! is_array($termIds) || $termIds === []) {
+                                return;
+                            }
+
+                            CompleteConceptInfoBatchJob::dispatch(
+                                termIds: array_values(array_map('intval', $termIds)),
+                                mode: (string) data_get($run->seeds, 'mode', 'both'),
+                                runUuid: $run->run_uuid,
+                                jobKey: $record->seed,
+                            )->onQueue((string) $run->queue);
+
+                            return;
+                        }
+
                         $start = $this->startFromBatchKey((string) $record->seed);
 
                         GenerateConceptGraphJob::dispatch(
@@ -126,6 +143,14 @@ class RunJobsRelationManager extends RelationManager
             $count = is_array($ids) ? count($ids) : 0;
 
             return "Localize batch · {$count} concept(s)";
+        }
+
+        if ($run?->isCompleteInfo()) {
+            $ids = data_get($run->seeds, 'batches.'.$seed, []);
+            $count = is_array($ids) ? count($ids) : 0;
+            $mode = (string) data_get($run->seeds, 'mode', 'both');
+
+            return "Complete info ({$mode}) · {$count} term(s)";
         }
 
         if (! str_contains($seed, '#')) {
