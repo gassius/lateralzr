@@ -67,19 +67,15 @@ This environment variable is:
 
 ### GTM: EXPO_PUBLIC_GTM_* (no hardcoded IDs)
 
-| Variable | Purpose |
+| Variable | Where |
 | --- | --- |
-| `EXPO_PUBLIC_GTM_ANDROID` | Android GTM container |
-| `EXPO_PUBLIC_GTM_IOS` | iOS GTM container |
-| `EXPO_PUBLIC_GTM_WEB` | Web GTM container (snippet in `app/+html.tsx`) |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel Production** (dashboard, set manually) — baked into web builds |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** or EAS — native only; **not** on Vercel |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** or EAS — native only; **not** on Vercel |
 
-**Source of truth:** GitHub Environment **`prod`** variables (repository Settings → Environments → prod). Do **not** commit real IDs.
+Do **not** commit real container IDs.
 
-Injection paths:
-1. **Deploy Client** workflow (`.github/workflows/deploy-client.yml`) — `environment: prod` passes vars into the Vercel production build.
-2. **Sync Client GTM Env** (`.github/workflows/sync-client-gtm-env.yml`) — mirrors the same names into Vercel Production so Git-integration builds stay aligned.
-
-Requires Environment/`prod` secrets for Vercel CLI: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+Optional Actions deploy (`.github/workflows/deploy-client.yml`) uses `vercel pull` so Production env — including `EXPO_PUBLIC_GTM_WEB` — comes from the Vercel project. Requires Environment/`prod` secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
 
 ### Local Development
 For local development, developers use:

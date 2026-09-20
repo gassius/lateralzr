@@ -1,5 +1,7 @@
-# Deploy Expo web client with GTM container IDs from GitHub Environment `prod`.
-# Source of truth for EXPO_PUBLIC_GTM_* is GitHub → Environments → prod (variables).
+# Optional Actions deploy of Expo web to Vercel Production.
+# Web GTM: EXPO_PUBLIC_GTM_WEB is set on the Vercel Production dashboard (manual).
+#   `vercel pull` brings it into the build — do not sync Android/iOS GTM to Vercel.
+# Native GTM (EXPO_PUBLIC_GTM_ANDROID / _IOS): GitHub Environment `prod` or EAS only.
 # Never commit real container IDs.
 
 name: Deploy Client
@@ -26,11 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: prod
     env:
-      # Injected from GitHub Environment `prod` (Settings → Environments → prod).
+      # Optional API URL override from GitHub Environment `prod`.
+      # EXPO_PUBLIC_GTM_WEB comes from Vercel Production via `vercel pull` (not injected here).
       EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-      EXPO_PUBLIC_GTM_ANDROID: ${{ vars.EXPO_PUBLIC_GTM_ANDROID }}
-      EXPO_PUBLIC_GTM_IOS: ${{ vars.EXPO_PUBLIC_GTM_IOS }}
-      EXPO_PUBLIC_GTM_WEB: ${{ vars.EXPO_PUBLIC_GTM_WEB }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
@@ -61,7 +61,7 @@ jobs:
         run: vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
         working-directory: apps/client
 
-      # vercel.json buildCommand runs turbo/expo export; job env bakes EXPO_PUBLIC_* into the bundle.
+      # vercel.json buildCommand runs turbo/expo export; Production env (incl. GTM_WEB) from Vercel.
       - name: Build for Vercel Production
         run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
         working-directory: apps/client

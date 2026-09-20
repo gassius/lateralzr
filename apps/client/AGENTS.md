@@ -59,19 +59,16 @@ When native builds need GTM, map the same **names** from GitHub Environment `pro
 
 ## Analytics / GTM
 
-Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`):
+Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never commit real container IDs (keep `.env.example` empty).
 
-| Variable | Platform |
+| Variable | Where it lives |
 | --- | --- |
-| `EXPO_PUBLIC_GTM_ANDROID` | Android |
-| `EXPO_PUBLIC_GTM_IOS` | iOS |
-| `EXPO_PUBLIC_GTM_WEB` | Web (GTM snippet + dataLayer) |
+| `EXPO_PUBLIC_GTM_WEB` | **Vercel Production** env (dashboard, manual) — web only |
+| `EXPO_PUBLIC_GTM_ANDROID` | GitHub Environment **`prod`** (or EAS) — native Android builds |
+| `EXPO_PUBLIC_GTM_IOS` | GitHub Environment **`prod`** (or EAS) — native iOS builds |
 
-**Source of truth:** GitHub → Settings → Environments → **`prod`** → Environment variables (names above). Staging may get its own Environment later.
-
-- Never commit real container IDs (keep `.env.example` empty).
-- Production web deploy: `.github/workflows/deploy-client.yml` (job `environment: prod` injects vars into the Vercel/Expo build).
-- Optional mirror to Vercel dashboard: `.github/workflows/sync-client-gtm-env.yml` (workflow_dispatch).
+- Do **not** put Android/iOS GTM IDs on Vercel (native only).
+- Optional Actions deploy: `.github/workflows/deploy-client.yml` — pulls Vercel Production env (including `EXPO_PUBLIC_GTM_WEB`) via `vercel pull`.
 - Local: leave unset, or copy values privately into `apps/client/.env` (gitignored).
 
 ## Rules
