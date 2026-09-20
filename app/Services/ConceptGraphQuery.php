@@ -76,26 +76,46 @@ class ConceptGraphQuery
             return null;
         }
 
+        $startTerm = $start->termForLocale($locale, fallback: false);
+        if ($startTerm === null) {
+            // Never surface a start concept that lacks a term in the requested locale.
+            return null;
+        }
+
         $nodes = Concept::query()
             ->with('terms')
             ->whereIn('id', array_keys($nodeIds))
             ->get()
             ->map(fn (Concept $concept) => $this->formatNode($concept, $locale))
+            ->filter()
             ->values()
             ->all();
 
-        $startLabel = (string) ($start->termForLocale($locale)?->term ?? $start->display_term ?? '');
+        $keptIds = array_fill_keys(
+            array_map(static fn (array $node): int => (int) $node['id'], $nodes),
+            true
+        );
+
+        // Drop edges that touch concepts omitted for lacking a locale-local term.
+        $edges = collect($edgeMap)
+            ->filter(function (ConceptRelationship $edge) use ($keptIds) {
+                return isset($keptIds[$edge->from_concept_id], $keptIds[$edge->to_concept_id]);
+            })
+            ->map(fn (ConceptRelationship $edge) => $this->formatEdge($edge))
+            ->values()
+            ->all();
+
+        if ($edges === []) {
+            return null;
+        }
 
         return [
             'start' => [
                 'id' => (int) $start->id,
-                'label' => $startLabel,
+                'label' => (string) $startTerm->term,
             ],
             'nodes' => $nodes,
-            'edges' => collect($edgeMap)
-                ->map(fn (ConceptRelationship $edge) => $this->formatEdge($edge))
-                ->values()
-                ->all(),
+            'edges' => $edges,
             'meta' => [
                 'depth' => $depth,
                 'limit' => $limit,
@@ -123,18 +143,27 @@ class ConceptGraphQuery
                 return $concept;
             }
 
-            // Fall back to any locale match so Spanish clients can seed with English labels
-            // (or vice versa) and still receive localized node payloads when available.
-            return Concept::query()
+            // Fall back to any-locale seed match, but only if that concept also has a
+            // term in the requested locale (never start a cross-locale display graph).
+            $concept = Concept::query()
                 ->with('terms')
                 ->whereHas('terms', function ($q) use ($normalized) {
                     $q->where('normalized_term', $normalized);
                 })
                 ->first();
+
+            if ($concept !== null && $concept->termForLocale($locale, fallback: false) !== null) {
+                return $concept;
+            }
+
+            return null;
         }
 
-        // Prefer concepts that actually have edges.
+        // Prefer concepts that have edges and a term in the requested locale.
         $startId = ConceptRelationship::query()
+            ->whereHas('fromConcept.terms', function ($q) use ($locale) {
+                $q->where('locale', $locale);
+            })
             ->inRandomOrder()
             ->value('from_concept_id');
 
@@ -142,7 +171,7 @@ class ConceptGraphQuery
             return Concept::query()->with('terms')->find($startId);
         }
 
-        // No prefetched graph yet.
+        // No prefetched graph yet for this locale.
         return null;
     }
 
@@ -182,17 +211,25 @@ class ConceptGraphQuery
         ];
     }
 
-    protected function formatNode(Concept $concept, string $locale): array
+    /**
+     * @return array<string, mixed>|null Null when the concept has no term in `$locale`
+     *                                   (never fall back to another locale for display).
+     */
+    protected function formatNode(Concept $concept, string $locale): ?array
     {
-        $term = $concept->termForLocale($locale);
+        $term = $concept->termForLocale($locale, fallback: false);
+        if ($term === null) {
+            return null;
+        }
 
         return [
             'id' => (int) $concept->id,
-            'label' => (string) ($term?->term ?? ''),
-            'shortDescription' => (string) ($term?->short_description ?? ''),
-            'complexity' => (int) ($term?->complexity ?? config('concepts.default_complexity', 2)),
-            'wikiUrl' => $term?->wiki_url,
-            'mediaUrl' => $term?->media_url,
+            'label' => (string) $term->term,
+            'shortDescription' => (string) ($term->short_description ?? ''),
+            'complexity' => (int) ($term->complexity ?? config('concepts.default_complexity', 2)),
+            'wikiUrl' => $term->wiki_url,
+            'mediaUrl' => $term->media_url,
+            'locale' => $locale,
             'degree' => ConceptRelationship::query()
                 ->where('from_concept_id', $concept->id)
                 ->orWhere('to_concept_id', $concept->id)

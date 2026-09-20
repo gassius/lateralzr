@@ -1,6 +1,7 @@
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { graphToDeckItems } from '@/lib/conceptDeck';
-import { getActiveLocale, t } from '@/lib/i18n';
+import { assertAndFilterGraphLocale } from '@/lib/graphLocale';
+import { getActiveLocale, isSupportedLocale, t } from '@/lib/i18n';
 
 const API_URL = resolveApiBaseUrl();
 
@@ -21,6 +22,8 @@ export type ConceptGraphNode = {
   wikiUrl: string | null;
   mediaUrl: string | null;
   degree: number;
+  /** Present on API payloads; used to reject cross-locale leakage. */
+  locale?: string;
 };
 
 export type ConceptGraphEdge = {
@@ -54,6 +57,8 @@ export class ApiError extends Error {
   }
 }
 
+export { assertAndFilterGraphLocale } from '@/lib/graphLocale';
+
 export async function fetchConceptRelationships(
   options?: {
     start?: string;
@@ -65,13 +70,14 @@ export async function fetchConceptRelationships(
     locale?: string;
   }
 ): Promise<ConceptGraphResponse['data']> {
+  const locale = options?.locale ?? getActiveLocale();
   const body: { start?: string; limit?: number; depth?: number; minStrength?: number; locale?: string } = {};
   const start = options?.start ?? options?.seed;
   if (start != null && start.trim() !== '') body.start = start.trim();
   if (options?.limit != null) body.limit = options.limit;
   if (options?.depth != null) body.depth = options.depth;
   if (options?.minStrength != null) body.minStrength = options.minStrength;
-  body.locale = options?.locale ?? getActiveLocale();
+  body.locale = locale;
 
   const res = await fetch(`${API_URL}/api/concepts/relationships`, {
     method: 'POST',
@@ -91,7 +97,9 @@ export async function fetchConceptRelationships(
   if (json.status !== 'success' || !json.data) {
     throw new Error(t('invalidApiResponse'));
   }
-  return json.data;
+
+  const expected = isSupportedLocale(locale) ? locale : getActiveLocale();
+  return assertAndFilterGraphLocale(json.data, expected);
 }
 
 export function graphNodesToConceptItems(data: ConceptGraphResponse['data']): ConceptItem[] {

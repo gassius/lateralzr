@@ -62,7 +62,7 @@ class ConceptLocaleSupportTest extends TestCase
         $this->assertSame('creativity', $en->fresh()->canonical_key);
     }
 
-    public function test_graph_query_returns_localized_labels_with_fallback(): void
+    public function test_graph_query_returns_localized_labels_without_cross_locale_fallback(): void
     {
         $conceptA = Concept::query()->create(['canonical_key' => 'creativity']);
         $conceptB = Concept::query()->create(['canonical_key' => 'constraint']);
@@ -108,6 +108,31 @@ class ConceptLocaleSupportTest extends TestCase
 
         $graph = app(ConceptGraphQuery::class)->getGraph('creatividad', locale: 'es');
 
+        // Neighbor B has no Spanish term — graph must not mix English labels in.
+        $this->assertNull($graph);
+
+        // Add a Spanish neighbor so a same-locale edge exists.
+        $conceptC = Concept::query()->create(['canonical_key' => 'silence']);
+        ConceptTerm::query()->create([
+            'concept_id' => $conceptC->id,
+            'locale' => 'es',
+            'term' => 'silencio',
+            'normalized_term' => 'silencio',
+            'short_description' => 'Descripción C',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $conceptA->id,
+            'to_concept_id' => $conceptC->id,
+            'strength' => 0.7,
+            'last_laterality' => 2,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+
+        $graph = app(ConceptGraphQuery::class)->getGraph('creatividad', locale: 'es');
+
         $this->assertNotNull($graph);
         $this->assertSame('es', $graph['meta']['locale']);
         $this->assertSame('creatividad', $graph['start']['label']);
@@ -116,9 +141,16 @@ class ConceptLocaleSupportTest extends TestCase
         $this->assertSame('creatividad', $byId[$conceptA->id]['label']);
         $this->assertSame('Descripción A', $byId[$conceptA->id]['shortDescription']);
         $this->assertSame('https://es.wikipedia.org/wiki/Creatividad', $byId[$conceptA->id]['wikiUrl']);
-        // Missing es term falls back to en.
-        $this->assertSame('constraint', $byId[$conceptB->id]['label']);
-        $this->assertSame('English desc B', $byId[$conceptB->id]['shortDescription']);
+        $this->assertSame('es', $byId[$conceptA->id]['locale']);
+        $this->assertArrayNotHasKey($conceptB->id, $byId->all());
+        $this->assertSame('silencio', $byId[$conceptC->id]['label']);
+        $this->assertSame('es', $byId[$conceptC->id]['locale']);
+
+        foreach ($graph['edges'] as $edge) {
+            $this->assertTrue(isset($byId[$edge['from']], $byId[$edge['to']]));
+            $this->assertNotSame($conceptB->id, $edge['from']);
+            $this->assertNotSame($conceptB->id, $edge['to']);
+        }
     }
 
     public function test_localize_service_creates_target_locale_terms(): void
