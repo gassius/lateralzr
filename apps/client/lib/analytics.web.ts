@@ -5,8 +5,8 @@
  * Event pushes always go to dataLayer so tags can be tested even before the
  * container ID is assigned (snippet load is gated; pushes are always safe).
  *
- * Env:
- * - EXPO_PUBLIC_GTM_WEB (placeholder until ticket provides an ID)
+ * Env (never hardcode IDs — use GitHub Environment `prod` / local .env):
+ * - EXPO_PUBLIC_GTM_WEB
  */
 import {
   createAnalyticsHelpers,

@@ -7,9 +7,9 @@
  * - no-ops safely when unset
  * - logs in __DEV__ when a container ID is present so instrumentation can be verified
  *
- * Env:
- * - EXPO_PUBLIC_GTM_ANDROID (e.g. GTM-N7TRWH3Z)
- * - EXPO_PUBLIC_GTM_IOS (placeholder until ticket provides an ID)
+ * Env (never hardcode IDs — use GitHub Environment `prod` / local .env):
+ * - EXPO_PUBLIC_GTM_ANDROID
+ * - EXPO_PUBLIC_GTM_IOS
  */
 import { Platform } from 'react-native';
 import {

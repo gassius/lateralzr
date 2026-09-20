@@ -221,6 +221,16 @@ The automated deployment workflow requires a GitHub environment named `prod` wit
 | `PROD_PORT` | SSH port (default 22) | `22` |
 | `PROD_PATH` | Absolute path to lateralzr on VPS | `/home/cgonzalez/lateralzr` |
 
+**Client (Expo web) GTM — Environment variables** (not secrets; baked into public JS):
+
+| Variable Name | Description |
+|------------|-------------|
+| `EXPO_PUBLIC_GTM_ANDROID` | Android GTM container ID |
+| `EXPO_PUBLIC_GTM_IOS` | iOS GTM container ID |
+| `EXPO_PUBLIC_GTM_WEB` | Web GTM container ID |
+
+Optional for client deploy/sync workflows (Vercel CLI): `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` as Environment secrets. See `VERCEL_DEPLOYMENT.md` and `.github/workflows/deploy-client.yml`.
+
 **Generating the SSH key** (if needed):
 
 ```bash
