@@ -105,7 +105,7 @@ test('injectGtmWeb inits dataLayer, pushes gtm.start, and appends gtm.js', () =>
 
   assert.equal(htmlChunks.length, 1);
   assert.match(htmlChunks[0] ?? '', /<noscript>/);
-  assert.match(htmlChunks[0] ?? '', new RegExp(gtmNoscriptUrl('GTM-TEST1')));
+  assert.ok((htmlChunks[0] ?? '').includes(gtmNoscriptUrl('GTM-TEST1')));
 });
 
 test('injectGtmWeb is idempotent', () => {

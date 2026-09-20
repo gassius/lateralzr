@@ -75,13 +75,30 @@ function appendGtmNoscript(doc: GtmDocument, id: string): void {
  * Returns true when this call appended the script. Invalid IDs, missing DOM,
  * and a second call are no-ops (false).
  */
+function resolveGtmGlobals(overrides?: {
+  window?: GtmWindow;
+  document?: GtmDocument;
+}): { win?: GtmWindow; doc?: GtmDocument } {
+  if (overrides?.window && overrides?.document) {
+    return { win: overrides.window, doc: overrides.document };
+  }
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return {};
+  }
+  // Real DOM types are wider than the test double; the write path only uses
+  // querySelector / createElement / appendChild / insertAdjacentHTML.
+  return {
+    win: window,
+    doc: document as unknown as GtmDocument,
+  };
+}
+
 export function injectGtmWeb(
   rawId: string | undefined | null,
   globals?: { window?: GtmWindow; document?: GtmDocument },
 ): boolean {
   const id = parseGtmWebId(rawId);
-  const win = globals?.window ?? (typeof window === 'undefined' ? undefined : window);
-  const doc = globals?.document ?? (typeof document === 'undefined' ? undefined : document);
+  const { win, doc } = resolveGtmGlobals(globals);
   if (!id || !win || !doc) return false;
   if (hasInjectedGtmScript(doc)) return false;
 
