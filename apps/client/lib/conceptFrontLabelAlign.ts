@@ -2,23 +2,28 @@
  * Card-front concept label alignment (Critiquito Lz-04).
  *
  * Rule: wraps ⇒ left, else center.
- * A title that is estimated to stay on one line in the content box is
- * centered so short seeds ("Tide", "Lighthouse") sit in the middle of the
- * front. Titles that would wrap stay left-aligned so subsequent lines read
- * naturally. The back title is a separate style and is not affected.
+ * One-line titles center so short seeds ("Tide", "Lighthouse") sit in the
+ * middle of the front. Titles that wrap stay left-aligned so subsequent
+ * lines read naturally. The back title is a separate style and is not affected.
  *
- * Width is estimated as `length * fontSize * AVG_GLYPH_EM` (bold 48px title).
+ * Source of truth at runtime is `onTextLayout` line count. The width estimate
+ * is only a first-paint fallback (bold 48px title ≈ 0.58em per glyph, matching
+ * measured system-ui / RN-web metrics).
  */
 export const CONCEPT_FRONT_LABEL_FONT_SIZE = 48;
 
 /** Mean glyph width as a fraction of fontSize for the 700-weight front title. */
-export const CONCEPT_FRONT_LABEL_AVG_GLYPH_EM = 0.52;
+export const CONCEPT_FRONT_LABEL_AVG_GLYPH_EM = 0.58;
 
 /**
  * Fallback content width while the card has not laid out yet.
- * Matches a typical phone inner width minus card padding (~320px).
+ * Matches the letterboxed web preview inner box (~301px at 1280×800).
  */
-export const CONCEPT_FRONT_LABEL_FALLBACK_CONTENT_WIDTH = 320;
+export const CONCEPT_FRONT_LABEL_FALLBACK_CONTENT_WIDTH = 301;
+
+export function conceptFrontLabelTextAlignFromLineCount(lineCount: number): 'center' | 'left' {
+  return lineCount > 1 ? 'left' : 'center';
+}
 
 export function conceptFrontLabelTextAlign(
   title: string,
