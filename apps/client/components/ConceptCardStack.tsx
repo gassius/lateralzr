@@ -2,15 +2,19 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   runOnUI,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withTiming,
   withSpring,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
+import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import {
   trackCardBackView,
   trackCardView,
@@ -21,7 +25,12 @@ import {
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { clampComplexity } from '@/lib/complexityStorage';
-import { getActiveLocale } from '@/lib/i18n';
+import {
+  coachMessageKey,
+  SWIPE_COACH_PEEK_PX,
+  type CoachKind,
+} from '@/lib/discoveryCoaching';
+import { getActiveLocale, t } from '@/lib/i18n';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
 type ConceptCardStackProps = {
@@ -100,6 +109,9 @@ export function ConceptCardStack({
   const dwellFaceRef = useRef<CardFace>('front');
   const dwellConceptRef = useRef<string | null>(null);
   const dwellIndexRef = useRef<number>(-1);
+  const coachPeekX = useSharedValue(0);
+  const flipPeek = useSharedValue(0);
+  const peekedKindRef = useRef<CoachKind | null>(null);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -133,6 +145,38 @@ export function ConceptCardStack({
   );
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
+
+  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped } = useDiscoveryCoaching({
+    cardIndex: currentIndex,
+    flipped: flipped || concepts.length === 0,
+    deckStatus: showDeckStatus,
+  });
+
+  useEffect(() => {
+    if (!coach || !peekEnabled) {
+      coachPeekX.value = 0;
+      flipPeek.value = 0;
+      return;
+    }
+    if (peekedKindRef.current === coach) return;
+    peekedKindRef.current = coach;
+    if (coach === 'swipe') {
+      flipPeek.value = 0;
+      coachPeekX.value = withSequence(
+        withTiming(-SWIPE_COACH_PEEK_PX, {
+          duration: 520,
+          easing: Easing.inOut(Easing.cubic),
+        }),
+        withTiming(0, { duration: 560, easing: Easing.out(Easing.cubic) }),
+      );
+    } else {
+      coachPeekX.value = 0;
+      flipPeek.value = withSequence(
+        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.cubic) }),
+        withTiming(0, { duration: 460, easing: Easing.out(Easing.cubic) }),
+      );
+    }
+  }, [coach, peekEnabled, coachPeekX, flipPeek]);
 
   const flushDwell = useCallback((nextFace?: CardFace, nextConcept?: string | null, nextIndex?: number) => {
     const concept = dwellConceptRef.current;
@@ -242,10 +286,14 @@ export function ConceptCardStack({
       translateX.value = 0;
       translateY.value = 0;
       swipeAnimating.value = false;
+      coachPeekX.value = 0;
+      flipPeek.value = 0;
     })();
     translateX.value = 0;
     translateY.value = 0;
     swipeAnimating.value = false;
+    coachPeekX.value = 0;
+    flipPeek.value = 0;
     setFlipped(false);
 
     if (intent === 'forward' || intent === 'backwardGesture') {
@@ -274,14 +322,16 @@ export function ConceptCardStack({
   }, [currentIndex, showDeckStatus]);
 
   const commitSwipeLeft = useCallback(() => {
+    noteSwiped();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('left', ctx);
     navIntentRef.current = 'forward';
     onSwipeLeft();
-  }, [analyticsContextForIndex, onSwipeLeft]);
+  }, [analyticsContextForIndex, noteSwiped, onSwipeLeft]);
 
   const commitSwipeVertical = useCallback(
     (direction: 'up' | 'down') => {
+      noteSwiped();
       const ctx = analyticsContextForIndex(currentIndexRef.current);
       if (ctx) {
         const complexityAfter = clampComplexity(
@@ -292,16 +342,17 @@ export function ConceptCardStack({
       navIntentRef.current = 'forward';
       onSwipeForwardVertical(direction);
     },
-    [analyticsContextForIndex, onSwipeForwardVertical],
+    [analyticsContextForIndex, noteSwiped, onSwipeForwardVertical],
   );
 
   const commitSwipeRight = useCallback(() => {
+    noteSwiped();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('right', ctx);
     // Gesture already animated the previous card into place; do not replay backward enter on index change.
     navIntentRef.current = 'backwardGesture';
     onSwipeRight();
-  }, [analyticsContextForIndex, onSwipeRight]);
+  }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
   const toggleFlip = useCallback(() => {
     const wasFlipped = flippedRef.current;
@@ -309,6 +360,7 @@ export function ConceptCardStack({
     const item = conceptsRef.current[currentIndexRef.current];
     if (item && !showDeckStatusRef.current) {
       if (next) {
+        noteFlipped();
         flushDwell('back', item.concept, currentIndexRef.current);
         trackCardBackView({
           concept: item.concept,
@@ -328,7 +380,7 @@ export function ConceptCardStack({
       }
     }
     setFlipped(next);
-  }, [flushDwell]);
+  }, [flushDwell, noteFlipped]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
     const i = currentIndexRef.current - 1;
@@ -341,10 +393,18 @@ export function ConceptCardStack({
     if (next !== i) setBehindLockedIndex(next);
   }, [concepts.length]);
 
+  const cancelCoachPeek = () => {
+    'worklet';
+    coachPeekX.value = 0;
+    flipPeek.value = 0;
+  };
+
   const tap = Gesture.Tap()
     .maxDistance(14)
     .onEnd(() => {
       if (swipeAnimating.value) return;
+      cancelCoachPeek();
+      runOnJS(noteInteraction)();
       runOnJS(toggleFlip)();
     });
 
@@ -353,6 +413,8 @@ export function ConceptCardStack({
     .failOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .onStart(() => {
       translateY.value = 0;
+      cancelCoachPeek();
+      runOnJS(noteInteraction)();
     })
     .onUpdate((e: { translationX: number }) => {
       if (swipeAnimating.value) return;
@@ -412,6 +474,8 @@ export function ConceptCardStack({
     .failOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .onStart(() => {
       translateX.value = 0;
+      cancelCoachPeek();
+      runOnJS(noteInteraction)();
     })
     .onUpdate((e: { translationY: number }) => {
       if (swipeAnimating.value) return;
@@ -471,17 +535,18 @@ export function ConceptCardStack({
     const w = Math.max(1, cardWidthSV.value);
     const h = cardHeightSV.value;
     const ty = translateY.value;
+    const peekX = coachPeekX.value;
     if (Math.abs(ty) > 0.5) {
       return {
-        transform: [{ translateX: enterX.value }, { translateY: ty }],
+        transform: [{ translateX: enterX.value + peekX }, { translateY: ty }],
       };
     }
-    const tx = translateX.value < 0 ? translateX.value : 0;
+    const tx = (translateX.value < 0 ? translateX.value : 0) + peekX;
     const rotBase =
-      translateX.value < 0
+      tx < 0
         ? Math.max(
             -MAX_ROTATION_DEG,
-            Math.min(MAX_ROTATION_DEG, (translateX.value / Math.max(1, w / 2)) * MAX_ROTATION_DEG),
+            Math.min(MAX_ROTATION_DEG, (tx / Math.max(1, w / 2)) * MAX_ROTATION_DEG),
           )
         : 0;
     const rot = rotBase + enterR.value;
@@ -584,6 +649,8 @@ export function ConceptCardStack({
                 currentIndex={currentIndex}
                 flipped={flipped}
                 preloadedMediaUrls={preloadedMediaUrls}
+                coachHint={coach ? t(coachMessageKey(coach)) : null}
+                flipPeek={flipPeek}
               />
             )}
           </Animated.View>
@@ -609,16 +676,28 @@ function ConceptCardForIndex({
   currentIndex,
   flipped,
   preloadedMediaUrls,
+  coachHint,
+  flipPeek,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
   flipped: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
+  coachHint?: string | null;
+  flipPeek?: SharedValue<number>;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
   const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
-  return <ConceptCard item={item} flipped={flipped} isMediaPrefetched={isMediaPrefetched} />;
+  return (
+    <ConceptCard
+      item={item}
+      flipped={flipped}
+      isMediaPrefetched={isMediaPrefetched}
+      coachHint={coachHint}
+      flipPeek={flipPeek}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

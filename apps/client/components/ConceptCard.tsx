@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
@@ -17,6 +18,7 @@ import {
   conceptFrontLabelTextAlignFromLineCount,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
 } from '@/lib/conceptFrontLabelAlign';
+import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 
@@ -32,9 +34,19 @@ type ConceptCardProps = {
   flipped: boolean;
   /** True when this URL was successfully prefetched (smoother reveal, shorter transition). */
   isMediaPrefetched: boolean;
+  /** Momentary coaching copy on the front face; omit after the gesture is discovered. */
+  coachHint?: string | null;
+  /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
+  flipPeek?: SharedValue<number>;
 };
 
-export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardProps) {
+export function ConceptCard({
+  item,
+  flipped,
+  isMediaPrefetched,
+  coachHint,
+  flipPeek,
+}: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
   const mediaUri = imageSource?.uri ?? '';
@@ -50,6 +62,8 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
       : conceptFrontLabelTextAlignFromLineCount(frontLineCount);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
+  const fallbackFlipPeek = useSharedValue(0);
+  const flipPeekSV = flipPeek ?? fallbackFlipPeek;
 
   useEffect(() => {
     flipProgress.value = withTiming(flipped ? 1 : 0, {
@@ -80,17 +94,23 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
   }, [mediaUri, isMediaPrefetched]);
 
   const frontFaceStyle = useAnimatedStyle(() => {
-    const rot = interpolate(flipProgress.value, [0, 1], [0, -90]);
+    const peek =
+      flipProgress.value > 0.01 ? 0 : flipPeekSV.value * FLIP_COACH_PEEK_AMOUNT;
+    const progress = Math.min(1, flipProgress.value + peek);
+    const rot = interpolate(progress, [0, 1], [0, -90]);
     return {
-      opacity: interpolate(flipProgress.value, [0, 0.48, 0.52, 1], [1, 1, 0, 0]),
+      opacity: interpolate(progress, [0, 0.48, 0.52, 1], [1, 1, 0, 0]),
       transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
     };
   });
 
   const backFaceStyle = useAnimatedStyle(() => {
-    const rot = interpolate(flipProgress.value, [0, 1], [90, 0]);
+    const peek =
+      flipProgress.value > 0.01 ? 0 : flipPeekSV.value * FLIP_COACH_PEEK_AMOUNT;
+    const progress = Math.min(1, flipProgress.value + peek);
+    const rot = interpolate(progress, [0, 1], [90, 0]);
     return {
-      opacity: interpolate(flipProgress.value, [0, 0.48, 0.52, 1], [0, 0, 1, 1]),
+      opacity: interpolate(progress, [0, 0.48, 0.52, 1], [0, 0, 1, 1]),
       transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
     };
   });
@@ -110,9 +130,11 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           {title}
         </Text>
       </View>
-      <Text style={styles.hint}>
-        {t('tapToFlip')}
-      </Text>
+      {coachHint ? (
+        <Text style={styles.hint} accessibilityLiveRegion="polite">
+          {coachHint}
+        </Text>
+      ) : null}
     </View>
   );
 
@@ -191,9 +213,6 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
               {t('wikipedia')}
             </Text>
           ) : null}
-          <Text style={styles.backHint}>
-            {t('tapToFlipBack')}
-          </Text>
         </View>
       </View>
     </ScrollView>
@@ -277,6 +296,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(19,91,119,0.35)',
     minHeight: 0,
+    position: 'relative',
   },
   backScroll: {
     flex: 1,
@@ -356,16 +376,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
+  /** Overlay so momentary coaching does not shrink the front well and un-center short labels. */
   hint: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 20,
     fontSize: 12,
     opacity: 0.75,
-    marginTop: 'auto',
-    color: Palette.darkBlue,
-  },
-  backHint: {
-    fontSize: 12,
-    opacity: 0.75,
-    marginTop: 8,
     color: Palette.darkBlue,
   },
 });
