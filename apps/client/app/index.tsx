@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
+import { LATERALITY_SUBMENU_HEIGHT, LateralitySubmenu } from '@/components/LateralitySubmenu';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
@@ -12,6 +13,13 @@ import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
+import {
+  applyLateralityTreeSwap,
+  DEFAULT_LATERALITY,
+  stepLaterality,
+  type LateralityGrade,
+} from '@/lib/laterality';
+import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
 import {
   applyJourneyTestDeck,
@@ -49,6 +57,9 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
+  const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
+  const [lateralityHydrated, setLateralityHydrated] = useState(false);
+  const [swappingLaterality, setSwappingLaterality] = useState(false);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -65,11 +76,17 @@ export default function HomeScreen() {
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
   const pendingEndDeckLoadRef = useRef(false);
   const complexityRef = useRef(complexity);
+  const lateralityRef = useRef(laterality);
+  const lateralitySwapGenRef = useRef(0);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
 
   useEffect(() => {
     complexityRef.current = complexity;
   }, [complexity]);
+
+  useEffect(() => {
+    lateralityRef.current = laterality;
+  }, [laterality]);
 
   useEffect(() => {
     conceptsRef.current = concepts;
@@ -95,6 +112,27 @@ export default function HomeScreen() {
         void persistComplexity(hydrated.complexity);
       }
       setComplexityHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const urlLaterality = journeyTestParamsRef.current.laterality;
+    if (urlLaterality != null) {
+      lateralityRef.current = urlLaterality;
+      setLaterality(urlLaterality);
+      setLateralityHydrated(true);
+      void persistLaterality(urlLaterality);
+      return;
+    }
+    void loadStoredLaterality().then((stored) => {
+      if (cancelled) return;
+      lateralityRef.current = stored;
+      setLaterality(stored);
+      setLateralityHydrated(true);
     });
     return () => {
       cancelled = true;
@@ -129,6 +167,7 @@ export default function HomeScreen() {
           limit: 12,
           depth: 2,
           complexity: requestedComplexity,
+          laterality: lateralityRef.current,
           locale: getActiveLocale(),
         });
       } catch (e) {
@@ -147,6 +186,7 @@ export default function HomeScreen() {
             limit: 12,
             depth: 2,
             complexity: DEFAULT_CONCEPT_COMPLEXITY,
+            laterality: lateralityRef.current,
             locale: getActiveLocale(),
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
@@ -213,9 +253,9 @@ export default function HomeScreen() {
   }, [fetchBatch]);
 
   useEffect(() => {
-    if (!complexityHydrated || !localeReady) return;
+    if (!complexityHydrated || !lateralityHydrated || !localeReady) return;
     void loadConcepts();
-  }, [complexityHydrated, localeReady, loadConcepts]);
+  }, [complexityHydrated, lateralityHydrated, localeReady, loadConcepts]);
 
   const loadMoreConcepts = useCallback(async () => {
     if (loadMoreInFlightRef.current) return;
@@ -420,6 +460,68 @@ export default function HomeScreen() {
     [fetchBatch],
   );
 
+  const prefetchLateralityTree = useCallback(async () => {
+    const gen = ++lateralitySwapGenRef.current;
+    // Invalidate in-flight load-more so it cannot append the previous laterality.
+    fetchGenRef.current += 1;
+    const stillCurrent = () => gen === lateralitySwapGenRef.current;
+    setSwappingLaterality(true);
+
+    const current = conceptsRef.current[currentIndexRef.current];
+    const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
+      ? { onlyWithMedia: true as const }
+      : {};
+
+    try {
+      let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
+      try {
+        data = await fetchBatch(complexityRef.current, {
+          ...(current?.concept ? { start: current.concept } : {}),
+          ...mediaFilter,
+        });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) {
+          data = await fetchBatch(complexityRef.current, mediaFilter);
+        } else {
+          throw e;
+        }
+      }
+      if (!stillCurrent()) return;
+
+      const incoming = applyJourneyTestDeck(graphToDeckItems(data), {
+        ...journeyTestParamsRef.current,
+        localizedConcept: undefined,
+        canonicalConcept: undefined,
+      });
+      const swap = applyLateralityTreeSwap(
+        conceptsRef.current,
+        incoming,
+        currentIndexRef.current,
+      );
+      conceptsRef.current = swap.concepts;
+      currentIndexRef.current = swap.currentIndex;
+      pendingEndDeckLoadRef.current = false;
+      setConcepts(swap.concepts);
+      setCurrentIndex(swap.currentIndex);
+      setPendingEndDeckLoad(false);
+      setLoadMoreError(false);
+    } catch {
+      // Keep the visible tree; the new laterality still applies to later fetches.
+    } finally {
+      if (stillCurrent()) setSwappingLaterality(false);
+    }
+  }, [fetchBatch]);
+
+  const onChangeLaterality = useCallback((delta: -1 | 1) => {
+    const next = stepLaterality(lateralityRef.current, delta);
+    if (next === lateralityRef.current) return;
+    lateralityRef.current = next;
+    setLaterality(next);
+    void persistLaterality(next);
+    if (conceptsRef.current.length === 0) return;
+    void prefetchLateralityTree();
+  }, [prefetchLateralityTree]);
+
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
       const next = clampComplexity(complexityRef.current + (direction === 'up' ? 1 : -1));
@@ -455,6 +557,7 @@ export default function HomeScreen() {
   // Errors skip the intro gate so failures are not delayed.
   const showIntroLogo =
     !complexityHydrated ||
+    !lateralityHydrated ||
     !localeReady ||
     (loading && concepts.length === 0) ||
     (!error && concepts.length > 0 && !introGateOpen);
@@ -502,11 +605,17 @@ export default function HomeScreen() {
           onSwipeLeft={onSwipeLeft}
           onSwipeRight={onSwipeRight}
           onSwipeForwardVertical={onSwipeForwardVertical}
-          availableHeight={usableHeight}
+          availableHeight={Math.max(260, usableHeight - LATERALITY_SUBMENU_HEIGHT)}
           preloadedMediaUrls={preloadedMediaUrls}
           showDeckLoading={showDeckLoading}
           loadMoreError={loadMoreError}
           onRetryLoadMore={retryLoadMore}
+        />
+        <LateralitySubmenu
+          laterality={laterality}
+          swapping={swappingLaterality}
+          onDecrease={() => onChangeLaterality(-1)}
+          onIncrease={() => onChangeLaterality(1)}
         />
       </View>
     </View>

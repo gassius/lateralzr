@@ -284,7 +284,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, 5)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, 5, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 5, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -311,5 +311,41 @@ class ConceptRelationshipApiTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['complexity']);
+    }
+
+    public function test_generate_endpoint_passes_laterality_to_graph_query(): void
+    {
+        $mockQuery = Mockery::mock(ConceptGraphQuery::class);
+        $mockQuery->shouldReceive('getGraph')
+            ->once()
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 4)
+            ->andReturn([
+                'start' => ['id' => 1, 'label' => 'creativity'],
+                'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'en', 'laterality' => 4],
+            ]);
+        $this->app->instance(ConceptGraphQuery::class, $mockQuery);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 4,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.meta.laterality', 4);
+    }
+
+    public function test_generate_endpoint_rejects_out_of_range_laterality(): void
+    {
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 0,
+        ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 6,
+        ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
     }
 }

@@ -17,16 +17,19 @@ describe('parseJourneyTestParams', () => {
       localizedConcept: undefined,
       canonicalConcept: undefined,
       onlyWithMedia: false,
+      laterality: undefined,
     });
     assert.deepEqual(parseJourneyTestParams(''), {
       localizedConcept: undefined,
       canonicalConcept: undefined,
       onlyWithMedia: false,
+      laterality: undefined,
     });
     assert.deepEqual(parseJourneyTestParams('???'), {
       localizedConcept: undefined,
       canonicalConcept: undefined,
       onlyWithMedia: false,
+      laterality: undefined,
     });
   });
 
@@ -50,6 +53,14 @@ describe('parseJourneyTestParams', () => {
     assert.equal(parsed.canonicalConcept, 'creativity');
     assert.equal(parsed.localizedConcept, 'creatividad');
     assert.equal(parsed.onlyWithMedia, true);
+    assert.equal(parsed.laterality, undefined);
+  });
+
+  it('reads integer laterality and ignores blank or invalid values', () => {
+    assert.equal(parseJourneyTestParams('laterality=4').laterality, 4);
+    assert.equal(parseJourneyTestParams('laterality=').laterality, undefined);
+    assert.equal(parseJourneyTestParams('laterality=abc').laterality, undefined);
+    assert.equal(parseJourneyTestParams('laterality=6').laterality, undefined);
   });
 
   it('treats blank or whitespace-only concept values as missing', () => {
@@ -129,6 +140,15 @@ describe('buildRelationshipsRequestBody', () => {
         depth: 2,
       },
     );
+  });
+
+  it('includes laterality 1–5 and omits invalid laterality', () => {
+    assert.equal(
+      buildRelationshipsRequestBody({ laterality: 4, locale: 'en' }).laterality,
+      4,
+    );
+    assert.equal('laterality' in buildRelationshipsRequestBody({ laterality: 0, locale: 'en' }), false);
+    assert.equal('laterality' in buildRelationshipsRequestBody({ locale: 'en' }), false);
   });
 
   it('omits empty start values and onlyWithMedia=false', () => {

@@ -40,7 +40,7 @@ export type ConceptGraphResponse = {
     start: { id: number; label: string };
     nodes: ConceptGraphNode[];
     edges: ConceptGraphEdge[];
-    meta: { depth: number; limit: number; minStrength: number; hasMore: boolean; locale?: string };
+    meta: { depth: number; limit: number; minStrength: number; hasMore: boolean; locale?: string; laterality?: number };
   };
   status: string;
 };
@@ -70,6 +70,7 @@ export async function fetchConceptRelationships(
     depth?: number;
     minStrength?: number;
     complexity?: number;
+    laterality?: number;
     locale?: string;
   }
 ): Promise<ConceptGraphResponse['data']> {
@@ -83,6 +84,7 @@ export async function fetchConceptRelationships(
     depth: options?.depth,
     minStrength: options?.minStrength,
     complexity: options?.complexity,
+    laterality: options?.laterality,
     locale,
   });
 

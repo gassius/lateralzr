@@ -1,9 +1,13 @@
+import { parseLateralityParam, type LateralityGrade } from './laterality';
+
 export type JourneyTestParams = {
   localizedConcept?: string;
   canonicalConcept?: string;
   onlyWithMedia: boolean;
   /** Forced initial complexity from `?complexity=N` (1–5). */
   complexity?: number;
+  /** Expo-web `?laterality=4`. Absent when blank/invalid. */
+  laterality?: LateralityGrade;
 };
 
 export type JourneyFetchOptions = {
@@ -21,6 +25,7 @@ export type RelationshipsRequestBody = {
   minStrength?: number;
   locale?: string;
   complexity?: number;
+  laterality?: number;
 };
 
 function trimOrUndefined(value: string | null | undefined): string | undefined {
@@ -94,6 +99,7 @@ export function parseJourneyTestParams(
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
       onlyWithMedia: parseBooleanFlag(params.get('onlyWithMedia')),
       ...(complexity != null ? { complexity } : {}),
+      laterality: parseLateralityParam(params.get('laterality')),
     };
   } catch {
     return { onlyWithMedia: false };
@@ -185,6 +191,7 @@ export function buildRelationshipsRequestBody(options?: {
   minStrength?: number;
   locale?: string;
   complexity?: number;
+  laterality?: number;
 }): RelationshipsRequestBody {
   const body: RelationshipsRequestBody = {};
   const start = options?.start ?? options?.seed;
@@ -201,5 +208,9 @@ export function buildRelationshipsRequestBody(options?: {
     options?.complexity == null ? undefined : String(options.complexity),
   );
   if (complexity != null) body.complexity = complexity;
+  if (options?.laterality != null) {
+    const laterality = Math.round(options.laterality);
+    if (laterality >= 1 && laterality <= 5) body.laterality = laterality;
+  }
   return body;
 }
