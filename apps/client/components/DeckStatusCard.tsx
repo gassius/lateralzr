@@ -1,5 +1,4 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Text } from '@/components/Themed';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { Palette } from '@/constants/Colors';
 import { t } from '@/lib/i18n';
@@ -21,18 +20,18 @@ export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
         <View style={styles.center}>
         <LateralzrLogo animate={animate} />
         {variant === 'loading' ? (
-          <Text style={styles.caption} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+          <Text style={styles.caption}>
             {t('loadingMoreIdeas')}
           </Text>
         ) : null}
         {variant === 'error' ? (
           <>
-            <Text style={styles.caption} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+            <Text style={styles.caption}>
               {t('couldNotLoadMore')}
             </Text>
             {onRetry ? (
               <Pressable onPress={onRetry} style={styles.retry}>
-                <Text style={styles.retryText} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+                <Text style={styles.retryText}>
                   {t('tapToRetry')}
                 </Text>
               </Pressable>
@@ -73,6 +72,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 12,
     opacity: 0.92,
+    color: Palette.darkBlue,
   },
   retry: {
     marginTop: 4,
@@ -83,5 +83,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',
+    color: Palette.darkBlue,
   },
 });

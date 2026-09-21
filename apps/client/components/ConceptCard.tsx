@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -8,7 +8,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Text } from '@/components/Themed';
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
@@ -82,15 +81,11 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
   const front = (
     <View style={styles.faceInner}>
       <View style={styles.frontCenter}>
-        <Text
-          style={styles.conceptNameFront}
-          lightColor={Palette.darkBlue}
-          darkColor={Palette.darkBlue}
-        >
+        <Text style={styles.conceptNameFront}>
           {title}
         </Text>
       </View>
-      <Text style={styles.hint} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+      <Text style={styles.hint}>
         {t('tapToFlip')}
       </Text>
     </View>
@@ -105,7 +100,7 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
       showsVerticalScrollIndicator={false}
       bounces
     >
-      <Text style={styles.conceptName} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+      <Text style={styles.conceptName}>
         {title}
       </Text>
       {mediaUri.length > 0 && imageSource ? (
@@ -137,27 +132,25 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           ) : null}
           {mediaError ? (
             <View style={styles.mediaErrorOverlay} pointerEvents="none">
-              <Text style={styles.mediaErrorText} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+              <Text style={styles.mediaErrorText}>
                 {t('imageUnavailable')}
               </Text>
             </View>
           ) : null}
         </View>
       ) : null}
-      <Text style={styles.description} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+      <Text style={styles.description}>
         {item.shortDescription || t('noDescription')}
       </Text>
       {item.wikiUrl ? (
         <Text
           style={styles.link}
-          lightColor={Palette.darkBlue}
-          darkColor={Palette.darkBlue}
           onPress={() => Linking.openURL(item.wikiUrl!)}
         >
           {t('wikipedia')}
         </Text>
       ) : null}
-      <Text style={styles.hint} lightColor={Palette.darkBlue} darkColor={Palette.darkBlue}>
+      <Text style={styles.hint}>
         {t('tapToFlipBack')}
       </Text>
     </ScrollView>
@@ -275,6 +268,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     opacity: 0.85,
+    color: Palette.darkBlue,
   },
   frontCenter: {
     flex: 1,
@@ -288,17 +282,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'left',
     width: '100%',
+    color: Palette.darkBlue,
   },
   conceptName: {
     fontSize: 30,
     fontWeight: '700',
     marginBottom: 8,
+    color: Palette.darkBlue,
   },
   description: {
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 12,
     opacity: 0.92,
+    color: Palette.darkBlue,
   },
   link: {
     fontSize: 16,
@@ -311,5 +308,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.75,
     marginTop: 'auto',
+    color: Palette.darkBlue,
   },
 });
