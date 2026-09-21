@@ -5,6 +5,8 @@ set -euo pipefail
 # Conservative Docker disk cleanup for the Lateralzr VPS.
 # Safe defaults: build cache + dangling images only.
 # Does NOT prune volumes (shared gonzalezrico MySQL/Traefik data may live there).
+# Invoked automatically by bin/deploy-prod before the disk preflight and after
+# a successful compose up (fail-soft if this script is missing).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

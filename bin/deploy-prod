@@ -46,6 +46,24 @@ mkdir -p \
     storage/logs
 echo ""
 
+# Conservative Docker prune (build cache + dangling images only). Fail-soft:
+# a missing script or prune error must not abort deploy; disk check is the hard gate.
+# Does not prune volumes or Traefik certs.
+run_deploy_docker_cleanup() {
+    local phase="${1:-}"
+    if [[ ! -x "$SCRIPT_DIR/deploy-cleanup-docker" ]]; then
+        echo "⚠️  bin/deploy-cleanup-docker missing or not executable; skipping Docker cleanup (${phase})"
+        return 0
+    fi
+    echo "🧹 Running conservative Docker cleanup (${phase})..."
+    if ! "$SCRIPT_DIR/deploy-cleanup-docker"; then
+        echo "⚠️  Docker cleanup failed (${phase}); continuing (disk check still applies)"
+    fi
+    echo ""
+}
+
+run_deploy_docker_cleanup "before disk check"
+
 # shellcheck source=deploy-disk-check.sh
 source "$SCRIPT_DIR/deploy-disk-check.sh"
 if ! check_deploy_disk_space "$PROJECT_ROOT"; then
@@ -91,6 +109,11 @@ docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
 echo ""
 echo "🚀 Starting services (docker-compose.prod.yml only)..."
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+# Rebuild retags lateralzr_app:prod / lateralzr_nginx:prod; after containers
+# switch, the previous digests are dangling (~1.27GB each). Reclaim them
+# conservatively (same script: no volume/cert/stack deletes).
+run_deploy_docker_cleanup "after compose up"
 
 echo ""
 echo "⚡ Optimizing Laravel caches..."
