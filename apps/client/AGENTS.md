@@ -44,6 +44,19 @@ Run `pnpm test` and `pnpm typecheck` before declaring any client task done.
 
 API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) — see root agent context in `.cursorrules/AGENTS.md`.
 
+## Test / Critiquito URL params (Expo web)
+
+Testers can deep-link the web preview with query params. **Do not treat this as product UX.** Full table and copy-paste URLs: [TEST-URL-PARAMS.md](./TEST-URL-PARAMS.md).
+
+| Param | Purpose |
+| --- | --- |
+| `canonicalConcept=<key>` | Start at a canonical concept; pair with `locale` |
+| `localizedConcept=<label>` | Start at that localized card label |
+| `onlyWithMedia=true` | Restrict the deck to concepts that have media |
+| `locale=en\|es` | Existing locale override |
+
+Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true`
+
 ## Navigation & Routing
 
 - Use **Expo Router**. Routes live in `app/` (not `src/app/`). Keep non-route code in `components/`, `hooks/`, `lib/`, `constants/`.

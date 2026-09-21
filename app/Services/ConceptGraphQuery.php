@@ -6,6 +6,7 @@ use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Support\ConceptLocale;
+use Illuminate\Database\Eloquent\Builder;
 
 class ConceptGraphQuery
 {
@@ -19,14 +20,16 @@ class ConceptGraphQuery
         int $limit = 100,
         int $depth = 2,
         float $minStrength = 0.0,
-        ?string $locale = null
+        ?string $locale = null,
+        ?string $canonicalStart = null,
+        bool $onlyWithMedia = false
     ): ?array {
         $limit = max(1, min(500, $limit));
         $depth = max(1, min(5, $depth));
         $minStrength = max(0.0, min(1.0, $minStrength));
         $locale = ConceptLocale::resolve($locale);
 
-        $start = $this->resolveStart($startConcept, $locale);
+        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia);
         if ($start === null) {
             return null;
         }
@@ -39,13 +42,19 @@ class ConceptGraphQuery
 
         for ($hop = 1; $hop <= $depth && $frontier !== [] && count($edgeMap) < $limit; $hop++) {
             $remaining = $limit - count($edgeMap);
-            $edges = ConceptRelationship::query()
+            $edgesQuery = ConceptRelationship::query()
                 ->with(['fromConcept.terms', 'toConcept.terms'])
                 ->where('strength', '>=', $minStrength)
                 ->where(function ($q) use ($frontier) {
                     $q->whereIn('from_concept_id', $frontier)
                         ->orWhereIn('to_concept_id', $frontier);
-                })
+                });
+
+            if ($onlyWithMedia) {
+                $this->constrainRelationshipToMedia($edgesQuery, $locale);
+            }
+
+            $edges = $edgesQuery
                 ->orderByDesc('strength')
                 ->orderByDesc('llm_occurrences')
                 ->limit($remaining + 1)
@@ -86,7 +95,7 @@ class ConceptGraphQuery
             ->with('terms')
             ->whereIn('id', array_keys($nodeIds))
             ->get()
-            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale))
+            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale, $onlyWithMedia))
             ->filter()
             ->values()
             ->all();
@@ -126,8 +135,12 @@ class ConceptGraphQuery
         ];
     }
 
-    protected function resolveStart(?string $startConcept, string $locale): ?Concept
-    {
+    protected function resolveStart(
+        ?string $startConcept,
+        string $locale,
+        ?string $canonicalStart = null,
+        bool $onlyWithMedia = false
+    ): ?Concept {
         if ($startConcept !== null && trim($startConcept) !== '') {
             $normalized = ConceptTerm::normalizeTerm($startConcept);
 
@@ -140,7 +153,7 @@ class ConceptGraphQuery
                 ->first();
 
             if ($concept !== null) {
-                return $concept;
+                return $this->acceptResolvedStart($concept, $locale, $onlyWithMedia);
             }
 
             // Fall back to any-locale seed match, but only if that concept also has a
@@ -153,17 +166,43 @@ class ConceptGraphQuery
                 ->first();
 
             if ($concept !== null && $concept->termForLocale($locale, fallback: false) !== null) {
-                return $concept;
+                return $this->acceptResolvedStart($concept, $locale, $onlyWithMedia);
+            }
+
+            return null;
+        }
+
+        if ($canonicalStart !== null && trim($canonicalStart) !== '') {
+            $normalized = ConceptTerm::normalizeTerm($canonicalStart);
+            $concept = Concept::query()
+                ->with('terms')
+                ->where('canonical_key', $normalized)
+                ->first();
+
+            if ($concept !== null && $concept->termForLocale($locale, fallback: false) !== null) {
+                return $this->acceptResolvedStart($concept, $locale, $onlyWithMedia);
             }
 
             return null;
         }
 
         // Prefer concepts that have edges and a term in the requested locale.
-        $startId = ConceptRelationship::query()
-            ->whereHas('fromConcept.terms', function ($q) use ($locale) {
+        $startQuery = ConceptRelationship::query()
+            ->whereHas('fromConcept.terms', function ($q) use ($locale, $onlyWithMedia) {
                 $q->where('locale', $locale);
-            })
+                if ($onlyWithMedia) {
+                    $this->constrainMediaUrl($q);
+                }
+            });
+
+        if ($onlyWithMedia) {
+            $startQuery->whereHas('toConcept.terms', function ($q) use ($locale) {
+                $q->where('locale', $locale);
+                $this->constrainMediaUrl($q);
+            });
+        }
+
+        $startId = $startQuery
             ->inRandomOrder()
             ->value('from_concept_id');
 
@@ -173,6 +212,53 @@ class ConceptGraphQuery
 
         // No prefetched graph yet for this locale.
         return null;
+    }
+
+    protected function acceptResolvedStart(Concept $concept, string $locale, bool $onlyWithMedia): ?Concept
+    {
+        if ($onlyWithMedia && ! $this->conceptHasMedia($concept, $locale)) {
+            return null;
+        }
+
+        return $concept;
+    }
+
+    /**
+     * @param  Builder<ConceptRelationship>  $query
+     */
+    protected function constrainRelationshipToMedia(Builder $query, string $locale): void
+    {
+        $query
+            ->whereHas('fromConcept.terms', function ($q) use ($locale) {
+                $q->where('locale', $locale);
+                $this->constrainMediaUrl($q);
+            })
+            ->whereHas('toConcept.terms', function ($q) use ($locale) {
+                $q->where('locale', $locale);
+                $this->constrainMediaUrl($q);
+            });
+    }
+
+    /**
+     * @param  Builder<ConceptTerm>  $query
+     */
+    protected function constrainMediaUrl(Builder $query): void
+    {
+        $query->whereNotNull('media_url')->where('media_url', '!=', '');
+    }
+
+    protected function conceptHasMedia(Concept $concept, string $locale): bool
+    {
+        return $this->termHasMedia($concept->termForLocale($locale, fallback: false));
+    }
+
+    protected function termHasMedia(?ConceptTerm $term): bool
+    {
+        if ($term === null) {
+            return false;
+        }
+
+        return is_string($term->media_url) && trim($term->media_url) !== '';
     }
 
     /**
@@ -215,10 +301,13 @@ class ConceptGraphQuery
      * @return array<string, mixed>|null Null when the concept has no term in `$locale`
      *                                   (never fall back to another locale for display).
      */
-    protected function formatNode(Concept $concept, string $locale): ?array
+    protected function formatNode(Concept $concept, string $locale, bool $onlyWithMedia = false): ?array
     {
         $term = $concept->termForLocale($locale, fallback: false);
         if ($term === null) {
+            return null;
+        }
+        if ($onlyWithMedia && ! $this->termHasMedia($term)) {
             return null;
         }
 

@@ -117,6 +117,7 @@ This repository is a **monorepo**: the **Laravel API** lives at the **root**; th
 - **Prerequisites**: Node version per [.nvmrc](.nvmrc) (NVM on host or Node Docker service); optionally Xcode (iOS) / Android Studio (Android) for native runs.
 - **Environment**: Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/client/.env`) to the API base URL (no trailing slash). Example: `EXPO_PUBLIC_API_URL=http://localhost`.
 - See [Expo Documentation](https://docs.expo.dev) for building and deploying the app.
+- **Test URL params** (Expo web / Critiquito): `canonicalConcept`, `localizedConcept`, `onlyWithMedia`, plus existing `locale`. Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es`. Docs: [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md).
 
 ### Admin Backoffice
 
@@ -209,7 +210,14 @@ Only `https` URLs on `upload.wikimedia.org` with a raster image extension are fe
 
 **POST** `/api/concepts/relationships`
 
-Generates laterally related concepts from a seed concept using the local LLM. **Cold start**: omit `seed` (or send an empty body) to let the API choose a random concept.
+Returns a prefetched graph neighborhood. **Cold start**: omit `start` (or send an empty body) to let the API choose a random concept.
+
+Test/dev filters (same names as the Expo web query params; see [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md)):
+
+- `start` / `seed` / `localizedConcept` — localized (or any-locale) term
+- `canonicalStart` / `canonicalConcept` — language-neutral `canonical_key` (use with `locale`)
+- `onlyWithMedia` — only concepts that have a `mediaUrl`
+- `locale` — `en` or `es`
 
 **Request:**
 ```json

@@ -13,6 +13,13 @@ import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/
 import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
 import { applyResolvedLocale } from '@/lib/locale';
+import {
+  applyJourneyTestDeck,
+  journeyStartOptions,
+  readJourneyTestParams,
+  resolveJourneyStartFallback,
+  type JourneyFetchOptions,
+} from '@/lib/testQueryParams';
 
 /**
  * Prefetch the next API batch when at most this many concepts remain **ahead** of the
@@ -56,6 +63,7 @@ export default function HomeScreen() {
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
   const pendingEndDeckLoadRef = useRef(false);
   const complexityRef = useRef(complexity);
+  const journeyTestParamsRef = useRef(readJourneyTestParams());
 
   useEffect(() => {
     complexityRef.current = complexity;
@@ -97,11 +105,16 @@ export default function HomeScreen() {
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
   const fetchBatch = useCallback(
-    async (requestedComplexity: number, seed?: string) => {
-      const trimmedSeed = seed?.trim() ?? '';
+    async (requestedComplexity: number, options?: JourneyFetchOptions) => {
+      const trimmedSeed = options?.start?.trim() ?? '';
+      const start = trimmedSeed !== '' ? trimmedSeed : undefined;
+      const canonicalStart = options?.canonicalStart?.trim() || undefined;
+      const onlyWithMedia = options?.onlyWithMedia || undefined;
       try {
         return await fetchConceptRelationships({
-          start: trimmedSeed !== '' ? trimmedSeed : undefined,
+          start,
+          canonicalStart,
+          onlyWithMedia,
           limit: 12,
           depth: 2,
           complexity: requestedComplexity,
@@ -112,7 +125,9 @@ export default function HomeScreen() {
         // If the requested complexity isn't prefetched yet, fall back to the default tier.
         if (e instanceof ApiError && e.status === 404 && requestedComplexity !== DEFAULT_CONCEPT_COMPLEXITY) {
           const data = await fetchConceptRelationships({
-            start: trimmedSeed !== '' ? trimmedSeed : undefined,
+            start,
+            canonicalStart,
+            onlyWithMedia,
             limit: 12,
             depth: 2,
             complexity: DEFAULT_CONCEPT_COMPLEXITY,
@@ -153,10 +168,18 @@ export default function HomeScreen() {
     clearEmptyRetry();
     emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
     try {
-      // Initial load: never send a seed (cold start)
-      const data = await fetchBatch(complexityRef.current);
+      const testParams = journeyTestParamsRef.current;
+      const startOptions = journeyStartOptions(testParams);
+      let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
+      try {
+        data = await fetchBatch(complexityRef.current, startOptions);
+      } catch (e) {
+        const fallback = resolveJourneyStartFallback(testParams, e);
+        if (fallback == null) throw e;
+        data = await fetchBatch(complexityRef.current, fallback);
+      }
       if (gen !== fetchGenRef.current) return;
-      const list: ConceptItem[] = graphToDeckItems(data);
+      const list: ConceptItem[] = applyJourneyTestDeck(graphToDeckItems(data), testParams);
       conceptsRef.current = list;
       currentIndexRef.current = 0;
       setConcepts(list);
@@ -195,12 +218,18 @@ export default function HomeScreen() {
       // Continue the chain from the last *walk-ordered* card (frontier), not DB-order last.
       const seed = list[list.length - 1]?.concept?.trim() ?? '';
       let didUseSeed = seed.length > 0;
+      const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
+        ? { onlyWithMedia: true as const }
+        : {};
       let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
       try {
-        data = await fetchBatch(complexityRef.current, didUseSeed ? seed : undefined);
+        data = await fetchBatch(complexityRef.current, {
+          ...(didUseSeed ? { start: seed } : {}),
+          ...mediaFilter,
+        });
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) {
-          data = await fetchBatch(complexityRef.current);
+          data = await fetchBatch(complexityRef.current, mediaFilter);
           didUseSeed = false;
         } else {
           throw e;
@@ -209,15 +238,23 @@ export default function HomeScreen() {
 
       if (!stillCurrent()) return;
 
-      let incoming = graphToDeckItems(data);
+      let incoming = applyJourneyTestDeck(graphToDeckItems(data), {
+        ...journeyTestParamsRef.current,
+        localizedConcept: undefined,
+        canonicalConcept: undefined,
+      });
       let plan = planLoadMoreMerge(conceptsRef.current, incoming, didUseSeed);
 
       // Same neighborhood as the first batch (common when seed was the original start):
       // cold-start a different random component instead of retrying the same seed forever.
       if (plan.action === 'coldStart') {
-        data = await fetchBatch(complexityRef.current);
+        data = await fetchBatch(complexityRef.current, mediaFilter);
         if (!stillCurrent()) return;
-        incoming = graphToDeckItems(data);
+        incoming = applyJourneyTestDeck(graphToDeckItems(data), {
+          ...journeyTestParamsRef.current,
+          localizedConcept: undefined,
+          canonicalConcept: undefined,
+        });
         plan = planLoadMoreMerge(conceptsRef.current, incoming, false);
       }
 
