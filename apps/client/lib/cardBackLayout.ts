@@ -8,7 +8,7 @@ export type CardBackMediaPhase = 'absent' | 'loading' | 'ready' | 'failed';
 export type CardBackLayoutMode = 'with-media' | 'without-media';
 
 /** How leftover viewport height is used on the back column. */
-export type CardBackScrollJustify = 'flex-start' | 'center' | 'space-between';
+export type CardBackScrollJustify = 'flex-start' | 'center';
 
 /**
  * Typography and placement for the title / description / link cluster.
@@ -38,14 +38,14 @@ export const CARD_BACK_WITH_MEDIA_RHYTHM: CardBackCopyRhythm = {
 };
 
 export const CARD_BACK_WITHOUT_MEDIA_RHYTHM: CardBackCopyRhythm = {
-  scrollJustify: 'space-between',
-  titleFontSize: 36,
-  titleLineHeight: 44,
-  titleMarginBottom: 0,
-  descriptionFontSize: 18,
-  descriptionLineHeight: 28,
-  descriptionMarginBottom: 0,
-  linkMarginTop: 0,
+  scrollJustify: 'center',
+  titleFontSize: 40,
+  titleLineHeight: 48,
+  titleMarginBottom: 26,
+  descriptionFontSize: 20,
+  descriptionLineHeight: 32,
+  descriptionMarginBottom: 18,
+  linkMarginTop: 10,
 };
 
 export type CardBackLayout = {
@@ -98,31 +98,33 @@ export function composeCardBackLayout(phase: CardBackMediaPhase): CardBackLayout
 
 /** Matches `faceInner` padding so measured face height converts to content minHeight. */
 export const CARD_BACK_FACE_PADDING = 20;
+export const CARD_BACK_FACE_BORDER = 1;
 
 /**
- * Pixel minHeight for ScrollView content so flex/justify actually receive leftover
- * space. Percentage minHeight is a no-op inside a transformed (flip) ancestor on web.
+ * Pixel height for the no-media column / with-media ScrollView content.
+ * Percentage height is a no-op inside a transformed (flip) ancestor on web.
+ * Subtract padding and border so the column fits the visible orange content box.
  */
 export function cardBackScrollMinHeight(
   faceHeight: number,
   padding: number = CARD_BACK_FACE_PADDING,
+  border: number = CARD_BACK_FACE_BORDER,
 ): number | undefined {
-  const inner = faceHeight - padding * 2;
+  const inner = faceHeight - padding * 2 - border * 2;
   if (!Number.isFinite(inner) || inner <= 0) return undefined;
   return inner;
 }
 
 /**
- * No-media inner column. Pixel minHeight is required: flex leftover never
- * reaches the back face under the flip transform on RN Web, so a shrink-wrapped
- * well cannot space-between / center. With-media already used this for ScrollView.
+ * No-media column: explicit pixel height from the untransformed front face.
+ * `bottom: 0` / flex leftover do not stretch under the flip transform on RN Web.
  */
 export function cardBackBalancedColumnStyle(faceHeight: number): {
   justifyContent: CardBackScrollJustify;
-  minHeight?: number;
+  height?: number;
 } {
-  const minHeight = cardBackScrollMinHeight(faceHeight);
-  return minHeight != null
-    ? { minHeight, justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify }
+  const height = cardBackScrollMinHeight(faceHeight);
+  return height != null
+    ? { height, justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify }
     : { justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify };
 }

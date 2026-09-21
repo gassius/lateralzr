@@ -255,32 +255,24 @@ export function ConceptCard({
     ) : null;
 
   /**
-   * No-media: ScrollView + pixel minHeight (measured on the untransformed front).
-   * flex:1 leftover never reaches the flipped back on RN Web, so #36's centered
-   * well shrink-wrapped and stayed top-heavy. space-between then uses that height.
-   * With-media: unchanged expanding well so the image takes leftover space.
+   * No-media: measured pixel height on an absolutely positioned column, then
+   * center title + description + Wikipedia as one group. flex leftover and
+   * bottom:0 do not stretch under the flip transform on RN Web, which is why
+   * #36 stayed top-heavy. With-media: unchanged expanding well.
    */
   const back = (
     <View style={styles.faceInner}>
       {backLayout.balanceCopy ? (
-        <ScrollView
-          style={styles.backScroll}
-          contentContainerStyle={[
-            styles.backScrollContent,
-            backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces
+        <View
+          style={[styles.backInnerBalanced, noMediaColumnStyle]}
           testID={`card-back-${backLayout.mode}`}
         >
-          <View style={[styles.backInnerBalanced, noMediaColumnStyle]}>
+          <View style={styles.noMediaCopyGroup} testID="card-back-copy">
             {backTitle}
-            <View style={styles.copyCluster} testID="card-back-copy">
-              {backDescription}
-            </View>
+            {backDescription}
             {backWiki}
           </View>
-        </ScrollView>
+        </View>
       ) : (
         <ScrollView
           style={styles.backScroll}
@@ -393,9 +385,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     width: '100%',
   },
-  /** Height comes from measured pixel minHeight; justify lives on the rhythm token. */
+  /**
+   * Pin to the face box with a measured pixel height. flex leftover and
+   * `bottom: 0` do not stretch this column under the flip transform on RN Web.
+   */
   backInnerBalanced: {
-    flexGrow: 1,
+    position: 'absolute',
+    top: CARD_BACK_FACE_PADDING,
+    left: CARD_BACK_FACE_PADDING,
+    right: CARD_BACK_FACE_PADDING,
+  },
+  noMediaCopyGroup: {
     width: '100%',
   },
   mediaSlot: {
