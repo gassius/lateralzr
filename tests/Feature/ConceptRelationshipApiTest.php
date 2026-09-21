@@ -160,7 +160,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 40, 3, 0.2, 'en', null, false, null)
+            ->with('creativity', 40, 3, 0.2, 'en', null, false, null, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -185,7 +185,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'es', null, false, null)
+            ->with('creativity', 100, 2, 0.0, 'es', null, false, null, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -236,7 +236,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with(null, 100, 2, 0.0, 'es', 'creativity', true, null)
+            ->with(null, 100, 2, 0.0, 'es', 'creativity', true, null, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => 'https://example.com/c.jpg', 'degree' => 0]],
@@ -261,7 +261,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creatividad', 100, 2, 0.0, 'es', null, false, null)
+            ->with('creatividad', 100, 2, 0.0, 'es', null, false, null, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
