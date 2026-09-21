@@ -9,6 +9,9 @@ import {
   DEFAULT_LATERALITY,
   lateralityGradientStops,
   parseLateralityParam,
+  resolveHydratedLaterality,
+  resolveInitialLaterality,
+  shouldPersistLaterality,
   stepLaterality,
 } from './laterality.ts';
 
@@ -40,6 +43,29 @@ describe('parseLateralityParam', () => {
     assert.equal(parseLateralityParam('4.5'), undefined);
     assert.equal(parseLateralityParam('15'), undefined);
     assert.equal(parseLateralityParam('4abc'), undefined);
+  });
+});
+
+describe('session-only URL laterality', () => {
+  it('lets ?laterality=N win for this load without asking to persist', () => {
+    const hydrated = resolveHydratedLaterality(4, 2);
+    assert.equal(hydrated.laterality, 4);
+    assert.equal(hydrated.persist, false);
+    assert.equal(resolveInitialLaterality(4, 2), 4);
+    assert.equal(shouldPersistLaterality('hydrate'), false);
+  });
+
+  it('falls back to stored laterality when the URL param is absent', () => {
+    assert.deepEqual(resolveHydratedLaterality(undefined, 2), {
+      laterality: 2,
+      persist: false,
+    });
+    assert.equal(resolveInitialLaterality(undefined, 2), 2);
+  });
+
+  it('persists only after an intentional submenu control', () => {
+    assert.equal(shouldPersistLaterality('control'), true);
+    assert.equal(shouldPersistLaterality('hydrate'), false);
   });
 });
 

@@ -40,6 +40,37 @@ export function stepLaterality(current: number, delta: -1 | 1): LateralityGrade 
   return clampLaterality(current + delta);
 }
 
+export type LateralityPersistReason = 'hydrate' | 'control';
+
+export type HydratedLaterality = {
+  laterality: LateralityGrade;
+  persist: boolean;
+};
+
+/** URL `?laterality=N` wins for this session/load only. */
+export function resolveInitialLaterality(
+  urlLaterality: LateralityGrade | undefined,
+  stored: LateralityGrade,
+): LateralityGrade {
+  return urlLaterality ?? stored;
+}
+
+/** Persist only after an intentional submenu +/−. Deep-link overrides stay session-only. */
+export function shouldPersistLaterality(reason: LateralityPersistReason): boolean {
+  return reason === 'control';
+}
+
+/** Apply a URL laterality for this load without overwriting stored preference. */
+export function resolveHydratedLaterality(
+  urlLaterality: LateralityGrade | undefined,
+  stored: LateralityGrade,
+): HydratedLaterality {
+  return {
+    laterality: resolveInitialLaterality(urlLaterality, stored),
+    persist: shouldPersistLaterality('hydrate'),
+  };
+}
+
 /**
  * Calm 2–3 stop wordmark gradient on the dark-blue deck.
  * Low laterality stays cool/contained; high laterality opens toward orange.

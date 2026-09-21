@@ -16,6 +16,8 @@ import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
   DEFAULT_LATERALITY,
+  resolveHydratedLaterality,
+  shouldPersistLaterality,
   stepLaterality,
   type LateralityGrade,
 } from '@/lib/laterality';
@@ -120,18 +122,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    const urlLaterality = journeyTestParamsRef.current.laterality;
-    if (urlLaterality != null) {
-      lateralityRef.current = urlLaterality;
-      setLaterality(urlLaterality);
-      setLateralityHydrated(true);
-      void persistLaterality(urlLaterality);
-      return;
-    }
     void loadStoredLaterality().then((stored) => {
       if (cancelled) return;
-      lateralityRef.current = stored;
-      setLaterality(stored);
+      const hydrated = resolveHydratedLaterality(journeyTestParamsRef.current.laterality, stored);
+      lateralityRef.current = hydrated.laterality;
+      setLaterality(hydrated.laterality);
+      if (hydrated.persist && shouldPersistLaterality('hydrate')) {
+        void persistLaterality(hydrated.laterality);
+      }
       setLateralityHydrated(true);
     });
     return () => {
@@ -517,7 +515,9 @@ export default function HomeScreen() {
     if (next === lateralityRef.current) return;
     lateralityRef.current = next;
     setLaterality(next);
-    void persistLaterality(next);
+    if (shouldPersistLaterality('control')) {
+      void persistLaterality(next);
+    }
     if (conceptsRef.current.length === 0) return;
     void prefetchLateralityTree();
   }, [prefetchLateralityTree]);

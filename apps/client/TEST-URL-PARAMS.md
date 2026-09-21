@@ -15,14 +15,14 @@ Existing locale override (unchanged): `locale=en` or `locale=es`. Device/browser
 | `onlyWithMedia` | `true` | Load only concepts that have a `mediaUrl`. Also applies to later “load more” batches. |
 | `locale` | `es` | Already supported. UI + API locale. Use with `canonicalConcept`. |
 | `complexity` | `5` | Force concept-label complexity (integer **1–5**) for **this load/session only**. Does not overwrite the stored preference. Storage updates only after an intentional swipe up/down. |
-| `laterality` | `4` | Set the initial laterality grade (integer **1–5**). Drives the submenu wordmark and the relationships request. |
+| `laterality` | `4` | Force laterality grade (integer **1–5**) for **this load/session only**. Does not overwrite the stored preference. Storage updates only after an intentional submenu +/−. |
 
 - Missing, blank, or unsupported values are ignored. The app cold-starts as usual (no crash).
 - `complexity` must be a whole number from 1 to 5. Blank, floats (`5.5`), and out-of-range values (`0`, `6`) are ignored. A valid value is session-only: Critiquito / preview deep links do not persist it.
 - An unknown concept (API 404) falls back to a normal random start. `onlyWithMedia` is kept if it was set.
 - If both concept params are present, **`localizedConcept` wins** (go directly to that label).
 - `onlyWithMedia` is on only for `true`, `1`, or `yes` (case-insensitive). Other values are off.
-- `laterality` must be a whole integer `1`–`5`. Blank, decimals (`4.5`), and out-of-range values are ignored (default grade **3**, or the last stored grade).
+- `laterality` must be a whole integer `1`–`5`. Blank, decimals (`4.5`), and out-of-range values are ignored (default grade **3**, or the last stored grade). A valid value is session-only: Critiquito / preview deep links do not persist it.
 
 ## Copy-paste URLs
 
