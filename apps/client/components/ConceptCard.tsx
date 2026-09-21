@@ -158,104 +158,120 @@ export function ConceptCard({
   const { rhythm } = backLayout;
   const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
 
+  const backTitle = (
+    <Text
+      style={[
+        styles.conceptName,
+        {
+          fontSize: rhythm.titleFontSize,
+          lineHeight: rhythm.titleLineHeight,
+          marginBottom: rhythm.titleMarginBottom,
+        },
+      ]}
+      testID="card-back-title"
+    >
+      {title}
+    </Text>
+  );
+
+  const backCopy = (
+    <View style={styles.copyCluster} testID="card-back-copy">
+      <Text
+        style={[
+          styles.description,
+          {
+            fontSize: rhythm.descriptionFontSize,
+            lineHeight: rhythm.descriptionLineHeight,
+            marginBottom: rhythm.descriptionMarginBottom,
+          },
+        ]}
+      >
+        {item.shortDescription || t('noDescription')}
+      </Text>
+      {item.wikiUrl ? (
+        <Text
+          style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+          onPress={() => Linking.openURL(item.wikiUrl!)}
+        >
+          {t('wikipedia')}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const backMedia =
+    backLayout.showMediaZone && imageSource ? (
+      <View
+        style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+        testID="card-back-media"
+      >
+        {backLayout.showMediaImage ? (
+          <Image
+            source={imageSource}
+            style={[
+              StyleSheet.absoluteFillObject,
+              styles.mediaImageInner,
+              backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
+            ]}
+            contentFit="contain"
+            contentPosition="center"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
+            onLoad={() => {
+              setMediaDecoded(true);
+              setMediaError(false);
+            }}
+            onLoadEnd={() => {
+              setMediaDecoded(true);
+            }}
+            onError={() => {
+              setMediaError(true);
+            }}
+            accessibilityRole="image"
+            accessibilityLabel={t('illustrationFor', { concept: item.concept })}
+          />
+        ) : null}
+        {backLayout.showMediaPlaceholder ? (
+          <View
+            style={styles.mediaPlaceholder}
+            pointerEvents="none"
+            testID="card-back-media-placeholder"
+          />
+        ) : null}
+      </View>
+    ) : null;
+
+  /**
+   * No-media: a flex View (same pattern as the card front). ScrollView leftover
+   * height never reaches justifyContent on web, which left Tide-style backs top-packed.
+   * With-media: ScrollView + expanding well so the image takes leftover space.
+   */
   const back = (
     <View style={styles.faceInner} onLayout={onFaceLayout}>
-      <ScrollView
-        style={styles.backScroll}
-        contentContainerStyle={[
-          styles.backScrollContent,
-          backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
-        ]}
-        showsVerticalScrollIndicator={false}
-        bounces
-        testID={`card-back-${backLayout.mode}`}
-      >
-        <View
-          style={[
-            backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia,
-            backLayout.balanceCopy && backScrollMinHeight != null
-              ? { minHeight: backScrollMinHeight }
-              : null,
-          ]}
-        >
-          <Text
-            style={[
-              styles.conceptName,
-              {
-                fontSize: rhythm.titleFontSize,
-                lineHeight: rhythm.titleLineHeight,
-                marginBottom: rhythm.titleMarginBottom,
-              },
-            ]}
-            testID="card-back-title"
-          >
-            {title}
-          </Text>
-          {backLayout.showMediaZone && imageSource ? (
-            <View
-              style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
-              testID="card-back-media"
-            >
-              {backLayout.showMediaImage ? (
-                <Image
-                  source={imageSource}
-                  style={[
-                    StyleSheet.absoluteFillObject,
-                    styles.mediaImageInner,
-                    backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
-                  ]}
-                  contentFit="contain"
-                  contentPosition="center"
-                  cachePolicy="memory-disk"
-                  priority="high"
-                  transition={0}
-                  onLoad={() => {
-                    setMediaDecoded(true);
-                    setMediaError(false);
-                  }}
-                  onLoadEnd={() => {
-                    setMediaDecoded(true);
-                  }}
-                  onError={() => {
-                    setMediaError(true);
-                  }}
-                  accessibilityRole="image"
-                  accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-                />
-              ) : null}
-              {backLayout.showMediaPlaceholder ? (
-                <View
-                  style={styles.mediaPlaceholder}
-                  pointerEvents="none"
-                  testID="card-back-media-placeholder"
-                />
-              ) : null}
-            </View>
-          ) : null}
-          <View style={styles.copyCluster} testID="card-back-copy">
-            <Text
-              style={[
-                styles.description,
-                {
-                  fontSize: rhythm.descriptionFontSize,
-                  lineHeight: rhythm.descriptionLineHeight,
-                  marginBottom: rhythm.descriptionMarginBottom,
-                },
-              ]}
-            >
-              {item.shortDescription || t('noDescription')}
-            </Text>
-            {item.wikiUrl ? (
-              <Text
-                style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
-                onPress={() => Linking.openURL(item.wikiUrl!)}
-              >
-                {t('wikipedia')}
-              </Text>
-            ) : null}
-          </View>
+      {backLayout.balanceCopy ? (
+        <View style={styles.backInnerBalanced} testID={`card-back-${backLayout.mode}`}>
+          {backTitle}
+          {backCopy}
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView
+          style={styles.backScroll}
+          contentContainerStyle={[
+            styles.backScrollContent,
+            backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          testID={`card-back-${backLayout.mode}`}
+        >
+          <View style={styles.backInnerWithMedia}>
+            {backTitle}
+            {backMedia}
+            {backCopy}
+          </View>
+        </ScrollView>
+      )}
     </View>
   );
 
@@ -350,11 +366,12 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     width: '100%',
   },
-  /** flexGrow + justify on THIS view — RN Web ignores justifyContent on ScrollView contentContainerStyle. */
+  /** Same centering well as the card front — do not put this inside a ScrollView on web. */
   backInnerBalanced: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'center',
     width: '100%',
+    minHeight: 0,
   },
   mediaSlot: {
     width: '100%',
