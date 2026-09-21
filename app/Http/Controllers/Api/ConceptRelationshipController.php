@@ -18,7 +18,7 @@ class ConceptRelationshipController
     /**
      * Fetch a graph neighborhood from prefetched concepts.
      * When start is omitted, the API chooses a random concept with edges.
-     *
+     * Optional test filters: localizedConcept/canonicalConcept/onlyWithMedia.
      *
      * @throws ValidationException
      */
@@ -27,16 +27,27 @@ class ConceptRelationshipController
         $validated = $request->validate([
             'start' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
             'seed' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
+            'localizedConcept' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
+            'canonicalStart' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
+            'canonicalConcept' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],
+            'onlyWithMedia' => ['sometimes', 'nullable'],
             'limit' => ['sometimes', 'integer', 'min:1', 'max:500'],
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
         ]);
 
-        $startValue = $validated['start'] ?? $validated['seed'] ?? null;
+        $startValue = $validated['start'] ?? $validated['seed'] ?? $validated['localizedConcept'] ?? null;
         $start = isset($startValue) && trim((string) $startValue) !== ''
             ? trim((string) $startValue)
             : null;
+
+        $canonicalValue = $validated['canonicalStart'] ?? $validated['canonicalConcept'] ?? null;
+        $canonicalStart = isset($canonicalValue) && trim((string) $canonicalValue) !== ''
+            ? trim((string) $canonicalValue)
+            : null;
+
+        $onlyWithMedia = filter_var($validated['onlyWithMedia'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         $locale = ConceptLocale::resolve($validated['locale'] ?? null);
 
@@ -46,7 +57,9 @@ class ConceptRelationshipController
                 limit: (int) ($validated['limit'] ?? 100),
                 depth: (int) ($validated['depth'] ?? 2),
                 minStrength: (float) ($validated['minStrength'] ?? 0.0),
-                locale: $locale
+                locale: $locale,
+                canonicalStart: $canonicalStart,
+                onlyWithMedia: $onlyWithMedia
             );
 
             if ($result === null) {

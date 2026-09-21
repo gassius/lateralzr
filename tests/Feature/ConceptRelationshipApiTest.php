@@ -160,7 +160,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 40, 3, 0.2, 'en')
+            ->with('creativity', 40, 3, 0.2, 'en', null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -185,7 +185,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'es')
+            ->with('creativity', 100, 2, 0.0, 'es', null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -229,5 +229,53 @@ class ConceptRelationshipApiTest extends TestCase
             ->assertJson([
                 'status' => 'error',
             ]);
+    }
+
+    public function test_generate_endpoint_passes_canonical_start_and_only_with_media(): void
+    {
+        $mockQuery = Mockery::mock(ConceptGraphQuery::class);
+        $mockQuery->shouldReceive('getGraph')
+            ->once()
+            ->with(null, 100, 2, 0.0, 'es', 'creativity', true)
+            ->andReturn([
+                'start' => ['id' => 1, 'label' => 'creatividad'],
+                'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => 'https://example.com/c.jpg', 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'es'],
+            ]);
+        $this->app->instance(ConceptGraphQuery::class, $mockQuery);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'canonicalConcept' => 'creativity',
+            'locale' => 'es',
+            'onlyWithMedia' => true,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.start.label', 'creatividad')
+            ->assertJsonPath('data.meta.locale', 'es');
+    }
+
+    public function test_generate_endpoint_accepts_localized_concept_alias(): void
+    {
+        $mockQuery = Mockery::mock(ConceptGraphQuery::class);
+        $mockQuery->shouldReceive('getGraph')
+            ->once()
+            ->with('creatividad', 100, 2, 0.0, 'es', null, false)
+            ->andReturn([
+                'start' => ['id' => 1, 'label' => 'creatividad'],
+                'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'es'],
+            ]);
+        $this->app->instance(ConceptGraphQuery::class, $mockQuery);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'localizedConcept' => 'creatividad',
+            'locale' => 'es',
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.start.label', 'creatividad');
     }
 }

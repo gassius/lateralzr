@@ -2,6 +2,7 @@ import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { graphToDeckItems } from '@/lib/conceptDeck';
 import { assertAndFilterGraphLocale } from '@/lib/graphLocale';
 import { getActiveLocale, isSupportedLocale, t } from '@/lib/i18n';
+import { buildRelationshipsRequestBody } from '@/lib/testQueryParams';
 
 const API_URL = resolveApiBaseUrl();
 
@@ -63,6 +64,8 @@ export async function fetchConceptRelationships(
   options?: {
     start?: string;
     seed?: string;
+    canonicalStart?: string;
+    onlyWithMedia?: boolean;
     limit?: number;
     depth?: number;
     minStrength?: number;
@@ -71,13 +74,16 @@ export async function fetchConceptRelationships(
   }
 ): Promise<ConceptGraphResponse['data']> {
   const locale = options?.locale ?? getActiveLocale();
-  const body: { start?: string; limit?: number; depth?: number; minStrength?: number; locale?: string } = {};
-  const start = options?.start ?? options?.seed;
-  if (start != null && start.trim() !== '') body.start = start.trim();
-  if (options?.limit != null) body.limit = options.limit;
-  if (options?.depth != null) body.depth = options.depth;
-  if (options?.minStrength != null) body.minStrength = options.minStrength;
-  body.locale = locale;
+  const body = buildRelationshipsRequestBody({
+    start: options?.start,
+    seed: options?.seed,
+    canonicalStart: options?.canonicalStart,
+    onlyWithMedia: options?.onlyWithMedia,
+    limit: options?.limit,
+    depth: options?.depth,
+    minStrength: options?.minStrength,
+    locale,
+  });
 
   const res = await fetch(`${API_URL}/api/concepts/relationships`, {
     method: 'POST',
