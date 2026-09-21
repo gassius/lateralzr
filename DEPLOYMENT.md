@@ -17,7 +17,7 @@ Automated deployment via GitHub Actions runs on every push to `main` or can be t
 **How it works**:
 1. Push to `main` branch triggers the workflow
 2. GitHub Actions SSHes to the VPS at `/home/cgonzalez/lateralzr`
-3. Runs `bin/deploy-prod` script (dirty-tree guard, fetch, build, migrate, compose up, optimize)
+3. Runs `bin/deploy-prod` script (conservative Docker prune, disk preflight, dirty-tree guard, fetch, build, migrate, compose up, dangling-image prune, optimize)
 4. Verifies deployment and API health
 
 **Manual trigger**:
@@ -34,11 +34,13 @@ cd /home/cgonzalez/lateralzr
 ```
 
 The `bin/deploy-prod` script:
+- Prunes Docker build cache and dangling images (`bin/deploy-cleanup-docker`, fail-soft if missing)
+- Guards free disk (default 3GB on the repo and Docker data mounts)
 - Guards against uncommitted changes (dirty tree)
 - Fetches and pulls latest from git
 - Builds Docker images (`docker-compose.prod.yml` only)
 - Runs migrations
-- Starts services, then optimizes Laravel caches inside running containers
+- Starts services, prunes dangling images left by the retag, then optimizes Laravel caches inside running containers
 - Restarts services with zero-downtime
 
 ## Architecture Overview
@@ -283,12 +285,15 @@ cd /home/cgonzalez/lateralzr
 ```
 
 The `bin/deploy-prod` script performs:
-1. Dirty tree guard (refuses to deploy with uncommitted changes)
-2. Git fetch and pull
-3. Docker build
-4. Database migrations
-5. Laravel cache optimization
-6. Service restart (`docker-compose.prod.yml` only)
+1. Conservative Docker cleanup (`./bin/deploy-cleanup-docker`: build cache + dangling images only; fail-soft if the script is missing)
+2. Disk preflight (default 3GB free; see [Disk space and maintenance](#disk-space-and-maintenance))
+3. Dirty tree guard (refuses to deploy with uncommitted changes)
+4. Git fetch and pull
+5. Docker build
+6. Database migrations
+7. Service restart (`docker-compose.prod.yml` only)
+8. Conservative dangling-image prune after retag/`up` (same cleanup script; no volumes, Traefik certs, or running stacks)
+9. Laravel cache optimization
 
 ### View Logs
 
@@ -523,19 +528,21 @@ tar -czf storage-backup-$(date +%Y%m%d).tar.gz storage/
 
 Production deploys need free space for `git pull`, Docker layer downloads, and `Dockerfile.prod` builds (Composer, pnpm, apt packages). On a small VPS, Docker **build cache**, **old image layers**, and **container logs** accumulate quickly. Before PR #4, `docker-compose.prod.yml` triggered **three parallel builds** of the same image (`app`, `queue`, `scheduler`), which temporarily tripled peak disk use during deploy.
 
-**Check space before deploy** (also runs automatically in `bin/deploy-prod`):
+**Check space before deploy** (cleanup runs automatically, then this check, in `bin/deploy-prod`):
 
 ```bash
 ./bin/deploy-disk-check.sh
 # Default minimum: 3GB free (override with DEPLOY_MIN_FREE_GB=5)
 ```
 
-**Conservative cleanup** (does not remove named volumes used by gonzalezrico/MySQL):
+**Conservative cleanup** (does not remove named volumes used by gonzalezrico/MySQL, Traefik certs, or running stacks). `bin/deploy-prod` runs this **before** the disk preflight so each rebuild's leftover `lateralzr_app:prod` / `lateralzr_nginx:prod` digests (~1.27GB) are reclaimed, and again after a successful compose `up` once containers have switched to the new tags. Manual use:
 
 ```bash
 ./bin/deploy-cleanup-docker
 # or: ./deploy-prod.sh cleanup-docker
 ```
+
+If the cleanup script is missing or prune fails, `bin/deploy-prod` logs a warning and continues; the disk check remains the hard gate. Do **not** run `docker volume prune` or `docker system prune -a` on this shared VPS.
 
 If `git pull` fails with **No space left on device**, SSH to the VPS, run cleanup above, then `git pull` and `./bin/deploy-prod`. To bypass the deploy guard in an emergency: `SKIP_DISK_CHECK=1 ./bin/deploy-prod` (only after freeing space).
 
