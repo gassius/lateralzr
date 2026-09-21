@@ -16,6 +16,17 @@ import {
   type DiscoveryCoachingView,
 } from '@/lib/discoveryCoaching';
 
+function initialReduceMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 type UseDiscoveryCoachingArgs = {
   cardIndex: number;
   flipped: boolean;
@@ -49,7 +60,7 @@ export function useDiscoveryCoaching({
   noteFlipped: () => void;
 } {
   const [state, setState] = useState<DiscoveryCoachingState>(getDiscoveryCoachingSession);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(initialReduceMotion);
   const [idleEpoch, setIdleEpoch] = useState(0);
 
   const view: DiscoveryCoachingView = useMemo(
@@ -100,6 +111,7 @@ export function useDiscoveryCoaching({
   }, [state, view]);
 
   const coach = visibleCoach(state, view);
+  /** Also gates the coach copy fade/slide; reduced motion is text-only. */
   const peekEnabled = shouldAnimateCoachPeek(reduceMotion);
 
   return {

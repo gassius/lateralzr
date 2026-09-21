@@ -18,6 +18,7 @@ import {
   conceptFrontLabelTextAlignFromLineCount,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
 } from '@/lib/conceptFrontLabelAlign';
+import { CoachHint } from './CoachHint';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
@@ -36,6 +37,8 @@ type ConceptCardProps = {
   isMediaPrefetched: boolean;
   /** Momentary coaching copy on the front face; omit after the gesture is discovered. */
   coachHint?: string | null;
+  /** Fade/slide the coach in. False under reduced motion (text-only). */
+  animateCoachAppear?: boolean;
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
 };
@@ -45,6 +48,7 @@ export function ConceptCard({
   flipped,
   isMediaPrefetched,
   coachHint,
+  animateCoachAppear = true,
   flipPeek,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
@@ -131,9 +135,7 @@ export function ConceptCard({
         </Text>
       </View>
       {coachHint ? (
-        <Text style={styles.hint} accessibilityLiveRegion="polite">
-          {coachHint}
-        </Text>
+        <CoachHint text={coachHint} animateAppear={animateCoachAppear} surface="orange" />
       ) : null}
     </View>
   );
@@ -375,15 +377,5 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '700',
     textDecorationLine: 'underline',
-  },
-  /** Overlay so momentary coaching does not shrink the front well and un-center short labels. */
-  hint: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 20,
-    fontSize: 12,
-    opacity: 0.75,
-    color: Palette.darkBlue,
   },
 });

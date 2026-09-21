@@ -650,6 +650,7 @@ export function ConceptCardStack({
                 flipped={flipped}
                 preloadedMediaUrls={preloadedMediaUrls}
                 coachHint={coach ? t(coachMessageKey(coach)) : null}
+                animateCoachAppear={peekEnabled}
                 flipPeek={flipPeek}
               />
             )}
@@ -677,6 +678,7 @@ function ConceptCardForIndex({
   flipped,
   preloadedMediaUrls,
   coachHint,
+  animateCoachAppear,
   flipPeek,
 }: {
   concepts: ConceptItem[];
@@ -684,6 +686,7 @@ function ConceptCardForIndex({
   flipped: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
   coachHint?: string | null;
+  animateCoachAppear?: boolean;
   flipPeek?: SharedValue<number>;
 }) {
   const item = concepts[currentIndex]!;
@@ -695,6 +698,7 @@ function ConceptCardForIndex({
       flipped={flipped}
       isMediaPrefetched={isMediaPrefetched}
       coachHint={coachHint}
+      animateCoachAppear={animateCoachAppear}
       flipPeek={flipPeek}
     />
   );
