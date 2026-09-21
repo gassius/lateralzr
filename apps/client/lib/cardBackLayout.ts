@@ -7,8 +7,8 @@ export type CardBackMediaPhase = 'absent' | 'loading' | 'ready' | 'failed';
 
 export type CardBackLayoutMode = 'with-media' | 'without-media';
 
-/** How leftover viewport height is used on the back ScrollView. */
-export type CardBackScrollJustify = 'flex-start' | 'center';
+/** How leftover viewport height is used on the back column. */
+export type CardBackScrollJustify = 'flex-start' | 'center' | 'space-between';
 
 /**
  * Typography and placement for the title / description / link cluster.
@@ -38,14 +38,14 @@ export const CARD_BACK_WITH_MEDIA_RHYTHM: CardBackCopyRhythm = {
 };
 
 export const CARD_BACK_WITHOUT_MEDIA_RHYTHM: CardBackCopyRhythm = {
-  scrollJustify: 'center',
-  titleFontSize: 34,
-  titleLineHeight: 42,
-  titleMarginBottom: 20,
+  scrollJustify: 'space-between',
+  titleFontSize: 36,
+  titleLineHeight: 44,
+  titleMarginBottom: 0,
   descriptionFontSize: 18,
   descriptionLineHeight: 28,
-  descriptionMarginBottom: 18,
-  linkMarginTop: 6,
+  descriptionMarginBottom: 0,
+  linkMarginTop: 0,
 };
 
 export type CardBackLayout = {
@@ -110,4 +110,19 @@ export function cardBackScrollMinHeight(
   const inner = faceHeight - padding * 2;
   if (!Number.isFinite(inner) || inner <= 0) return undefined;
   return inner;
+}
+
+/**
+ * No-media inner column. Pixel minHeight is required: flex leftover never
+ * reaches the back face under the flip transform on RN Web, so a shrink-wrapped
+ * well cannot space-between / center. With-media already used this for ScrollView.
+ */
+export function cardBackBalancedColumnStyle(faceHeight: number): {
+  justifyContent: CardBackScrollJustify;
+  minHeight?: number;
+} {
+  const minHeight = cardBackScrollMinHeight(faceHeight);
+  return minHeight != null
+    ? { minHeight, justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify }
+    : { justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify };
 }
