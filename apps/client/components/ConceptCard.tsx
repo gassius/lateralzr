@@ -12,7 +12,12 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
-import { composeCardBackLayout, resolveCardBackMediaPhase } from '@/lib/cardBackLayout';
+import {
+  CARD_BACK_FACE_PADDING,
+  cardBackScrollMinHeight,
+  composeCardBackLayout,
+  resolveCardBackMediaPhase,
+} from '@/lib/cardBackLayout';
 import {
   conceptFrontLabelTextAlign,
   conceptFrontLabelTextAlignFromLineCount,
@@ -57,6 +62,7 @@ export function ConceptCard({
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [backFaceH, setBackFaceH] = useState(0);
   const [frontContentWidth, setFrontContentWidth] = useState(0);
   const [frontLineCount, setFrontLineCount] = useState<number | null>(null);
   const estimatedFrontAlign = conceptFrontLabelTextAlign(title, frontContentWidth);
@@ -119,8 +125,13 @@ export function ConceptCard({
     };
   });
 
+  const onFaceLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+    const next = event.nativeEvent.layout.height;
+    setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+  };
+
   const front = (
-    <View style={styles.faceInner}>
+    <View style={styles.faceInner} onLayout={onFaceLayout}>
       <View
         style={styles.frontCenter}
         onLayout={(event) => setFrontContentWidth(event.nativeEvent.layout.width)}
@@ -146,78 +157,124 @@ export function ConceptCard({
     failed: mediaError,
   });
   const backLayout = composeCardBackLayout(mediaPhase);
+  const { rhythm } = backLayout;
+  const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
 
-  const back = (
-    <ScrollView
-      style={[styles.faceInner, styles.backScroll]}
-      contentContainerStyle={styles.backScrollContent}
-      showsVerticalScrollIndicator={false}
-      bounces
-      testID={`card-back-${backLayout.mode}`}
+  const backTitle = (
+    <Text
+      style={[
+        styles.conceptName,
+        {
+          fontSize: rhythm.titleFontSize,
+          lineHeight: rhythm.titleLineHeight,
+          marginBottom: rhythm.titleMarginBottom,
+        },
+      ]}
+      testID="card-back-title"
     >
-      <View style={backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia}>
+      {title}
+    </Text>
+  );
+
+  const backCopy = (
+    <View style={styles.copyCluster} testID="card-back-copy">
+      <Text
+        style={[
+          styles.description,
+          {
+            fontSize: rhythm.descriptionFontSize,
+            lineHeight: rhythm.descriptionLineHeight,
+            marginBottom: rhythm.descriptionMarginBottom,
+          },
+        ]}
+      >
+        {item.shortDescription || t('noDescription')}
+      </Text>
+      {item.wikiUrl ? (
         <Text
-          style={[styles.conceptName, backLayout.mode === 'without-media' && styles.conceptNameSolo]}
-          testID="card-back-title"
+          style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+          onPress={() => Linking.openURL(item.wikiUrl!)}
         >
-          {title}
+          {t('wikipedia')}
         </Text>
-        {backLayout.showMediaZone && imageSource ? (
-          <View
-            style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
-            testID="card-back-media"
-          >
-            {backLayout.showMediaImage ? (
-              <Image
-                source={imageSource}
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  styles.mediaImageInner,
-                  backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
-                ]}
-                contentFit="contain"
-                contentPosition="center"
-                cachePolicy="memory-disk"
-                priority="high"
-                transition={0}
-                onLoad={() => {
-                  setMediaDecoded(true);
-                  setMediaError(false);
-                }}
-                onLoadEnd={() => {
-                  setMediaDecoded(true);
-                }}
-                onError={() => {
-                  setMediaError(true);
-                }}
-                accessibilityRole="image"
-                accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-              />
-            ) : null}
-            {backLayout.showMediaPlaceholder ? (
-              <View
-                style={styles.mediaPlaceholder}
-                pointerEvents="none"
-                testID="card-back-media-placeholder"
-              />
-            ) : null}
-          </View>
+      ) : null}
+    </View>
+  );
+
+  const backMedia =
+    backLayout.showMediaZone && imageSource ? (
+      <View
+        style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+        testID="card-back-media"
+      >
+        {backLayout.showMediaImage ? (
+          <Image
+            source={imageSource}
+            style={[
+              StyleSheet.absoluteFillObject,
+              styles.mediaImageInner,
+              backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
+            ]}
+            contentFit="contain"
+            contentPosition="center"
+            cachePolicy="memory-disk"
+            priority="high"
+            transition={0}
+            onLoad={() => {
+              setMediaDecoded(true);
+              setMediaError(false);
+            }}
+            onLoadEnd={() => {
+              setMediaDecoded(true);
+            }}
+            onError={() => {
+              setMediaError(true);
+            }}
+            accessibilityRole="image"
+            accessibilityLabel={t('illustrationFor', { concept: item.concept })}
+          />
         ) : null}
-        <View style={styles.copyCluster} testID="card-back-copy">
-          <Text style={styles.description}>
-            {item.shortDescription || t('noDescription')}
-          </Text>
-          {item.wikiUrl ? (
-            <Text
-              style={styles.link}
-              onPress={() => Linking.openURL(item.wikiUrl!)}
-            >
-              {t('wikipedia')}
-            </Text>
-          ) : null}
-        </View>
+        {backLayout.showMediaPlaceholder ? (
+          <View
+            style={styles.mediaPlaceholder}
+            pointerEvents="none"
+            testID="card-back-media-placeholder"
+          />
+        ) : null}
       </View>
-    </ScrollView>
+    ) : null;
+
+  /**
+   * No-media: a flex View (same pattern as the card front). ScrollView leftover
+   * height never reaches justifyContent on web, which left Tide-style backs top-packed.
+   * With-media: ScrollView + expanding well so the image takes leftover space.
+   */
+  const back = (
+    <View style={styles.faceInner} onLayout={onFaceLayout}>
+      {backLayout.balanceCopy ? (
+        <View style={styles.backInnerBalanced} testID={`card-back-${backLayout.mode}`}>
+          {backTitle}
+          {backCopy}
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.backScroll}
+          contentContainerStyle={[
+            styles.backScrollContent,
+            backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
+          ]}
+          showsVerticalScrollIndicator={false}
+          bounces
+          testID={`card-back-${backLayout.mode}`}
+        >
+          <View style={styles.backInnerWithMedia}>
+            {backTitle}
+            {backMedia}
+            {backCopy}
+          </View>
+        </ScrollView>
+      )}
+    </View>
   );
 
   return (
@@ -292,7 +349,7 @@ const styles = StyleSheet.create({
   },
   faceInner: {
     flex: 1,
-    padding: 20,
+    padding: CARD_BACK_FACE_PADDING,
     borderRadius: 16,
     backgroundColor: Palette.orange,
     borderWidth: 1,
@@ -302,19 +359,21 @@ const styles = StyleSheet.create({
   },
   backScroll: {
     flex: 1,
+    minHeight: 0,
   },
   backScrollContent: {
     flexGrow: 1,
-    paddingBottom: 4,
   },
   backInnerWithMedia: {
     flexGrow: 1,
-    minHeight: '100%',
+    width: '100%',
   },
+  /** Same centering well as the card front — do not put this inside a ScrollView on web. */
   backInnerBalanced: {
-    flexGrow: 1,
-    minHeight: '100%',
+    flex: 1,
     justifyContent: 'center',
+    width: '100%',
+    minHeight: 0,
   },
   mediaSlot: {
     width: '100%',
@@ -354,20 +413,10 @@ const styles = StyleSheet.create({
     color: Palette.darkBlue,
   },
   conceptName: {
-    fontSize: 26,
     fontWeight: '700',
-    marginBottom: 8,
     color: Palette.darkBlue,
   },
-  conceptNameSolo: {
-    fontSize: 34,
-    lineHeight: 42,
-    marginBottom: 12,
-  },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 12,
     opacity: 0.92,
     color: Palette.darkBlue,
   },
