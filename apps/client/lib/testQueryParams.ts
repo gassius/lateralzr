@@ -77,6 +77,9 @@ export function journeyStartOptions(params: JourneyTestParams): JourneyFetchOpti
     options.start = params.localizedConcept;
   } else if (params.canonicalConcept) {
     options.canonicalStart = params.canonicalConcept;
+    // Also send as `start` so current production (which only knows term lookup)
+    // still resolves keys that match a localized/English term.
+    options.start = params.canonicalConcept;
   }
   if (params.onlyWithMedia) {
     options.onlyWithMedia = true;

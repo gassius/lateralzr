@@ -77,7 +77,7 @@ describe('journeyStartOptions', () => {
         canonicalConcept: 'creativity',
         onlyWithMedia: true,
       }),
-      { canonicalStart: 'creativity', onlyWithMedia: true },
+      { start: 'creativity', canonicalStart: 'creativity', onlyWithMedia: true },
     );
   });
 

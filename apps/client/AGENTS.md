@@ -55,7 +55,7 @@ Testers can deep-link the web preview with query params. **Do not treat this as 
 | `onlyWithMedia=true` | Restrict the deck to concepts that have media |
 | `locale=en\|es` | Existing locale override |
 
-Example: `https://lateralzr-client.vercel.app/?canonicalConcept=creativity&locale=es&onlyWithMedia=true`
+Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true`
 
 ## Navigation & Routing
 

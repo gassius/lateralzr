@@ -25,19 +25,24 @@ Existing locale override (unchanged): `locale=en` or `locale=es`. Device/browser
 Production preview:
 
 ```
-https://lateralzr-client.vercel.app/?canonicalConcept=creativity
-https://lateralzr-client.vercel.app/?canonicalConcept=creativity&locale=es
-https://lateralzr-client.vercel.app/?localizedConcept=creatividad&locale=es
+https://lateralzr-client.vercel.app/?canonicalConcept=mushroom
+https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es
+https://lateralzr-client.vercel.app/?localizedConcept=seta&locale=es
+https://lateralzr-client.vercel.app/?localizedConcept=mushroom
 https://lateralzr-client.vercel.app/?onlyWithMedia=true
-https://lateralzr-client.vercel.app/?localizedConcept=creativity&onlyWithMedia=true
-https://lateralzr-client.vercel.app/?canonicalConcept=creativity&locale=es&onlyWithMedia=true
+https://lateralzr-client.vercel.app/?localizedConcept=Psychedelics&onlyWithMedia=true
+https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=en&onlyWithMedia=true
 ```
+
+`canonicalConcept=mushroom&locale=es` should open on the Spanish card **seta**. `Psychedelics` is a production start that already has media.
+
+`mushroom` is a known prefetched start on production. Swap in any other `canonical_key` / localized card label from Admin. Unknown values 404 and the client cold-starts.
 
 Local Expo web (`pnpm web` from `apps/client`, default port 8081):
 
 ```
-http://localhost:8081/?canonicalConcept=creativity
-http://localhost:8081/?localizedConcept=creatividad&locale=es
+http://localhost:8081/?canonicalConcept=mushroom
+http://localhost:8081/?localizedConcept=mushroom
 http://localhost:8081/?onlyWithMedia=true
 ```
 
