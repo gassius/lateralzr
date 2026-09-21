@@ -5,8 +5,10 @@ import {
   buildRelationshipsRequestBody,
   journeyStartOptions,
   parseJourneyTestParams,
+  resolveHydratedComplexity,
   resolveInitialComplexity,
   resolveJourneyStartFallback,
+  shouldPersistComplexity,
 } from './testQueryParams.ts';
 
 describe('parseJourneyTestParams', () => {
@@ -158,6 +160,30 @@ describe('resolveInitialComplexity', () => {
 
   it('falls back to the stored complexity when the URL value is missing', () => {
     assert.equal(resolveInitialComplexity({ onlyWithMedia: false }, 3), 3);
+  });
+});
+
+describe('resolveHydratedComplexity', () => {
+  it('applies a URL complexity for this load without marking it for persistence', () => {
+    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false, complexity: 5 }, 2), {
+      complexity: 5,
+      persist: false,
+    });
+  });
+
+  it('keeps the stored complexity when the URL has no override', () => {
+    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false }, 3), {
+      complexity: 3,
+      persist: false,
+    });
+  });
+});
+
+describe('shouldPersistComplexity', () => {
+  it('persists only after an intentional up/down swipe', () => {
+    assert.equal(shouldPersistComplexity('swipe'), true);
+    assert.equal(shouldPersistComplexity('hydrate'), false);
+    assert.equal(shouldPersistComplexity('fallback'), false);
   });
 });
 

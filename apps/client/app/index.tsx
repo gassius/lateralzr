@@ -17,8 +17,9 @@ import {
   applyJourneyTestDeck,
   journeyStartOptions,
   readJourneyTestParams,
-  resolveInitialComplexity,
+  resolveHydratedComplexity,
   resolveJourneyStartFallback,
+  shouldPersistComplexity,
   type JourneyFetchOptions,
 } from '@/lib/testQueryParams';
 
@@ -87,11 +88,11 @@ export default function HomeScreen() {
     let cancelled = false;
     void loadStoredComplexity().then((stored) => {
       if (cancelled) return;
-      const initial = resolveInitialComplexity(journeyTestParamsRef.current, stored);
-      complexityRef.current = initial;
-      setComplexity(initial);
-      if (initial !== stored) {
-        void persistComplexity(initial);
+      const hydrated = resolveHydratedComplexity(journeyTestParamsRef.current, stored);
+      complexityRef.current = hydrated.complexity;
+      setComplexity(hydrated.complexity);
+      if (hydrated.persist && shouldPersistComplexity('hydrate')) {
+        void persistComplexity(hydrated.complexity);
       }
       setComplexityHydrated(true);
     });
@@ -150,7 +151,9 @@ export default function HomeScreen() {
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
           setComplexity(DEFAULT_CONCEPT_COMPLEXITY);
-          void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          if (shouldPersistComplexity('fallback')) {
+            void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          }
           return data;
         }
         throw e;
@@ -422,7 +425,9 @@ export default function HomeScreen() {
       const next = clampComplexity(complexityRef.current + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
       setComplexity(next);
-      void persistComplexity(next);
+      if (shouldPersistComplexity('swipe')) {
+        void persistComplexity(next);
+      }
 
       // Advance like a forward swipe when there is a next card, but do not kick
       // the end-of-deck loader — the complexity prefetch will swap upcoming cards.
