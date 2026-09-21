@@ -126,75 +126,75 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
   const back = (
     <ScrollView
       style={[styles.faceInner, styles.backScroll]}
-      contentContainerStyle={
-        backLayout.balanceCopy ? styles.backScrollContentBalanced : styles.backScrollContentWithMedia
-      }
+      contentContainerStyle={styles.backScrollContent}
       showsVerticalScrollIndicator={false}
       bounces
       testID={`card-back-${backLayout.mode}`}
     >
-      <Text
-        style={[styles.conceptName, backLayout.mode === 'without-media' && styles.conceptNameSolo]}
-        testID="card-back-title"
-      >
-        {title}
-      </Text>
-      {backLayout.showMediaZone && imageSource ? (
-        <View
-          style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
-          testID="card-back-media"
+      <View style={backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia}>
+        <Text
+          style={[styles.conceptName, backLayout.mode === 'without-media' && styles.conceptNameSolo]}
+          testID="card-back-title"
         >
-          {backLayout.showMediaImage ? (
-            <Image
-              source={imageSource}
-              style={[
-                StyleSheet.absoluteFillObject,
-                styles.mediaImageInner,
-                backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
-              ]}
-              contentFit="contain"
-              contentPosition="center"
-              cachePolicy="memory-disk"
-              priority="high"
-              transition={0}
-              onLoad={() => {
-                setMediaDecoded(true);
-                setMediaError(false);
-              }}
-              onLoadEnd={() => {
-                setMediaDecoded(true);
-              }}
-              onError={() => {
-                setMediaError(true);
-              }}
-              accessibilityRole="image"
-              accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-            />
-          ) : null}
-          {backLayout.showMediaPlaceholder ? (
-            <View
-              style={styles.mediaPlaceholder}
-              pointerEvents="none"
-              testID="card-back-media-placeholder"
-            />
-          ) : null}
-        </View>
-      ) : null}
-      <View style={styles.copyCluster} testID="card-back-copy">
-        <Text style={styles.description}>
-          {item.shortDescription || t('noDescription')}
+          {title}
         </Text>
-        {item.wikiUrl ? (
-          <Text
-            style={styles.link}
-            onPress={() => Linking.openURL(item.wikiUrl!)}
+        {backLayout.showMediaZone && imageSource ? (
+          <View
+            style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+            testID="card-back-media"
           >
-            {t('wikipedia')}
-          </Text>
+            {backLayout.showMediaImage ? (
+              <Image
+                source={imageSource}
+                style={[
+                  StyleSheet.absoluteFillObject,
+                  styles.mediaImageInner,
+                  backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
+                ]}
+                contentFit="contain"
+                contentPosition="center"
+                cachePolicy="memory-disk"
+                priority="high"
+                transition={0}
+                onLoad={() => {
+                  setMediaDecoded(true);
+                  setMediaError(false);
+                }}
+                onLoadEnd={() => {
+                  setMediaDecoded(true);
+                }}
+                onError={() => {
+                  setMediaError(true);
+                }}
+                accessibilityRole="image"
+                accessibilityLabel={t('illustrationFor', { concept: item.concept })}
+              />
+            ) : null}
+            {backLayout.showMediaPlaceholder ? (
+              <View
+                style={styles.mediaPlaceholder}
+                pointerEvents="none"
+                testID="card-back-media-placeholder"
+              />
+            ) : null}
+          </View>
         ) : null}
-        <Text style={styles.backHint}>
-          {t('tapToFlipBack')}
-        </Text>
+        <View style={styles.copyCluster} testID="card-back-copy">
+          <Text style={styles.description}>
+            {item.shortDescription || t('noDescription')}
+          </Text>
+          {item.wikiUrl ? (
+            <Text
+              style={styles.link}
+              onPress={() => Linking.openURL(item.wikiUrl!)}
+            >
+              {t('wikipedia')}
+            </Text>
+          ) : null}
+          <Text style={styles.backHint}>
+            {t('tapToFlipBack')}
+          </Text>
+        </View>
       </View>
     </ScrollView>
   );
@@ -281,15 +281,18 @@ const styles = StyleSheet.create({
   backScroll: {
     flex: 1,
   },
-  backScrollContentWithMedia: {
+  backScrollContent: {
     flexGrow: 1,
-    justifyContent: 'flex-start',
     paddingBottom: 4,
   },
-  backScrollContentBalanced: {
+  backInnerWithMedia: {
     flexGrow: 1,
+    minHeight: '100%',
+  },
+  backInnerBalanced: {
+    flexGrow: 1,
+    minHeight: '100%',
     justifyContent: 'center',
-    paddingBottom: 4,
   },
   mediaSlot: {
     width: '100%',
