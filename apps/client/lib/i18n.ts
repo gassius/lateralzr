@@ -5,8 +5,8 @@ export type AppLocale = (typeof SUPPORTED_LOCALES)[number];
 export const DEFAULT_LOCALE: AppLocale = 'en';
 
 type MessageKey =
-  | 'tapToFlip'
-  | 'tapToFlipBack'
+  | 'swipeCoach'
+  | 'flipCoach'
   | 'noDescription'
   | 'wikipedia'
   | 'imageUnavailable'
@@ -20,8 +20,8 @@ type MessageKey =
 
 const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
-    tapToFlip: 'Tap to flip',
-    tapToFlipBack: 'Tap to flip back',
+    swipeCoach: 'Swipe for another idea',
+    flipCoach: 'Tap the card to learn more',
     noDescription: 'No description.',
     wikipedia: 'Wikipedia',
     imageUnavailable: 'Image unavailable',
@@ -34,8 +34,8 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     invalidApiResponse: 'Invalid response from API',
   },
   es: {
-    tapToFlip: 'Toca para voltear',
-    tapToFlipBack: 'Toca para volver',
+    swipeCoach: 'Desliza para otra idea',
+    flipCoach: 'Toca la tarjeta para saber más',
     noDescription: 'Sin descripción.',
     wikipedia: 'Wikipedia',
     imageUnavailable: 'Imagen no disponible',

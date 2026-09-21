@@ -12,9 +12,11 @@ import {
 describe('i18n locale catalogs', () => {
   it('translates keys for en and es', () => {
     setActiveLocale('en');
-    assert.equal(t('tapToFlip'), 'Tap to flip');
+    assert.equal(t('swipeCoach'), 'Swipe for another idea');
+    assert.equal(t('flipCoach'), 'Tap the card to learn more');
     setActiveLocale('es');
-    assert.equal(t('tapToFlip'), 'Toca para voltear');
+    assert.equal(t('swipeCoach'), 'Desliza para otra idea');
+    assert.equal(t('flipCoach'), 'Toca la tarjeta para saber más');
     assert.equal(t('illustrationFor', { concept: 'silencio' }), 'Ilustración de silencio');
   });
 
