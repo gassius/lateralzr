@@ -11,6 +11,11 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import {
+  conceptFrontLabelTextAlign,
+  conceptFrontLabelTextAlignFromLineCount,
+  CONCEPT_FRONT_LABEL_FONT_SIZE,
+} from '@/lib/conceptFrontLabelAlign';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 
@@ -35,6 +40,13 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [frontContentWidth, setFrontContentWidth] = useState(0);
+  const [frontLineCount, setFrontLineCount] = useState<number | null>(null);
+  const estimatedFrontAlign = conceptFrontLabelTextAlign(title, frontContentWidth);
+  const frontLabelAlign =
+    frontLineCount == null
+      ? estimatedFrontAlign
+      : conceptFrontLabelTextAlignFromLineCount(frontLineCount);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
 
@@ -44,6 +56,10 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
       easing: Easing.out(Easing.cubic),
     });
   }, [flipped, flipProgress]);
+
+  useLayoutEffect(() => {
+    setFrontLineCount(null);
+  }, [title]);
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI (spinner / flash).
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
@@ -80,8 +96,16 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
 
   const front = (
     <View style={styles.faceInner}>
-      <View style={styles.frontCenter}>
-        <Text style={styles.conceptNameFront}>
+      <View
+        style={styles.frontCenter}
+        onLayout={(event) => setFrontContentWidth(event.nativeEvent.layout.width)}
+      >
+        <Text
+          style={[styles.conceptNameFront, { textAlign: frontLabelAlign }]}
+          onTextLayout={(event) => {
+            setFrontLineCount(event.nativeEvent.lines.length);
+          }}
+        >
           {title}
         </Text>
       </View>
@@ -277,10 +301,9 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   conceptNameFront: {
-    fontSize: 48,
-    lineHeight: 72,
+    fontSize: CONCEPT_FRONT_LABEL_FONT_SIZE,
+    lineHeight: Math.round(CONCEPT_FRONT_LABEL_FONT_SIZE * 1.5),
     fontWeight: '700',
-    textAlign: 'left',
     width: '100%',
     color: Palette.darkBlue,
   },
