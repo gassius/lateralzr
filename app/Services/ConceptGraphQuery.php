@@ -22,14 +22,16 @@ class ConceptGraphQuery
         float $minStrength = 0.0,
         ?string $locale = null,
         ?string $canonicalStart = null,
-        bool $onlyWithMedia = false
+        bool $onlyWithMedia = false,
+        ?int $complexity = null
     ): ?array {
         $limit = max(1, min(500, $limit));
         $depth = max(1, min(5, $depth));
         $minStrength = max(0.0, min(1.0, $minStrength));
         $locale = ConceptLocale::resolve($locale);
+        $complexity = $this->normalizeComplexity($complexity);
 
-        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia);
+        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity);
         if ($start === null) {
             return null;
         }
@@ -85,7 +87,7 @@ class ConceptGraphQuery
             return null;
         }
 
-        $startTerm = $start->termForLocale($locale, fallback: false);
+        $startTerm = $this->selectTerm($start, $locale, $complexity);
         if ($startTerm === null) {
             // Never surface a start concept that lacks a term in the requested locale.
             return null;
@@ -95,7 +97,7 @@ class ConceptGraphQuery
             ->with('terms')
             ->whereIn('id', array_keys($nodeIds))
             ->get()
-            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale, $onlyWithMedia))
+            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale, $onlyWithMedia, $complexity))
             ->filter()
             ->values()
             ->all();
@@ -131,6 +133,7 @@ class ConceptGraphQuery
                 'minStrength' => $minStrength,
                 'hasMore' => $hasMore,
                 'locale' => $locale,
+                ...($complexity !== null ? ['complexity' => $complexity] : []),
             ],
         ];
     }
@@ -139,7 +142,8 @@ class ConceptGraphQuery
         ?string $startConcept,
         string $locale,
         ?string $canonicalStart = null,
-        bool $onlyWithMedia = false
+        bool $onlyWithMedia = false,
+        ?int $complexity = null
     ): ?Concept {
         if ($startConcept !== null && trim($startConcept) !== '') {
             $normalized = ConceptTerm::normalizeTerm($startConcept);
@@ -187,17 +191,38 @@ class ConceptGraphQuery
         }
 
         // Prefer concepts that have edges and a term in the requested locale.
+        $startId = $this->randomStartId($locale, $onlyWithMedia, $complexity);
+        if ($startId === null && $complexity !== null) {
+            $startId = $this->randomStartId($locale, $onlyWithMedia, null);
+        }
+
+        if ($startId) {
+            return Concept::query()->with('terms')->find($startId);
+        }
+
+        // No prefetched graph yet for this locale.
+        return null;
+    }
+
+    protected function randomStartId(string $locale, bool $onlyWithMedia, ?int $complexity): ?int
+    {
         $startQuery = ConceptRelationship::query()
-            ->whereHas('fromConcept.terms', function ($q) use ($locale, $onlyWithMedia) {
+            ->whereHas('fromConcept.terms', function ($q) use ($locale, $onlyWithMedia, $complexity) {
                 $q->where('locale', $locale);
+                if ($complexity !== null) {
+                    $q->where('complexity', $complexity);
+                }
                 if ($onlyWithMedia) {
                     $this->constrainMediaUrl($q);
                 }
             });
 
         if ($onlyWithMedia) {
-            $startQuery->whereHas('toConcept.terms', function ($q) use ($locale) {
+            $startQuery->whereHas('toConcept.terms', function ($q) use ($locale, $complexity) {
                 $q->where('locale', $locale);
+                if ($complexity !== null) {
+                    $q->where('complexity', $complexity);
+                }
                 $this->constrainMediaUrl($q);
             });
         }
@@ -206,12 +231,7 @@ class ConceptGraphQuery
             ->inRandomOrder()
             ->value('from_concept_id');
 
-        if ($startId) {
-            return Concept::query()->with('terms')->find($startId);
-        }
-
-        // No prefetched graph yet for this locale.
-        return null;
+        return $startId !== null ? (int) $startId : null;
     }
 
     protected function acceptResolvedStart(Concept $concept, string $locale, bool $onlyWithMedia): ?Concept
@@ -301,9 +321,53 @@ class ConceptGraphQuery
      * @return array<string, mixed>|null Null when the concept has no term in `$locale`
      *                                   (never fall back to another locale for display).
      */
-    protected function formatNode(Concept $concept, string $locale, bool $onlyWithMedia = false): ?array
+    protected function normalizeComplexity(?int $complexity): ?int
     {
-        $term = $concept->termForLocale($locale, fallback: false);
+        if ($complexity === null) {
+            return null;
+        }
+
+        return max(1, min(5, $complexity));
+    }
+
+    protected function selectTerm(Concept $concept, string $locale, ?int $complexity): ?ConceptTerm
+    {
+        if ($complexity === null) {
+            return $concept->termForLocale($locale, fallback: false);
+        }
+
+        $terms = $concept->relationLoaded('terms')
+            ? $concept->terms
+            : $concept->terms()->get();
+
+        $localized = $terms
+            ->where('locale', $locale)
+            ->values();
+
+        if ($localized->isEmpty()) {
+            return null;
+        }
+
+        $exact = $localized->first(
+            static fn (ConceptTerm $term): bool => (int) $term->complexity === $complexity
+        );
+        if ($exact !== null) {
+            return $exact;
+        }
+
+        return $localized
+            ->sortBy(function (ConceptTerm $term) use ($complexity) {
+                return [
+                    abs((int) ($term->complexity ?? 2) - $complexity),
+                    $term->is_preferred ? 0 : 1,
+                ];
+            })
+            ->first();
+    }
+
+    protected function formatNode(Concept $concept, string $locale, bool $onlyWithMedia = false, ?int $complexity = null): ?array
+    {
+        $term = $this->selectTerm($concept, $locale, $complexity);
         if ($term === null) {
             return null;
         }

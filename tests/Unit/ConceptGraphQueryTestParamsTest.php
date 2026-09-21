@@ -126,6 +126,85 @@ class ConceptGraphQueryTestParamsTest extends TestCase
         $this->assertNull($graph);
     }
 
+    public function test_complexity_prefers_matching_locale_term_label(): void
+    {
+        $ball = $this->makeConcept('ball', [
+            ['locale' => 'en', 'term' => 'ball', 'media' => null, 'complexity' => 1],
+            ['locale' => 'en', 'term' => 'spherical object', 'media' => null, 'complexity' => 5],
+        ]);
+        $fire = $this->makeConcept('fire', [
+            ['locale' => 'en', 'term' => 'fire', 'media' => null, 'complexity' => 1],
+        ]);
+        $this->link($ball, $fire);
+
+        $simple = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: 'ball',
+            locale: 'en',
+            complexity: 1,
+        );
+        $dense = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: 'ball',
+            locale: 'en',
+            complexity: 5,
+        );
+
+        $this->assertNotNull($simple);
+        $this->assertNotNull($dense);
+        $this->assertSame('ball', $simple['start']['label']);
+        $this->assertSame('spherical object', $dense['start']['label']);
+        $this->assertSame(1, $simple['meta']['complexity']);
+        $this->assertSame(5, $dense['meta']['complexity']);
+    }
+
+    public function test_complexity_random_start_prefers_matching_tier(): void
+    {
+        $simpleFrom = $this->makeConcept('constraint', [
+            ['locale' => 'en', 'term' => 'constraint', 'media' => null, 'complexity' => 2],
+        ]);
+        $simpleTo = $this->makeConcept('pattern', [
+            ['locale' => 'en', 'term' => 'pattern', 'media' => null, 'complexity' => 2],
+        ]);
+        $denseFrom = $this->makeConcept('emergent-order', [
+            ['locale' => 'en', 'term' => 'emergent order', 'media' => null, 'complexity' => 5],
+        ]);
+        $denseTo = $this->makeConcept('dissipative-structure', [
+            ['locale' => 'en', 'term' => 'dissipative structure', 'media' => null, 'complexity' => 5],
+        ]);
+        $this->link($simpleFrom, $simpleTo);
+        $this->link($denseFrom, $denseTo);
+
+        $graph = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: null,
+            locale: 'en',
+            complexity: 5,
+        );
+
+        $this->assertNotNull($graph);
+        $this->assertContains($graph['start']['id'], [$denseFrom->id, $denseTo->id]);
+        $this->assertSame(5, $graph['meta']['complexity']);
+    }
+
+    public function test_omitting_complexity_keeps_preferred_term_and_omits_meta_key(): void
+    {
+        $ball = $this->makeConcept('ball', [
+            ['locale' => 'en', 'term' => 'ball', 'media' => null, 'complexity' => 1, 'preferred' => false],
+            ['locale' => 'en', 'term' => 'spherical object', 'media' => null, 'complexity' => 5, 'preferred' => true],
+        ]);
+        $fire = $this->makeConcept('fire', [
+            ['locale' => 'en', 'term' => 'fire', 'media' => null],
+        ]);
+        $this->link($ball, $fire);
+
+        $graph = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: 'spherical object',
+            locale: 'en',
+        );
+
+        $this->assertNotNull($graph);
+        $this->assertSame('spherical object', $graph['start']['label']);
+        $this->assertArrayNotHasKey('complexity', $graph['meta']);
+    }
+
     /**
      * @return array{0: Concept, 1: Concept}
      */
@@ -165,7 +244,7 @@ class ConceptGraphQueryTestParamsTest extends TestCase
     }
 
     /**
-     * @param  list<array{locale: string, term: string, media: ?string}>  $terms
+     * @param  list<array{locale: string, term: string, media: ?string, complexity?: int, preferred?: bool}>  $terms
      */
     private function makeConcept(string $canonical, array $terms): Concept
     {
@@ -177,8 +256,8 @@ class ConceptGraphQueryTestParamsTest extends TestCase
                 'term' => $term['term'],
                 'normalized_term' => ConceptTerm::normalizeTerm($term['term']),
                 'short_description' => $term['term'].' desc',
-                'complexity' => 2,
-                'is_preferred' => true,
+                'complexity' => $term['complexity'] ?? 2,
+                'is_preferred' => $term['preferred'] ?? true,
                 'media_url' => $term['media'],
             ]);
         }

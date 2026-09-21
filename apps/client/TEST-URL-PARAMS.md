@@ -1,6 +1,6 @@
 # Expo web test URL params
 
-These query params are **test/dev tooling** for the Expo web client. They let testers and agents (for example Critiquito) open a specific starting concept and/or restrict the journey to cards that have media. They are safe for public preview URLs: no secrets.
+These query params are **test/dev tooling** for the Expo web client. They let testers and agents (for example Critiquito) open a specific starting concept, restrict the journey to cards that have media, and/or force the initial concept-label complexity. They are safe for public preview URLs: no secrets.
 
 Web preview: `https://lateralzr-client.vercel.app`
 
@@ -14,8 +14,10 @@ Existing locale override (unchanged): `locale=en` or `locale=es`. Device/browser
 | `localizedConcept` | `creatividad` | Start at that exact localized label for the active locale. |
 | `onlyWithMedia` | `true` | Load only concepts that have a `mediaUrl`. Also applies to later “load more” batches. |
 | `locale` | `es` | Already supported. UI + API locale. Use with `canonicalConcept`. |
+| `complexity` | `5` | Force the initial concept-label complexity (integer **1–5**). Overrides the stored preference for this load. |
 
 - Missing, blank, or unsupported values are ignored. The app cold-starts as usual (no crash).
+- `complexity` must be a whole number from 1 to 5. Blank, floats (`5.5`), and out-of-range values (`0`, `6`) are ignored.
 - An unknown concept (API 404) falls back to a normal random start. `onlyWithMedia` is kept if it was set.
 - If both concept params are present, **`localizedConcept` wins** (go directly to that label).
 - `onlyWithMedia` is on only for `true`, `1`, or `yes` (case-insensitive). Other values are off.
@@ -32,6 +34,8 @@ https://lateralzr-client.vercel.app/?localizedConcept=mushroom
 https://lateralzr-client.vercel.app/?onlyWithMedia=true
 https://lateralzr-client.vercel.app/?localizedConcept=Psychedelics&onlyWithMedia=true
 https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=en&onlyWithMedia=true
+https://lateralzr-client.vercel.app/?complexity=5
+https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&complexity=5
 ```
 
 `canonicalConcept=mushroom&locale=es` should open on the Spanish card **seta**. `Psychedelics` is a production start that already has media.
@@ -44,6 +48,8 @@ Local Expo web (`pnpm web` from `apps/client`, default port 8081):
 http://localhost:8081/?canonicalConcept=mushroom
 http://localhost:8081/?localizedConcept=mushroom
 http://localhost:8081/?onlyWithMedia=true
+http://localhost:8081/?complexity=5
+http://localhost:8081/?canonicalConcept=mushroom&complexity=5
 ```
 
 URL-encode spaces and punctuation in concept strings (`localizedConcept=lateral%20thinking`).
@@ -58,6 +64,7 @@ URL-encode spaces and punctuation in concept strings (`localizedConcept=lateral%
   "localizedConcept": "creatividad",
   "onlyWithMedia": true,
   "locale": "es",
+  "complexity": 5,
   "limit": 12,
   "depth": 2
 }

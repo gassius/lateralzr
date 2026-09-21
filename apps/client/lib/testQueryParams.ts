@@ -2,6 +2,8 @@ export type JourneyTestParams = {
   localizedConcept?: string;
   canonicalConcept?: string;
   onlyWithMedia: boolean;
+  /** Forced initial complexity from `?complexity=N` (1–5). */
+  complexity?: number;
 };
 
 export type JourneyFetchOptions = {
@@ -18,6 +20,7 @@ export type RelationshipsRequestBody = {
   depth?: number;
   minStrength?: number;
   locale?: string;
+  complexity?: number;
 };
 
 function trimOrUndefined(value: string | null | undefined): string | undefined {
@@ -28,6 +31,23 @@ function trimOrUndefined(value: string | null | undefined): string | undefined {
 function parseBooleanFlag(value: string | null): boolean {
   if (value == null) return false;
   return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
+}
+
+/** Integer 1–5 only. Blank, floats, and out-of-range values are ignored. */
+export function parseComplexityParam(value: string | null | undefined): number | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === '' || !/^-?\d+$/.test(trimmed)) return undefined;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1 || n > 5) {
+    return undefined;
+  }
+  return n;
+}
+
+/** URL `?complexity=N` wins over the persisted preference. */
+export function resolveInitialComplexity(params: JourneyTestParams, stored: number): number {
+  return params.complexity ?? stored;
 }
 
 /**
@@ -45,10 +65,12 @@ export function parseJourneyTestParams(
           ? search.replace(/^\?+/, '')
           : '';
     const params = new URLSearchParams(raw);
+    const complexity = parseComplexityParam(params.get('complexity'));
     return {
       localizedConcept: trimOrUndefined(params.get('localizedConcept')),
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
       onlyWithMedia: parseBooleanFlag(params.get('onlyWithMedia')),
+      ...(complexity != null ? { complexity } : {}),
     };
   } catch {
     return { onlyWithMedia: false };
@@ -139,6 +161,7 @@ export function buildRelationshipsRequestBody(options?: {
   depth?: number;
   minStrength?: number;
   locale?: string;
+  complexity?: number;
 }): RelationshipsRequestBody {
   const body: RelationshipsRequestBody = {};
   const start = options?.start ?? options?.seed;
@@ -151,5 +174,9 @@ export function buildRelationshipsRequestBody(options?: {
   if (options?.depth != null) body.depth = options.depth;
   if (options?.minStrength != null) body.minStrength = options.minStrength;
   if (options?.locale != null) body.locale = options.locale;
+  const complexity = parseComplexityParam(
+    options?.complexity == null ? undefined : String(options.complexity),
+  );
+  if (complexity != null) body.complexity = complexity;
   return body;
 }
