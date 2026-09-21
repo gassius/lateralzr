@@ -121,8 +121,13 @@ export function ConceptCard({
     };
   });
 
+  const onFaceLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+    const next = event.nativeEvent.layout.height;
+    setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+  };
+
   const front = (
-    <View style={styles.faceInner}>
+    <View style={styles.faceInner} onLayout={onFaceLayout}>
       <View
         style={styles.frontCenter}
         onLayout={(event) => setFrontContentWidth(event.nativeEvent.layout.width)}
@@ -154,25 +159,25 @@ export function ConceptCard({
   const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
 
   const back = (
-    <View
-      style={styles.faceInner}
-      onLayout={(event) => {
-        const next = event.nativeEvent.layout.height;
-        setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
-      }}
-    >
+    <View style={styles.faceInner} onLayout={onFaceLayout}>
       <ScrollView
         style={styles.backScroll}
         contentContainerStyle={[
           styles.backScrollContent,
           backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
-          rhythm.scrollJustify === 'center' ? styles.backScrollContentBalanced : null,
         ]}
         showsVerticalScrollIndicator={false}
         bounces
         testID={`card-back-${backLayout.mode}`}
       >
-        <View style={backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia}>
+        <View
+          style={[
+            backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia,
+            backLayout.balanceCopy && backScrollMinHeight != null
+              ? { minHeight: backScrollMinHeight }
+              : null,
+          ]}
+        >
           <Text
             style={[
               styles.conceptName,
@@ -341,14 +346,14 @@ const styles = StyleSheet.create({
   backScrollContent: {
     flexGrow: 1,
   },
-  backScrollContentBalanced: {
-    justifyContent: 'center',
-  },
   backInnerWithMedia: {
     flexGrow: 1,
     width: '100%',
   },
+  /** flexGrow + justify on THIS view — RN Web ignores justifyContent on ScrollView contentContainerStyle. */
   backInnerBalanced: {
+    flexGrow: 1,
+    justifyContent: 'center',
     width: '100%',
   },
   mediaSlot: {
