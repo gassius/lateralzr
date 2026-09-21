@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   CARD_BACK_WITHOUT_MEDIA_RHYTHM,
   CARD_BACK_WITH_MEDIA_RHYTHM,
+  cardBackBalancedColumnStyle,
   cardBackScrollMinHeight,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
@@ -57,8 +58,9 @@ test('Tide-style copy is balanced instead of stretched over an empty media hole'
 test('no-media copy is a centered group with more open type than the media-forward stack', () => {
   const layout = composeCardBackLayout('absent');
   assert.equal(layout.rhythm.scrollJustify, 'center');
-  assert.equal(layout.rhythm.titleFontSize, 34);
-  assert.equal(layout.rhythm.descriptionFontSize, 18);
+  assert.equal(layout.rhythm.titleFontSize, 40);
+  assert.equal(layout.rhythm.descriptionFontSize, 20);
+  assert.ok(layout.rhythm.titleFontSize > CARD_BACK_WITH_MEDIA_RHYTHM.titleFontSize);
   assert.ok(layout.rhythm.titleMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.titleMarginBottom);
   assert.ok(layout.rhythm.descriptionMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionMarginBottom);
   assert.ok(layout.rhythm.descriptionLineHeight > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionLineHeight);
@@ -104,10 +106,36 @@ test('failure wins over a decoded flag so a broken-image box cannot linger', () 
   assert.equal(layout.rhythm.scrollJustify, 'center');
 });
 
-test('scroll minHeight subtracts face padding so leftover space is real, not a percent no-op', () => {
-  assert.equal(cardBackScrollMinHeight(480), 440);
+test('scroll minHeight subtracts face padding and border so leftover space is real, not a percent no-op', () => {
+  assert.equal(cardBackScrollMinHeight(480), 438);
   assert.equal(cardBackScrollMinHeight(40), undefined);
   assert.equal(cardBackScrollMinHeight(0), undefined);
   assert.equal(cardBackScrollMinHeight(-12), undefined);
   assert.equal(cardBackScrollMinHeight(Number.NaN), undefined);
+});
+
+test('no-media column uses a pixel height so justifyContent can actually center the copy group', () => {
+  assert.deepEqual(cardBackBalancedColumnStyle(480), {
+    height: 438,
+    justifyContent: 'center',
+  });
+  assert.deepEqual(cardBackBalancedColumnStyle(0), {
+    justifyContent: 'center',
+  });
+  assert.deepEqual(cardBackBalancedColumnStyle(Number.NaN), {
+    justifyContent: 'center',
+  });
+});
+
+test('with-media rhythm stays compact and top-stacked so the image keeps leftover height', () => {
+  assert.deepEqual(CARD_BACK_WITH_MEDIA_RHYTHM, {
+    scrollJustify: 'flex-start',
+    titleFontSize: 26,
+    titleLineHeight: 32,
+    titleMarginBottom: 8,
+    descriptionFontSize: 16,
+    descriptionLineHeight: 24,
+    descriptionMarginBottom: 12,
+    linkMarginTop: 0,
+  });
 });

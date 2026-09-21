@@ -14,6 +14,7 @@ import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_FACE_PADDING,
+  cardBackBalancedColumnStyle,
   cardBackScrollMinHeight,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
@@ -125,13 +126,15 @@ export function ConceptCard({
     };
   });
 
-  const onFaceLayout = (event: { nativeEvent: { layout: { height: number } } }) => {
+  const onUntransformedFaceLayout = (event: {
+    nativeEvent: { layout: { height: number } };
+  }) => {
     const next = event.nativeEvent.layout.height;
     setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
   };
 
   const front = (
-    <View style={styles.faceInner} onLayout={onFaceLayout}>
+    <View style={styles.faceInner} onLayout={onUntransformedFaceLayout}>
       <View
         style={styles.frontCenter}
         onLayout={(event) => setFrontContentWidth(event.nativeEvent.layout.width)}
@@ -159,6 +162,7 @@ export function ConceptCard({
   const backLayout = composeCardBackLayout(mediaPhase);
   const { rhythm } = backLayout;
   const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
+  const noMediaColumnStyle = cardBackBalancedColumnStyle(backFaceH);
 
   const backTitle = (
     <Text
@@ -176,28 +180,34 @@ export function ConceptCard({
     </Text>
   );
 
+  const backDescription = (
+    <Text
+      style={[
+        styles.description,
+        {
+          fontSize: rhythm.descriptionFontSize,
+          lineHeight: rhythm.descriptionLineHeight,
+          marginBottom: rhythm.descriptionMarginBottom,
+        },
+      ]}
+    >
+      {item.shortDescription || t('noDescription')}
+    </Text>
+  );
+
+  const backWiki = item.wikiUrl ? (
+    <Text
+      style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+      onPress={() => Linking.openURL(item.wikiUrl!)}
+    >
+      {t('wikipedia')}
+    </Text>
+  ) : null;
+
   const backCopy = (
     <View style={styles.copyCluster} testID="card-back-copy">
-      <Text
-        style={[
-          styles.description,
-          {
-            fontSize: rhythm.descriptionFontSize,
-            lineHeight: rhythm.descriptionLineHeight,
-            marginBottom: rhythm.descriptionMarginBottom,
-          },
-        ]}
-      >
-        {item.shortDescription || t('noDescription')}
-      </Text>
-      {item.wikiUrl ? (
-        <Text
-          style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
-          onPress={() => Linking.openURL(item.wikiUrl!)}
-        >
-          {t('wikipedia')}
-        </Text>
-      ) : null}
+      {backDescription}
+      {backWiki}
     </View>
   );
 
@@ -245,16 +255,23 @@ export function ConceptCard({
     ) : null;
 
   /**
-   * No-media: a flex View (same pattern as the card front). ScrollView leftover
-   * height never reaches justifyContent on web, which left Tide-style backs top-packed.
-   * With-media: ScrollView + expanding well so the image takes leftover space.
+   * No-media: measured pixel height on an absolutely positioned column, then
+   * center title + description + Wikipedia as one group. flex leftover and
+   * bottom:0 do not stretch under the flip transform on RN Web, which is why
+   * #36 stayed top-heavy. With-media: unchanged expanding well.
    */
   const back = (
-    <View style={styles.faceInner} onLayout={onFaceLayout}>
+    <View style={styles.faceInner}>
       {backLayout.balanceCopy ? (
-        <View style={styles.backInnerBalanced} testID={`card-back-${backLayout.mode}`}>
-          {backTitle}
-          {backCopy}
+        <View
+          style={[styles.backInnerBalanced, noMediaColumnStyle]}
+          testID={`card-back-${backLayout.mode}`}
+        >
+          <View style={styles.noMediaCopyGroup} testID="card-back-copy">
+            {backTitle}
+            {backDescription}
+            {backWiki}
+          </View>
         </View>
       ) : (
         <ScrollView
@@ -368,12 +385,18 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     width: '100%',
   },
-  /** Same centering well as the card front — do not put this inside a ScrollView on web. */
+  /**
+   * Pin to the face box with a measured pixel height. flex leftover and
+   * `bottom: 0` do not stretch this column under the flip transform on RN Web.
+   */
   backInnerBalanced: {
-    flex: 1,
-    justifyContent: 'center',
+    position: 'absolute',
+    top: CARD_BACK_FACE_PADDING,
+    left: CARD_BACK_FACE_PADDING,
+    right: CARD_BACK_FACE_PADDING,
+  },
+  noMediaCopyGroup: {
     width: '100%',
-    minHeight: 0,
   },
   mediaSlot: {
     width: '100%',
