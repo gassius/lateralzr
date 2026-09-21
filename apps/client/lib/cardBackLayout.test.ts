@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  CARD_BACK_WITHOUT_MEDIA_RHYTHM,
+  CARD_BACK_WITH_MEDIA_RHYTHM,
+  cardBackScrollMinHeight,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
   type CardBackLayout,
@@ -13,6 +16,7 @@ const withoutMedia: CardBackLayout = {
   showMediaImage: false,
   expandMediaZone: false,
   balanceCopy: true,
+  rhythm: CARD_BACK_WITHOUT_MEDIA_RHYTHM,
 };
 
 const withMediaReady: CardBackLayout = {
@@ -22,6 +26,7 @@ const withMediaReady: CardBackLayout = {
   showMediaImage: true,
   expandMediaZone: true,
   balanceCopy: false,
+  rhythm: CARD_BACK_WITH_MEDIA_RHYTHM,
 };
 
 const withMediaLoading: CardBackLayout = {
@@ -31,6 +36,7 @@ const withMediaLoading: CardBackLayout = {
   showMediaImage: true,
   expandMediaZone: true,
   balanceCopy: false,
+  rhythm: CARD_BACK_WITH_MEDIA_RHYTHM,
 };
 
 test('absent media uses the without-media layout and collapses the media zone', () => {
@@ -48,12 +54,24 @@ test('Tide-style copy is balanced instead of stretched over an empty media hole'
   assert.equal(layout.expandMediaZone, false);
 });
 
+test('no-media copy is a centered group with more open type than the media-forward stack', () => {
+  const layout = composeCardBackLayout('absent');
+  assert.equal(layout.rhythm.scrollJustify, 'center');
+  assert.equal(layout.rhythm.titleFontSize, 34);
+  assert.equal(layout.rhythm.descriptionFontSize, 18);
+  assert.ok(layout.rhythm.titleMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.titleMarginBottom);
+  assert.ok(layout.rhythm.descriptionMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionMarginBottom);
+  assert.ok(layout.rhythm.descriptionLineHeight > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionLineHeight);
+});
+
 test('ready media uses a prominent media zone with copy stacked, not balanced as if empty', () => {
   assert.equal(
     resolveCardBackMediaPhase({ hasMediaUrl: true, decoded: true, failed: false }),
     'ready',
   );
   assert.deepEqual(composeCardBackLayout('ready'), withMediaReady);
+  assert.equal(composeCardBackLayout('ready').rhythm.scrollJustify, 'flex-start');
+  assert.equal(composeCardBackLayout('ready').rhythm, CARD_BACK_WITH_MEDIA_RHYTHM);
 });
 
 test('loading media keeps the with-media layout and a calm placeholder, not a broken box', () => {
@@ -83,4 +101,13 @@ test('failure wins over a decoded flag so a broken-image box cannot linger', () 
   assert.equal(layout.showMediaZone, false);
   assert.equal(layout.showMediaImage, false);
   assert.equal(layout.showMediaPlaceholder, false);
+  assert.equal(layout.rhythm.scrollJustify, 'center');
+});
+
+test('scroll minHeight subtracts face padding so leftover space is real, not a percent no-op', () => {
+  assert.equal(cardBackScrollMinHeight(480), 440);
+  assert.equal(cardBackScrollMinHeight(40), undefined);
+  assert.equal(cardBackScrollMinHeight(0), undefined);
+  assert.equal(cardBackScrollMinHeight(-12), undefined);
+  assert.equal(cardBackScrollMinHeight(Number.NaN), undefined);
 });

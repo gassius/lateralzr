@@ -12,7 +12,12 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
-import { composeCardBackLayout, resolveCardBackMediaPhase } from '@/lib/cardBackLayout';
+import {
+  CARD_BACK_FACE_PADDING,
+  cardBackScrollMinHeight,
+  composeCardBackLayout,
+  resolveCardBackMediaPhase,
+} from '@/lib/cardBackLayout';
 import {
   conceptFrontLabelTextAlign,
   conceptFrontLabelTextAlignFromLineCount,
@@ -53,6 +58,7 @@ export function ConceptCard({
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [backFaceH, setBackFaceH] = useState(0);
   const [frontContentWidth, setFrontContentWidth] = useState(0);
   const [frontLineCount, setFrontLineCount] = useState<number | null>(null);
   const estimatedFrontAlign = conceptFrontLabelTextAlign(title, frontContentWidth);
@@ -144,78 +150,108 @@ export function ConceptCard({
     failed: mediaError,
   });
   const backLayout = composeCardBackLayout(mediaPhase);
+  const { rhythm } = backLayout;
+  const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
 
   const back = (
-    <ScrollView
-      style={[styles.faceInner, styles.backScroll]}
-      contentContainerStyle={styles.backScrollContent}
-      showsVerticalScrollIndicator={false}
-      bounces
-      testID={`card-back-${backLayout.mode}`}
+    <View
+      style={styles.faceInner}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height;
+        setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+      }}
     >
-      <View style={backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia}>
-        <Text
-          style={[styles.conceptName, backLayout.mode === 'without-media' && styles.conceptNameSolo]}
-          testID="card-back-title"
-        >
-          {title}
-        </Text>
-        {backLayout.showMediaZone && imageSource ? (
-          <View
-            style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
-            testID="card-back-media"
+      <ScrollView
+        style={styles.backScroll}
+        contentContainerStyle={[
+          styles.backScrollContent,
+          backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
+          rhythm.scrollJustify === 'center' ? styles.backScrollContentBalanced : null,
+        ]}
+        showsVerticalScrollIndicator={false}
+        bounces
+        testID={`card-back-${backLayout.mode}`}
+      >
+        <View style={backLayout.balanceCopy ? styles.backInnerBalanced : styles.backInnerWithMedia}>
+          <Text
+            style={[
+              styles.conceptName,
+              {
+                fontSize: rhythm.titleFontSize,
+                lineHeight: rhythm.titleLineHeight,
+                marginBottom: rhythm.titleMarginBottom,
+              },
+            ]}
+            testID="card-back-title"
           >
-            {backLayout.showMediaImage ? (
-              <Image
-                source={imageSource}
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  styles.mediaImageInner,
-                  backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
-                ]}
-                contentFit="contain"
-                contentPosition="center"
-                cachePolicy="memory-disk"
-                priority="high"
-                transition={0}
-                onLoad={() => {
-                  setMediaDecoded(true);
-                  setMediaError(false);
-                }}
-                onLoadEnd={() => {
-                  setMediaDecoded(true);
-                }}
-                onError={() => {
-                  setMediaError(true);
-                }}
-                accessibilityRole="image"
-                accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-              />
-            ) : null}
-            {backLayout.showMediaPlaceholder ? (
-              <View
-                style={styles.mediaPlaceholder}
-                pointerEvents="none"
-                testID="card-back-media-placeholder"
-              />
+            {title}
+          </Text>
+          {backLayout.showMediaZone && imageSource ? (
+            <View
+              style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+              testID="card-back-media"
+            >
+              {backLayout.showMediaImage ? (
+                <Image
+                  source={imageSource}
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    styles.mediaImageInner,
+                    backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
+                  ]}
+                  contentFit="contain"
+                  contentPosition="center"
+                  cachePolicy="memory-disk"
+                  priority="high"
+                  transition={0}
+                  onLoad={() => {
+                    setMediaDecoded(true);
+                    setMediaError(false);
+                  }}
+                  onLoadEnd={() => {
+                    setMediaDecoded(true);
+                  }}
+                  onError={() => {
+                    setMediaError(true);
+                  }}
+                  accessibilityRole="image"
+                  accessibilityLabel={t('illustrationFor', { concept: item.concept })}
+                />
+              ) : null}
+              {backLayout.showMediaPlaceholder ? (
+                <View
+                  style={styles.mediaPlaceholder}
+                  pointerEvents="none"
+                  testID="card-back-media-placeholder"
+                />
+              ) : null}
+            </View>
+          ) : null}
+          <View style={styles.copyCluster} testID="card-back-copy">
+            <Text
+              style={[
+                styles.description,
+                {
+                  fontSize: rhythm.descriptionFontSize,
+                  lineHeight: rhythm.descriptionLineHeight,
+                  marginBottom: rhythm.descriptionMarginBottom,
+                },
+              ]}
+            >
+              {item.shortDescription || t('noDescription')}
+            </Text>
+            {item.wikiUrl ? (
+              <Text
+                style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+                onPress={() => Linking.openURL(item.wikiUrl!)}
+              >
+                {t('wikipedia')}
+              </Text>
             ) : null}
           </View>
-        ) : null}
-        <View style={styles.copyCluster} testID="card-back-copy">
-          <Text style={styles.description}>
-            {item.shortDescription || t('noDescription')}
-          </Text>
-          {item.wikiUrl ? (
-            <Text
-              style={styles.link}
-              onPress={() => Linking.openURL(item.wikiUrl!)}
-            >
-              {t('wikipedia')}
-            </Text>
-          ) : null}
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 
   return (
@@ -290,7 +326,7 @@ const styles = StyleSheet.create({
   },
   faceInner: {
     flex: 1,
-    padding: 20,
+    padding: CARD_BACK_FACE_PADDING,
     borderRadius: 16,
     backgroundColor: Palette.orange,
     borderWidth: 1,
@@ -300,19 +336,20 @@ const styles = StyleSheet.create({
   },
   backScroll: {
     flex: 1,
+    minHeight: 0,
   },
   backScrollContent: {
     flexGrow: 1,
-    paddingBottom: 4,
+  },
+  backScrollContentBalanced: {
+    justifyContent: 'center',
   },
   backInnerWithMedia: {
     flexGrow: 1,
-    minHeight: '100%',
+    width: '100%',
   },
   backInnerBalanced: {
-    flexGrow: 1,
-    minHeight: '100%',
-    justifyContent: 'center',
+    width: '100%',
   },
   mediaSlot: {
     width: '100%',
@@ -352,20 +389,10 @@ const styles = StyleSheet.create({
     color: Palette.darkBlue,
   },
   conceptName: {
-    fontSize: 26,
     fontWeight: '700',
-    marginBottom: 8,
     color: Palette.darkBlue,
   },
-  conceptNameSolo: {
-    fontSize: 34,
-    lineHeight: 42,
-    marginBottom: 12,
-  },
   description: {
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 12,
     opacity: 0.92,
     color: Palette.darkBlue,
   },
