@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { Palette } from '../constants/Colors.ts';
+import { contrastRatio } from './coachHintPresentation.ts';
 import type { DeckConcept } from './conceptDeck.ts';
 import {
   applyLateralityTreeSwap,
@@ -60,16 +61,16 @@ describe('clampLaterality / stepLaterality', () => {
 });
 
 describe('lateralityGradientStops', () => {
-  it('uses a contained teal pair at laterality 1', () => {
+  it('uses a cool, contained pair at laterality 1 (not deck teal)', () => {
     const stops = lateralityGradientStops(1);
-    assert.equal(stops.start, Palette.darkBlue);
+    assert.notEqual(stops.start, Palette.darkBlue);
+    assert.notEqual(stops.end, Palette.darkBlue);
     assert.notEqual(stops.start, stops.end);
-    assert.equal(stops.end.startsWith('#'), true);
   });
 
-  it('bridges teal to brand orange at the default grade', () => {
+  it('bridges a light cool stop to brand orange at the default grade', () => {
     assert.deepEqual(lateralityGradientStops(3), {
-      start: Palette.darkBlue,
+      start: Palette.offWhite,
       end: Palette.orange,
     });
   });
@@ -79,6 +80,19 @@ describe('lateralityGradientStops', () => {
       start: Palette.orange,
       end: Palette.offWhite,
     });
+  });
+
+  it('keeps every grade readable on the dark-blue deck', () => {
+    for (const grade of [1, 2, 3, 4, 5] as const) {
+      const stops = lateralityGradientStops(grade);
+      for (const color of [stops.start, stops.mid, stops.end]) {
+        if (!color) continue;
+        assert.ok(
+          contrastRatio(color, Palette.darkBlue) >= 3,
+          `grade ${grade} ${color} contrast vs deck`,
+        );
+      }
+    }
   });
 });
 

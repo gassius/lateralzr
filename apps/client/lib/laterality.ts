@@ -41,20 +41,21 @@ export function stepLaterality(current: number, delta: -1 | 1): LateralityGrade 
 }
 
 /**
- * Calm 2–3 stop wordmark gradient. Low laterality stays contained (teal);
- * high laterality opens toward the brand orange / off-white.
+ * Calm 2–3 stop wordmark gradient on the dark-blue deck.
+ * Low laterality stays cool/contained; high laterality opens toward orange.
+ * Stops stay light enough to read on Palette.darkBlue.
  */
 export function lateralityGradientStops(grade: number): LateralityGradientStops {
   const laterality = clampLaterality(grade);
   switch (laterality) {
     case 1:
-      return { start: Palette.darkBlue, end: '#0e4a62' };
+      return { start: Palette.lightGray, end: '#9bb8c2' };
     case 2:
-      return { start: Palette.darkBlue, mid: '#1a6d8c', end: '#2a7a8f' };
+      return { start: Palette.lightGray, mid: '#c5d4d8', end: '#d4c4a8' };
     case 3:
-      return { start: Palette.darkBlue, end: Palette.orange };
+      return { start: Palette.offWhite, end: Palette.orange };
     case 4:
-      return { start: '#1a6d8c', mid: Palette.orange, end: '#f3a24a' };
+      return { start: '#f3a24a', mid: Palette.orange, end: '#f7c27a' };
     case 5:
       return { start: Palette.orange, end: Palette.offWhite };
   }
