@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { ActivityIndicator, Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -11,6 +11,7 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { composeCardBackLayout, resolveCardBackMediaPhase } from '@/lib/cardBackLayout';
 import {
   conceptFrontLabelTextAlign,
   conceptFrontLabelTextAlignFromLineCount,
@@ -61,7 +62,7 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
     setFrontLineCount(null);
   }, [title]);
 
-  // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI (spinner / flash).
+  // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
   useLayoutEffect(() => {
     if (mediaUri.length === 0) {
@@ -115,68 +116,86 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
     </View>
   );
 
-  const showLoadingOverlay = mediaUri.length > 0 && !mediaDecoded && !mediaError;
+  const mediaPhase = resolveCardBackMediaPhase({
+    hasMediaUrl: mediaUri.length > 0,
+    decoded: mediaDecoded,
+    failed: mediaError,
+  });
+  const backLayout = composeCardBackLayout(mediaPhase);
 
   const back = (
     <ScrollView
       style={[styles.faceInner, styles.backScroll]}
-      contentContainerStyle={styles.backScrollContent}
+      contentContainerStyle={
+        backLayout.balanceCopy ? styles.backScrollContentBalanced : styles.backScrollContentWithMedia
+      }
       showsVerticalScrollIndicator={false}
       bounces
+      testID={`card-back-${backLayout.mode}`}
     >
-      <Text style={styles.conceptName}>
+      <Text
+        style={[styles.conceptName, backLayout.mode === 'without-media' && styles.conceptNameSolo]}
+        testID="card-back-title"
+      >
         {title}
       </Text>
-      {mediaUri.length > 0 && imageSource ? (
-        <View style={styles.mediaSlot}>
-          <Image
-            source={imageSource}
-            style={[StyleSheet.absoluteFillObject, styles.mediaImageInner]}
-            contentFit="contain"
-            cachePolicy="memory-disk"
-            priority="high"
-            transition={0}
-            onLoad={() => {
-              setMediaDecoded(true);
-              setMediaError(false);
-            }}
-            onLoadEnd={() => {
-              setMediaDecoded(true);
-            }}
-            onError={() => {
-              setMediaError(true);
-            }}
-            accessibilityRole="image"
-            accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-          />
-          {showLoadingOverlay ? (
-            <View style={styles.mediaLoadingOverlay} pointerEvents="none">
-              <ActivityIndicator color={Palette.darkBlue} />
-            </View>
+      {backLayout.showMediaZone && imageSource ? (
+        <View
+          style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+          testID="card-back-media"
+        >
+          {backLayout.showMediaImage ? (
+            <Image
+              source={imageSource}
+              style={[
+                StyleSheet.absoluteFillObject,
+                styles.mediaImageInner,
+                backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
+              ]}
+              contentFit="contain"
+              contentPosition="center"
+              cachePolicy="memory-disk"
+              priority="high"
+              transition={0}
+              onLoad={() => {
+                setMediaDecoded(true);
+                setMediaError(false);
+              }}
+              onLoadEnd={() => {
+                setMediaDecoded(true);
+              }}
+              onError={() => {
+                setMediaError(true);
+              }}
+              accessibilityRole="image"
+              accessibilityLabel={t('illustrationFor', { concept: item.concept })}
+            />
           ) : null}
-          {mediaError ? (
-            <View style={styles.mediaErrorOverlay} pointerEvents="none">
-              <Text style={styles.mediaErrorText}>
-                {t('imageUnavailable')}
-              </Text>
-            </View>
+          {backLayout.showMediaPlaceholder ? (
+            <View
+              style={styles.mediaPlaceholder}
+              pointerEvents="none"
+              testID="card-back-media-placeholder"
+            />
           ) : null}
         </View>
       ) : null}
-      <Text style={styles.description}>
-        {item.shortDescription || t('noDescription')}
-      </Text>
-      {item.wikiUrl ? (
-        <Text
-          style={styles.link}
-          onPress={() => Linking.openURL(item.wikiUrl!)}
-        >
-          {t('wikipedia')}
+      <View style={styles.copyCluster} testID="card-back-copy">
+        <Text style={styles.description}>
+          {item.shortDescription || t('noDescription')}
         </Text>
-      ) : null}
-      <Text style={styles.hint}>
-        {t('tapToFlipBack')}
-      </Text>
+        {item.wikiUrl ? (
+          <Text
+            style={styles.link}
+            onPress={() => Linking.openURL(item.wikiUrl!)}
+          >
+            {t('wikipedia')}
+          </Text>
+        ) : null}
+        <Text style={styles.backHint}>
+          {t('tapToFlipBack')}
+        </Text>
+      </View>
     </ScrollView>
   );
 
@@ -189,6 +208,9 @@ export function ConceptCard({ item, flipped, isMediaPrefetched }: ConceptCardPro
           cachePolicy="memory-disk"
           priority="high"
           transition={0}
+          onError={() => {
+            setMediaError(true);
+          }}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
@@ -259,40 +281,39 @@ const styles = StyleSheet.create({
   backScroll: {
     flex: 1,
   },
-  backScrollContent: {
+  backScrollContentWithMedia: {
     flexGrow: 1,
+    justifyContent: 'flex-start',
+    paddingBottom: 4,
+  },
+  backScrollContentBalanced: {
+    flexGrow: 1,
+    justifyContent: 'center',
     paddingBottom: 4,
   },
   mediaSlot: {
     width: '100%',
-    height: 200,
-    marginBottom: 12,
+    marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'rgba(19,91,119,0.06)',
+    backgroundColor: 'rgba(19,91,119,0.10)',
+  },
+  mediaSlotExpand: {
+    flexGrow: 1,
+    minHeight: 180,
   },
   mediaImageInner: {
     borderRadius: 12,
   },
-  mediaLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.35)',
+  mediaImagePending: {
+    opacity: 0,
   },
-  mediaErrorOverlay: {
+  mediaPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    padding: 8,
+    backgroundColor: 'rgba(19,91,119,0.10)',
   },
-  mediaErrorText: {
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    opacity: 0.85,
-    color: Palette.darkBlue,
+  copyCluster: {
+    width: '100%',
   },
   frontCenter: {
     flex: 1,
@@ -308,10 +329,15 @@ const styles = StyleSheet.create({
     color: Palette.darkBlue,
   },
   conceptName: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '700',
     marginBottom: 8,
     color: Palette.darkBlue,
+  },
+  conceptNameSolo: {
+    fontSize: 34,
+    lineHeight: 42,
+    marginBottom: 12,
   },
   description: {
     fontSize: 16,
@@ -331,6 +357,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.75,
     marginTop: 'auto',
+    color: Palette.darkBlue,
+  },
+  backHint: {
+    fontSize: 12,
+    opacity: 0.75,
+    marginTop: 8,
     color: Palette.darkBlue,
   },
 });
