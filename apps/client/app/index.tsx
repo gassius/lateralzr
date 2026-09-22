@@ -94,6 +94,7 @@ export default function HomeScreen() {
   const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
+  const pendingSessionComplexityCueRef = useRef<number | null>(null);
 
   useEffect(() => {
     complexityRef.current = complexity;
@@ -120,9 +121,24 @@ export default function HomeScreen() {
     let cancelled = false;
     void loadStoredComplexity().then((stored) => {
       if (cancelled) return;
-      const hydrated = resolveHydratedComplexity(journeyTestParamsRef.current, stored);
+      const latest = readJourneyTestParams();
+      const params = {
+        ...journeyTestParamsRef.current,
+        ...latest,
+        complexity: latest.complexity ?? journeyTestParamsRef.current.complexity,
+      };
+      journeyTestParamsRef.current = params;
+      const hydrated = resolveHydratedComplexity(params, stored);
       complexityRef.current = hydrated.complexity;
       setComplexity(hydrated.complexity);
+      if (
+        shouldAnnounceComplexity({
+          reason: params.complexity != null ? 'session-url' : 'hydrate-stored',
+          complexity: hydrated.complexity,
+        })
+      ) {
+        pendingSessionComplexityCueRef.current = hydrated.complexity;
+      }
       if (hydrated.persist && shouldPersistComplexity('hydrate')) {
         void persistComplexity(hydrated.complexity);
       }
@@ -550,33 +566,6 @@ export default function HomeScreen() {
     });
   }, []);
 
-  useEffect(() => {
-    if (announcedSessionComplexityRef.current) return;
-    if (!complexityHydrated || !lateralityHydrated || !localeReady || !introGateOpen) return;
-    if (loading && concepts.length === 0) return;
-    if (error && concepts.length === 0) return;
-
-    const sessionComplexity = readJourneyTestParams().complexity;
-    if (sessionComplexity == null) {
-      announcedSessionComplexityRef.current = true;
-      return;
-    }
-    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: sessionComplexity })) return;
-
-    announcedSessionComplexityRef.current = true;
-    announceComplexity(complexity, 'session-url');
-  }, [
-    announceComplexity,
-    complexity,
-    complexityHydrated,
-    concepts.length,
-    error,
-    introGateOpen,
-    lateralityHydrated,
-    loading,
-    localeReady,
-  ]);
-
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
       const previous = complexityRef.current;
@@ -620,6 +609,18 @@ export default function HomeScreen() {
     !localeReady ||
     (loading && concepts.length === 0) ||
     (!error && concepts.length > 0 && !introGateOpen);
+
+  const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
+
+  useEffect(() => {
+    if (!showMainDeck) return;
+    if (announcedSessionComplexityRef.current) return;
+    const pending = pendingSessionComplexityCueRef.current;
+    if (pending == null) return;
+    announcedSessionComplexityRef.current = true;
+    pendingSessionComplexityCueRef.current = null;
+    announceComplexity(pending, 'session-url');
+  }, [announceComplexity, showMainDeck]);
 
   if (showIntroLogo) {
     return (
