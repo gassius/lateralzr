@@ -52,9 +52,9 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     failedToLoadConcepts: 'No se pudieron cargar los conceptos',
     failedToFetchConcepts: 'Error al obtener conceptos',
     invalidApiResponse: 'Respuesta inválida de la API',
-    decreaseLaterality: 'Disminuir laterality',
-    increaseLaterality: 'Aumentar laterality',
-    lateralityGrade: 'Laterality {grade}',
+    decreaseLaterality: 'Disminuir lateralidad',
+    increaseLaterality: 'Aumentar lateralidad',
+    lateralityGrade: 'Lateralidad {grade}',
   },
 };
 
