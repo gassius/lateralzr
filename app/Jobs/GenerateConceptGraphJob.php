@@ -19,8 +19,8 @@ class GenerateConceptGraphJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * LLM generation plus URL enrichment regularly exceeds Laravel's default
-     * 60-second worker timeout, especially when Wikimedia lookups are cold.
+     * LLM graph generation can exceed Laravel's default 60-second worker timeout.
+     * Wiki and media enrichment is not part of this job.
      */
     public int $timeout = 300;
 

@@ -33,7 +33,8 @@ class WikipediaSearchTool implements Tool
     }
 
     /**
-     * Direct lookup used by localization jobs/commands.
+     * Exact-title lookup kept for the agent tool and smoke tests.
+     * Concept enrichment uses WikipediaArticleResolver via concepts:complete-info instead.
      */
     public function lookup(string $concept, string $shortDescription = '', ?string $locale = null): string
     {

@@ -66,6 +66,49 @@ class ConceptForm
                     ->columns(2)
                     ->collapsible()
                     ->cloneable(),
+                Repeater::make('media')
+                    ->relationship()
+                    ->label('Qualified media')
+                    ->helperText('More than one URL per concept. Automated enrichment stores only CC0 or public domain (no attribution).')
+                    ->defaultItems(0)
+                    ->addActionLabel('Add media')
+                    ->schema([
+                        TextInput::make('url')
+                            ->label('URL')
+                            ->url()
+                            ->required()
+                            ->columnSpanFull(),
+                        Select::make('kind')
+                            ->options([
+                                'image' => 'Image',
+                                'clip' => 'Clip',
+                            ])
+                            ->default('image')
+                            ->required()
+                            ->native(false),
+                        TextInput::make('license')
+                            ->required()
+                            ->default('CC0')
+                            ->helperText('CC0 or Public domain only.')
+                            ->rule(static function (): \Closure {
+                                return static function (string $attribute, mixed $value, \Closure $fail): void {
+                                    $normalized = strtolower(trim((string) $value));
+                                    if (! in_array($normalized, ['cc0', 'public domain'], true)) {
+                                        $fail('License must be CC0 or Public domain.');
+                                    }
+                                };
+                            }),
+                        TextInput::make('source')
+                            ->default('wikimedia')
+                            ->maxLength(32),
+                        TextInput::make('position')
+                            ->numeric()
+                            ->default(0)
+                            ->minValue(0)
+                            ->maxValue(255),
+                    ])
+                    ->columns(2)
+                    ->collapsible(),
             ]);
     }
 }

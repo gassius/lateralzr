@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Concept;
+use App\Models\ConceptMedia;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Support\ConceptLocale;
@@ -94,7 +95,7 @@ class ConceptGraphQuery
         }
 
         $nodes = Concept::query()
-            ->with('terms')
+            ->with(['terms', 'media'])
             ->whereIn('id', array_keys($nodeIds))
             ->get()
             ->map(fn (Concept $concept) => $this->formatNode($concept, $locale, $onlyWithMedia, $complexity))
@@ -401,12 +402,29 @@ class ConceptGraphQuery
             'complexity' => (int) ($term->complexity ?? config('concepts.default_complexity', 2)),
             'wikiUrl' => $term->wiki_url,
             'mediaUrl' => $term->media_url,
+            'media' => $this->formatMedia($concept),
             'locale' => $locale,
             'degree' => ConceptRelationship::query()
                 ->where('from_concept_id', $concept->id)
                 ->orWhere('to_concept_id', $concept->id)
                 ->count(),
         ];
+    }
+
+    /**
+     * @return list<array{url:string,kind:string,license:string}>
+     */
+    protected function formatMedia(Concept $concept): array
+    {
+        $media = $concept->relationLoaded('media')
+            ? $concept->media
+            : $concept->media()->get();
+
+        return $media->map(fn (ConceptMedia $item) => [
+            'url' => (string) $item->url,
+            'kind' => (string) $item->kind,
+            'license' => (string) $item->license,
+        ])->values()->all();
     }
 
     protected function formatEdge(ConceptRelationship $edge): array

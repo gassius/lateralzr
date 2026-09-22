@@ -2,14 +2,17 @@
 
 namespace Tests\Feature;
 
-use App\Ai\Tools\WikimediaCommonsSearchTool;
-use App\Ai\Tools\WikipediaSearchTool;
 use App\Jobs\CompleteConceptInfoBatchJob;
 use App\Models\Concept;
 use App\Models\ConceptGraphRunJob;
+use App\Models\ConceptMedia;
 use App\Models\ConceptTerm;
 use App\Services\ConceptCompleteInfoDispatchService;
 use App\Services\ConceptCompleteInfoService;
+use App\Services\Enrichment\QualifiedMedia;
+use App\Services\Enrichment\QualifiedMediaFinder;
+use App\Services\Enrichment\WikipediaArticle;
+use App\Services\Enrichment\WikipediaArticleResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -78,6 +81,23 @@ class CompleteConceptInfoTest extends TestCase
         });
     }
 
+    public function test_dispatch_skips_media_when_concept_already_has_qualified_media(): void
+    {
+        $term = $this->makeTerm('silence', locale: 'en', wiki: 'https://en.wikipedia.org/wiki/Silence', media: null);
+        ConceptMedia::query()->create([
+            'concept_id' => $term->concept_id,
+            'url' => 'https://upload.wikimedia.org/wikipedia/commons/1/11/silence.webm',
+            'kind' => 'clip',
+            'license' => 'Public domain',
+            'source' => 'wikimedia',
+            'position' => 0,
+        ]);
+
+        $dispatch = app(ConceptCompleteInfoDispatchService::class);
+        $this->assertNotContains($term->id, $dispatch->matchingTermIds('en', 'media', null));
+        $this->assertNotContains($term->id, $dispatch->matchingTermIds('en', 'both', null));
+    }
+
     public function test_command_rejects_conflicting_mode_flags(): void
     {
         $this->artisan('concepts:complete-info', [
@@ -114,19 +134,24 @@ class CompleteConceptInfoTest extends TestCase
     {
         $term = $this->makeTerm('silence', locale: 'en', wiki: null, media: null);
 
-        $wikipedia = Mockery::mock(WikipediaSearchTool::class);
-        $wikipedia->shouldReceive('lookup')
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldReceive('find')
             ->once()
-            ->with('silence', 'Absence of sound.', 'en')
-            ->andReturn('https://en.wikipedia.org/wiki/Silence');
+            ->andReturn(new WikipediaArticle(
+                url: 'https://en.wikipedia.org/wiki/Silence',
+                title: 'Silence',
+                language: 'en',
+                mediaPages: [['language' => 'en', 'title' => 'Silence']],
+            ));
 
-        $commons = Mockery::mock(WikimediaCommonsSearchTool::class);
-        $commons->shouldReceive('lookup')
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldReceive('find')
             ->once()
-            ->with('silence', 'Absence of sound.')
-            ->andReturn('https://upload.wikimedia.org/wikipedia/commons/s/silence.jpg');
+            ->andReturn([
+                new QualifiedMedia('https://upload.wikimedia.org/wikipedia/commons/s/silence.jpg', 'image', 'CC0'),
+            ]);
 
-        $service = new ConceptCompleteInfoService($wikipedia, $commons);
+        $service = new ConceptCompleteInfoService($articles, $finder);
         $stats = $service->complete([$term->id], 'both');
 
         $this->assertSame(1, $stats['processed']);
@@ -136,19 +161,30 @@ class CompleteConceptInfoTest extends TestCase
         $term->refresh();
         $this->assertSame('https://en.wikipedia.org/wiki/Silence', $term->wiki_url);
         $this->assertSame('https://upload.wikimedia.org/wikipedia/commons/s/silence.jpg', $term->media_url);
+        $this->assertDatabaseHas('concept_media', [
+            'concept_id' => $term->concept_id,
+            'url' => 'https://upload.wikimedia.org/wikipedia/commons/s/silence.jpg',
+            'kind' => 'image',
+            'license' => 'CC0',
+        ]);
     }
 
     public function test_service_wiki_only_skips_media_lookup(): void
     {
         $term = $this->makeTerm('silence', locale: 'en', wiki: null, media: null);
 
-        $wikipedia = Mockery::mock(WikipediaSearchTool::class);
-        $wikipedia->shouldReceive('lookup')->once()->andReturn('https://en.wikipedia.org/wiki/Silence');
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldReceive('find')->once()->andReturn(new WikipediaArticle(
+            url: 'https://en.wikipedia.org/wiki/Silence',
+            title: 'Silence',
+            language: 'en',
+            mediaPages: [['language' => 'en', 'title' => 'Silence']],
+        ));
 
-        $commons = Mockery::mock(WikimediaCommonsSearchTool::class);
-        $commons->shouldNotReceive('lookup');
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldNotReceive('find');
 
-        $service = new ConceptCompleteInfoService($wikipedia, $commons);
+        $service = new ConceptCompleteInfoService($articles, $finder);
         $stats = $service->complete([$term->id], 'wiki');
 
         $this->assertSame(1, $stats['wikiUpdated']);

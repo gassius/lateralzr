@@ -2,20 +2,26 @@
 
 namespace App\Services;
 
-use App\Ai\Tools\WikimediaCommonsSearchTool;
-use App\Ai\Tools\WikipediaSearchTool;
+use App\Models\Concept;
+use App\Models\ConceptMedia;
 use App\Models\ConceptTerm;
+use App\Services\Enrichment\QualifiedMedia;
+use App\Services\Enrichment\QualifiedMediaFinder;
+use App\Services\Enrichment\WikipediaArticle;
+use App\Services\Enrichment\WikipediaArticleResolver;
+use App\Support\ConceptLocale;
 use Illuminate\Support\Facades\Log;
 
 class ConceptCompleteInfoService
 {
     public function __construct(
-        protected WikipediaSearchTool $wikipediaTool,
-        protected WikimediaCommonsSearchTool $commonsTool,
+        protected WikipediaArticleResolver $articles,
+        protected QualifiedMediaFinder $mediaFinder,
     ) {}
 
     /**
-     * Backfill missing wiki_url / media_url on existing concept terms.
+     * Backfill missing localized wiki URLs and concept-level media.
+     * This is the only path that searches Wikipedia or attaches media.
      *
      * @param  list<int>  $termIds
      * @param  'wiki'|'media'|'both'  $mode
@@ -38,6 +44,7 @@ class ConceptCompleteInfoService
         }
 
         $terms = ConceptTerm::query()
+            ->with(['concept.media', 'concept.terms'])
             ->whereIn('id', $ids)
             ->orderBy('id')
             ->get();
@@ -46,7 +53,7 @@ class ConceptCompleteInfoService
             $stats['processed']++;
 
             $needWiki = in_array($mode, ['wiki', 'both'], true) && $this->isBlank($term->wiki_url);
-            $needMedia = in_array($mode, ['media', 'both'], true) && $this->isBlank($term->media_url);
+            $needMedia = in_array($mode, ['media', 'both'], true) && $this->termNeedsMedia($term);
 
             if (! $needWiki && ! $needMedia) {
                 $stats['skipped']++;
@@ -54,23 +61,57 @@ class ConceptCompleteInfoService
                 continue;
             }
 
+            $concept = $term->concept;
+            if (! $concept instanceof Concept) {
+                $stats['failed']++;
+
+                continue;
+            }
+
             try {
-                $updates = [];
                 $label = (string) $term->term;
                 $description = (string) ($term->short_description ?? '');
+                $english = $concept->termForLocale(ConceptLocale::default(), fallback: false);
+                $alternateLabel = null;
+                $alternateDescription = null;
+                if ($english instanceof ConceptTerm && (int) $english->id !== (int) $term->id) {
+                    $alternateLabel = (string) $english->term;
+                    $alternateDescription = (string) ($english->short_description ?? '');
+                }
 
-                if ($needWiki) {
-                    $wikiUrl = $this->wikipediaTool->lookup($label, $description, (string) $term->locale);
-                    if ($wikiUrl !== '') {
-                        $updates['wiki_url'] = $wikiUrl;
-                        $stats['wikiUpdated']++;
-                    }
+                $article = null;
+                if ($needWiki || $this->isBlank($term->wiki_url)) {
+                    $article = $this->articles->find(
+                        $label,
+                        $description,
+                        (string) $term->locale,
+                        $alternateLabel,
+                        $alternateDescription,
+                    );
+                } elseif ($needMedia) {
+                    $article = WikipediaArticle::fromUrl((string) $term->wiki_url);
+                }
+
+                $updates = [];
+                if ($needWiki && $article instanceof WikipediaArticle && $article->url !== '') {
+                    $updates['wiki_url'] = $article->url;
+                    $stats['wikiUpdated']++;
                 }
 
                 if ($needMedia) {
-                    $mediaUrl = $this->commonsTool->lookup($label, $description);
-                    if ($mediaUrl !== '') {
-                        $updates['media_url'] = $mediaUrl;
+                    $before = $concept->media->count();
+                    if ($before === 0 && $article instanceof WikipediaArticle) {
+                        $found = $this->mediaFinder->find($label, $description, $article->mediaPages);
+                        $this->persistMedia($concept, $found);
+                        $concept->unsetRelation('media');
+                    }
+
+                    $primary = $this->primaryImageUrl($concept);
+                    if ($primary !== null && $this->isBlank($term->media_url)) {
+                        $updates['media_url'] = $primary;
+                        $this->copyPrimaryToSiblingTerms($concept, (int) $term->id, $primary);
+                        $stats['mediaUpdated']++;
+                    } elseif ($concept->media()->count() > $before) {
                         $stats['mediaUpdated']++;
                     }
                 }
@@ -104,6 +145,81 @@ class ConceptCompleteInfoService
             'media', 'media-only', 'media_only' => 'media',
             default => 'both',
         };
+    }
+
+    /**
+     * @param  list<QualifiedMedia>  $found
+     */
+    protected function persistMedia(Concept $concept, array $found): void
+    {
+        $position = (int) $concept->media()->max('position');
+        $position = $concept->media()->exists() ? $position + 1 : 0;
+
+        foreach ($found as $item) {
+            if ($position >= 4) {
+                break;
+            }
+
+            $record = ConceptMedia::query()->firstOrCreate(
+                [
+                    'concept_id' => $concept->id,
+                    'url_sha256' => hash('sha256', $item->url),
+                ],
+                [
+                    'url' => $item->url,
+                    'kind' => $item->kind,
+                    'license' => $item->license,
+                    'source' => $item->source,
+                    'position' => $position,
+                ]
+            );
+
+            if ($record->wasRecentlyCreated) {
+                $position++;
+            }
+        }
+    }
+
+    protected function primaryImageUrl(Concept $concept): ?string
+    {
+        $image = $concept->media()
+            ->where('kind', 'image')
+            ->orderBy('position')
+            ->orderBy('id')
+            ->first();
+
+        $url = $image?->url;
+
+        return is_string($url) && trim($url) !== '' ? $url : null;
+    }
+
+    protected function copyPrimaryToSiblingTerms(Concept $concept, int $exceptTermId, string $primary): void
+    {
+        ConceptTerm::query()
+            ->where('concept_id', $concept->id)
+            ->where('id', '!=', $exceptTermId)
+            ->where(function ($query) {
+                $query->whereNull('media_url')->orWhere('media_url', '');
+            })
+            ->update(['media_url' => $primary]);
+    }
+
+    protected function termNeedsMedia(ConceptTerm $term): bool
+    {
+        if (! $this->isBlank($term->media_url)) {
+            return false;
+        }
+
+        $concept = $term->concept;
+        if (! $concept instanceof Concept) {
+            return true;
+        }
+
+        if ($concept->relationLoaded('media')) {
+            return $concept->media->isEmpty();
+        }
+
+        return ! $concept->media()->exists();
     }
 
     protected function isBlank(?string $value): bool

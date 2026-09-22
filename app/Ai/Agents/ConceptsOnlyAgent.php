@@ -24,7 +24,7 @@ class ConceptsOnlyAgent implements Agent, HasStructuredOutput
 
     /**
      * Get the instructions that the agent should follow.
-     * Same as ConceptRelationshipAgent but without URL tools; URLs are filled server-side.
+     * Concept prefetch. Wiki and media URLs stay null; `concepts:complete-info` fills them later.
      */
     public function instructions(): Stringable|string
     {
@@ -34,7 +34,7 @@ class ConceptsOnlyAgent implements Agent, HasStructuredOutput
 {$base}
 
 IMPORTANT — URLs:
-- Leave wikiUrl and mediaUrl as null for every concept. They will be filled in later by the system. Do NOT guess or invent URLs.
+- Leave wikiUrl and mediaUrl as null for every concept. `concepts:complete-info` fills them later. Do NOT guess or invent URLs.
 
 Each concept object MUST use these exact field names:
 - `concept` (string): A clear, concise concept name

@@ -115,14 +115,14 @@ class ConceptCompleteInfoDispatchService
                 });
             } elseif ($mode === 'media') {
                 $q->where(function ($inner) {
-                    $inner->whereNull('media_url')->orWhere('media_url', '');
+                    $this->whereMissingMedia($inner);
                 });
             } else {
                 $q->where(function ($inner) {
                     $inner->where(function ($wiki) {
                         $wiki->whereNull('wiki_url')->orWhere('wiki_url', '');
                     })->orWhere(function ($media) {
-                        $media->whereNull('media_url')->orWhere('media_url', '');
+                        $this->whereMissingMedia($media);
                     });
                 });
             }
@@ -133,5 +133,16 @@ class ConceptCompleteInfoDispatchService
         }
 
         return $query->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * A term still needs media when it has no display URL and the concept has no qualified media rows.
+     * Clips live on the concept even when media_url (the image the client shows today) stays empty.
+     */
+    protected function whereMissingMedia(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->where(function ($blank) {
+            $blank->whereNull('media_url')->orWhere('media_url', '');
+        })->whereDoesntHave('concept.media');
     }
 }
