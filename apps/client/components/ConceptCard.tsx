@@ -14,6 +14,8 @@ import { Palette } from '@/constants/Colors';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_FACE_PADDING,
+  CARD_BACK_MEDIA_CONTENT_FIT,
+  CARD_BACK_MEDIA_CONTENT_POSITION,
   cardBackBalancedColumnStyle,
   cardBackScrollMinHeight,
   composeCardBackLayout,
@@ -225,8 +227,8 @@ export function ConceptCard({
               styles.mediaImageInner,
               backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
             ]}
-            contentFit="contain"
-            contentPosition="center"
+            contentFit={backLayout.mediaContentFit ?? CARD_BACK_MEDIA_CONTENT_FIT}
+            contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
             cachePolicy="memory-disk"
             priority="high"
             transition={0}
