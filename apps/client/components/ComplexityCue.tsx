@@ -14,6 +14,7 @@ import {
   COMPLEXITY_CUE_FONT_SIZE,
   COMPLEXITY_CUE_FONT_WEIGHT,
   COMPLEXITY_CUE_LINE_HEIGHT,
+  COMPLEXITY_SESSION_MARK_FONT_SIZE,
   complexityCuePalette,
   complexityCueText,
   shouldAnimateComplexityCue,
@@ -118,6 +119,25 @@ export function ComplexityCue({
   );
 }
 
+/** Tiny leftover after the session chip — still not on the laterality row. */
+export function ComplexitySessionMark({ grade }: { grade: number }) {
+  const colors = complexityCuePalette();
+  const label = complexityCueText(grade);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={styles.anchor}
+      accessibilityLiveRegion="polite"
+      accessibilityRole="text"
+      accessibilityLabel={label}
+      testID="complexity-session-mark"
+    >
+      <Text style={[styles.sessionMark, { color: colors.chip }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   /** Filled by the parent slot so this stays out of the laterality row. */
   anchor: {
@@ -135,5 +155,13 @@ const styles = StyleSheet.create({
     fontWeight: COMPLEXITY_CUE_FONT_WEIGHT,
     letterSpacing: 0.2,
     textAlign: 'center',
+  },
+  sessionMark: {
+    fontSize: COMPLEXITY_SESSION_MARK_FONT_SIZE,
+    lineHeight: 16,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+    opacity: 0.82,
   },
 });

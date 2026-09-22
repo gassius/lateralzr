@@ -7,6 +7,7 @@ import {
   COMPLEXITY_CUE_SESSION_DURATION_MS,
   COMPLEXITY_CUE_FONT_SIZE,
   COMPLEXITY_CUE_PLACEMENT,
+  COMPLEXITY_SESSION_MARK_FONT_SIZE,
   complexityCueAppearOpacity,
   complexityCueAppearTranslateY,
   complexityCueContrastRatio,
@@ -18,6 +19,7 @@ import {
   resolveSessionComplexityToAnnounce,
   shouldAnimateComplexityCue,
   shouldAnnounceComplexity,
+  shouldKeepSessionComplexityMark,
 } from './complexityFeedback.ts';
 import { setActiveLocale, t } from './i18n.ts';
 import { shouldPersistComplexity } from './testQueryParams.ts';
@@ -139,6 +141,14 @@ describe('complexity cue placement and hierarchy', () => {
     assert.ok(complexityCueIsSecondaryToConceptTitle());
     assert.ok(COMPLEXITY_CUE_FONT_SIZE < CONCEPT_FRONT_LABEL_FONT_SIZE);
     assert.ok(COMPLEXITY_CUE_FONT_SIZE < 17);
+  });
+
+  it('keeps a quieter session mark after a deep link, not after stored-pref hydrate', () => {
+    assert.equal(shouldKeepSessionComplexityMark('session-url'), true);
+    assert.equal(shouldKeepSessionComplexityMark('hydrate-stored'), false);
+    assert.equal(shouldKeepSessionComplexityMark('swipe'), false);
+    assert.ok(COMPLEXITY_SESSION_MARK_FONT_SIZE < COMPLEXITY_CUE_FONT_SIZE);
+    assert.ok(complexityCueIsSecondaryToConceptTitle(COMPLEXITY_SESSION_MARK_FONT_SIZE));
   });
 });
 

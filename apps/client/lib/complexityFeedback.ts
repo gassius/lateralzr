@@ -14,6 +14,9 @@ import { t, type AppLocale } from './i18n';
 /** Quiet type: smaller than swipe/flip coaching (17) and the 48px title. */
 export const COMPLEXITY_CUE_FONT_SIZE = 14;
 
+/** After the chip leaves, a session deep-link keeps this quieter mark. */
+export const COMPLEXITY_SESSION_MARK_FONT_SIZE = 12;
+
 export const COMPLEXITY_CUE_LINE_HEIGHT = 18;
 
 export const COMPLEXITY_CUE_FONT_WEIGHT = '500' as const;
@@ -86,6 +89,13 @@ export function complexityCueText(grade: number): string {
 
 export function complexityCueSharesLateralityRow(): boolean {
   return false;
+}
+
+/** Deep-link sessions keep a tiny mark after the chip; stored-pref hydrate does not. */
+export function shouldKeepSessionComplexityMark(
+  reason: ComplexityAnnounceEvent['reason'],
+): boolean {
+  return reason === 'session-url';
 }
 
 export function complexityCueIsSecondaryToConceptTitle(

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ComplexityCue } from '@/components/ComplexityCue';
+import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralitySubmenu } from '@/components/LateralitySubmenu';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
@@ -16,6 +16,7 @@ import {
   complexityCueHoldMs,
   resolveSessionComplexityToAnnounce,
   shouldAnnounceComplexity,
+  shouldKeepSessionComplexityMark,
 } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
@@ -109,6 +110,7 @@ export default function HomeScreen() {
   const journeyTestParamsRef = useRef(readJourneyTestParams());
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
   const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
+  const [showSessionComplexityMark, setShowSessionComplexityMark] = useState(false);
 
   useEffect(() => {
     complexityRef.current = complexity;
@@ -153,6 +155,9 @@ export default function HomeScreen() {
         })
       ) {
         setPendingSessionComplexity(hydrated.complexity);
+        if (shouldKeepSessionComplexityMark('session-url')) {
+          setShowSessionComplexityMark(true);
+        }
       }
       if (hydrated.persist && shouldPersistComplexity('hydrate')) {
         void persistComplexity(hydrated.complexity);
@@ -639,6 +644,9 @@ export default function HomeScreen() {
     if (pending == null) return;
     announcedSessionComplexityRef.current = true;
     setPendingSessionComplexity(null);
+    if (shouldKeepSessionComplexityMark('session-url')) {
+      setShowSessionComplexityMark(true);
+    }
     announceComplexity(pending, 'session-url');
   }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
 
@@ -706,6 +714,10 @@ export default function HomeScreen() {
                 holdMs={complexityCue.holdMs}
                 onHidden={dismissComplexityCue}
               />
+            </View>
+          ) : showSessionComplexityMark ? (
+            <View style={styles.complexityCueSlot} pointerEvents="none">
+              <ComplexitySessionMark grade={complexity} />
             </View>
           ) : null}
         </View>
