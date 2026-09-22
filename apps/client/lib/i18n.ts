@@ -19,7 +19,8 @@ type MessageKey =
   | 'invalidApiResponse'
   | 'decreaseLaterality'
   | 'increaseLaterality'
-  | 'lateralityGrade';
+  | 'lateralityGrade'
+  | 'complexityGrade';
 
 const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -38,6 +39,7 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     decreaseLaterality: 'Decrease laterality',
     increaseLaterality: 'Increase laterality',
     lateralityGrade: 'Laterality {grade}',
+    complexityGrade: 'Complexity {grade}',
   },
   es: {
     swipeCoach: 'Desliza para otra idea',
@@ -55,6 +57,7 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     decreaseLaterality: 'Disminuir lateralidad',
     increaseLaterality: 'Aumentar lateralidad',
     lateralityGrade: 'Lateralidad {grade}',
+    complexityGrade: 'Complejidad {grade}',
   },
 };
 
