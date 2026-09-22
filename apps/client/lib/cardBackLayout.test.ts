@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  CARD_BACK_MEDIA_CONTENT_FIT,
+  CARD_BACK_MEDIA_CONTENT_POSITION,
   CARD_BACK_WITHOUT_MEDIA_RHYTHM,
   CARD_BACK_WITH_MEDIA_RHYTHM,
   cardBackBalancedColumnStyle,
@@ -17,6 +19,7 @@ const withoutMedia: CardBackLayout = {
   showMediaImage: false,
   expandMediaZone: false,
   balanceCopy: true,
+  mediaContentFit: null,
   rhythm: CARD_BACK_WITHOUT_MEDIA_RHYTHM,
 };
 
@@ -27,6 +30,7 @@ const withMediaReady: CardBackLayout = {
   showMediaImage: true,
   expandMediaZone: true,
   balanceCopy: false,
+  mediaContentFit: 'cover',
   rhythm: CARD_BACK_WITH_MEDIA_RHYTHM,
 };
 
@@ -37,6 +41,7 @@ const withMediaLoading: CardBackLayout = {
   showMediaImage: true,
   expandMediaZone: true,
   balanceCopy: false,
+  mediaContentFit: 'cover',
   rhythm: CARD_BACK_WITH_MEDIA_RHYTHM,
 };
 
@@ -138,4 +143,18 @@ test('with-media rhythm stays compact and top-stacked so the image keeps leftove
     descriptionMarginBottom: 12,
     linkMarginTop: 0,
   });
+});
+
+test('ready media cover-fills the expanding well so landscape and portrait do not letterbox on orange', () => {
+  const layout = composeCardBackLayout('ready');
+  assert.equal(layout.expandMediaZone, true);
+  assert.equal(layout.mediaContentFit, 'cover');
+  assert.equal(layout.mediaContentFit, CARD_BACK_MEDIA_CONTENT_FIT);
+  assert.equal(CARD_BACK_MEDIA_CONTENT_POSITION, 'center');
+});
+
+test('no-media and failed media do not invent a fit or a filler well', () => {
+  assert.equal(composeCardBackLayout('absent').mediaContentFit, null);
+  assert.equal(composeCardBackLayout('failed').mediaContentFit, null);
+  assert.equal(composeCardBackLayout('failed').showMediaZone, false);
 });

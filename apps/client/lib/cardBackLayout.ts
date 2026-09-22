@@ -26,6 +26,16 @@ export type CardBackCopyRhythm = {
   linkMarginTop: number;
 };
 
+/**
+ * How the photo paints inside the expanding well.
+ * `contain` letterboxes on the orange face (landscape: tall gutters; portrait: side bars).
+ * `cover` centered fills the well; crop is the trade for a finished, media-forward back.
+ */
+export type CardBackMediaContentFit = 'cover' | 'contain';
+
+export const CARD_BACK_MEDIA_CONTENT_FIT: CardBackMediaContentFit = 'cover';
+export const CARD_BACK_MEDIA_CONTENT_POSITION = 'center' as const;
+
 export const CARD_BACK_WITH_MEDIA_RHYTHM: CardBackCopyRhythm = {
   scrollJustify: 'flex-start',
   titleFontSize: 26,
@@ -58,6 +68,8 @@ export type CardBackLayout = {
   expandMediaZone: boolean;
   /** Vertically balance title + description + links when there is no media well. */
   balanceCopy: boolean;
+  /** Cover-fill the well when media is shown; null when the zone is collapsed. */
+  mediaContentFit: CardBackMediaContentFit | null;
   rhythm: CardBackCopyRhythm;
 };
 
@@ -81,6 +93,7 @@ export function composeCardBackLayout(phase: CardBackMediaPhase): CardBackLayout
       showMediaImage: false,
       expandMediaZone: false,
       balanceCopy: true,
+      mediaContentFit: null,
       rhythm: CARD_BACK_WITHOUT_MEDIA_RHYTHM,
     };
   }
@@ -92,6 +105,7 @@ export function composeCardBackLayout(phase: CardBackMediaPhase): CardBackLayout
     showMediaImage: true,
     expandMediaZone: true,
     balanceCopy: false,
+    mediaContentFit: CARD_BACK_MEDIA_CONTENT_FIT,
     rhythm: CARD_BACK_WITH_MEDIA_RHYTHM,
   };
 }
