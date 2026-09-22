@@ -366,7 +366,7 @@ Host cron cannot see Laravel inside the container. Production does **not** use t
 php artisan schedule:work --verbose
 ```
 
-That process invokes `schedule:run` every minute inside the image. Scheduled tasks are defined in `routes/console.php` (Laravel 12). `App\Console\Kernel` is not used.
+That process invokes `schedule:run` every minute inside the image. Scheduled tasks are defined in `routes/console.php` (Laravel 12).
 
 A heartbeat task `scheduler:test` runs every 15 minutes and logs:
 

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\SuperAdminRole;
 use Filament\Models\Contracts\FilamentUser as FilamentUserContract;
 use Filament\Panel;
