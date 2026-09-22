@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "gassius/lateralzr",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "Lateralzr Laravel API for lateral thinking concept graphs.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {
@@ -82,7 +82,6 @@
         "preferred-install": "dist",
         "sort-packages": true,
         "allow-plugins": {
-            "pestphp/pest-plugin": true,
             "php-http/discovery": true
         }
     },
