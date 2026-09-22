@@ -544,12 +544,12 @@ export default function HomeScreen() {
     if (loading && concepts.length === 0) return;
     if (error && concepts.length === 0) return;
 
-    const sessionComplexity = journeyTestParamsRef.current.complexity;
+    const sessionComplexity = readJourneyTestParams().complexity;
     if (sessionComplexity == null) {
       announcedSessionComplexityRef.current = true;
       return;
     }
-    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity })) return;
+    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: sessionComplexity })) return;
 
     announcedSessionComplexityRef.current = true;
     announceComplexity(complexity);

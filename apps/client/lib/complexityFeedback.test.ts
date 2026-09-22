@@ -90,10 +90,11 @@ describe('complexity cue placement and hierarchy', () => {
 });
 
 describe('complexity cue contrast', () => {
-  it('meets WCAG AA contrast on the teal letterbox', () => {
+  it('meets WCAG AA contrast on the off-white chip over the orange card', () => {
     const palette = complexityCuePalette();
-    assert.equal(palette.text, Palette.offWhite);
-    assert.equal(palette.backdrop, Palette.darkBlue);
+    assert.equal(palette.text, Palette.darkBlue);
+    assert.equal(palette.chip, Palette.offWhite);
+    assert.equal(palette.backdrop, Palette.orange);
     assert.ok(complexityCueContrastRatio() >= 4.5);
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -108,20 +108,28 @@ export function ComplexityCue({ grade, token, onHidden }: ComplexityCueProps) {
       accessibilityLabel={label}
       testID="complexity-cue"
     >
-      <Text style={[styles.copy, { color: colors.text }]}>{label}</Text>
+      <View style={[styles.chip, { backgroundColor: colors.chip }]}>
+        <Text style={[styles.copy, { color: colors.text }]}>{label}</Text>
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  /** Top of the teal letterbox — away from the laterality − / wordmark / + row. */
+  /** Top of the deck — away from the laterality − / wordmark / + row. */
   anchor: {
     position: 'absolute',
-    top: 10,
+    top: 16,
     left: 16,
     right: 16,
     alignItems: 'center',
-    zIndex: 4,
+    zIndex: 8,
+  },
+  chip: {
+    maxWidth: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   copy: {
     fontSize: COMPLEXITY_CUE_FONT_SIZE,

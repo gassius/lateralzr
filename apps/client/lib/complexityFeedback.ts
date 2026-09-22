@@ -73,9 +73,9 @@ export function complexityCueIsSecondaryToConceptTitle(
 
 export function complexityCuePalette(): ComplexityCuePalette {
   return {
-    text: Palette.offWhite,
-    chip: 'transparent',
-    backdrop: Palette.darkBlue,
+    text: Palette.darkBlue,
+    chip: Palette.offWhite,
+    backdrop: Palette.orange,
   };
 }
 
