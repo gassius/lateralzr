@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ComplexityCue } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralitySubmenu } from '@/components/LateralitySubmenu';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
@@ -10,6 +11,7 @@ import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
+import { shouldAnnounceComplexity } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
@@ -63,6 +65,7 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
+  const [complexityCue, setComplexityCue] = useState<{ grade: number; token: number } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
   const [swappingLaterality, setSwappingLaterality] = useState(false);
@@ -83,6 +86,7 @@ export default function HomeScreen() {
   const pendingEndDeckLoadRef = useRef(false);
   const complexityRef = useRef(complexity);
   const lateralityRef = useRef(laterality);
+  const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
 
@@ -526,11 +530,50 @@ export default function HomeScreen() {
     void prefetchLateralityTree();
   }, [prefetchLateralityTree]);
 
+  const dismissComplexityCue = useCallback(() => {
+    setComplexityCue(null);
+  }, []);
+
+  const announceComplexity = useCallback((grade: number) => {
+    setComplexityCue({ grade, token: Date.now() });
+  }, []);
+
+  useEffect(() => {
+    if (announcedSessionComplexityRef.current) return;
+    if (!complexityHydrated || !lateralityHydrated || !localeReady || !introGateOpen) return;
+    if (loading && concepts.length === 0) return;
+    if (error && concepts.length === 0) return;
+
+    const sessionComplexity = journeyTestParamsRef.current.complexity;
+    if (sessionComplexity == null) {
+      announcedSessionComplexityRef.current = true;
+      return;
+    }
+    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity })) return;
+
+    announcedSessionComplexityRef.current = true;
+    announceComplexity(complexity);
+  }, [
+    announceComplexity,
+    complexity,
+    complexityHydrated,
+    concepts.length,
+    error,
+    introGateOpen,
+    lateralityHydrated,
+    loading,
+    localeReady,
+  ]);
+
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
-      const next = clampComplexity(complexityRef.current + (direction === 'up' ? 1 : -1));
+      const previous = complexityRef.current;
+      const next = clampComplexity(previous + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
       setComplexity(next);
+      if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
+        announceComplexity(next);
+      }
       if (shouldPersistComplexity('swipe')) {
         void persistComplexity(next);
       }
@@ -548,7 +591,7 @@ export default function HomeScreen() {
 
       void prefetchComplexityTree(next);
     },
-    [prefetchComplexityTree],
+    [announceComplexity, prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
@@ -623,6 +666,13 @@ export default function HomeScreen() {
             onIncrease={() => onChangeLaterality(1)}
           />
         </View>
+        {complexityCue ? (
+          <ComplexityCue
+            grade={complexityCue.grade}
+            token={complexityCue.token}
+            onHidden={dismissComplexityCue}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -643,6 +693,7 @@ const styles = StyleSheet.create({
   stackShell: {
     width: '100%',
     justifyContent: 'flex-start',
+    position: 'relative',
   },
   cardLateralityGroup: {
     width: '100%',
