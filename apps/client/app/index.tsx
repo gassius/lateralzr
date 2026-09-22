@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
-import { LATERALITY_SUBMENU_HEIGHT, LateralitySubmenu } from '@/components/LateralitySubmenu';
+import { LateralitySubmenu } from '@/components/LateralitySubmenu';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
@@ -21,6 +21,10 @@ import {
   stepLaterality,
   type LateralityGrade,
 } from '@/lib/laterality';
+import {
+  cardStackAvailableHeight,
+  LATERALITY_CARD_GAP,
+} from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
 import {
@@ -598,25 +602,27 @@ export default function HomeScreen() {
     >
       <StatusBar style="light" />
       <View style={[styles.stackShell, { minHeight: usableHeight, flex: 1 }]}>
-        <ConceptCardStack
-          concepts={concepts}
-          currentIndex={currentIndex}
-          complexity={complexity}
-          onSwipeLeft={onSwipeLeft}
-          onSwipeRight={onSwipeRight}
-          onSwipeForwardVertical={onSwipeForwardVertical}
-          availableHeight={Math.max(260, usableHeight - LATERALITY_SUBMENU_HEIGHT)}
-          preloadedMediaUrls={preloadedMediaUrls}
-          showDeckLoading={showDeckLoading}
-          loadMoreError={loadMoreError}
-          onRetryLoadMore={retryLoadMore}
-        />
-        <LateralitySubmenu
-          laterality={laterality}
-          swapping={swappingLaterality}
-          onDecrease={() => onChangeLaterality(-1)}
-          onIncrease={() => onChangeLaterality(1)}
-        />
+        <View style={styles.cardLateralityGroup} testID="card-laterality-group">
+          <ConceptCardStack
+            concepts={concepts}
+            currentIndex={currentIndex}
+            complexity={complexity}
+            onSwipeLeft={onSwipeLeft}
+            onSwipeRight={onSwipeRight}
+            onSwipeForwardVertical={onSwipeForwardVertical}
+            availableHeight={cardStackAvailableHeight(usableHeight)}
+            preloadedMediaUrls={preloadedMediaUrls}
+            showDeckLoading={showDeckLoading}
+            loadMoreError={loadMoreError}
+            onRetryLoadMore={retryLoadMore}
+          />
+          <LateralitySubmenu
+            laterality={laterality}
+            swapping={swappingLaterality}
+            onDecrease={() => onChangeLaterality(-1)}
+            onIncrease={() => onChangeLaterality(1)}
+          />
+        </View>
       </View>
     </View>
   );
@@ -636,6 +642,11 @@ const styles = StyleSheet.create({
   },
   stackShell: {
     width: '100%',
+    justifyContent: 'flex-start',
+  },
+  cardLateralityGroup: {
+    width: '100%',
+    gap: LATERALITY_CARD_GAP,
   },
   error: {
     color: Palette.black,

@@ -31,6 +31,7 @@ import {
   type CoachKind,
 } from '@/lib/discoveryCoaching';
 import { getActiveLocale, t } from '@/lib/i18n';
+import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
 type ConceptCardStackProps = {
@@ -706,10 +707,9 @@ function ConceptCardForIndex({
 
 const styles = StyleSheet.create({
   outer: {
-    flex: 1,
     width: '100%',
     paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingTop: CARD_STACK_PADDING_TOP,
     justifyContent: 'flex-start',
   },
   cardWrap: {

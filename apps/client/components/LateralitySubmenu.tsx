@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { Palette } from '@/constants/Colors';
 import { t } from '@/lib/i18n';
+import { LATERALITY_SUBMENU_HEIGHT } from '@/lib/lateralityChrome';
 import {
   lateralityGradientStops,
   MAX_LATERALITY,
@@ -9,7 +10,7 @@ import {
   type LateralityGrade,
 } from '@/lib/laterality';
 
-export const LATERALITY_SUBMENU_HEIGHT = 56;
+export { LATERALITY_CARD_GAP, LATERALITY_SUBMENU_HEIGHT } from '@/lib/lateralityChrome';
 
 type LateralitySubmenuProps = {
   laterality: LateralityGrade | number;
@@ -63,7 +64,7 @@ export function LateralitySubmenu({
   const canIncrease = laterality < MAX_LATERALITY;
 
   return (
-    <View style={styles.row}>
+    <View style={styles.row} testID="laterality-submenu">
       <Pressable
         onPress={onDecrease}
         disabled={!canDecrease}
