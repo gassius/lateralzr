@@ -2,7 +2,6 @@
 
 namespace Tests\Unit;
 
-use App\Ai\Tools\WikipediaSearchTool;
 use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
@@ -188,13 +187,6 @@ class ConceptLocaleSupportTest extends TestCase
             }
         };
 
-        $wikipedia = Mockery::mock(WikipediaSearchTool::class);
-        $wikipedia->shouldReceive('lookup')
-            ->once()
-            ->with('silencio', 'Ausencia de sonido.', 'es')
-            ->andReturn('https://es.wikipedia.org/wiki/Silencio');
-        $this->app->instance(WikipediaSearchTool::class, $wikipedia);
-
         $stats = app(ConceptLocalizeService::class)->localize(
             fromLocale: 'en',
             toLocale: 'es',
@@ -210,7 +202,7 @@ class ConceptLocaleSupportTest extends TestCase
             'locale' => 'es',
             'term' => 'silencio',
             'short_description' => 'Ausencia de sonido.',
-            'wiki_url' => 'https://es.wikipedia.org/wiki/Silencio',
+            'wiki_url' => null,
             'media_url' => 'https://example.com/silence.jpg',
         ]);
     }

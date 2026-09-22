@@ -31,7 +31,9 @@ class WikimediaCommonsSearchTool implements Tool
     }
 
     /**
-     * Direct lookup used by complete-info jobs/commands.
+     * Legacy Commons search kept for the agent tool and smoke tests.
+     * It is not the enrichment path: concepts:complete-info uses QualifiedMediaFinder,
+     * which refuses anything other than CC0 or public domain.
      */
     public function lookup(string $concept, string $shortDescription = ''): string
     {

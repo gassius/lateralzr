@@ -115,14 +115,14 @@ class ConceptCompleteInfoDispatchService
                 });
             } elseif ($mode === 'media') {
                 $q->where(function ($inner) {
-                    $inner->whereNull('media_url')->orWhere('media_url', '');
+                    $this->whereMissingMedia($inner);
                 });
             } else {
                 $q->where(function ($inner) {
                     $inner->where(function ($wiki) {
                         $wiki->whereNull('wiki_url')->orWhere('wiki_url', '');
                     })->orWhere(function ($media) {
-                        $media->whereNull('media_url')->orWhere('media_url', '');
+                        $this->whereMissingMedia($media);
                     });
                 });
             }
@@ -133,5 +133,16 @@ class ConceptCompleteInfoDispatchService
         }
 
         return $query->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * A term still needs its display URL when media_url is blank, even if concept_media
+     * rows already exist. The client reads media_url, copied from the primary image.
+     */
+    protected function whereMissingMedia(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->where(function ($blank) {
+            $blank->whereNull('media_url')->orWhere('media_url', '');
+        });
     }
 }

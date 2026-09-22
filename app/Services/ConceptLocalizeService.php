@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptLocalizeAgent;
-use App\Ai\Tools\WikipediaSearchTool;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
 use Illuminate\Support\Collection;
@@ -14,7 +13,6 @@ class ConceptLocalizeService
 {
     public function __construct(
         protected ConceptCanonicalizer $canonicalizer,
-        protected WikipediaSearchTool $wikipediaTool,
     ) {}
 
     /**
@@ -131,15 +129,14 @@ class ConceptLocalizeService
                     $shortDescription = (string) ($item['shortDescription'] ?? '');
                 }
 
-                $wikiUrl = $this->wikipediaTool->lookup($termLabel, $shortDescription, $toLocale);
-                $wikiUrl = $wikiUrl !== '' ? $wikiUrl : null;
-
+                // Wiki lookup stays on concepts:complete-info so localisation does not search.
+                // Media already stored on the source term is concept-level and can be copied.
                 $this->canonicalizer->attachLocalizedTerm(
                     concept: $concept,
                     locale: $toLocale,
                     term: $termLabel,
                     shortDescription: $shortDescription !== '' ? $shortDescription : null,
-                    wikiUrl: $wikiUrl,
+                    wikiUrl: null,
                     mediaUrl: $item['mediaUrl'] ?? null,
                     complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
                 );

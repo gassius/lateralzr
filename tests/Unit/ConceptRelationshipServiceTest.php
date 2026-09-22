@@ -2,8 +2,6 @@
 
 namespace Tests\Unit;
 
-use App\Ai\Tools\WikimediaCommonsSearchTool;
-use App\Ai\Tools\WikipediaSearchTool;
 use App\Services\ConceptRelationshipService;
 use Database\Seeders\ConceptSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,15 +20,6 @@ class ConceptRelationshipServiceTest extends TestCase
     {
         parent::setUp();
 
-        $wikiMock = Mockery::mock(WikipediaSearchTool::class);
-        $wikiMock->shouldReceive('handle')->andReturn('https://en.wikipedia.org/wiki/Test');
-
-        $commonsMock = Mockery::mock(WikimediaCommonsSearchTool::class);
-        $commonsMock->shouldReceive('handle')->andReturn('https://upload.wikimedia.org/wikipedia/commons/thumb/test.jpg/960px-test.jpg');
-
-        $this->app->instance(WikipediaSearchTool::class, $wikiMock);
-        $this->app->instance(WikimediaCommonsSearchTool::class, $commonsMock);
-
         $this->service = $this->app->make(ConceptRelationshipService::class);
     }
 
@@ -45,8 +34,8 @@ class ConceptRelationshipServiceTest extends TestCase
                     [
                         'concept' => 'creativity',
                         'shortDescription' => 'The use of imagination or original ideas to create something',
-                        'wikiUrl' => null,
-                        'mediaUrl' => null,
+                        'wikiUrl' => 'https://evil.example/wiki',
+                        'mediaUrl' => 'https://evil.example/media.jpg',
                     ],
                     [
                         'concept' => 'constraint',
@@ -92,8 +81,8 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertArrayHasKey('shortDescription', $firstConcept);
         $this->assertArrayHasKey('wikiUrl', $firstConcept);
         $this->assertArrayHasKey('mediaUrl', $firstConcept);
-        $this->assertNotNull($firstConcept['wikiUrl']);
-        $this->assertNotNull($firstConcept['mediaUrl']);
+        $this->assertNull($firstConcept['wikiUrl']);
+        $this->assertNull($firstConcept['mediaUrl']);
     }
 
     public function test_generate_relationships_uses_stored_record_when_concept_in_cache(): void
@@ -262,7 +251,7 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->service->generateRelationships('test', null, $mockAgent);
     }
 
-    public function test_generate_relationships_creates_new_record_when_concept_not_in_cache(): void
+    public function test_generate_relationships_does_not_persist_or_attach_urls_on_cache_miss(): void
     {
         $this->assertDatabaseCount('concepts', 0);
 
@@ -285,13 +274,11 @@ class ConceptRelationshipServiceTest extends TestCase
         $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
         $mockAgent->shouldReceive('prompt')->once()->andReturn($mockResponse);
 
-        $this->service->generateRelationships('newness', null, $mockAgent);
+        $result = $this->service->generateRelationships('newness', null, $mockAgent);
 
-        $this->assertDatabaseCount('concepts', 1);
-        $this->assertDatabaseHas('concept_terms', [
-            'locale' => config('concepts.default_locale', 'en'),
-            'normalized_term' => \App\Models\ConceptTerm::normalizeTerm('newness'),
-        ]);
+        $this->assertDatabaseCount('concepts', 0);
+        $this->assertNull($result['concepts'][0]['wikiUrl']);
+        $this->assertNull($result['concepts'][0]['mediaUrl']);
     }
 
     public function test_generate_relationships_with_null_seed_uses_random_seed(): void

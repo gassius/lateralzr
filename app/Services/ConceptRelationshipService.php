@@ -4,26 +4,21 @@ namespace App\Services;
 
 use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Support\LateralConceptAgentInstructions;
-use App\Ai\Tools\WikimediaCommonsSearchTool;
-use App\Ai\Tools\WikipediaSearchTool;
-use App\Models\Concept;
 use App\Models\ConceptTerm;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
-use Laravel\Ai\Tools\Request;
 
 class ConceptRelationshipService
 {
     public function __construct(
         protected ConceptUrlCache $urlCache,
-        protected WikipediaSearchTool $wikipediaTool,
-        protected WikimediaCommonsSearchTool $commonsTool
     ) {}
 
     /**
      * Generate an interwoven concept graph from a starting concept.
-     * Phase 1: Get concepts from LLM (no URL tools). Phase 2: Resolve URLs from cache or tools, persist misses.
+     * Wiki and media URLs are not looked up here. Already stored URLs are copied onto the response;
+     * missing URLs stay empty until `concepts:complete-info` runs.
      * When $startConcept is null or empty, a random starting concept is chosen (from DB or config).
      *
      * @param  string|null  $startConcept  Starting concept; null for cold start (random start)
@@ -152,7 +147,7 @@ PROMPT;
             ];
         }, $edges)));
 
-        // Phase 2: Resolve URLs from cache or tools for each concept node
+        // Copy URLs that were already stored. Do not search or attach new ones.
         $concepts = array_map(fn ($c) => $this->resolveUrlsForConcept($c), $concepts);
 
         return [
@@ -210,44 +205,27 @@ PROMPT;
     }
 
     /**
-     * Resolve wikiUrl and mediaUrl for a single concept (seed or related). Uses cache first, then tools + persist.
+     * Surface wiki and media already stored for this concept. Never searches.
+     * Model-invented URLs are discarded when nothing is stored yet.
      *
      * @param  array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null, larelality?: int}  $item
-     * @return array with wikiUrl and mediaUrl set (possibly null if tools return empty)
+     * @return array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}
      */
     protected function resolveUrlsForConcept(array $item): array
     {
-        $concept = $item['concept'] ?? '';
-        $shortDescription = $item['shortDescription'] ?? '';
-        $normalized = ConceptTerm::normalizeTerm($concept);
-
+        $concept = (string) ($item['concept'] ?? '');
         $cached = $this->urlCache->findByConcept($concept);
 
         if ($cached !== null) {
-            Log::info('ConceptUrlCache: using stored record', ['concept' => $normalized]);
+            Log::info('ConceptUrlCache: using stored record', ['concept' => ConceptTerm::normalizeTerm($concept)]);
             $item['wikiUrl'] = $cached->wiki_url;
             $item['mediaUrl'] = $cached->media_url;
 
             return $item;
         }
 
-        $request = new Request([
-            'concept' => $concept,
-            'shortDescription' => $shortDescription,
-        ]);
-
-        $wikiUrl = $this->wikipediaTool->handle($request);
-        $wikiUrl = is_string($wikiUrl) ? $wikiUrl : (string) $wikiUrl;
-        $wikiUrl = $wikiUrl !== '' ? $wikiUrl : null;
-
-        $mediaUrl = $this->commonsTool->handle($request);
-        $mediaUrl = is_string($mediaUrl) ? $mediaUrl : (string) $mediaUrl;
-        $mediaUrl = $mediaUrl !== '' ? $mediaUrl : null;
-
-        $this->urlCache->remember($concept, $wikiUrl, $mediaUrl);
-
-        $item['wikiUrl'] = $wikiUrl;
-        $item['mediaUrl'] = $mediaUrl;
+        $item['wikiUrl'] = null;
+        $item['mediaUrl'] = null;
 
         return $item;
     }
