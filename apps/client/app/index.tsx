@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ComplexityCue } from '@/components/ComplexityCue';
@@ -33,6 +34,7 @@ import { applyResolvedLocale } from '@/lib/locale';
 import {
   applyJourneyTestDeck,
   journeyStartOptions,
+  parseComplexityParam,
   readJourneyTestParams,
   resolveHydratedComplexity,
   resolveJourneyStartFallback,
@@ -50,8 +52,15 @@ const UNVISITED_AHEAD_PREFETCH_AT = 2;
 const INITIAL_EMPTY_RETRY_MS = 1500;
 const MAX_EMPTY_RETRY_MS = 30_000;
 
+function firstSearchParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const routeParams = useLocalSearchParams<{ complexity?: string | string[] }>();
+  const routeComplexity = parseComplexityParam(firstSearchParam(routeParams.complexity));
   const { height: windowHeight } = useWindowDimensions();
   // Web phone frame reports its inner size; native hook is a no-op (null).
   const phoneFrame = useWebPhoneFrameSize();
@@ -125,7 +134,8 @@ export default function HomeScreen() {
       const params = {
         ...journeyTestParamsRef.current,
         ...latest,
-        complexity: latest.complexity ?? journeyTestParamsRef.current.complexity,
+        complexity:
+          latest.complexity ?? journeyTestParamsRef.current.complexity ?? routeComplexity,
       };
       journeyTestParamsRef.current = params;
       const hydrated = resolveHydratedComplexity(params, stored);
@@ -138,6 +148,11 @@ export default function HomeScreen() {
         })
       ) {
         pendingSessionComplexityCueRef.current = hydrated.complexity;
+        setComplexityCue({
+          grade: hydrated.complexity,
+          token: Date.now(),
+          holdMs: complexityCueHoldMs('session-url'),
+        });
       }
       if (hydrated.persist && shouldPersistComplexity('hydrate')) {
         void persistComplexity(hydrated.complexity);
@@ -615,12 +630,17 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!showMainDeck) return;
     if (announcedSessionComplexityRef.current) return;
-    const pending = pendingSessionComplexityCueRef.current;
+    const pending =
+      pendingSessionComplexityCueRef.current ??
+      routeComplexity ??
+      readJourneyTestParams().complexity ??
+      journeyTestParamsRef.current.complexity;
     if (pending == null) return;
+    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: pending })) return;
     announcedSessionComplexityRef.current = true;
     pendingSessionComplexityCueRef.current = null;
     announceComplexity(pending, 'session-url');
-  }, [announceComplexity, showMainDeck]);
+  }, [announceComplexity, routeComplexity, showMainDeck]);
 
   if (showIntroLogo) {
     return (
