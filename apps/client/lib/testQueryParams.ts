@@ -106,16 +106,52 @@ export function parseJourneyTestParams(
   }
 }
 
+/**
+ * Expo Router / Metro web sometimes replace `/?a=1` with `/` after boot.
+ * Remember the first non-empty search so session params still apply.
+ */
+let rememberedWebSearch = '';
+
+/** Keep the first non-empty `?…` string. Empty input does not erase memory. */
+export function rememberWebSearch(search: string | null | undefined): string {
+  const trimmed = (search ?? '').trim();
+  if (trimmed && trimmed !== '?') {
+    rememberedWebSearch = trimmed.startsWith('?') ? trimmed : `?${trimmed}`;
+  }
+  return rememberedWebSearch;
+}
+
+/** Test-only: clear the remembered search. */
+export function resetRememberedWebSearch(): void {
+  rememberedWebSearch = '';
+}
+
+function liveWebSearch(): string {
+  if (typeof window === 'undefined') return rememberedWebSearch;
+  try {
+    rememberWebSearch(window.location?.search);
+    if (!rememberedWebSearch && window.location?.href) {
+      rememberWebSearch(new URL(window.location.href).search);
+    }
+  } catch {
+    // ignore
+  }
+  return rememberedWebSearch;
+}
+
 /** Read test params from the current web URL. Native / SSR return empty overrides. */
 export function readJourneyTestParams(): JourneyTestParams {
-  if (typeof window === 'undefined' || typeof window.location?.search !== 'string') {
-    return { onlyWithMedia: false };
-  }
+  const search = liveWebSearch();
+  if (!search) return { onlyWithMedia: false };
   try {
-    return parseJourneyTestParams(window.location.search);
+    return parseJourneyTestParams(search);
   } catch {
     return { onlyWithMedia: false };
   }
+}
+
+if (typeof window !== 'undefined') {
+  rememberWebSearch(window.location?.search);
 }
 
 /**

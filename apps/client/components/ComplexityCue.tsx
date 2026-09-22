@@ -47,7 +47,6 @@ export function ComplexityCue({
 }: ComplexityCueProps) {
   const reduceMotionRef = useRef(initialReduceMotion());
   const onHiddenRef = useRef(onHidden);
-  const animate = shouldAnimateComplexityCue(reduceMotionRef.current);
   /** Visible on the first frame so a failed appear animation cannot hide the cue. */
   const progress = useSharedValue(1);
   const colors = complexityCuePalette();

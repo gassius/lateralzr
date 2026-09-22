@@ -5,11 +5,24 @@ import {
   buildRelationshipsRequestBody,
   journeyStartOptions,
   parseJourneyTestParams,
+  rememberWebSearch,
+  resetRememberedWebSearch,
   resolveHydratedComplexity,
   resolveInitialComplexity,
   resolveJourneyStartFallback,
   shouldPersistComplexity,
 } from './testQueryParams.ts';
+
+describe('rememberWebSearch', () => {
+  it('keeps the first non-empty search when a later read is blank', () => {
+    resetRememberedWebSearch();
+    assert.equal(rememberWebSearch('?canonicalConcept=mushroom&complexity=5'), '?canonicalConcept=mushroom&complexity=5');
+    assert.equal(rememberWebSearch(''), '?canonicalConcept=mushroom&complexity=5');
+    assert.equal(rememberWebSearch('?'), '?canonicalConcept=mushroom&complexity=5');
+    assert.equal(parseJourneyTestParams(rememberWebSearch('')).complexity, 5);
+    resetRememberedWebSearch();
+  });
+});
 
 describe('parseJourneyTestParams', () => {
   it('returns empty overrides when the query string is missing or blank', () => {
