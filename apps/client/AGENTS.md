@@ -54,8 +54,9 @@ Testers can deep-link the web preview with query params. **Do not treat this as 
 | `localizedConcept=<label>` | Start at that localized card label |
 | `onlyWithMedia=true` | Restrict the deck to concepts that have media |
 | `locale=en\|es` | Existing locale override |
+| `complexity=1-5` | Force complexity for this load/session only (does not persist) |
 
-Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true`
+Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true&complexity=5`
 
 ## Navigation & Routing
 

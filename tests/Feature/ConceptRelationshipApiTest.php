@@ -160,7 +160,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 40, 3, 0.2, 'en', null, false)
+            ->with('creativity', 40, 3, 0.2, 'en', null, false, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -185,7 +185,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'es', null, false)
+            ->with('creativity', 100, 2, 0.0, 'es', null, false, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -236,7 +236,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with(null, 100, 2, 0.0, 'es', 'creativity', true)
+            ->with(null, 100, 2, 0.0, 'es', 'creativity', true, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => 'https://example.com/c.jpg', 'degree' => 0]],
@@ -261,7 +261,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creatividad', 100, 2, 0.0, 'es', null, false)
+            ->with('creatividad', 100, 2, 0.0, 'es', null, false, null)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
@@ -277,5 +277,39 @@ class ConceptRelationshipApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.start.label', 'creatividad');
+    }
+
+    public function test_generate_endpoint_passes_complexity_to_graph_query(): void
+    {
+        $mockQuery = Mockery::mock(ConceptGraphQuery::class);
+        $mockQuery->shouldReceive('getGraph')
+            ->once()
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, 5)
+            ->andReturn([
+                'start' => ['id' => 1, 'label' => 'creativity'],
+                'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 5, 'wikiUrl' => null, 'mediaUrl' => null, 'degree' => 0]],
+                'edges' => [],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'en', 'complexity' => 5],
+            ]);
+        $this->app->instance(ConceptGraphQuery::class, $mockQuery);
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'complexity' => 5,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.meta.complexity', 5);
+    }
+
+    public function test_generate_endpoint_validates_complexity_range(): void
+    {
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'complexity' => 6,
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['complexity']);
     }
 }

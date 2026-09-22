@@ -82,6 +82,7 @@ export async function fetchConceptRelationships(
     limit: options?.limit,
     depth: options?.depth,
     minStrength: options?.minStrength,
+    complexity: options?.complexity,
     locale,
   });
 

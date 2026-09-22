@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   applyAppendedBatch,
+  applyComplexityTreeSwap,
   graphToDeckItems,
   mergeUniqueRelated,
   planLoadMoreMerge,
@@ -117,4 +118,37 @@ test('applyAppendedBatch keeps the pending logo when nothing new arrived', () =>
   assert.equal(applied.pendingEndDeckLoad, true);
   assert.equal(applied.nextIndex, null);
   assert.equal(applied.concepts, existing);
+});
+
+test('applyComplexityTreeSwap keeps the current card and replaces upcoming cards', () => {
+  const existing = [item('mushroom'), item('tide'), item('lighthouse'), item('dunes')];
+  const incoming = [item('tide'), item('algorithm'), item('constraint')];
+  const swapped = applyComplexityTreeSwap(existing, 1, incoming);
+
+  assert.equal(swapped.currentIndex, 1);
+  assert.deepEqual(
+    swapped.concepts.map((c) => c.concept),
+    ['mushroom', 'tide', 'algorithm', 'constraint'],
+  );
+  assert.equal(swapped.clearedEndDeckLoad, true);
+});
+
+test('applyComplexityTreeSwap keeps the current card when the new tree is a cold start', () => {
+  const existing = [item('mushroom'), item('tide')];
+  const incoming = [item('orbit'), item('silence')];
+  const swapped = applyComplexityTreeSwap(existing, 1, incoming);
+
+  assert.equal(swapped.currentIndex, 1);
+  assert.deepEqual(
+    swapped.concepts.map((c) => c.concept),
+    ['mushroom', 'tide', 'orbit', 'silence'],
+  );
+});
+
+test('applyComplexityTreeSwap is a no-op when the incoming tree is empty', () => {
+  const existing = [item('mushroom'), item('tide')];
+  const swapped = applyComplexityTreeSwap(existing, 0, []);
+  assert.equal(swapped.currentIndex, 0);
+  assert.deepEqual(swapped.concepts, existing);
+  assert.equal(swapped.clearedEndDeckLoad, false);
 });

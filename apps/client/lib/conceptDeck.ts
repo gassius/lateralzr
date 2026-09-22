@@ -141,6 +141,48 @@ export type AppendedBatch = {
   pendingEndDeckLoad: boolean;
 };
 
+export type ComplexityTreeSwap = {
+  concepts: DeckConcept[];
+  currentIndex: number;
+  /** True when the swap added at least one new upcoming card. */
+  clearedEndDeckLoad: boolean;
+};
+
+/**
+ * Replace the stale upcoming walk with a freshly prefetched tree, keeping the
+ * cards already seen (and the current card) so the deck does not jump.
+ */
+export function applyComplexityTreeSwap(
+  existing: DeckConcept[],
+  currentIndex: number,
+  incoming: DeckConcept[],
+): ComplexityTreeSwap {
+  if (existing.length === 0) {
+    return {
+      concepts: incoming,
+      currentIndex: 0,
+      clearedEndDeckLoad: incoming.length > 0,
+    };
+  }
+
+  const safeIndex = Math.min(Math.max(currentIndex, 0), existing.length - 1);
+  if (incoming.length === 0) {
+    return { concepts: existing, currentIndex: safeIndex, clearedEndDeckLoad: false };
+  }
+
+  const prefix = existing.slice(0, safeIndex + 1);
+  const add = mergeUniqueRelated(prefix, incoming);
+  if (add.length === 0) {
+    return { concepts: existing, currentIndex: safeIndex, clearedEndDeckLoad: false };
+  }
+
+  return {
+    concepts: [...prefix, ...add],
+    currentIndex: safeIndex,
+    clearedEndDeckLoad: true,
+  };
+}
+
 export function applyAppendedBatch(
   existing: DeckConcept[],
   add: DeckConcept[],

@@ -7,7 +7,7 @@ import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
-import { applyAppendedBatch, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
+import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
@@ -17,7 +17,9 @@ import {
   applyJourneyTestDeck,
   journeyStartOptions,
   readJourneyTestParams,
+  resolveHydratedComplexity,
   resolveJourneyStartFallback,
+  shouldPersistComplexity,
   type JourneyFetchOptions,
 } from '@/lib/testQueryParams';
 
@@ -84,11 +86,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    void loadStoredComplexity().then((c) => {
-      if (!cancelled) {
-        setComplexity(c);
-        setComplexityHydrated(true);
+    void loadStoredComplexity().then((stored) => {
+      if (cancelled) return;
+      const hydrated = resolveHydratedComplexity(journeyTestParamsRef.current, stored);
+      complexityRef.current = hydrated.complexity;
+      setComplexity(hydrated.complexity);
+      if (hydrated.persist && shouldPersistComplexity('hydrate')) {
+        void persistComplexity(hydrated.complexity);
       }
+      setComplexityHydrated(true);
     });
     return () => {
       cancelled = true;
@@ -105,11 +111,16 @@ export default function HomeScreen() {
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
   const fetchBatch = useCallback(
-    async (requestedComplexity: number, options?: JourneyFetchOptions) => {
+    async (
+      requestedComplexity: number,
+      options?: JourneyFetchOptions,
+      behavior?: { fallbackToDefaultComplexity?: boolean },
+    ) => {
       const trimmedSeed = options?.start?.trim() ?? '';
       const start = trimmedSeed !== '' ? trimmedSeed : undefined;
       const canonicalStart = options?.canonicalStart?.trim() || undefined;
       const onlyWithMedia = options?.onlyWithMedia || undefined;
+      const fallbackToDefaultComplexity = behavior?.fallbackToDefaultComplexity !== false;
       try {
         return await fetchConceptRelationships({
           start,
@@ -123,7 +134,12 @@ export default function HomeScreen() {
       } catch (e) {
         // Backend only has prefetched data for some complexities (often just 2).
         // If the requested complexity isn't prefetched yet, fall back to the default tier.
-        if (e instanceof ApiError && e.status === 404 && requestedComplexity !== DEFAULT_CONCEPT_COMPLEXITY) {
+        if (
+          fallbackToDefaultComplexity &&
+          e instanceof ApiError &&
+          e.status === 404 &&
+          requestedComplexity !== DEFAULT_CONCEPT_COMPLEXITY
+        ) {
           const data = await fetchConceptRelationships({
             start,
             canonicalStart,
@@ -135,7 +151,9 @@ export default function HomeScreen() {
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
           setComplexity(DEFAULT_CONCEPT_COMPLEXITY);
-          void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          if (shouldPersistComplexity('fallback')) {
+            void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
+          }
           return data;
         }
         throw e;
@@ -317,6 +335,7 @@ export default function HomeScreen() {
     if (i < len - 1) {
       pendingEndDeckLoadRef.current = false;
       setPendingEndDeckLoad(false);
+      currentIndexRef.current = i + 1;
       setCurrentIndex(i + 1);
       return;
     }
@@ -335,15 +354,95 @@ export default function HomeScreen() {
     setCurrentIndex((i) => Math.max(i - 1, 0));
   }, []);
 
+  const prefetchComplexityTree = useCallback(
+    async (nextComplexity: number) => {
+      const list = conceptsRef.current;
+      if (list.length === 0) return;
+
+      const gen = ++fetchGenRef.current;
+      const stillCurrent = () => gen === fetchGenRef.current;
+      const current = list[currentIndexRef.current];
+      const seed = current?.concept?.trim() ?? '';
+      const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
+        ? { onlyWithMedia: true as const }
+        : {};
+
+      try {
+        let data: Awaited<ReturnType<typeof fetchConceptRelationships>>;
+        let usedSeed = seed.length > 0;
+        try {
+          data = await fetchBatch(
+            nextComplexity,
+            {
+              ...(usedSeed ? { start: seed } : {}),
+              ...mediaFilter,
+            },
+            { fallbackToDefaultComplexity: false },
+          );
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 404 && usedSeed) {
+            data = await fetchBatch(nextComplexity, mediaFilter, {
+              fallbackToDefaultComplexity: false,
+            });
+            usedSeed = false;
+          } else {
+            throw e;
+          }
+        }
+
+        if (!stillCurrent()) return;
+
+        const incoming = applyJourneyTestDeck(graphToDeckItems(data), {
+          ...journeyTestParamsRef.current,
+          localizedConcept: usedSeed ? seed : undefined,
+          canonicalConcept: undefined,
+        });
+        const swapped = applyComplexityTreeSwap(
+          conceptsRef.current,
+          currentIndexRef.current,
+          incoming,
+        );
+
+        conceptsRef.current = swapped.concepts;
+        setConcepts(swapped.concepts);
+        if (swapped.currentIndex !== currentIndexRef.current) {
+          currentIndexRef.current = swapped.currentIndex;
+          setCurrentIndex(swapped.currentIndex);
+        }
+        if (swapped.clearedEndDeckLoad) {
+          pendingEndDeckLoadRef.current = false;
+          setPendingEndDeckLoad(false);
+        }
+      } catch {
+        // Keep the stale tree; the user can keep swiping.
+      }
+    },
+    [fetchBatch],
+  );
+
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
       const next = clampComplexity(complexityRef.current + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
       setComplexity(next);
-      void persistComplexity(next);
-      onSwipeLeft();
+      if (shouldPersistComplexity('swipe')) {
+        void persistComplexity(next);
+      }
+
+      // Advance like a forward swipe when there is a next card, but do not kick
+      // the end-of-deck loader — the complexity prefetch will swap upcoming cards.
+      const len = conceptsRef.current.length;
+      const i = currentIndexRef.current;
+      pendingEndDeckLoadRef.current = false;
+      setPendingEndDeckLoad(false);
+      if (len > 0 && i < len - 1) {
+        currentIndexRef.current = i + 1;
+        setCurrentIndex(i + 1);
+      }
+
+      void prefetchComplexityTree(next);
     },
-    [onSwipeLeft],
+    [prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;

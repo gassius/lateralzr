@@ -5,7 +5,10 @@ import {
   buildRelationshipsRequestBody,
   journeyStartOptions,
   parseJourneyTestParams,
+  resolveHydratedComplexity,
+  resolveInitialComplexity,
   resolveJourneyStartFallback,
+  shouldPersistComplexity,
 } from './testQueryParams.ts';
 
 describe('parseJourneyTestParams', () => {
@@ -25,6 +28,19 @@ describe('parseJourneyTestParams', () => {
       canonicalConcept: undefined,
       onlyWithMedia: false,
     });
+  });
+
+  it('reads a valid integer complexity and ignores blank or invalid values', () => {
+    assert.equal(parseJourneyTestParams('complexity=5').complexity, 5);
+    assert.equal(parseJourneyTestParams('complexity=1').complexity, 1);
+    assert.equal(parseJourneyTestParams('complexity=05').complexity, 5);
+    assert.equal(parseJourneyTestParams('complexity=').complexity, undefined);
+    assert.equal(parseJourneyTestParams('complexity=%20').complexity, undefined);
+    assert.equal(parseJourneyTestParams('complexity=abc').complexity, undefined);
+    assert.equal(parseJourneyTestParams('complexity=5.5').complexity, undefined);
+    assert.equal(parseJourneyTestParams('complexity=0').complexity, undefined);
+    assert.equal(parseJourneyTestParams('complexity=6').complexity, undefined);
+    assert.equal(parseJourneyTestParams('canonicalConcept=mushroom').complexity, undefined);
   });
 
   it('reads canonicalConcept, localizedConcept, and onlyWithMedia=true', () => {
@@ -125,6 +141,49 @@ describe('buildRelationshipsRequestBody', () => {
     assert.equal('canonicalStart' in body, false);
     assert.equal('onlyWithMedia' in body, false);
     assert.equal(body.locale, 'en');
+  });
+
+  it('includes a valid complexity integer and omits invalid values', () => {
+    assert.equal(
+      buildRelationshipsRequestBody({ complexity: 5, locale: 'en' }).complexity,
+      5,
+    );
+    const omitted = buildRelationshipsRequestBody({ locale: 'en' });
+    assert.equal('complexity' in omitted, false);
+  });
+});
+
+describe('resolveInitialComplexity', () => {
+  it('prefers a valid URL complexity over the stored value', () => {
+    assert.equal(resolveInitialComplexity({ onlyWithMedia: false, complexity: 5 }, 2), 5);
+  });
+
+  it('falls back to the stored complexity when the URL value is missing', () => {
+    assert.equal(resolveInitialComplexity({ onlyWithMedia: false }, 3), 3);
+  });
+});
+
+describe('resolveHydratedComplexity', () => {
+  it('applies a URL complexity for this load without marking it for persistence', () => {
+    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false, complexity: 5 }, 2), {
+      complexity: 5,
+      persist: false,
+    });
+  });
+
+  it('keeps the stored complexity when the URL has no override', () => {
+    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false }, 3), {
+      complexity: 3,
+      persist: false,
+    });
+  });
+});
+
+describe('shouldPersistComplexity', () => {
+  it('persists only after an intentional up/down swipe', () => {
+    assert.equal(shouldPersistComplexity('swipe'), true);
+    assert.equal(shouldPersistComplexity('hydrate'), false);
+    assert.equal(shouldPersistComplexity('fallback'), false);
   });
 });
 

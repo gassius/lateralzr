@@ -35,6 +35,7 @@ class ConceptRelationshipController
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
+            'complexity' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
         ]);
 
         $startValue = $validated['start'] ?? $validated['seed'] ?? $validated['localizedConcept'] ?? null;
@@ -50,6 +51,9 @@ class ConceptRelationshipController
         $onlyWithMedia = filter_var($validated['onlyWithMedia'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         $locale = ConceptLocale::resolve($validated['locale'] ?? null);
+        $complexity = array_key_exists('complexity', $validated) && $validated['complexity'] !== null
+            ? (int) $validated['complexity']
+            : null;
 
         try {
             $result = $this->query->getGraph(
@@ -59,7 +63,8 @@ class ConceptRelationshipController
                 minStrength: (float) ($validated['minStrength'] ?? 0.0),
                 locale: $locale,
                 canonicalStart: $canonicalStart,
-                onlyWithMedia: $onlyWithMedia
+                onlyWithMedia: $onlyWithMedia,
+                complexity: $complexity
             );
 
             if ($result === null) {

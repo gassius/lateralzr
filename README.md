@@ -117,7 +117,7 @@ This repository is a **monorepo**: the **Laravel API** lives at the **root**; th
 - **Prerequisites**: Node version per [.nvmrc](.nvmrc) (NVM on host or Node Docker service); optionally Xcode (iOS) / Android Studio (Android) for native runs.
 - **Environment**: Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/client/.env`) to the API base URL (no trailing slash). Example: `EXPO_PUBLIC_API_URL=http://localhost`.
 - See [Expo Documentation](https://docs.expo.dev) for building and deploying the app.
-- **Test URL params** (Expo web / Critiquito): `canonicalConcept`, `localizedConcept`, `onlyWithMedia`, plus existing `locale`. Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es`. Docs: [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md).
+- **Test URL params** (Expo web / Critiquito): `canonicalConcept`, `localizedConcept`, `onlyWithMedia`, `complexity` (this load/session only; does not persist), plus existing `locale`. Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es&complexity=5`. Docs: [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md).
 
 ### Admin Backoffice
 
@@ -218,6 +218,7 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
 - `canonicalStart` / `canonicalConcept` — language-neutral `canonical_key` (use with `locale`)
 - `onlyWithMedia` — only concepts that have a `mediaUrl`
 - `locale` — `en` or `es`
+- `complexity` — optional integer **1–5**; prefers terms generated at that label-density tier. Omitted requests keep the unfiltered walk (backward compatible).
 
 **Request:**
 ```json
