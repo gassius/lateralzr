@@ -206,20 +206,9 @@ class ConceptCompleteInfoService
 
     protected function termNeedsMedia(ConceptTerm $term): bool
     {
-        if (! $this->isBlank($term->media_url)) {
-            return false;
-        }
-
-        $concept = $term->concept;
-        if (! $concept instanceof Concept) {
-            return true;
-        }
-
-        if ($concept->relationLoaded('media')) {
-            return $concept->media->isEmpty();
-        }
-
-        return ! $concept->media()->exists();
+        // The client still reads concept_terms.media_url. Existing concept_media
+        // rows do not fill that column until this command copies the primary image.
+        return $this->isBlank($term->media_url);
     }
 
     protected function isBlank(?string $value): bool

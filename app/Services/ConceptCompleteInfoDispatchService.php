@@ -136,13 +136,13 @@ class ConceptCompleteInfoDispatchService
     }
 
     /**
-     * A term still needs media when it has no display URL and the concept has no qualified media rows.
-     * Clips live on the concept even when media_url (the image the client shows today) stays empty.
+     * A term still needs its display URL when media_url is blank, even if concept_media
+     * rows already exist. The client reads media_url, copied from the primary image.
      */
     protected function whereMissingMedia(\Illuminate\Database\Eloquent\Builder $query): void
     {
         $query->where(function ($blank) {
             $blank->whereNull('media_url')->orWhere('media_url', '');
-        })->whereDoesntHave('concept.media');
+        });
     }
 }

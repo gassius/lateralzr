@@ -81,21 +81,34 @@ class CompleteConceptInfoTest extends TestCase
         });
     }
 
-    public function test_dispatch_skips_media_when_concept_already_has_qualified_media(): void
+    public function test_blank_term_media_url_is_filled_from_existing_concept_media(): void
     {
+        $image = 'https://upload.wikimedia.org/wikipedia/commons/s/silence.jpg';
         $term = $this->makeTerm('silence', locale: 'en', wiki: 'https://en.wikipedia.org/wiki/Silence', media: null);
         ConceptMedia::query()->create([
             'concept_id' => $term->concept_id,
-            'url' => 'https://upload.wikimedia.org/wikipedia/commons/1/11/silence.webm',
-            'kind' => 'clip',
-            'license' => 'Public domain',
+            'url' => $image,
+            'kind' => 'image',
+            'license' => 'CC0',
             'source' => 'wikimedia',
             'position' => 0,
         ]);
 
         $dispatch = app(ConceptCompleteInfoDispatchService::class);
-        $this->assertNotContains($term->id, $dispatch->matchingTermIds('en', 'media', null));
-        $this->assertNotContains($term->id, $dispatch->matchingTermIds('en', 'both', null));
+        $this->assertContains($term->id, $dispatch->matchingTermIds('en', 'media', null));
+        $this->assertContains($term->id, $dispatch->matchingTermIds('en', 'both', null));
+
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldNotReceive('find');
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldNotReceive('find');
+
+        $stats = (new ConceptCompleteInfoService($articles, $finder))->complete([$term->id], 'media');
+
+        $this->assertSame(1, $stats['mediaUpdated']);
+        $this->assertSame(0, $stats['wikiUpdated']);
+        $term->refresh();
+        $this->assertSame($image, $term->media_url);
     }
 
     public function test_command_rejects_conflicting_mode_flags(): void

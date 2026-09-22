@@ -20,7 +20,6 @@ final class WikimediaClient
 
         try {
             $response = Http::timeout(12)
-                ->withoutVerifying()
                 ->withHeaders([
                     'User-Agent' => (string) config('media.user_agent'),
                     'Accept' => 'application/json',
