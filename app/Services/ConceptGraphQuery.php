@@ -23,13 +23,15 @@ class ConceptGraphQuery
         ?string $locale = null,
         ?string $canonicalStart = null,
         bool $onlyWithMedia = false,
-        ?int $complexity = null
+        ?int $complexity = null,
+        ?int $laterality = null
     ): ?array {
         $limit = max(1, min(500, $limit));
         $depth = max(1, min(5, $depth));
         $minStrength = max(0.0, min(1.0, $minStrength));
         $locale = ConceptLocale::resolve($locale);
         $complexity = $this->normalizeComplexity($complexity);
+        $laterality = $laterality === null ? null : max(1, min(5, $laterality));
 
         $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity);
         if ($start === null) {
@@ -56,9 +58,7 @@ class ConceptGraphQuery
                 $this->constrainRelationshipToMedia($edgesQuery, $locale);
             }
 
-            $edges = $edgesQuery
-                ->orderByDesc('strength')
-                ->orderByDesc('llm_occurrences')
+            $edges = $this->orderNeighborhoodEdges($edgesQuery, $laterality)
                 ->limit($remaining + 1)
                 ->get();
 
@@ -134,6 +134,7 @@ class ConceptGraphQuery
                 'hasMore' => $hasMore,
                 'locale' => $locale,
                 ...($complexity !== null ? ['complexity' => $complexity] : []),
+                ...($laterality !== null ? ['laterality' => $laterality] : []),
             ],
         ];
     }
@@ -241,6 +242,24 @@ class ConceptGraphQuery
         }
 
         return $concept;
+    }
+
+    /**
+     * Prefer edges whose laterality is closer to the requested grade.
+     * Omitted laterality keeps the existing strength-first walk (backward compatible).
+     *
+     * @param  Builder<ConceptRelationship>  $query
+     * @return Builder<ConceptRelationship>
+     */
+    protected function orderNeighborhoodEdges(Builder $query, ?int $laterality): Builder
+    {
+        if ($laterality !== null) {
+            $query->orderByRaw('ABS(COALESCE(last_laterality, 3) - ?) ASC', [$laterality]);
+        }
+
+        return $query
+            ->orderByDesc('strength')
+            ->orderByDesc('llm_occurrences');
     }
 
     /**

@@ -34,6 +34,7 @@ class ConceptRelationshipController
             'limit' => ['sometimes', 'integer', 'min:1', 'max:500'],
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
+            'laterality' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
             'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
             'complexity' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
         ]);
@@ -54,6 +55,9 @@ class ConceptRelationshipController
         $complexity = array_key_exists('complexity', $validated) && $validated['complexity'] !== null
             ? (int) $validated['complexity']
             : null;
+        $laterality = array_key_exists('laterality', $validated) && $validated['laterality'] !== null
+            ? (int) $validated['laterality']
+            : null;
 
         try {
             $result = $this->query->getGraph(
@@ -64,7 +68,8 @@ class ConceptRelationshipController
                 locale: $locale,
                 canonicalStart: $canonicalStart,
                 onlyWithMedia: $onlyWithMedia,
-                complexity: $complexity
+                complexity: $complexity,
+                laterality: $laterality
             );
 
             if ($result === null) {

@@ -16,7 +16,10 @@ type MessageKey =
   | 'tapToRetry'
   | 'failedToLoadConcepts'
   | 'failedToFetchConcepts'
-  | 'invalidApiResponse';
+  | 'invalidApiResponse'
+  | 'decreaseLaterality'
+  | 'increaseLaterality'
+  | 'lateralityGrade';
 
 const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -32,6 +35,9 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     failedToLoadConcepts: 'Failed to load concepts',
     failedToFetchConcepts: 'Failed to fetch concepts',
     invalidApiResponse: 'Invalid response from API',
+    decreaseLaterality: 'Decrease laterality',
+    increaseLaterality: 'Increase laterality',
+    lateralityGrade: 'Laterality {grade}',
   },
   es: {
     swipeCoach: 'Desliza para otra idea',
@@ -46,6 +52,9 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     failedToLoadConcepts: 'No se pudieron cargar los conceptos',
     failedToFetchConcepts: 'Error al obtener conceptos',
     invalidApiResponse: 'Respuesta inválida de la API',
+    decreaseLaterality: 'Disminuir laterality',
+    increaseLaterality: 'Aumentar laterality',
+    lateralityGrade: 'Laterality {grade}',
   },
 };
 
