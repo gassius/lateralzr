@@ -23,6 +23,8 @@ type ComplexityCueProps = {
   grade: number;
   /** Changes when the same grade is re-announced so the timer restarts. */
   token: number;
+  /** How long the chip stays up before fading. */
+  holdMs?: number;
   onHidden: () => void;
 };
 
@@ -37,11 +39,17 @@ function initialReduceMotion(): boolean {
   }
 }
 
-export function ComplexityCue({ grade, token, onHidden }: ComplexityCueProps) {
+export function ComplexityCue({
+  grade,
+  token,
+  holdMs = COMPLEXITY_CUE_DURATION_MS,
+  onHidden,
+}: ComplexityCueProps) {
   const reduceMotionRef = useRef(initialReduceMotion());
   const onHiddenRef = useRef(onHidden);
   const animate = shouldAnimateComplexityCue(reduceMotionRef.current);
-  const progress = useSharedValue(animate ? 0 : 1);
+  /** Visible on the first frame so a failed appear animation cannot hide the cue. */
+  const progress = useSharedValue(1);
   const colors = complexityCuePalette();
   const label = complexityCueText(grade);
 
@@ -68,15 +76,11 @@ export function ComplexityCue({ grade, token, onHidden }: ComplexityCueProps) {
 
     if (!shouldAnimateComplexityCue(reduceMotionRef.current)) {
       progress.value = 1;
-      const timer = setTimeout(hide, COMPLEXITY_CUE_DURATION_MS);
+      const timer = setTimeout(hide, holdMs);
       return () => clearTimeout(timer);
     }
 
-    progress.value = 0;
-    progress.value = withTiming(1, {
-      duration: COMPLEXITY_CUE_APPEAR_DURATION_MS,
-      easing: Easing.out(Easing.cubic),
-    });
+    progress.value = 1;
 
     const timer = setTimeout(() => {
       progress.value = withTiming(
@@ -89,10 +93,10 @@ export function ComplexityCue({ grade, token, onHidden }: ComplexityCueProps) {
           if (finished) runOnJS(hide)();
         },
       );
-    }, COMPLEXITY_CUE_DURATION_MS);
+    }, holdMs);
 
     return () => clearTimeout(timer);
-  }, [grade, token, progress]);
+  }, [grade, holdMs, token, progress]);
 
   const motionStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
@@ -116,14 +120,9 @@ export function ComplexityCue({ grade, token, onHidden }: ComplexityCueProps) {
 }
 
 const styles = StyleSheet.create({
-  /** Top of the deck — away from the laterality − / wordmark / + row. */
+  /** Filled by the parent slot so this stays out of the laterality row. */
   anchor: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    right: 16,
     alignItems: 'center',
-    zIndex: 8,
   },
   chip: {
     maxWidth: '100%',

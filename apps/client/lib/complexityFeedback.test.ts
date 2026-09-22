@@ -4,11 +4,13 @@ import { Palette } from '../constants/Colors.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
   COMPLEXITY_CUE_DURATION_MS,
+  COMPLEXITY_CUE_SESSION_DURATION_MS,
   COMPLEXITY_CUE_FONT_SIZE,
   COMPLEXITY_CUE_PLACEMENT,
   complexityCueAppearOpacity,
   complexityCueAppearTranslateY,
   complexityCueContrastRatio,
+  complexityCueHoldMs,
   complexityCueIsSecondaryToConceptTitle,
   complexityCueLabel,
   complexityCuePalette,
@@ -90,11 +92,11 @@ describe('complexity cue placement and hierarchy', () => {
 });
 
 describe('complexity cue contrast', () => {
-  it('meets WCAG AA contrast on the off-white chip over the orange card', () => {
+  it('meets WCAG AA contrast on the off-white chip over the teal letterbox', () => {
     const palette = complexityCuePalette();
     assert.equal(palette.text, Palette.darkBlue);
     assert.equal(palette.chip, Palette.offWhite);
-    assert.equal(palette.backdrop, Palette.orange);
+    assert.equal(palette.backdrop, Palette.darkBlue);
     assert.ok(complexityCueContrastRatio() >= 4.5);
   });
 });
@@ -103,6 +105,10 @@ describe('complexity cue motion', () => {
   it('is a short-lived fade that is skipped entirely when reduced motion is requested', () => {
     assert.ok(COMPLEXITY_CUE_DURATION_MS <= 2200);
     assert.ok(COMPLEXITY_CUE_DURATION_MS >= 1200);
+    assert.ok(COMPLEXITY_CUE_SESSION_DURATION_MS >= COMPLEXITY_CUE_DURATION_MS);
+    assert.ok(COMPLEXITY_CUE_SESSION_DURATION_MS <= 5000);
+    assert.equal(complexityCueHoldMs('session-url'), COMPLEXITY_CUE_SESSION_DURATION_MS);
+    assert.equal(complexityCueHoldMs('swipe'), COMPLEXITY_CUE_DURATION_MS);
     assert.equal(shouldAnimateComplexityCue(false), true);
     assert.equal(shouldAnimateComplexityCue(true), false);
     assert.equal(complexityCueAppearOpacity(true, 0), 1);

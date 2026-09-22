@@ -11,7 +11,7 @@ import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
-import { shouldAnnounceComplexity } from '@/lib/complexityFeedback';
+import { complexityCueHoldMs, shouldAnnounceComplexity } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
@@ -26,6 +26,7 @@ import {
 import {
   cardStackAvailableHeight,
   LATERALITY_CARD_GAP,
+  LATERALITY_SUBMENU_HEIGHT,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
@@ -65,7 +66,11 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
-  const [complexityCue, setComplexityCue] = useState<{ grade: number; token: number } | null>(null);
+  const [complexityCue, setComplexityCue] = useState<{
+    grade: number;
+    token: number;
+    holdMs: number;
+  } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
   const [swappingLaterality, setSwappingLaterality] = useState(false);
@@ -534,8 +539,15 @@ export default function HomeScreen() {
     setComplexityCue(null);
   }, []);
 
-  const announceComplexity = useCallback((grade: number) => {
-    setComplexityCue({ grade, token: Date.now() });
+  const announceComplexity = useCallback((
+    grade: number,
+    reason: 'session-url' | 'swipe',
+  ) => {
+    setComplexityCue({
+      grade,
+      token: Date.now(),
+      holdMs: complexityCueHoldMs(reason),
+    });
   }, []);
 
   useEffect(() => {
@@ -552,7 +564,7 @@ export default function HomeScreen() {
     if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: sessionComplexity })) return;
 
     announcedSessionComplexityRef.current = true;
-    announceComplexity(complexity);
+    announceComplexity(complexity, 'session-url');
   }, [
     announceComplexity,
     complexity,
@@ -572,7 +584,7 @@ export default function HomeScreen() {
       complexityRef.current = next;
       setComplexity(next);
       if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
-        announceComplexity(next);
+        announceComplexity(next, 'swipe');
       }
       if (shouldPersistComplexity('swipe')) {
         void persistComplexity(next);
@@ -665,14 +677,17 @@ export default function HomeScreen() {
             onDecrease={() => onChangeLaterality(-1)}
             onIncrease={() => onChangeLaterality(1)}
           />
+          {complexityCue ? (
+            <View style={styles.complexityCueSlot} pointerEvents="none">
+              <ComplexityCue
+                grade={complexityCue.grade}
+                token={complexityCue.token}
+                holdMs={complexityCue.holdMs}
+                onHidden={dismissComplexityCue}
+              />
+            </View>
+          ) : null}
         </View>
-        {complexityCue ? (
-          <ComplexityCue
-            grade={complexityCue.grade}
-            token={complexityCue.token}
-            onHidden={dismissComplexityCue}
-          />
-        ) : null}
       </View>
     </View>
   );
@@ -697,7 +712,18 @@ const styles = StyleSheet.create({
   },
   cardLateralityGroup: {
     width: '100%',
+    position: 'relative',
     gap: LATERALITY_CARD_GAP,
+  },
+  /** Above − / wordmark / +, never on that row. */
+  complexityCueSlot: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: LATERALITY_SUBMENU_HEIGHT + 4,
+    alignItems: 'center',
+    zIndex: 20,
+    elevation: 20,
   },
   error: {
     color: Palette.black,

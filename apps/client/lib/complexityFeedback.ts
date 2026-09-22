@@ -18,8 +18,11 @@ export const COMPLEXITY_CUE_LINE_HEIGHT = 18;
 
 export const COMPLEXITY_CUE_FONT_WEIGHT = '500' as const;
 
-/** How long the cue stays readable before it leaves. */
+/** How long a swipe cue stays readable before it leaves. */
 export const COMPLEXITY_CUE_DURATION_MS = 1800;
+
+/** Deep-link cue stays up longer so it is still there after the intro logo. */
+export const COMPLEXITY_CUE_SESSION_DURATION_MS = 4000;
 
 /** Brief fade/slide; skipped under reduced motion. */
 export const COMPLEXITY_CUE_APPEAR_DURATION_MS = 240;
@@ -71,11 +74,15 @@ export function complexityCueIsSecondaryToConceptTitle(
   return cueSize < titleSize;
 }
 
+export function complexityCueHoldMs(reason: ComplexityAnnounceEvent['reason']): number {
+  return reason === 'session-url' ? COMPLEXITY_CUE_SESSION_DURATION_MS : COMPLEXITY_CUE_DURATION_MS;
+}
+
 export function complexityCuePalette(): ComplexityCuePalette {
   return {
     text: Palette.darkBlue,
     chip: Palette.offWhite,
-    backdrop: Palette.orange,
+    backdrop: Palette.darkBlue,
   };
 }
 
