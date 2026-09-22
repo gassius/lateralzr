@@ -15,6 +15,7 @@ import {
   complexityCueLabel,
   complexityCuePalette,
   complexityCueSharesLateralityRow,
+  resolveSessionComplexityToAnnounce,
   shouldAnimateComplexityCue,
   shouldAnnounceComplexity,
 } from './complexityFeedback.ts';
@@ -57,6 +58,56 @@ describe('shouldAnnounceComplexity', () => {
   it('does not treat announcing a session URL as a reason to persist prefs', () => {
     assert.equal(shouldAnnounceComplexity({ reason: 'session-url', complexity: 5 }), true);
     assert.equal(shouldPersistComplexity('hydrate'), false);
+  });
+});
+
+describe('resolveSessionComplexityToAnnounce', () => {
+  it('waits when the deck is up but hydrate has not queued a session grade yet', () => {
+    assert.equal(
+      resolveSessionComplexityToAnnounce({
+        alreadyAnnounced: false,
+        pending: null,
+        routeComplexity: undefined,
+        rememberedComplexity: undefined,
+      }),
+      undefined,
+    );
+  });
+
+  it('still announces when the pending session grade arrives after the deck is already visible', () => {
+    assert.equal(
+      resolveSessionComplexityToAnnounce({
+        alreadyAnnounced: false,
+        pending: 5,
+        routeComplexity: undefined,
+        rememberedComplexity: undefined,
+      }),
+      5,
+    );
+  });
+
+  it('uses the live route param when hydrate has not queued yet', () => {
+    assert.equal(
+      resolveSessionComplexityToAnnounce({
+        alreadyAnnounced: false,
+        pending: null,
+        routeComplexity: 5,
+        rememberedComplexity: 2,
+      }),
+      5,
+    );
+  });
+
+  it('does not announce a second time after the session cue already flushed', () => {
+    assert.equal(
+      resolveSessionComplexityToAnnounce({
+        alreadyAnnounced: true,
+        pending: 5,
+        routeComplexity: 5,
+        rememberedComplexity: 5,
+      }),
+      undefined,
+    );
   });
 });
 

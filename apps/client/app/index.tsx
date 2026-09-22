@@ -12,7 +12,11 @@ import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { Palette } from '@/constants/Colors';
-import { complexityCueHoldMs, shouldAnnounceComplexity } from '@/lib/complexityFeedback';
+import {
+  complexityCueHoldMs,
+  resolveSessionComplexityToAnnounce,
+  shouldAnnounceComplexity,
+} from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
@@ -103,7 +107,8 @@ export default function HomeScreen() {
   const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
-  const pendingSessionComplexityCueRef = useRef<number | null>(null);
+  /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
+  const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
 
   useEffect(() => {
     complexityRef.current = complexity;
@@ -147,12 +152,7 @@ export default function HomeScreen() {
           complexity: hydrated.complexity,
         })
       ) {
-        pendingSessionComplexityCueRef.current = hydrated.complexity;
-        setComplexityCue({
-          grade: hydrated.complexity,
-          token: Date.now(),
-          holdMs: complexityCueHoldMs('session-url'),
-        });
+        setPendingSessionComplexity(hydrated.complexity);
       }
       if (hydrated.persist && shouldPersistComplexity('hydrate')) {
         void persistComplexity(hydrated.complexity);
@@ -629,18 +629,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!showMainDeck) return;
-    if (announcedSessionComplexityRef.current) return;
-    const pending =
-      pendingSessionComplexityCueRef.current ??
-      routeComplexity ??
-      readJourneyTestParams().complexity ??
-      journeyTestParamsRef.current.complexity;
+    const pending = resolveSessionComplexityToAnnounce({
+      alreadyAnnounced: announcedSessionComplexityRef.current,
+      pending: pendingSessionComplexity,
+      routeComplexity,
+      rememberedComplexity:
+        readJourneyTestParams().complexity ?? journeyTestParamsRef.current.complexity,
+    });
     if (pending == null) return;
-    if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: pending })) return;
     announcedSessionComplexityRef.current = true;
-    pendingSessionComplexityCueRef.current = null;
+    setPendingSessionComplexity(null);
     announceComplexity(pending, 'session-url');
-  }, [announceComplexity, routeComplexity, showMainDeck]);
+  }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
 
   if (showIntroLogo) {
     return (

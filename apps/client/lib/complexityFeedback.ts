@@ -54,6 +54,27 @@ export function shouldAnnounceComplexity(event: ComplexityAnnounceEvent): boolea
   return event.previous !== event.next;
 }
 
+/**
+ * Flush a session `?complexity=` cue once the main deck is up.
+ *
+ * Pending grade is React state (not a ref) so a hydrate that finishes
+ * after the first deck paint still re-fires this decision.
+ */
+export function resolveSessionComplexityToAnnounce(input: {
+  alreadyAnnounced: boolean;
+  pending: number | null | undefined;
+  routeComplexity?: number;
+  rememberedComplexity?: number;
+}): number | undefined {
+  if (input.alreadyAnnounced) return undefined;
+  const grade = input.pending ?? input.routeComplexity ?? input.rememberedComplexity;
+  if (grade == null) return undefined;
+  if (!shouldAnnounceComplexity({ reason: 'session-url', complexity: grade })) {
+    return undefined;
+  }
+  return grade;
+}
+
 export function complexityCueLabel(grade: number, locale: AppLocale = 'en'): string {
   return CUE_LABEL[locale].replaceAll('{grade}', String(grade));
 }

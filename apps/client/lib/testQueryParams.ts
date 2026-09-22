@@ -112,7 +112,7 @@ export function parseJourneyTestParams(
  */
 let rememberedWebSearch = '';
 
-/** Keep the first non-empty `?…` string. Empty input does not erase memory. */
+/** Latest non-empty `?…` wins; a later blank/`?` does not erase memory. */
 export function rememberWebSearch(search: string | null | undefined): string {
   const trimmed = (search ?? '').trim();
   if (trimmed && trimmed !== '?') {
