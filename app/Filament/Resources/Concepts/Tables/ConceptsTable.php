@@ -27,9 +27,9 @@ class ConceptsTable
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('display_complexity')
+                TextColumn::make('display_complexity')
                     ->label('Complexity')
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'complexity', $direction)),
                 \Filament\Tables\Columns\TextColumn::make('display_wiki_url')
                     ->label('Wiki URL')
                     ->limit(50)

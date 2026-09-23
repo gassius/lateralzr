@@ -41,4 +41,18 @@ class FilamentConceptsAdminTest extends TestCase
             ->sortTable('display_term')
             ->assertCanSeeTableRecords([$apple, $zebra], inOrder: true);
     }
+
+    public function test_concepts_can_sort_by_complexity(): void
+    {
+        $this->actingAsAdmin();
+
+        $simple = $this->makeConcept('Simple', 'simple', complexity: 1);
+        $dense = $this->makeConcept('Dense', 'dense', complexity: 5);
+
+        $this->get('/admin/concepts?sort=display_complexity:asc')->assertSuccessful();
+
+        Livewire::test(ListConcepts::class)
+            ->sortTable('display_complexity')
+            ->assertCanSeeTableRecords([$simple, $dense], inOrder: true);
+    }
 }
