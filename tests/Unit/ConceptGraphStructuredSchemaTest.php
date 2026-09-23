@@ -2,9 +2,10 @@
 
 namespace Tests\Unit;
 
-use App\Ai\Agents\ConceptRelationshipAgent;
 use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Support\ConceptGraphStructuredSchema;
+use Illuminate\JsonSchema\JsonSchemaTypeFactory;
+use Illuminate\JsonSchema\Types\Type;
 use Tests\TestCase;
 
 class ConceptGraphStructuredSchemaTest extends TestCase
@@ -20,7 +21,7 @@ class ConceptGraphStructuredSchemaTest extends TestCase
 
     public function test_concepts_only_agent_schema_matches_shared_definition(): void
     {
-        $fromAgent = ConceptGraphStructuredSchema::exportProperties(new ConceptsOnlyAgent);
+        $fromAgent = $this->schemaToArray((new ConceptsOnlyAgent)->schema(new JsonSchemaTypeFactory));
         $fromShared = ConceptGraphStructuredSchema::exportProperties();
 
         $this->assertSame($fromShared['concepts'], $fromAgent['concepts']);
@@ -29,12 +30,19 @@ class ConceptGraphStructuredSchemaTest extends TestCase
         $this->assertArrayHasKey('items', $fromAgent['edges']);
     }
 
-    public function test_concept_relationship_agent_schema_includes_items(): void
+    /**
+     * @param  array<string, mixed>  $definition
+     * @return array<string, array<string, mixed>>
+     */
+    private function schemaToArray(array $definition): array
     {
-        $properties = ConceptGraphStructuredSchema::exportProperties(new ConceptRelationshipAgent);
+        $properties = [];
 
-        $this->assertArraySchemaHasObjectItems($properties['concepts'], ['concept', 'shortDescription', 'complexity']);
-        $this->assertArraySchemaHasObjectItems($properties['edges'], ['from', 'to', 'laterality']);
+        foreach ($definition as $key => $type) {
+            $properties[$key] = $type instanceof Type ? $type->toArray() : $type;
+        }
+
+        return $properties;
     }
 
     /**

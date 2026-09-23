@@ -15,60 +15,6 @@ class ConceptGraphStore
     ) {}
 
     /**
-     * Legacy persistence path used by existing jobs until graph-generation refactor lands.
-     * Stores a simple directed set of edges from seed -> related.
-     *
-     * @param  array{concept:string,shortDescription:string,wikiUrl:?string,mediaUrl:?string}  $seed
-     * @param  array<int, array{concept:string,shortDescription:string,larelality:int,wikiUrl:?string,mediaUrl:?string}>  $related
-     */
-    public function storeSeedAndRelated(
-        array $seed,
-        array $related,
-        ?string $provider,
-        ?string $model,
-        ?string $runUuid
-    ): void {
-        DB::transaction(function () use ($seed, $related, $provider, $model, $runUuid) {
-            $locale = $this->canonicalizer->defaultLocale();
-            $seedConcept = $this->canonicalizer->resolveOrCreate(
-                term: (string) ($seed['concept'] ?? ''),
-                locale: $locale,
-                shortDescription: $seed['shortDescription'] ?? null,
-                wikiUrl: $seed['wikiUrl'] ?? null,
-                mediaUrl: $seed['mediaUrl'] ?? null
-            );
-
-            foreach ($related as $item) {
-                $toConcept = $this->canonicalizer->resolveOrCreate(
-                    term: (string) ($item['concept'] ?? ''),
-                    locale: $locale,
-                    shortDescription: $item['shortDescription'] ?? null,
-                    wikiUrl: $item['wikiUrl'] ?? null,
-                    mediaUrl: $item['mediaUrl'] ?? null
-                );
-
-                $edge = $this->upsertEdge(
-                    from: $seedConcept,
-                    to: $toConcept,
-                    laterality: (int) ($item['larelality'] ?? 1),
-                );
-
-                RelationshipEvidence::query()->create([
-                    'concept_relationship_id' => $edge->id,
-                    'provider' => $provider,
-                    'model' => $model,
-                    'run_uuid' => $runUuid,
-                    'laterality' => (int) ($item['larelality'] ?? 1),
-                    'from_term' => (string) ($seed['concept'] ?? ''),
-                    'to_term' => (string) ($item['concept'] ?? ''),
-                    'raw_json' => $item,
-                    'created_at' => CarbonImmutable::now(),
-                ]);
-            }
-        });
-    }
-
-    /**
      * Persist an interwoven concept graph.
      *
      * @param  array<int, array{concept:string,shortDescription:string,complexity?:int,wikiUrl:?string,mediaUrl:?string}>  $concepts
