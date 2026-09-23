@@ -29,7 +29,7 @@ class ConceptCompleteInfoDispatchService
         string $queue = 'default',
     ): ConceptGraphRun {
         $mode = $this->completeInfoService->normalizeMode($mode);
-        $batchSize = max(1, min(50, $batchSize));
+        $batchSize = max(1, min(ConceptCompleteInfoService::MAX_BATCH_SIZE, $batchSize));
 
         $resolvedLocale = null;
         if ($locale !== null && trim($locale) !== '') {

@@ -96,15 +96,8 @@ class ConceptLocalizeService
                     'error' => $e->getMessage(),
                     'retryable' => AiRequestError::isRetryable($e),
                 ]);
-                $stats['failed'] += $payload->count();
 
-                // Timeouts/429/5xx must escape so queued jobs retry instead of
-                // marking the batch succeeded with a silent failure count.
-                if (AiRequestError::isRetryable($e)) {
-                    throw $e;
-                }
-
-                continue;
+                throw $e;
             }
 
             $byId = $translations->keyBy('id');

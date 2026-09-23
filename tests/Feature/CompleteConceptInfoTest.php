@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\CompleteConceptInfoBatchJob;
 use App\Models\Concept;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Models\ConceptMedia;
 use App\Models\ConceptTerm;
@@ -171,6 +172,7 @@ class CompleteConceptInfoTest extends TestCase
         $this->assertSame(1, $stats['wikiUpdated']);
         $this->assertSame(1, $stats['mediaUpdated']);
         $this->assertSame(0, $stats['deferred']);
+        $this->assertSame([], $stats['deferredTermIds']);
 
         $term->refresh();
         $this->assertSame('https://en.wikipedia.org/wiki/Silence', $term->wiki_url);
@@ -224,10 +226,73 @@ class CompleteConceptInfoTest extends TestCase
 
         $this->assertSame(0, $stats['processed']);
         $this->assertSame(2, $stats['deferred']);
+        $this->assertSame([$first->id, $second->id], $stats['deferredTermIds']);
         $this->assertSame(0, $stats['wikiUpdated']);
         $first->refresh();
         $second->refresh();
         $this->assertNull($first->wiki_url);
+        $this->assertNull($second->wiki_url);
+    }
+
+    public function test_service_defers_when_remaining_time_is_below_worst_case(): void
+    {
+        $first = $this->makeTerm('silence', locale: 'en', wiki: null, media: null);
+        $second = $this->makeTerm('creativity', locale: 'en', wiki: null, media: null);
+
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldNotReceive('find');
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldNotReceive('find');
+
+        $estimate = ConceptCompleteInfoService::estimatedWorstCaseSeconds('wiki');
+        $this->assertSame(72, $estimate);
+
+        $stats = (new ConceptCompleteInfoService($articles, $finder))
+            ->complete([$first->id, $second->id], 'wiki', time() + $estimate - 1);
+
+        $this->assertSame(0, $stats['processed']);
+        $this->assertSame(2, $stats['deferred']);
+        $this->assertSame([$first->id, $second->id], $stats['deferredTermIds']);
+    }
+
+    public function test_service_can_defer_mid_batch_after_a_finished_term(): void
+    {
+        $first = $this->makeTerm('silence', locale: 'en', wiki: null, media: null);
+        $second = $this->makeTerm('creativity', locale: 'en', wiki: null, media: null);
+
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldReceive('find')
+            ->once()
+            ->andReturn(new WikipediaArticle(
+                url: 'https://en.wikipedia.org/wiki/Silence',
+                title: 'Silence',
+                language: 'en',
+                mediaPages: [['language' => 'en', 'title' => 'Silence']],
+            ));
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldNotReceive('find');
+
+        $service = new class($articles, $finder) extends ConceptCompleteInfoService
+        {
+            private int $seen = 0;
+
+            protected function shouldStopBeforeTerm(?int $deadlineAt, string $mode): bool
+            {
+                $this->seen++;
+
+                return $this->seen > 1;
+            }
+        };
+
+        $stats = $service->complete([$first->id, $second->id], 'wiki', time() + 300);
+
+        $this->assertSame(1, $stats['processed']);
+        $this->assertSame(1, $stats['wikiUpdated']);
+        $this->assertSame(1, $stats['deferred']);
+        $this->assertSame([$second->id], $stats['deferredTermIds']);
+        $first->refresh();
+        $second->refresh();
+        $this->assertSame('https://en.wikipedia.org/wiki/Silence', $first->wiki_url);
         $this->assertNull($second->wiki_url);
     }
 
@@ -259,6 +324,7 @@ class CompleteConceptInfoTest extends TestCase
                 'skipped' => 0,
                 'failed' => 0,
                 'deferred' => 0,
+                'deferredTermIds' => [],
             ]);
 
         $job = new CompleteConceptInfoBatchJob(
@@ -276,6 +342,79 @@ class CompleteConceptInfoTest extends TestCase
             ->first();
 
         $this->assertSame('succeeded', $record?->status);
+        $this->assertNull($record?->error_message);
+    }
+
+    public function test_batch_job_marks_partial_and_requeues_deferred_ids(): void
+    {
+        Queue::fake();
+
+        $runUuid = (string) Str::uuid();
+        ConceptGraphRun::query()->create([
+            'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_COMPLETE_INFO,
+            'complexity' => 2,
+            'queue' => 'default',
+            'seed_count' => 1,
+            'seeds' => [
+                'mode' => 'wiki',
+                'batchSize' => 10,
+                'batches' => ['complete-info#1' => [42, 7, 8]],
+            ],
+            'related_count' => 3,
+            'dispatched_at' => now(),
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'complete-info#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptCompleteInfoService::class);
+        $service->shouldReceive('complete')
+            ->once()
+            ->andReturn([
+                'processed' => 1,
+                'wikiUpdated' => 1,
+                'mediaUpdated' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 2,
+                'deferredTermIds' => [7, 8],
+            ]);
+
+        $job = new CompleteConceptInfoBatchJob(
+            termIds: [42, 7, 8],
+            mode: 'wiki',
+            runUuid: $runUuid,
+            jobKey: 'complete-info#1',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'complete-info#1')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('re-queued as complete-info#1+1', (string) $record?->error_message);
+
+        $this->assertDatabaseHas('concept_graph_run_jobs', [
+            'run_uuid' => $runUuid,
+            'seed' => 'complete-info#1+1',
+            'status' => 'pending',
+        ]);
+
+        Queue::assertPushed(CompleteConceptInfoBatchJob::class, function (CompleteConceptInfoBatchJob $follow) {
+            return $follow->termIds === [7, 8]
+                && $follow->mode === 'wiki'
+                && $follow->jobKey === 'complete-info#1+1';
+        });
+
+        $run = ConceptGraphRun::query()->where('run_uuid', $runUuid)->first();
+        $this->assertSame([7, 8], data_get($run?->seeds, 'batches.complete-info#1+1'));
     }
 
     public function test_batch_job_failed_callback_records_error(): void

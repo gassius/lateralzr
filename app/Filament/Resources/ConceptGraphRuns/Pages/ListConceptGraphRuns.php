@@ -54,7 +54,7 @@ class ListConceptGraphRuns extends ListRecords
                         ->numeric()
                         ->default(10)
                         ->minValue(1)
-                        ->maxValue(50)
+                        ->maxValue(20)
                         ->required(),
                     TextInput::make('queue')
                         ->label('Queue')

@@ -189,7 +189,7 @@ class LocalizeConceptQueueTest extends TestCase
         );
     }
 
-    public function test_service_swallows_permanent_auth_errors(): void
+    public function test_service_rethrows_permanent_auth_errors(): void
     {
         $concept = Concept::query()->create(['canonical_key' => 'silence-auth']);
         ConceptTerm::query()->create([
@@ -210,7 +210,10 @@ class LocalizeConceptQueueTest extends TestCase
             }
         };
 
-        $stats = app(ConceptLocalizeService::class)->localize(
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('401');
+
+        app(ConceptLocalizeService::class)->localize(
             fromLocale: 'en',
             toLocale: 'es',
             missingOnly: true,
@@ -218,9 +221,45 @@ class LocalizeConceptQueueTest extends TestCase
             agent: $agent,
             conceptIds: [$concept->id],
         );
+    }
 
-        $this->assertSame(1, $stats['failed']);
-        $this->assertSame(0, $stats['created']);
+    public function test_batch_job_fails_immediately_on_permanent_auth_error(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class);
+        $service->shouldReceive('localize')->once()->andThrow(new RuntimeException(
+            'OpenRouter Authentication Error: 401 invalid api key'
+        ));
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [42],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'localize#1',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+        $job->assertFailed();
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1')
+            ->first();
+
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('401', (string) $record?->error_message);
     }
 
     public function test_batch_job_rethrows_timeouts_for_limited_retry(): void

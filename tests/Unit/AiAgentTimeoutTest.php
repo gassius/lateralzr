@@ -15,10 +15,13 @@ class AiAgentTimeoutTest extends TestCase
 {
     public function test_llm_agent_http_timeouts_sit_under_the_300s_job_limit(): void
     {
-        $this->assertSame(240, $this->timeoutSeconds(ConceptsOnlyAgent::class));
-        $this->assertSame(180, $this->timeoutSeconds(ConceptLocalizeAgent::class));
-        $this->assertLessThan(300, $this->timeoutSeconds(ConceptsOnlyAgent::class));
-        $this->assertLessThan(300, $this->timeoutSeconds(ConceptLocalizeAgent::class));
+        $graphHttp = $this->timeoutSeconds(ConceptsOnlyAgent::class);
+        $localizeHttp = $this->timeoutSeconds(ConceptLocalizeAgent::class);
+
+        $this->assertSame(210, $graphHttp);
+        $this->assertSame(180, $localizeHttp);
+        $this->assertGreaterThanOrEqual(90, 300 - $graphHttp);
+        $this->assertGreaterThanOrEqual(90, 300 - $localizeHttp);
     }
 
     public function test_queue_jobs_share_timeout_and_spaced_backoff(): void

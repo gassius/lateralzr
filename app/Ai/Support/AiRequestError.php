@@ -23,7 +23,11 @@ final class AiRequestError
             return "{$provider} rejected model [{$model}] (not found / no endpoints). Set OPENROUTER_DEFAULT_MODEL to a valid OpenRouter id such as openai/gpt-4o-mini — do not invent model slugs. Original: {$raw}";
         }
 
-        if (self::isTimeout($e)) {
+        if (self::isWorkerTimeout($e)) {
+            return "Queue worker killed the job after its timeout (failOnTimeout; no retry). This is not an {$provider} HTTP timeout for model [{$model}]. Original: {$raw}";
+        }
+
+        if (self::isProviderTimeout($e)) {
             return "{$provider} request timed out for model [{$model}]. Transient network/provider delay; the job will retry a limited number of times. Original: {$raw}";
         }
 
@@ -40,11 +44,11 @@ final class AiRequestError
 
     public static function isRetryable(Throwable $e): bool
     {
-        if (self::isInvalidSchema($e) || self::isInvalidModel($e) || self::isPermanentClientError($e)) {
+        if (self::isWorkerTimeout($e) || self::isInvalidSchema($e) || self::isInvalidModel($e) || self::isPermanentClientError($e)) {
             return false;
         }
 
-        return self::isTimeout($e)
+        return self::isProviderTimeout($e)
             || self::isRateLimited($e)
             || self::isServerError($e)
             || $e instanceof ConnectionException;
@@ -79,8 +83,26 @@ final class AiRequestError
 
     public static function isTimeout(Throwable $e): bool
     {
+        return self::isWorkerTimeout($e) || self::isProviderTimeout($e);
+    }
+
+    public static function isWorkerTimeout(Throwable $e): bool
+    {
         if ($e instanceof TimeoutExceededException) {
             return true;
+        }
+
+        $message = strtolower($e->getMessage());
+
+        return str_contains($message, 'has timed out')
+            || str_contains($message, 'worker timed out')
+            || str_contains($message, 'worker timeout');
+    }
+
+    public static function isProviderTimeout(Throwable $e): bool
+    {
+        if (self::isWorkerTimeout($e)) {
+            return false;
         }
 
         $message = strtolower($e->getMessage());

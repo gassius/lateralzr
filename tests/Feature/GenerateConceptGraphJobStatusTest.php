@@ -8,6 +8,7 @@ use App\Services\ConceptGraphStore;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Queue\TimeoutExceededException;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -54,6 +55,43 @@ class GenerateConceptGraphJobStatusTest extends TestCase
         $this->assertNotNull($record);
         $this->assertSame('failed', $record->status);
         $this->assertStringContainsString('timed out', (string) $record->error_message);
+        $this->assertStringContainsString('Queue worker killed', (string) $record->error_message);
+        $this->assertStringNotContainsString('the job will retry', (string) $record->error_message);
+    }
+
+    public function test_failed_callback_maps_timeout_exceeded_as_worker_kill(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'innovation#1',
+            'status' => 'processing',
+            'attempts' => 1,
+            'started_at' => now()->subMinutes(5),
+        ]);
+
+        $job = new GenerateConceptGraphJob(
+            seed: 'innovation',
+            count: 10,
+            complexity: 2,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'innovation#1',
+        );
+
+        $job->failed(new TimeoutExceededException('App\\Jobs\\GenerateConceptGraphJob has timed out.'));
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'innovation#1')
+            ->first();
+
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('Queue worker killed', (string) $record?->error_message);
+        $this->assertStringNotContainsString('openrouter request timed out', (string) $record?->error_message);
+        $this->assertStringNotContainsString('the job will retry', (string) $record?->error_message);
     }
 
     public function test_failed_callback_maps_openrouter_404_model_error(): void

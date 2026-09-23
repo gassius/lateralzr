@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptCompleteInfoService;
 use Illuminate\Bus\Queueable;
@@ -43,6 +44,8 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
 
     public function handle(ConceptCompleteInfoService $service): void
     {
+        $startedAt = microtime(true);
+
         if ($this->runUuid) {
             ConceptGraphRunJob::query()
                 ->where('run_uuid', $this->runUuid)
@@ -57,8 +60,7 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
 
         try {
             // Leave a margin under $timeout so Wikimedia slowness fails soft
-            // (remaining terms stay blank and can be picked up by a later run)
-            // instead of a worker SIGKILL that marks the batch failed.
+            // (remaining terms are re-queued) instead of a worker SIGKILL.
             $deadlineAt = time() + max(30, $this->timeout - 60);
 
             $stats = $service->complete(
@@ -67,23 +69,37 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
                 deadlineAt: $deadlineAt,
             );
 
-            Log::info('CompleteConceptInfoBatchJob succeeded', [
+            $deferredIds = array_values(array_map('intval', $stats['deferredTermIds'] ?? []));
+            $deferred = count($deferredIds);
+            $followKey = null;
+            if ($deferred > 0) {
+                $followKey = $this->requeueDeferred($deferredIds);
+            }
+
+            Log::info('CompleteConceptInfoBatchJob finished', [
                 'run_uuid' => $this->runUuid,
                 'job_key' => $this->jobKey,
                 'mode' => $this->mode,
                 'count' => count($this->termIds),
+                'seconds' => round(microtime(true) - $startedAt, 2),
                 'stats' => $stats,
+                'follow_key' => $followKey,
             ]);
 
             if ($this->runUuid) {
+                $status = $deferred > 0 ? 'partial' : 'succeeded';
+                $message = $deferred > 0
+                    ? "Stopped {$deferred} term(s) to stay under the worker timeout; remaining IDs were re-queued".($followKey ? " as {$followKey}" : '').'.'
+                    : null;
+
                 ConceptGraphRunJob::query()
                     ->where('run_uuid', $this->runUuid)
                     ->where('seed', $this->jobKey)
                     ->update([
-                        'status' => 'succeeded',
+                        'status' => $status,
                         'attempts' => (int) (($this->attempts() ?? 0)),
                         'finished_at' => now(),
-                        'error_message' => null,
+                        'error_message' => $message,
                     ]);
             }
         } catch (Throwable $e) {
@@ -122,5 +138,67 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
                 'finished_at' => now(),
                 'error_message' => $message,
             ]);
+    }
+
+    /**
+     * @param  list<int>  $termIds
+     */
+    protected function requeueDeferred(array $termIds): ?string
+    {
+        $followKey = $this->nextDeferredJobKey();
+        if ($followKey === null) {
+            Log::warning('CompleteConceptInfoBatchJob: not re-queuing deferred terms (follow-up depth cap)', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $this->jobKey,
+                'deferred' => count($termIds),
+            ]);
+
+            return null;
+        }
+
+        if ($this->runUuid) {
+            $run = ConceptGraphRun::query()->where('run_uuid', $this->runUuid)->first();
+            if ($run instanceof ConceptGraphRun) {
+                $seeds = is_array($run->seeds) ? $run->seeds : [];
+                $batches = is_array($seeds['batches'] ?? null) ? $seeds['batches'] : [];
+                $batches[$followKey] = $termIds;
+                $seeds['batches'] = $batches;
+                $run->seeds = $seeds;
+                $run->seed_count = count($batches);
+                $run->save();
+            }
+
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $this->runUuid,
+                'seed' => $followKey,
+                'status' => 'pending',
+                'attempts' => 0,
+            ]);
+        }
+
+        self::dispatch(
+            termIds: $termIds,
+            mode: $this->mode,
+            runUuid: $this->runUuid,
+            jobKey: $followKey,
+        )->onQueue($this->queue ?? 'default');
+
+        return $followKey;
+    }
+
+    protected function nextDeferredJobKey(): ?string
+    {
+        $base = $this->jobKey;
+        $suffix = 1;
+        if (preg_match('/^(.*)\+(\d+)$/', $this->jobKey, $matches) === 1) {
+            $base = $matches[1];
+            $suffix = (int) $matches[2] + 1;
+        }
+
+        if ($suffix > 20) {
+            return null;
+        }
+
+        return $base.'+'.$suffix;
     }
 }
