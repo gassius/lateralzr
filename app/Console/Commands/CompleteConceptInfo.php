@@ -15,7 +15,7 @@ class CompleteConceptInfo extends Command
         {--wiki-only : Only fill missing Wikipedia URLs}
         {--media-only : Only fill missing Wikimedia media URLs}
         {--limit= : Max terms to process}
-        {--batch-size=20 : Terms per queued job}
+        {--batch-size=10 : Terms per queued job}
         {--queue=default : Queue name for async dispatch}
         {--sync : Run inline instead of enqueueing worker jobs}';
 
@@ -82,7 +82,8 @@ class CompleteConceptInfo extends Command
 
         $stats = $service->complete($termIds, $mode);
 
-        $this->info("Done. processed={$stats['processed']} wikiUpdated={$stats['wikiUpdated']} mediaUpdated={$stats['mediaUpdated']} skipped={$stats['skipped']} failed={$stats['failed']}");
+        $deferred = (int) ($stats['deferred'] ?? 0);
+        $this->info("Done. processed={$stats['processed']} wikiUpdated={$stats['wikiUpdated']} mediaUpdated={$stats['mediaUpdated']} skipped={$stats['skipped']} failed={$stats['failed']} deferred={$deferred}");
 
         return $stats['failed'] > 0 && $stats['wikiUpdated'] === 0 && $stats['mediaUpdated'] === 0
             ? self::FAILURE

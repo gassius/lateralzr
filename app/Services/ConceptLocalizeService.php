@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptLocalizeAgent;
+use App\Ai\Support\AiRequestError;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
 use Illuminate\Support\Collection;
@@ -93,10 +94,10 @@ class ConceptLocalizeService
                     'from' => $fromLocale,
                     'to' => $toLocale,
                     'error' => $e->getMessage(),
+                    'retryable' => AiRequestError::isRetryable($e),
                 ]);
-                $stats['failed'] += $payload->count();
 
-                continue;
+                throw $e;
             }
 
             $byId = $translations->keyBy('id');

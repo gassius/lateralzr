@@ -33,6 +33,7 @@ class RunJobsRelationManager extends RelationManager
                     ->color(fn ($record): string => match ($record->display_status) {
                         'pending' => 'gray',
                         'processing' => 'warning',
+                        'partial' => 'warning',
                         'succeeded' => 'success',
                         'failed' => 'danger',
                         'timed_out' => 'danger',
@@ -63,6 +64,7 @@ class RunJobsRelationManager extends RelationManager
                     ->options([
                         'pending' => 'pending',
                         'processing' => 'processing',
+                        'partial' => 'partial',
                         'succeeded' => 'succeeded',
                         'failed' => 'failed',
                     ]),
@@ -71,7 +73,7 @@ class RunJobsRelationManager extends RelationManager
                 Action::make('retryBatch')
                     ->label('Retry batch')
                     ->icon('heroicon-m-arrow-path')
-                    ->visible(fn (ConceptGraphRunJob $record): bool => in_array($record->display_status, ['failed', 'timed_out'], true))
+                    ->visible(fn (ConceptGraphRunJob $record): bool => in_array($record->display_status, ['failed', 'timed_out', 'partial'], true))
                     ->requiresConfirmation()
                     ->action(function (ConceptGraphRunJob $record): void {
                         $run = $record->run;

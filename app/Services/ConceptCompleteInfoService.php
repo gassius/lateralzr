@@ -14,10 +14,34 @@ use Illuminate\Support\Facades\Log;
 
 class ConceptCompleteInfoService
 {
+    public const HTTP_TIMEOUT_SECONDS = 12;
+
+    /** Locale search + keyword retry + English langlink + English search + keyword + locale langlink. */
+    public const WORST_WIKI_HTTP_CALLS = 6;
+
+    /** Two page image lists plus several Commons imageinfo chunks. */
+    public const WORST_MEDIA_HTTP_CALLS = 8;
+
+    public const MAX_BATCH_SIZE = 20;
+
     public function __construct(
         protected WikipediaArticleResolver $articles,
         protected QualifiedMediaFinder $mediaFinder,
     ) {}
+
+    /**
+     * Worst-case sequential Wikimedia time for one term (every HTTP call hits its timeout).
+     */
+    public static function estimatedWorstCaseSeconds(string $mode): int
+    {
+        $http = self::HTTP_TIMEOUT_SECONDS;
+
+        return match ($mode) {
+            'wiki' => $http * self::WORST_WIKI_HTTP_CALLS,
+            'media' => $http * self::WORST_MEDIA_HTTP_CALLS,
+            default => $http * (self::WORST_WIKI_HTTP_CALLS + self::WORST_MEDIA_HTTP_CALLS),
+        };
+    }
 
     /**
      * Backfill missing localized wiki URLs and concept-level media.
@@ -25,9 +49,10 @@ class ConceptCompleteInfoService
      *
      * @param  list<int>  $termIds
      * @param  'wiki'|'media'|'both'  $mode
-     * @return array{processed:int,wikiUpdated:int,mediaUpdated:int,skipped:int,failed:int}
+     * @param  int|null  $deadlineAt  Unix timestamp; stop starting new terms at/after this.
+     * @return array{processed:int,wikiUpdated:int,mediaUpdated:int,skipped:int,failed:int,deferred:int,deferredTermIds:list<int>}
      */
-    public function complete(array $termIds, string $mode = 'both'): array
+    public function complete(array $termIds, string $mode = 'both', ?int $deadlineAt = null): array
     {
         $mode = $this->normalizeMode($mode);
         $stats = [
@@ -36,6 +61,8 @@ class ConceptCompleteInfoService
             'mediaUpdated' => 0,
             'skipped' => 0,
             'failed' => 0,
+            'deferred' => 0,
+            'deferredTermIds' => [],
         ];
 
         $ids = array_values(array_unique(array_map('intval', $termIds)));
@@ -49,7 +76,24 @@ class ConceptCompleteInfoService
             ->orderBy('id')
             ->get();
 
-        foreach ($terms as $term) {
+        foreach ($terms as $index => $term) {
+            if ($this->shouldStopBeforeTerm($deadlineAt, $mode)) {
+                $deferred = $terms->slice($index);
+                $stats['deferredTermIds'] = $deferred
+                    ->pluck('id')
+                    ->map(fn ($id) => (int) $id)
+                    ->values()
+                    ->all();
+                $stats['deferred'] = count($stats['deferredTermIds']);
+                Log::info('ConceptCompleteInfoService: stopping before worker timeout', [
+                    'deferred' => $stats['deferred'],
+                    'processed' => $stats['processed'],
+                    'mode' => $mode,
+                    'worst_case_seconds' => self::estimatedWorstCaseSeconds($mode),
+                ]);
+                break;
+            }
+
             $stats['processed']++;
 
             $needWiki = in_array($mode, ['wiki', 'both'], true) && $this->isBlank($term->wiki_url);
@@ -145,6 +189,19 @@ class ConceptCompleteInfoService
             'media', 'media-only', 'media_only' => 'media',
             default => 'both',
         };
+    }
+
+    /**
+     * Stop if the deadline has passed, or if a worst-case Wikimedia term
+     * would run past it (sequential Http::timeout(12) calls).
+     */
+    protected function shouldStopBeforeTerm(?int $deadlineAt, string $mode): bool
+    {
+        if ($deadlineAt === null) {
+            return false;
+        }
+
+        return time() + self::estimatedWorstCaseSeconds($mode) >= $deadlineAt;
     }
 
     /**

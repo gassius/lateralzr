@@ -50,11 +50,11 @@ class ListConceptGraphRuns extends ListRecords
                         ->minValue(1),
                     TextInput::make('batch_size')
                         ->label('Batch size')
-                        ->helperText('Terms per queued Wikipedia / Wikimedia batch.')
+                        ->helperText('Terms per queued Wikipedia / Wikimedia batch. Keep small so lookups finish under the 300s worker timeout.')
                         ->numeric()
-                        ->default(20)
+                        ->default(10)
                         ->minValue(1)
-                        ->maxValue(50)
+                        ->maxValue(20)
                         ->required(),
                     TextInput::make('queue')
                         ->label('Queue')
@@ -72,7 +72,7 @@ class ListConceptGraphRuns extends ListRecords
                             locale: $locale,
                             mode: (string) ($data['mode'] ?? 'both'),
                             limit: $limit,
-                            batchSize: (int) ($data['batch_size'] ?? 20),
+                            batchSize: (int) ($data['batch_size'] ?? 10),
                             queue: (string) ($data['queue'] ?? 'default'),
                         );
                     } catch (InvalidArgumentException $e) {
@@ -106,7 +106,7 @@ class ListConceptGraphRuns extends ListRecords
                         ->minValue(1),
                     TextInput::make('batch_size')
                         ->label('Batch size')
-                        ->helperText('Concepts per queued LLM + Wikipedia batch.')
+                        ->helperText('Concepts per queued LLM translation batch.')
                         ->numeric()
                         ->default(20)
                         ->minValue(1)

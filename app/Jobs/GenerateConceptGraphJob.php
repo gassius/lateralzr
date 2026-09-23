@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -34,7 +35,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
     public function backoff(): array
     {
-        return [20, 60];
+        return [30, 90];
     }
 
     public function __construct(
@@ -49,6 +50,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
     public function handle(ConceptRelationshipService $service, ConceptGraphStore $store): void
     {
+        $startedAt = microtime(true);
         $trackingKey = $this->jobKey ?? $this->seed;
 
         if ($this->runUuid && $trackingKey) {
@@ -101,10 +103,31 @@ class GenerateConceptGraphJob implements ShouldQueue
                         'error_message' => null,
                     ]);
             }
+
+            Log::info('GenerateConceptGraphJob succeeded', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $trackingKey,
+                'seconds' => round(microtime(true) - $startedAt, 2),
+                'attempt' => $this->attempts(),
+                'provider' => $this->provider,
+                'model' => $this->model,
+            ]);
         } catch (Throwable $e) {
             $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model);
             $retryable = AiRequestError::isRetryable($e);
             $willRetry = $retryable && $this->attempts() < $this->tries;
+
+            Log::warning('GenerateConceptGraphJob failed', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $trackingKey,
+                'seconds' => round(microtime(true) - $startedAt, 2),
+                'attempt' => $this->attempts(),
+                'retryable' => $retryable,
+                'will_retry' => $willRetry,
+                'provider' => $this->provider,
+                'model' => $this->model,
+                'error' => $mapped,
+            ]);
 
             if ($this->runUuid && $trackingKey) {
                 ConceptGraphRunJob::query()

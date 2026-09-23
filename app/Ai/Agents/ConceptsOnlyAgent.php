@@ -17,7 +17,7 @@ use Stringable;
 
 #[MaxSteps(15)]
 #[Temperature(0.88)]
-#[Timeout(120)]
+#[Timeout(210)]
 class ConceptsOnlyAgent implements Agent, HasStructuredOutput
 {
     use Promptable;

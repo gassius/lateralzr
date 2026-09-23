@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -18,8 +19,8 @@ class LocalizeConceptBatchJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
-     * LLM batch translation plus per-term Wikipedia lookups can exceed the
-     * default 60s worker timeout.
+     * Structured LLM translation for a batch of terms. Wiki/media lookup is
+     * not part of this job (`concepts:complete-info`).
      */
     public int $timeout = 300;
 
@@ -29,7 +30,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
     public function backoff(): array
     {
-        return [20, 60];
+        return [30, 90];
     }
 
     /**
@@ -48,6 +49,8 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
     public function handle(ConceptLocalizeService $service): void
     {
+        $startedAt = microtime(true);
+
         if ($this->runUuid) {
             ConceptGraphRunJob::query()
                 ->where('run_uuid', $this->runUuid)
@@ -92,10 +95,32 @@ class LocalizeConceptBatchJob implements ShouldQueue
                         'error_message' => null,
                     ]);
             }
+
+            Log::info('LocalizeConceptBatchJob succeeded', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $this->jobKey,
+                'seconds' => round(microtime(true) - $startedAt, 2),
+                'attempt' => $this->attempts(),
+                'count' => count($this->conceptIds),
+                'provider' => $this->provider,
+                'model' => $this->model,
+            ]);
         } catch (Throwable $e) {
             $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model);
             $retryable = AiRequestError::isRetryable($e);
             $willRetry = $retryable && $this->attempts() < $this->tries;
+
+            Log::warning('LocalizeConceptBatchJob failed', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $this->jobKey,
+                'seconds' => round(microtime(true) - $startedAt, 2),
+                'attempt' => $this->attempts(),
+                'retryable' => $retryable,
+                'will_retry' => $willRetry,
+                'provider' => $this->provider,
+                'model' => $this->model,
+                'error' => $mapped,
+            ]);
 
             if ($this->runUuid) {
                 ConceptGraphRunJob::query()
