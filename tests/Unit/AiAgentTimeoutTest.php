@@ -19,7 +19,7 @@ class AiAgentTimeoutTest extends TestCase
         $localizeHttp = $this->timeoutSeconds(ConceptLocalizeAgent::class);
 
         $this->assertSame(210, $graphHttp);
-        $this->assertSame(180, $localizeHttp);
+        $this->assertSame(210, $localizeHttp);
         $this->assertGreaterThanOrEqual(90, 300 - $graphHttp);
         $this->assertGreaterThanOrEqual(90, 300 - $localizeHttp);
     }

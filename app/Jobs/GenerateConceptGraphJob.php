@@ -113,9 +113,9 @@ class GenerateConceptGraphJob implements ShouldQueue
                 'model' => $this->model,
             ]);
         } catch (Throwable $e) {
-            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model);
             $retryable = AiRequestError::isRetryable($e);
             $willRetry = $retryable && $this->attempts() < $this->tries;
+            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
 
             Log::warning('GenerateConceptGraphJob failed', [
                 'run_uuid' => $this->runUuid,
@@ -163,7 +163,7 @@ class GenerateConceptGraphJob implements ShouldQueue
         }
 
         $message = $exception
-            ? AiRequestError::displayMessage($exception, $this->provider, $this->model)
+            ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
             : 'Job failed or timed out.';
 
         ConceptGraphRunJob::query()

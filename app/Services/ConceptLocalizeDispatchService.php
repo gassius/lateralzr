@@ -21,7 +21,7 @@ class ConceptLocalizeDispatchService
         string $toLocale = 'es',
         ?int $limit = null,
         bool $missingOnly = true,
-        int $batchSize = 20,
+        int $batchSize = ConceptLocalizeService::DEFAULT_BATCH_SIZE,
         ?string $provider = null,
         ?string $model = null,
         string $queue = 'default',
@@ -33,7 +33,7 @@ class ConceptLocalizeDispatchService
             throw new InvalidArgumentException('--from and --to must be different locales.');
         }
 
-        $batchSize = max(1, min(50, $batchSize));
+        $batchSize = max(1, min(ConceptLocalizeService::MAX_BATCH_SIZE, $batchSize));
         $provider = AiProviders::normalize($provider);
         $model = $model !== null && $model !== '' ? $model : AiProviders::defaultTextModel($provider);
 

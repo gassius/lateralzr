@@ -15,7 +15,7 @@ class LocalizeConceptTerms extends Command
         {--from=en : Source locale (preferred terms)}
         {--to=es : Target locale to create}
         {--limit= : Max concepts to process}
-        {--batch-size=20 : Concepts per AI translation batch / queued job}
+        {--batch-size=10 : Concepts per AI translation batch / queued job}
         {--missing-only : Only concepts missing the target locale (default true)}
         {--all : Also overwrite/refresh existing target locale terms}
         {--provider= : AI provider override}
@@ -65,7 +65,7 @@ class LocalizeConceptTerms extends Command
         if ($this->option('missing-only')) {
             $missingOnly = true;
         }
-        $batchSize = (int) ($this->option('batch-size') ?? 20);
+        $batchSize = (int) ($this->option('batch-size') ?? ConceptLocalizeService::DEFAULT_BATCH_SIZE);
         $queue = (string) $this->option('queue');
 
         if (! (bool) $this->option('sync')) {

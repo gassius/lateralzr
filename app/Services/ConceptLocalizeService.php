@@ -12,24 +12,41 @@ use Laravel\Ai\Responses\StructuredAgentResponse;
 
 class ConceptLocalizeService
 {
+    public const HTTP_TIMEOUT_SECONDS = 210;
+
+    public const WRITE_BUDGET_SECONDS = 15;
+
+    public const MAX_BATCH_SIZE = 20;
+
+    public const DEFAULT_BATCH_SIZE = 10;
+
     public function __construct(
         protected ConceptCanonicalizer $canonicalizer,
     ) {}
 
     /**
+     * Worst-case time for one structured localize call plus term writes.
+     */
+    public static function estimatedWorstCaseSeconds(): int
+    {
+        return self::HTTP_TIMEOUT_SECONDS + self::WRITE_BUDGET_SECONDS;
+    }
+
+    /**
      * Localize preferred terms from one locale onto another for the same concepts.
      *
      * @param  list<int>|null  $conceptIds  When set, only these concept IDs are processed (queued batches).
-     * @return array{processed:int,created:int,skipped:int,failed:int}
+     * @return array{processed:int,created:int,skipped:int,failed:int,deferred:int,deferredConceptIds:list<int>}
      */
     public function localize(
         string $fromLocale = 'en',
         string $toLocale = 'es',
         ?int $limit = null,
         bool $missingOnly = true,
-        int $batchSize = 20,
+        int $batchSize = self::DEFAULT_BATCH_SIZE,
         ?object $agent = null,
         ?array $conceptIds = null,
+        ?int $deadlineAt = null,
     ): array {
         $fromLocale = ConceptLocale::resolve($fromLocale);
         $toLocale = ConceptLocale::resolve($toLocale);
@@ -38,8 +55,15 @@ class ConceptLocalizeService
             throw new \InvalidArgumentException('--from and --to must be different locales.');
         }
 
-        $batchSize = max(1, min(50, $batchSize));
-        $stats = ['processed' => 0, 'created' => 0, 'skipped' => 0, 'failed' => 0];
+        $batchSize = max(1, min(self::MAX_BATCH_SIZE, $batchSize));
+        $stats = [
+            'processed' => 0,
+            'created' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+            'deferred' => 0,
+            'deferredConceptIds' => [],
+        ];
 
         $query = Concept::query()
             ->with(['terms'])
@@ -67,7 +91,28 @@ class ConceptLocalizeService
             return $stats;
         }
 
-        foreach ($concepts->chunk($batchSize) as $chunk) {
+        $chunks = $concepts->chunk($batchSize)->values();
+        foreach ($chunks as $index => $chunk) {
+            if ($this->shouldStopBeforeBatch($deadlineAt)) {
+                $stats['deferredConceptIds'] = $chunks
+                    ->slice($index)
+                    ->reduce(function (array $ids, $remaining) {
+                        foreach ($remaining as $concept) {
+                            $ids[] = (int) $concept->id;
+                        }
+
+                        return $ids;
+                    }, []);
+                $stats['deferred'] = count($stats['deferredConceptIds']);
+                Log::info('ConceptLocalizeService: stopping before worker timeout', [
+                    'deferred' => $stats['deferred'],
+                    'processed' => $stats['processed'],
+                    'worst_case_seconds' => self::estimatedWorstCaseSeconds(),
+                ]);
+
+                break;
+            }
+
             $payload = $chunk->map(function (Concept $concept) use ($fromLocale) {
                 $term = $concept->termForLocale($fromLocale, fallback: false);
                 if ($term === null) {
@@ -132,7 +177,7 @@ class ConceptLocalizeService
 
                 // Wiki lookup stays on concepts:complete-info so localisation does not search.
                 // Media already stored on the source term is concept-level and can be copied.
-                $this->canonicalizer->attachLocalizedTerm(
+                $attached = $this->canonicalizer->attachLocalizedTerm(
                     concept: $concept,
                     locale: $toLocale,
                     term: $termLabel,
@@ -141,6 +186,12 @@ class ConceptLocalizeService
                     mediaUrl: $item['mediaUrl'] ?? null,
                     complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
                 );
+
+                if ($attached === null) {
+                    $stats['skipped']++;
+
+                    continue;
+                }
 
                 $stats['created']++;
             }
@@ -193,5 +244,14 @@ PROMPT;
                 'shortDescription' => trim((string) ($row['shortDescription'] ?? '')),
             ])
             ->values();
+    }
+
+    protected function shouldStopBeforeBatch(?int $deadlineAt): bool
+    {
+        if ($deadlineAt === null) {
+            return false;
+        }
+
+        return time() + self::estimatedWorstCaseSeconds() >= $deadlineAt;
     }
 }

@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Support\AiRequestError;
 use App\Jobs\LocalizeConceptBatchJob;
 use App\Models\Concept;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Models\ConceptTerm;
 use App\Services\ConceptLocalizeService;
@@ -304,5 +306,186 @@ class LocalizeConceptQueueTest extends TestCase
 
         $this->assertSame('processing', $record?->status);
         $this->assertStringContainsString('timed out', (string) $record?->error_message);
+        $this->assertStringContainsString('will retry', (string) $record?->error_message);
+    }
+
+    public function test_batch_job_does_not_claim_retry_when_attempts_are_exhausted(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class);
+        $service->shouldReceive('localize')->once()->andThrow(new RuntimeException(
+            'cURL error 28: Operation timed out after 180000 milliseconds'
+        ));
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [42],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-v4-flash-0731',
+            runUuid: $runUuid,
+            jobKey: 'localize#1',
+        );
+        $job->tries = 1;
+        $job->withFakeQueueInteractions();
+
+        try {
+            $job->handle($service);
+            $this->fail('Timeout should still be rethrown on the final attempt.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('timed out', $e->getMessage());
+        }
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1')
+            ->first();
+
+        $this->assertTrue(AiRequestError::isRetryable(new RuntimeException(
+            'cURL error 28: Operation timed out after 180000 milliseconds'
+        )));
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('timed out', (string) $record?->error_message);
+        $this->assertStringContainsString('retries exhausted', (string) $record?->error_message);
+        $this->assertStringNotContainsString('the job will retry', (string) $record?->error_message);
+    }
+
+    public function test_batch_job_failed_callback_does_not_claim_retry(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1',
+            'status' => 'processing',
+            'attempts' => 3,
+            'started_at' => now()->subMinutes(4),
+        ]);
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [1],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-v4-flash-0731',
+            runUuid: $runUuid,
+            jobKey: 'localize#1',
+        );
+
+        $job->failed(new RuntimeException('cURL error 28: Operation timed out after 180000 milliseconds'));
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1')
+            ->first();
+
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('timed out', (string) $record?->error_message);
+        $this->assertStringNotContainsString('the job will retry', (string) $record?->error_message);
+    }
+
+    public function test_batch_job_marks_partial_and_requeues_deferred_ids(): void
+    {
+        Queue::fake();
+
+        $runUuid = (string) Str::uuid();
+        ConceptGraphRun::query()->create([
+            'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_LOCALIZE,
+            'complexity' => 2,
+            'queue' => 'default',
+            'seed_count' => 1,
+            'seeds' => [
+                'from' => 'en',
+                'to' => 'es',
+                'missingOnly' => true,
+                'batchSize' => 10,
+                'batches' => ['localize#1' => [42, 7, 8]],
+            ],
+            'related_count' => 3,
+            'dispatched_at' => now(),
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class);
+        $service->shouldReceive('localize')
+            ->once()
+            ->withArgs(function (
+                string $fromLocale,
+                string $toLocale,
+                ?int $limit,
+                bool $missingOnly,
+                int $batchSize,
+                ?object $agent,
+                ?array $conceptIds,
+                ?int $deadlineAt = null,
+            ) {
+                return $fromLocale === 'en'
+                    && $toLocale === 'es'
+                    && $conceptIds === [42, 7, 8]
+                    && is_int($deadlineAt)
+                    && $deadlineAt > time()
+                    && $deadlineAt <= time() + 300;
+            })
+            ->andReturn([
+                'processed' => 1,
+                'created' => 1,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 2,
+                'deferredConceptIds' => [7, 8],
+            ]);
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [42, 7, 8],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'localize#1',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('re-queued as localize#1+1', (string) $record?->error_message);
+
+        $this->assertDatabaseHas('concept_graph_run_jobs', [
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1+1',
+            'status' => 'pending',
+        ]);
+
+        Queue::assertPushed(LocalizeConceptBatchJob::class, function (LocalizeConceptBatchJob $follow) {
+            return $follow->conceptIds === [7, 8]
+                && $follow->fromLocale === 'en'
+                && $follow->toLocale === 'es'
+                && $follow->jobKey === 'localize#1+1';
+        });
+
+        $run = ConceptGraphRun::query()->where('run_uuid', $runUuid)->first();
+        $this->assertSame([7, 8], data_get($run?->seeds, 'batches.localize#1+1'));
     }
 }

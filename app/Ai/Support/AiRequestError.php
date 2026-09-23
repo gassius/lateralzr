@@ -2,6 +2,7 @@
 
 namespace App\Ai\Support;
 
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Queue\TimeoutExceededException;
@@ -9,7 +10,7 @@ use Throwable;
 
 final class AiRequestError
 {
-    public static function displayMessage(Throwable $e, ?string $provider = null, ?string $model = null): string
+    public static function displayMessage(Throwable $e, ?string $provider = null, ?string $model = null, ?bool $willRetry = null): string
     {
         $raw = $e->getMessage();
         $provider = $provider !== null && $provider !== '' ? $provider : (string) config('ai.default');
@@ -28,23 +29,47 @@ final class AiRequestError
         }
 
         if (self::isProviderTimeout($e)) {
-            return "{$provider} request timed out for model [{$model}]. Transient network/provider delay; the job will retry a limited number of times. Original: {$raw}";
+            $retry = self::retryClause($willRetry, 'the job will retry a limited number of times');
+
+            return "{$provider} request timed out for model [{$model}]. Transient network/provider delay; {$retry}. Original: {$raw}";
         }
 
         if (self::isRateLimited($e)) {
-            return "{$provider} rate-limited the request for model [{$model}] (HTTP 429). The job will retry with backoff. Original: {$raw}";
+            $retry = self::retryClause($willRetry, 'the job will retry with backoff');
+
+            return "{$provider} rate-limited the request for model [{$model}] (HTTP 429). {$retry}. Original: {$raw}";
         }
 
         if (self::isServerError($e)) {
-            return "{$provider} returned a transient server error for model [{$model}]. The job will retry with backoff. Original: {$raw}";
+            $retry = self::retryClause($willRetry, 'the job will retry with backoff');
+
+            return "{$provider} returned a transient server error for model [{$model}]. {$retry}. Original: {$raw}";
         }
 
         return $raw !== '' ? $raw : 'AI provider request failed.';
     }
 
+    /**
+     * @param  'the job will retry a limited number of times'|'the job will retry with backoff'  $will
+     */
+    private static function retryClause(?bool $willRetry, string $will): string
+    {
+        return match ($willRetry) {
+            true => $will,
+            false => 'retries exhausted',
+            null => $will,
+        };
+    }
+
     public static function isRetryable(Throwable $e): bool
     {
-        if (self::isWorkerTimeout($e) || self::isInvalidSchema($e) || self::isInvalidModel($e) || self::isPermanentClientError($e)) {
+        if (
+            $e instanceof UniqueConstraintViolationException
+            || self::isWorkerTimeout($e)
+            || self::isInvalidSchema($e)
+            || self::isInvalidModel($e)
+            || self::isPermanentClientError($e)
+        ) {
             return false;
         }
 

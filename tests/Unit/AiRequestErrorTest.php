@@ -40,10 +40,29 @@ class AiRequestErrorTest extends TestCase
         $this->assertTrue(AiRequestError::isRetryable($timeout));
         $this->assertTrue(AiRequestError::isRetryable($rate));
         $this->assertTrue(AiRequestError::isRetryable($server));
-        $message = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini');
+        $message = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini', willRetry: true);
         $this->assertStringContainsString('timed out', $message);
         $this->assertStringContainsString('will retry', $message);
         $this->assertStringNotContainsString('failOnTimeout', $message);
+        $this->assertStringNotContainsString('retries exhausted', $message);
+    }
+
+    public function test_provider_timeout_does_not_claim_retry_when_retries_are_exhausted(): void
+    {
+        $timeout = new RuntimeException('cURL error 28: Operation timed out after 180000 milliseconds');
+
+        $message = AiRequestError::displayMessage(
+            $timeout,
+            'openrouter',
+            'deepseek/deepseek-v4-flash-0731',
+            willRetry: false,
+        );
+
+        $this->assertTrue(AiRequestError::isRetryable($timeout));
+        $this->assertStringContainsString('timed out', $message);
+        $this->assertStringContainsString('retries exhausted', $message);
+        $this->assertStringNotContainsString('the job will retry', $message);
+        $this->assertStringNotContainsString('will retry with backoff', $message);
     }
 
     public function test_auth_errors_are_not_retryable(): void

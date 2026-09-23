@@ -206,4 +206,175 @@ class ConceptLocaleSupportTest extends TestCase
             'media_url' => 'https://example.com/silence.jpg',
         ]);
     }
+
+    public function test_attach_localized_term_is_idempotent_for_the_same_concept(): void
+    {
+        $canonicalizer = app(ConceptCanonicalizer::class);
+        $concept = $canonicalizer->resolveOrCreate('traffic light', 'en', 'A signal that controls road traffic.');
+
+        $first = $canonicalizer->attachLocalizedTerm(
+            concept: $concept,
+            locale: 'es',
+            term: 'semáforo',
+            shortDescription: 'Señal de tráfico.',
+            mediaUrl: 'https://example.com/semaforo.jpg',
+        );
+        $second = $canonicalizer->attachLocalizedTerm(
+            concept: $concept,
+            locale: 'es',
+            term: 'Semáforo',
+            shortDescription: 'Señal luminosa en un cruce.',
+        );
+
+        $this->assertNotNull($first);
+        $this->assertNotNull($second);
+        $this->assertSame($first->id, $second->id);
+        $this->assertSame(1, ConceptTerm::query()->where('locale', 'es')->where('normalized_term', 'semáforo')->count());
+        $this->assertSame('https://example.com/semaforo.jpg', $second->media_url);
+        $this->assertSame('Señal de tráfico.', $second->short_description);
+    }
+
+    public function test_attach_localized_term_does_not_steal_a_label_owned_by_another_concept(): void
+    {
+        $canonicalizer = app(ConceptCanonicalizer::class);
+        $trafficLight = $canonicalizer->resolveOrCreate('traffic light', 'en', 'A signal that controls road traffic.');
+        $semaphore = $canonicalizer->resolveOrCreate('semaphore', 'en', 'A signaling system using flags or lights.');
+
+        $owned = $canonicalizer->attachLocalizedTerm(
+            concept: $trafficLight,
+            locale: 'es',
+            term: 'semáforo',
+            shortDescription: 'Señal de tráfico.',
+        );
+
+        $collision = $canonicalizer->attachLocalizedTerm(
+            concept: $semaphore,
+            locale: 'es',
+            term: 'semáforo',
+            shortDescription: 'Sistema de señales.',
+        );
+
+        $this->assertNotNull($owned);
+        $this->assertNull($collision);
+        $this->assertSame($trafficLight->id, $owned->concept_id);
+        $this->assertSame(1, ConceptTerm::query()->where('locale', 'es')->where('normalized_term', 'semáforo')->count());
+        $this->assertNull($semaphore->fresh()->termForLocale('es', fallback: false));
+    }
+
+    public function test_localize_skips_duplicate_locale_norm_instead_of_failing_the_batch(): void
+    {
+        $trafficLight = Concept::query()->create(['canonical_key' => 'traffic-light']);
+        $semaphore = Concept::query()->create(['canonical_key' => 'semaphore']);
+
+        ConceptTerm::query()->create([
+            'concept_id' => $trafficLight->id,
+            'locale' => 'en',
+            'term' => 'traffic light',
+            'normalized_term' => 'traffic light',
+            'short_description' => 'A signal that controls road traffic.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+        ConceptTerm::query()->create([
+            'concept_id' => $semaphore->id,
+            'locale' => 'en',
+            'term' => 'semaphore',
+            'normalized_term' => 'semaphore',
+            'short_description' => 'A signaling system using flags or lights.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')->andReturn([
+            'translations' => [
+                [
+                    'id' => $trafficLight->id,
+                    'term' => 'semáforo',
+                    'shortDescription' => 'Señal de tráfico.',
+                ],
+                [
+                    'id' => $semaphore->id,
+                    'term' => 'semáforo',
+                    'shortDescription' => 'Sistema de señales.',
+                ],
+            ],
+        ]);
+
+        $fakeAgent = new class($mockResponse)
+        {
+            public function __construct(private StructuredAgentResponse $response) {}
+
+            public function prompt(string $prompt): StructuredAgentResponse
+            {
+                return $this->response;
+            }
+        };
+
+        $stats = app(ConceptLocalizeService::class)->localize(
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            batchSize: 10,
+            agent: $fakeAgent,
+            conceptIds: [$trafficLight->id, $semaphore->id],
+        );
+
+        $this->assertSame(2, $stats['processed']);
+        $this->assertSame(1, $stats['created']);
+        $this->assertSame(1, $stats['skipped']);
+        $this->assertSame(0, $stats['failed']);
+        $this->assertSame(0, $stats['deferred']);
+        $this->assertSame([], $stats['deferredConceptIds']);
+        $this->assertDatabaseHas('concept_terms', [
+            'concept_id' => $trafficLight->id,
+            'locale' => 'es',
+            'normalized_term' => 'semáforo',
+        ]);
+        $this->assertDatabaseMissing('concept_terms', [
+            'concept_id' => $semaphore->id,
+            'locale' => 'es',
+        ]);
+    }
+
+    public function test_localize_defers_remaining_concepts_when_deadline_has_passed(): void
+    {
+        $first = Concept::query()->create(['canonical_key' => 'silence-deadline']);
+        $second = Concept::query()->create(['canonical_key' => 'creativity-deadline']);
+
+        foreach ([$first, $second] as $concept) {
+            ConceptTerm::query()->create([
+                'concept_id' => $concept->id,
+                'locale' => 'en',
+                'term' => $concept->canonical_key,
+                'normalized_term' => $concept->canonical_key,
+                'short_description' => 'A concept.',
+                'complexity' => 2,
+                'is_preferred' => true,
+            ]);
+        }
+
+        $fakeAgent = new class
+        {
+            public function prompt(string $prompt): never
+            {
+                throw new \RuntimeException('Localize agent should not be called after the deadline.');
+            }
+        };
+
+        $stats = app(ConceptLocalizeService::class)->localize(
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            batchSize: 1,
+            agent: $fakeAgent,
+            conceptIds: [$first->id, $second->id],
+            deadlineAt: time() - 1,
+        );
+
+        $this->assertSame(0, $stats['processed']);
+        $this->assertSame(0, $stats['created']);
+        $this->assertSame(2, $stats['deferred']);
+        $this->assertSame([$first->id, $second->id], $stats['deferredConceptIds']);
+    }
 }
