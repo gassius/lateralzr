@@ -7,6 +7,7 @@ use App\Models\Concept;
 use App\Models\ConceptGraphRunJob;
 use App\Models\ConceptTerm;
 use App\Services\ConceptLocalizeService;
+use App\Support\ConceptLocale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -152,5 +153,117 @@ class LocalizeConceptQueueTest extends TestCase
             ->first();
 
         $this->assertSame('succeeded', $record?->status);
+    }
+
+    public function test_service_rethrows_retryable_llm_timeouts(): void
+    {
+        $concept = Concept::query()->create(['canonical_key' => 'silence-timeout']);
+        ConceptTerm::query()->create([
+            'concept_id' => $concept->id,
+            'locale' => ConceptLocale::default(),
+            'term' => 'silence',
+            'normalized_term' => 'silence',
+            'short_description' => 'Absence of sound.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $agent = new class
+        {
+            public function prompt(string $prompt): never
+            {
+                throw new RuntimeException('cURL error 28: Operation timed out after 90001 milliseconds');
+            }
+        };
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('timed out');
+
+        app(ConceptLocalizeService::class)->localize(
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            batchSize: 10,
+            agent: $agent,
+            conceptIds: [$concept->id],
+        );
+    }
+
+    public function test_service_swallows_permanent_auth_errors(): void
+    {
+        $concept = Concept::query()->create(['canonical_key' => 'silence-auth']);
+        ConceptTerm::query()->create([
+            'concept_id' => $concept->id,
+            'locale' => ConceptLocale::default(),
+            'term' => 'silence',
+            'normalized_term' => 'silence',
+            'short_description' => 'Absence of sound.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $agent = new class
+        {
+            public function prompt(string $prompt): never
+            {
+                throw new RuntimeException('OpenRouter Authentication Error: 401 invalid api key');
+            }
+        };
+
+        $stats = app(ConceptLocalizeService::class)->localize(
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            batchSize: 10,
+            agent: $agent,
+            conceptIds: [$concept->id],
+        );
+
+        $this->assertSame(1, $stats['failed']);
+        $this->assertSame(0, $stats['created']);
+    }
+
+    public function test_batch_job_rethrows_timeouts_for_limited_retry(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class);
+        $service->shouldReceive('localize')->once()->andThrow(new RuntimeException(
+            'cURL error 28: Operation timed out after 90001 milliseconds'
+        ));
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [42],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'localize#1',
+        );
+        $job->withFakeQueueInteractions();
+
+        try {
+            $job->handle($service);
+            $this->fail('Timeout should be rethrown for retry.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('timed out', $e->getMessage());
+        }
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1')
+            ->first();
+
+        $this->assertSame('processing', $record?->status);
+        $this->assertStringContainsString('timed out', (string) $record?->error_message);
     }
 }

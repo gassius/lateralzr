@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptLocalizeAgent;
+use App\Ai\Support\AiRequestError;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
 use Illuminate\Support\Collection;
@@ -93,8 +94,15 @@ class ConceptLocalizeService
                     'from' => $fromLocale,
                     'to' => $toLocale,
                     'error' => $e->getMessage(),
+                    'retryable' => AiRequestError::isRetryable($e),
                 ]);
                 $stats['failed'] += $payload->count();
+
+                // Timeouts/429/5xx must escape so queued jobs retry instead of
+                // marking the batch succeeded with a silent failure count.
+                if (AiRequestError::isRetryable($e)) {
+                    throw $e;
+                }
 
                 continue;
             }

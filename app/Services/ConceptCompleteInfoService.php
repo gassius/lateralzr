@@ -25,9 +25,10 @@ class ConceptCompleteInfoService
      *
      * @param  list<int>  $termIds
      * @param  'wiki'|'media'|'both'  $mode
-     * @return array{processed:int,wikiUpdated:int,mediaUpdated:int,skipped:int,failed:int}
+     * @param  int|null  $deadlineAt  Unix timestamp; stop starting new terms at/after this.
+     * @return array{processed:int,wikiUpdated:int,mediaUpdated:int,skipped:int,failed:int,deferred:int}
      */
-    public function complete(array $termIds, string $mode = 'both'): array
+    public function complete(array $termIds, string $mode = 'both', ?int $deadlineAt = null): array
     {
         $mode = $this->normalizeMode($mode);
         $stats = [
@@ -36,6 +37,7 @@ class ConceptCompleteInfoService
             'mediaUpdated' => 0,
             'skipped' => 0,
             'failed' => 0,
+            'deferred' => 0,
         ];
 
         $ids = array_values(array_unique(array_map('intval', $termIds)));
@@ -50,6 +52,16 @@ class ConceptCompleteInfoService
             ->get();
 
         foreach ($terms as $term) {
+            if ($deadlineAt !== null && time() >= $deadlineAt) {
+                $stats['deferred'] = max(0, $terms->count() - $stats['processed']);
+                Log::info('ConceptCompleteInfoService: stopping before worker timeout', [
+                    'deferred' => $stats['deferred'],
+                    'processed' => $stats['processed'],
+                    'mode' => $mode,
+                ]);
+                break;
+            }
+
             $stats['processed']++;
 
             $needWiki = in_array($mode, ['wiki', 'both'], true) && $this->isBlank($term->wiki_url);

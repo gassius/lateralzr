@@ -170,6 +170,7 @@ class CompleteConceptInfoTest extends TestCase
         $this->assertSame(1, $stats['processed']);
         $this->assertSame(1, $stats['wikiUpdated']);
         $this->assertSame(1, $stats['mediaUpdated']);
+        $this->assertSame(0, $stats['deferred']);
 
         $term->refresh();
         $this->assertSame('https://en.wikipedia.org/wiki/Silence', $term->wiki_url);
@@ -208,6 +209,28 @@ class CompleteConceptInfoTest extends TestCase
         $this->assertNull($term->media_url);
     }
 
+    public function test_service_defers_remaining_terms_when_deadline_has_passed(): void
+    {
+        $first = $this->makeTerm('silence', locale: 'en', wiki: null, media: null);
+        $second = $this->makeTerm('creativity', locale: 'en', wiki: null, media: null);
+
+        $articles = Mockery::mock(WikipediaArticleResolver::class);
+        $articles->shouldNotReceive('find');
+        $finder = Mockery::mock(QualifiedMediaFinder::class);
+        $finder->shouldNotReceive('find');
+
+        $stats = (new ConceptCompleteInfoService($articles, $finder))
+            ->complete([$first->id, $second->id], 'wiki', time() - 1);
+
+        $this->assertSame(0, $stats['processed']);
+        $this->assertSame(2, $stats['deferred']);
+        $this->assertSame(0, $stats['wikiUpdated']);
+        $first->refresh();
+        $second->refresh();
+        $this->assertNull($first->wiki_url);
+        $this->assertNull($second->wiki_url);
+    }
+
     public function test_batch_job_handle_marks_succeeded(): void
     {
         $runUuid = (string) Str::uuid();
@@ -220,13 +243,23 @@ class CompleteConceptInfoTest extends TestCase
         ]);
 
         $service = Mockery::mock(ConceptCompleteInfoService::class);
-        $service->shouldReceive('complete')->once()->andReturn([
-            'processed' => 1,
-            'wikiUpdated' => 1,
-            'mediaUpdated' => 0,
-            'skipped' => 0,
-            'failed' => 0,
-        ]);
+        $service->shouldReceive('complete')
+            ->once()
+            ->withArgs(function (array $ids, string $mode, ?int $deadlineAt = null) {
+                return $ids === [42]
+                    && $mode === 'wiki'
+                    && is_int($deadlineAt)
+                    && $deadlineAt > time()
+                    && $deadlineAt <= time() + 300;
+            })
+            ->andReturn([
+                'processed' => 1,
+                'wikiUpdated' => 1,
+                'mediaUpdated' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 0,
+            ]);
 
         $job = new CompleteConceptInfoBatchJob(
             termIds: [42],

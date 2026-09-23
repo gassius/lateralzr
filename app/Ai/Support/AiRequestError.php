@@ -4,6 +4,7 @@ namespace App\Ai\Support;
 
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Queue\TimeoutExceededException;
 use Throwable;
 
 final class AiRequestError
@@ -78,6 +79,10 @@ final class AiRequestError
 
     public static function isTimeout(Throwable $e): bool
     {
+        if ($e instanceof TimeoutExceededException) {
+            return true;
+        }
+
         $message = strtolower($e->getMessage());
 
         return str_contains($message, 'curl error 28')

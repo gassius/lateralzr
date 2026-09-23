@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class CompleteConceptInfoBatchJob implements ShouldQueue
@@ -26,7 +27,7 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
 
     public function backoff(): array
     {
-        return [20, 60];
+        return [30, 90];
     }
 
     /**
@@ -55,10 +56,24 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
         }
 
         try {
-            $service->complete(
+            // Leave a margin under $timeout so Wikimedia slowness fails soft
+            // (remaining terms stay blank and can be picked up by a later run)
+            // instead of a worker SIGKILL that marks the batch failed.
+            $deadlineAt = time() + max(30, $this->timeout - 60);
+
+            $stats = $service->complete(
                 termIds: $this->termIds,
                 mode: $this->mode,
+                deadlineAt: $deadlineAt,
             );
+
+            Log::info('CompleteConceptInfoBatchJob succeeded', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $this->jobKey,
+                'mode' => $this->mode,
+                'count' => count($this->termIds),
+                'stats' => $stats,
+            ]);
 
             if ($this->runUuid) {
                 ConceptGraphRunJob::query()

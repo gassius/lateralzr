@@ -15,7 +15,7 @@ use Stringable;
 
 #[MaxSteps(5)]
 #[Temperature(0.2)]
-#[Timeout(90)]
+#[Timeout(180)]
 class ConceptLocalizeAgent implements Agent, HasStructuredOutput
 {
     use Promptable;

@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Ai\Support\AiRequestError;
+use Illuminate\Queue\TimeoutExceededException;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -45,5 +46,14 @@ class AiRequestErrorTest extends TestCase
         $e = new RuntimeException('OpenRouter Authentication Error: 401 invalid api key');
 
         $this->assertFalse(AiRequestError::isRetryable($e));
+    }
+
+    public function test_worker_timeout_exceeded_is_retryable(): void
+    {
+        $e = new TimeoutExceededException('App\\Jobs\\GenerateConceptGraphJob has timed out.');
+
+        $this->assertTrue(AiRequestError::isTimeout($e));
+        $this->assertTrue(AiRequestError::isRetryable($e));
+        $this->assertStringContainsString('timed out', AiRequestError::displayMessage($e, 'openrouter', 'openai/gpt-4o-mini'));
     }
 }
