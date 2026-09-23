@@ -2,20 +2,26 @@
 
 namespace App\Filament\Resources\Concepts\Tables;
 
+use App\Filament\Support\PreferredTermColumns;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ConceptsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query): void {
+                $query->with('preferredTerm');
+            })
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('display_term')
+                TextColumn::make('display_term')
                     ->label('Term')
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => PreferredTermColumns::searchTerms($query, $search))
                     ->sortable(),
                 \Filament\Tables\Columns\TextColumn::make('canonical_key')
                     ->searchable()
