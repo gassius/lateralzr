@@ -5,7 +5,6 @@ namespace App\Ai\Support;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Illuminate\JsonSchema\Types\Type;
-use Laravel\Ai\Contracts\HasStructuredOutput;
 
 /**
  * Structured output schema for concept-graph agents.
@@ -52,12 +51,9 @@ final class ConceptGraphStructuredSchema
      *
      * @return array<string, array<string, mixed>>
      */
-    public static function exportProperties(?HasStructuredOutput $agent = null): array
+    public static function exportProperties(): array
     {
-        $definition = $agent === null
-            ? self::definition(new JsonSchemaTypeFactory)
-            : $agent->schema(new JsonSchemaTypeFactory);
-
+        $definition = self::definition(new JsonSchemaTypeFactory);
         $properties = [];
 
         foreach ($definition as $key => $type) {

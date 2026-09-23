@@ -301,46 +301,6 @@ class ConceptGraphQuery
         return is_string($term->media_url) && trim($term->media_url) !== '';
     }
 
-    /**
-     * Legacy adapter kept for older tests/callers during the endpoint transition.
-     */
-    public function getFromDb(?string $seedConcept, ?int $count, int $complexity): ?array
-    {
-        $graph = $this->getGraph($seedConcept, $count ?? 5, 1);
-        if ($graph === null) {
-            return null;
-        }
-
-        $nodesById = collect($graph['nodes'])->keyBy('id');
-        $seed = $nodesById->get($graph['start']['id']);
-
-        return [
-            'complexity' => max(1, min(5, $complexity)),
-            'seed' => [
-                'concept' => (string) ($seed['label'] ?? ''),
-                'shortDescription' => (string) ($seed['shortDescription'] ?? ''),
-                'wikiUrl' => $seed['wikiUrl'] ?? null,
-                'mediaUrl' => $seed['mediaUrl'] ?? null,
-            ],
-            'related_concepts' => collect($graph['edges'])->map(function (array $edge) use ($nodesById, $graph) {
-                $toId = $edge['from'] === $graph['start']['id'] ? $edge['to'] : $edge['from'];
-                $node = $nodesById->get($toId);
-
-                return [
-                    'concept' => (string) ($node['label'] ?? ''),
-                    'shortDescription' => (string) ($node['shortDescription'] ?? ''),
-                    'larelality' => (int) ($edge['laterality'] ?? 1),
-                    'wikiUrl' => $node['wikiUrl'] ?? null,
-                    'mediaUrl' => $node['mediaUrl'] ?? null,
-                ];
-            })->values()->all(),
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>|null Null when the concept has no term in `$locale`
-     *                                   (never fall back to another locale for display).
-     */
     protected function normalizeComplexity(?int $complexity): ?int
     {
         if ($complexity === null) {
