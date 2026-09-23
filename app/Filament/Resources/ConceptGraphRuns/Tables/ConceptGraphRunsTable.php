@@ -35,6 +35,14 @@ class ConceptGraphRunsTable
                 TextColumn::make('summary')
                     ->label('Summary')
                     ->state(fn ($record): string => $record->summary)
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function (Builder $inner) use ($search): void {
+                            $inner->where('seeds', 'like', '%'.$search.'%')
+                                ->orWhereHas('jobs', function (Builder $jobs) use ($search): void {
+                                    $jobs->where('seed', 'like', '%'.$search.'%');
+                                });
+                        });
+                    })
                     ->wrap()
                     ->toggleable(),
                 TextColumn::make('provider')

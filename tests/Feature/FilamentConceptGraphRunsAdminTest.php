@@ -29,6 +29,21 @@ class FilamentConceptGraphRunsAdminTest extends TestCase
             ->assertCanSeeTableRecords([$small, $large], inOrder: true);
     }
 
+    public function test_concept_graph_runs_search_matches_seed_summary(): void
+    {
+        $this->actingAsAdmin();
+
+        $pyramid = $this->makeGraphRun(starts: ['pyramid'], targetCount: 40);
+        $river = $this->makeGraphRun(starts: ['river'], targetCount: 40);
+
+        $this->get('/admin/concept-graph-runs?search=pyramid')->assertSuccessful();
+
+        Livewire::test(ListConceptGraphRuns::class)
+            ->searchTable('pyramid')
+            ->assertCanSeeTableRecords([$pyramid])
+            ->assertCanNotSeeTableRecords([$river]);
+    }
+
     /**
      * @param  list<string>  $starts
      */
