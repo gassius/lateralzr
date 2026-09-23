@@ -39,4 +39,30 @@ class FilamentConceptRelationshipsAdminTest extends TestCase
             ->sortTable('fromConcept.display_term')
             ->assertCanSeeTableRecords([$fromApple, $fromZebra], inOrder: true);
     }
+
+    public function test_concept_relationships_can_sort_by_to_term(): void
+    {
+        $this->actingAsAdmin();
+
+        $source = $this->makeConcept('Source', 'source');
+        $zebra = $this->makeConcept('Zebra', 'zebra-to');
+        $apple = $this->makeConcept('Apple', 'apple-to');
+
+        $toZebra = ConceptRelationship::query()->create([
+            'from_concept_id' => $source->id,
+            'to_concept_id' => $zebra->id,
+            'strength' => 0.4,
+        ]);
+        $toApple = ConceptRelationship::query()->create([
+            'from_concept_id' => $source->id,
+            'to_concept_id' => $apple->id,
+            'strength' => 0.6,
+        ]);
+
+        $this->get('/admin/concept-relationships?sort=toConcept.display_term:asc')->assertSuccessful();
+
+        Livewire::test(ListConceptRelationships::class)
+            ->sortTable('toConcept.display_term')
+            ->assertCanSeeTableRecords([$toApple, $toZebra], inOrder: true);
+    }
 }

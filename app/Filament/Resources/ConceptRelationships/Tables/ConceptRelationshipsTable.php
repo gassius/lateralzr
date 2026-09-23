@@ -39,7 +39,12 @@ class ConceptRelationshipsTable
                             $q->where('term', 'like', "%{$search}%");
                         });
                     })
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred(
+                        $query,
+                        'term',
+                        $direction,
+                        'concept_relationships.to_concept_id',
+                    )),
                 TextColumn::make('strength')
                     ->numeric(decimalPlaces: 5)
                     ->sortable(),
