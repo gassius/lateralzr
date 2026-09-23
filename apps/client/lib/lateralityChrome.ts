@@ -4,10 +4,19 @@
  */
 
 /** − / wordmark / + row. Keep ≥44px targets inside this height. */
-export const LATERALITY_SUBMENU_HEIGHT = 56;
+export const LATERALITY_SUBMENU_HEIGHT = 72;
 
-/** Calm gap between card bottom and laterality row. */
-export const LATERALITY_CARD_GAP = 8;
+/** Comfortable tap target for − / + (visually weightier than a 44px ghost). */
+export const LATERALITY_STEP_SIZE = 48;
+
+/** Logo wordmark strip height inside the row. */
+export const LATERALITY_WORDMARK_HEIGHT = 28;
+
+/** Connected-nodes motif (not the reserved lightbulb). */
+export const LATERALITY_NODES_WIDTH = 32;
+
+/** Flush attach under the card — close the Lz-11 orphaned teal band. */
+export const LATERALITY_CARD_GAP = 2;
 
 /** Top inset on the card stack (above the card, not in the card–row gap). */
 export const CARD_STACK_PADDING_TOP = 8;

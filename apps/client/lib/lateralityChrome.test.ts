@@ -4,6 +4,7 @@ import {
   CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
   LATERALITY_CARD_GAP,
+  LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
   lateralityChromeReserve,
   MIN_CARD_AREA_HEIGHT,
@@ -25,11 +26,13 @@ function cardAreaHeight(availableHeight: number, cardWidth: number): number {
 }
 
 describe('laterality chrome grouping', () => {
-  it('keeps a 56px row and an 8px card gap (44px targets still fit)', () => {
-    assert.equal(LATERALITY_SUBMENU_HEIGHT, 56);
-    assert.equal(LATERALITY_CARD_GAP, 8);
-    assert.ok(LATERALITY_SUBMENU_HEIGHT >= 44);
-    assert.equal(lateralityChromeReserve(), 64);
+  it('keeps a 72px row with 48px targets flush under the card', () => {
+    assert.equal(LATERALITY_SUBMENU_HEIGHT, 72);
+    assert.equal(LATERALITY_CARD_GAP, 2);
+    assert.equal(LATERALITY_STEP_SIZE, 48);
+    assert.ok(LATERALITY_STEP_SIZE >= 44);
+    assert.ok(LATERALITY_SUBMENU_HEIGHT >= LATERALITY_STEP_SIZE);
+    assert.equal(lateralityChromeReserve(), 74);
   });
 
   it('reserves the row + gap under the card instead of a leftover band', () => {
@@ -59,8 +62,8 @@ describe('laterality chrome grouping', () => {
     const legacyGap =
       available - CARD_STACK_PADDING_TOP - cardHeight;
     assert.ok(legacyGap > 100, 'documents the orphaned teal band this change closes');
-    assert.equal(LATERALITY_CARD_GAP, 8);
-    assert.ok(LATERALITY_CARD_GAP < 24);
+    assert.equal(LATERALITY_CARD_GAP, 2);
+    assert.ok(LATERALITY_CARD_GAP <= 2);
     assert.ok(legacyGap > LATERALITY_CARD_GAP * 10);
   });
 
