@@ -1,69 +1,44 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { Palette } from '../constants/Colors.ts';
+import { contrastRatio, relativeLuminance } from './coachHintPresentation.ts';
 import {
-  CONCEPT_FRONT_LABEL_AVG_GLYPH_EM,
-  CONCEPT_FRONT_LABEL_FALLBACK_CONTENT_WIDTH,
+  CONCEPT_FRONT_LABEL_COLOR,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
+  CONCEPT_FRONT_LABEL_TEXT_ALIGN,
   conceptFrontLabelTextAlign,
   conceptFrontLabelTextAlignFromLineCount,
 } from './conceptFrontLabelAlign';
 
-/** Typical letterboxed web preview content box (~301px measured). */
-const PHONE_CONTENT_WIDTH = 301;
-const WIDE_PHONE_CONTENT_WIDTH = 366;
-
-test('wraps ⇒ left, else center (line count is the source of truth)', () => {
+test('front titles always center, including Critiquito multiline examples', () => {
+  assert.equal(CONCEPT_FRONT_LABEL_TEXT_ALIGN, 'center');
   assert.equal(conceptFrontLabelTextAlignFromLineCount(1), 'center');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(0), 'center');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(2), 'left');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(3), 'left');
+  assert.equal(conceptFrontLabelTextAlignFromLineCount(2), 'center');
+  assert.equal(conceptFrontLabelTextAlignFromLineCount(3), 'center');
+  assert.equal(conceptFrontLabelTextAlign('Silo'), 'center');
+  assert.equal(conceptFrontLabelTextAlign('Seta'), 'center');
+  assert.equal(conceptFrontLabelTextAlign('Glass harmonica'), 'center');
+  assert.equal(conceptFrontLabelTextAlign('Svalbard Global Seed Vault'), 'center');
+  assert.equal(conceptFrontLabelTextAlign('The persistence of memory'), 'center');
+  assert.equal(conceptFrontLabelTextAlign('Tide\nPool'), 'center');
+  assert.equal(conceptFrontLabelTextAlign(''), 'center');
 });
 
-test('short Critiquito examples center on typical phone-width card fronts', () => {
-  assert.equal(conceptFrontLabelTextAlign('Tide', PHONE_CONTENT_WIDTH), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Lighthouse', PHONE_CONTENT_WIDTH), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Tide', WIDE_PHONE_CONTENT_WIDTH), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Lighthouse', WIDE_PHONE_CONTENT_WIDTH), 'center');
+test('front title ink matches the logo blackish, not teal chrome', () => {
+  assert.equal(CONCEPT_FRONT_LABEL_COLOR, '#231f20');
+  assert.equal(CONCEPT_FRONT_LABEL_COLOR, Palette.ink);
+  assert.notEqual(CONCEPT_FRONT_LABEL_COLOR, Palette.darkBlue);
 });
 
-test('short two-word labels that still fit one line center', () => {
-  assert.equal(conceptFrontLabelTextAlign('Red tide', PHONE_CONTENT_WIDTH), 'center');
+test('ink on orange is stronger contrast than teal-on-orange and stays near-black', () => {
+  const inkOnOrange = contrastRatio(CONCEPT_FRONT_LABEL_COLOR, Palette.orange);
+  const tealOnOrange = contrastRatio(Palette.darkBlue, Palette.orange);
+  assert.ok(inkOnOrange > tealOnOrange);
+  assert.ok(inkOnOrange >= 4.5);
+  assert.ok(relativeLuminance(CONCEPT_FRONT_LABEL_COLOR) < 0.05);
+  assert.ok(relativeLuminance(CONCEPT_FRONT_LABEL_COLOR) < relativeLuminance(Palette.darkBlue));
 });
 
-test('titles that overflow the content box stay left-aligned', () => {
-  assert.equal(conceptFrontLabelTextAlign('Shakespeare', PHONE_CONTENT_WIDTH), 'left');
-  assert.equal(
-    conceptFrontLabelTextAlign('The persistence of memory', PHONE_CONTENT_WIDTH),
-    'left',
-  );
-  assert.equal(
-    conceptFrontLabelTextAlign('Pneumonoultramicroscopicsilicovolcanoconiosis', PHONE_CONTENT_WIDTH),
-    'left',
-  );
-});
-
-test('explicit line breaks count as wrapping even when each line is short', () => {
-  assert.equal(conceptFrontLabelTextAlign('Tide\nPool', PHONE_CONTENT_WIDTH), 'left');
-});
-
-test('empty titles center so the front stays balanced', () => {
-  assert.equal(conceptFrontLabelTextAlign('', PHONE_CONTENT_WIDTH), 'center');
-  assert.equal(conceptFrontLabelTextAlign('   ', PHONE_CONTENT_WIDTH), 'center');
-});
-
-test('unmeasured content width uses the phone fallback so short labels do not flash left', () => {
-  assert.equal(CONCEPT_FRONT_LABEL_FALLBACK_CONTENT_WIDTH, 301);
-  assert.equal(conceptFrontLabelTextAlign('Tide', 0), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Lighthouse', 0), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Shakespeare', 0), 'left');
-});
-
-test('the wrap threshold is estimated width vs content box at the front title size', () => {
-  const avgGlyph = CONCEPT_FRONT_LABEL_FONT_SIZE * CONCEPT_FRONT_LABEL_AVG_GLYPH_EM;
-  const ten = '1234567890';
-  const twelve = '123456789012';
-  assert.ok(ten.length * avgGlyph <= PHONE_CONTENT_WIDTH);
-  assert.ok(twelve.length * avgGlyph > PHONE_CONTENT_WIDTH);
-  assert.equal(conceptFrontLabelTextAlign(ten, PHONE_CONTENT_WIDTH), 'center');
-  assert.equal(conceptFrontLabelTextAlign(twelve, PHONE_CONTENT_WIDTH), 'left');
+test('title stays larger than coach copy', () => {
+  assert.equal(CONCEPT_FRONT_LABEL_FONT_SIZE, 48);
 });
