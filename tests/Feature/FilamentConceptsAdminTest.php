@@ -27,4 +27,18 @@ class FilamentConceptsAdminTest extends TestCase
             ->assertCanSeeTableRecords([$pyramid])
             ->assertCanNotSeeTableRecords([$river]);
     }
+
+    public function test_concepts_can_sort_by_term(): void
+    {
+        $this->actingAsAdmin();
+
+        $zebra = $this->makeConcept('Zebra', 'zebra');
+        $apple = $this->makeConcept('Apple', 'apple');
+
+        $this->get('/admin/concepts?sort=display_term:asc')->assertSuccessful();
+
+        Livewire::test(ListConcepts::class)
+            ->sortTable('display_term')
+            ->assertCanSeeTableRecords([$apple, $zebra], inOrder: true);
+    }
 }

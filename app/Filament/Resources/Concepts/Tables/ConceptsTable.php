@@ -22,7 +22,7 @@ class ConceptsTable
                 TextColumn::make('display_term')
                     ->label('Term')
                     ->searchable(query: fn (Builder $query, string $search): Builder => PreferredTermColumns::searchTerms($query, $search))
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'term', $direction)),
                 \Filament\Tables\Columns\TextColumn::make('canonical_key')
                     ->searchable()
                     ->sortable()
