@@ -2,35 +2,43 @@
 
 namespace App\Filament\Resources\Concepts\Tables;
 
+use App\Filament\Support\PreferredTermColumns;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ConceptsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query): void {
+                $query->with('preferredTerm');
+            })
             ->columns([
-                \Filament\Tables\Columns\TextColumn::make('display_term')
+                TextColumn::make('display_term')
                     ->label('Term')
-                    ->searchable()
-                    ->sortable(),
+                    ->searchable(query: fn (Builder $query, string $search): Builder => PreferredTermColumns::searchTerms($query, $search))
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'term', $direction)),
                 \Filament\Tables\Columns\TextColumn::make('canonical_key')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('display_complexity')
+                TextColumn::make('display_complexity')
                     ->label('Complexity')
-                    ->sortable(),
-                \Filament\Tables\Columns\TextColumn::make('display_wiki_url')
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'complexity', $direction)),
+                TextColumn::make('display_wiki_url')
                     ->label('Wiki URL')
                     ->limit(50)
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'wiki_url', $direction))
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('display_media_url')
+                TextColumn::make('display_media_url')
                     ->label('Media URL')
                     ->limit(50)
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'media_url', $direction))
                     ->toggleable(),
                 \Filament\Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()

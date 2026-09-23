@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ConceptRelationships\Tables;
 
+use App\Filament\Support\PreferredTermColumns;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -25,7 +26,12 @@ class ConceptRelationshipsTable
                             $q->where('term', 'like', "%{$search}%");
                         });
                     })
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred(
+                        $query,
+                        'term',
+                        $direction,
+                        'concept_relationships.from_concept_id',
+                    )),
                 TextColumn::make('toConcept.display_term')
                     ->label('To')
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -33,7 +39,12 @@ class ConceptRelationshipsTable
                             $q->where('term', 'like', "%{$search}%");
                         });
                     })
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred(
+                        $query,
+                        'term',
+                        $direction,
+                        'concept_relationships.to_concept_id',
+                    )),
                 TextColumn::make('strength')
                     ->numeric(decimalPlaces: 5)
                     ->sortable(),

@@ -6,6 +6,7 @@ use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ConceptGraphRunsTable
 {
@@ -34,6 +35,14 @@ class ConceptGraphRunsTable
                 TextColumn::make('summary')
                     ->label('Summary')
                     ->state(fn ($record): string => $record->summary)
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->where(function (Builder $inner) use ($search): void {
+                            $inner->where('seeds', 'like', '%'.$search.'%')
+                                ->orWhereHas('jobs', function (Builder $jobs) use ($search): void {
+                                    $jobs->where('seed', 'like', '%'.$search.'%');
+                                });
+                        });
+                    })
                     ->wrap()
                     ->toggleable(),
                 TextColumn::make('provider')
@@ -55,7 +64,7 @@ class ConceptGraphRunsTable
                 TextColumn::make('target_count')
                     ->label('Target')
                     ->state(fn ($record): ?int => $record->target_count)
-                    ->sortable(),
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => self::orderByTargetCount($query, $direction)),
                 TextColumn::make('pending_jobs_count')
                     ->label('Pending')
                     ->sortable(),
@@ -85,5 +94,19 @@ class ConceptGraphRunsTable
                 ViewAction::make(),
             ])
             ->defaultSort('dispatched_at', 'desc');
+    }
+
+    /**
+     * Target is stored as seeds.targetCount JSON, not a table column.
+     */
+    public static function orderByTargetCount(Builder $query, string $direction): Builder
+    {
+        $direction = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        $expression = $query->getConnection()->getDriverName() === 'sqlite'
+            ? "CAST(json_extract(seeds, '$.targetCount') AS INTEGER)"
+            : 'CAST(JSON_UNQUOTE(JSON_EXTRACT(seeds, \'$.targetCount\')) AS UNSIGNED)';
+
+        return $query->orderByRaw("{$expression} {$direction}");
     }
 }
