@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\Concepts\Pages\EditConcept;
 use App\Filament\Resources\Concepts\Pages\ListConcepts;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -82,5 +83,23 @@ class FilamentConceptsAdminTest extends TestCase
         Livewire::test(ListConcepts::class)
             ->sortTable('display_media_url')
             ->assertCanSeeTableRecords([$earlier, $later], inOrder: true);
+    }
+
+    public function test_concept_edit_localized_terms_span_full_width(): void
+    {
+        $this->actingAsAdmin();
+
+        $concept = $this->makeConcept('Pyramid', 'pyramid-edit');
+
+        $this->get('/admin/concepts/'.$concept->getKey().'/edit')->assertSuccessful();
+
+        $component = Livewire::test(EditConcept::class, ['record' => $concept->getKey()])
+            ->assertSuccessful()
+            ->assertSee('Localized terms');
+
+        $terms = $component->instance()->getSchemaComponent('form.terms');
+
+        $this->assertNotNull($terms);
+        $this->assertSame('full', $terms->getColumnSpan('default'));
     }
 }

@@ -23,6 +23,7 @@ class ConceptForm
                 Repeater::make('terms')
                     ->relationship()
                     ->label('Localized terms')
+                    ->columnSpanFull()
                     ->defaultItems(1)
                     ->minItems(1)
                     ->itemLabel(fn (array $state): ?string => isset($state['locale'])
