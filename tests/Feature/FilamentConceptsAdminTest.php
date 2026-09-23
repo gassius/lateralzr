@@ -69,4 +69,18 @@ class FilamentConceptsAdminTest extends TestCase
             ->sortTable('display_wiki_url')
             ->assertCanSeeTableRecords([$earlier, $later], inOrder: true);
     }
+
+    public function test_concepts_can_sort_by_media_url(): void
+    {
+        $this->actingAsAdmin();
+
+        $later = $this->makeConcept('Later', 'later-media', mediaUrl: 'https://commons.wikimedia.org/wiki/Zulu');
+        $earlier = $this->makeConcept('Earlier', 'earlier-media', mediaUrl: 'https://commons.wikimedia.org/wiki/Apple');
+
+        $this->get('/admin/concepts?sort=display_media_url:asc')->assertSuccessful();
+
+        Livewire::test(ListConcepts::class)
+            ->sortTable('display_media_url')
+            ->assertCanSeeTableRecords([$earlier, $later], inOrder: true);
+    }
 }

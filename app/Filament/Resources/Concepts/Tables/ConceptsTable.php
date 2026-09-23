@@ -35,9 +35,10 @@ class ConceptsTable
                     ->limit(50)
                     ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'wiki_url', $direction))
                     ->toggleable(),
-                \Filament\Tables\Columns\TextColumn::make('display_media_url')
+                TextColumn::make('display_media_url')
                     ->label('Media URL')
                     ->limit(50)
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => PreferredTermColumns::orderByPreferred($query, 'media_url', $direction))
                     ->toggleable(),
                 \Filament\Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
