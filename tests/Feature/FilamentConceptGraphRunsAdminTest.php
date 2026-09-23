@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\ConceptGraphRuns\ConceptGraphRunResource;
 use App\Filament\Resources\ConceptGraphRuns\Pages\ListConceptGraphRuns;
 use App\Models\ConceptGraphRun;
+use App\Models\ConceptGraphRunJob;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
@@ -42,6 +44,37 @@ class FilamentConceptGraphRunsAdminTest extends TestCase
             ->searchTable('pyramid')
             ->assertCanSeeTableRecords([$pyramid])
             ->assertCanNotSeeTableRecords([$river]);
+    }
+
+    public function test_run_list_query_counts_partial_jobs(): void
+    {
+        $this->actingAsAdmin();
+
+        $run = $this->makeGraphRun(starts: ['pyramid'], targetCount: 3);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'seed' => 'localize#1',
+            'status' => 'succeeded',
+            'attempts' => 1,
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'seed' => 'localize#2',
+            'status' => 'partial',
+            'attempts' => 1,
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'seed' => 'localize#3',
+            'status' => 'failed',
+            'attempts' => 1,
+        ]);
+
+        $record = ConceptGraphRunResource::getEloquentQuery()->whereKey($run->id)->first();
+
+        $this->assertSame(1, (int) $record?->succeeded_jobs_count);
+        $this->assertSame(1, (int) $record?->partial_jobs_count);
+        $this->assertSame(1, (int) $record?->failed_jobs_count);
     }
 
     /**

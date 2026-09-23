@@ -587,4 +587,74 @@ class LocalizeConceptQueueTest extends TestCase
         $run = ConceptGraphRun::query()->where('run_uuid', $runUuid)->first();
         $this->assertSame([7, 8], data_get($run?->seeds, 'batches.localize#1+1'));
     }
+
+    public function test_batch_job_marks_failed_when_deferred_depth_cap_is_hit(): void
+    {
+        Queue::fake();
+
+        $runUuid = (string) Str::uuid();
+        ConceptGraphRun::query()->create([
+            'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_LOCALIZE,
+            'complexity' => 2,
+            'queue' => 'default',
+            'seed_count' => 1,
+            'seeds' => [
+                'from' => 'en',
+                'to' => 'es',
+                'missingOnly' => true,
+                'batchSize' => 10,
+                'batches' => ['localize#1+20' => [7, 8]],
+            ],
+            'related_count' => 2,
+            'dispatched_at' => now(),
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1+20',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class);
+        $service->shouldReceive('localize')
+            ->once()
+            ->andReturn([
+                'processed' => 0,
+                'created' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 2,
+                'deferredConceptIds' => [7, 8],
+            ]);
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [7, 8],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'localize#1+20',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#1+20')
+            ->first();
+
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('not re-queued', (string) $record?->error_message);
+        $this->assertStringContainsString('depth cap', (string) $record?->error_message);
+        $this->assertStringNotContainsString('were re-queued', (string) $record?->error_message);
+
+        $this->assertDatabaseMissing('concept_graph_run_jobs', [
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#1+21',
+        ]);
+        Queue::assertNotPushed(LocalizeConceptBatchJob::class);
+    }
 }

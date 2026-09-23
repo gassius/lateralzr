@@ -57,7 +57,7 @@ final class AiRequestError
         return match ($willRetry) {
             true => $will,
             false => 'retries exhausted',
-            null => $will,
+            null => str_replace('the job will retry', 'the job may retry', $will),
         };
     }
 

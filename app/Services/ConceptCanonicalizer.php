@@ -47,27 +47,44 @@ class ConceptCanonicalizer
             ? max(1, min(5, $complexity))
             : (int) config('concepts.default_complexity', 2);
 
-        return DB::transaction(function () use ($term, $locale, $normalized, $shortDescription, $wikiUrl, $mediaUrl, $complexity) {
-            $existingTerm = ConceptTerm::query()
-                ->where('locale', $locale)
-                ->where('normalized_term', $normalized)
-                ->first();
+        try {
+            return DB::transaction(function () use ($term, $locale, $normalized, $shortDescription, $wikiUrl, $mediaUrl, $complexity) {
+                $existingTerm = $this->findExistingLocaleTerm($locale, $normalized);
 
-            if ($existingTerm) {
-                $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
+                if ($existingTerm) {
+                    $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
 
-                return $existingTerm->concept()->firstOrFail();
-            }
+                    return $existingTerm->concept()->firstOrFail();
+                }
 
-            // Same label already exists in another locale → reuse that concept identity.
-            $crossLocaleTerm = ConceptTerm::query()
-                ->where('normalized_term', $normalized)
-                ->orderByRaw('CASE WHEN locale = ? THEN 0 ELSE 1 END', [$this->defaultLocale()])
-                ->first();
+                // Same label already exists in another locale → reuse that concept identity.
+                $crossLocaleTerm = $this->findCrossLocaleTerm($normalized);
 
-            if ($crossLocaleTerm) {
-                $concept = $crossLocaleTerm->concept()->firstOrFail();
-                $this->attachPreferredTerm(
+                if ($crossLocaleTerm) {
+                    $concept = $crossLocaleTerm->concept()->firstOrFail();
+                    $attached = $this->attachPreferredTerm(
+                        $concept,
+                        $locale,
+                        $term,
+                        $normalized,
+                        $shortDescription,
+                        $wikiUrl,
+                        $mediaUrl,
+                        $complexity
+                    );
+
+                    if ($attached instanceof ConceptTerm) {
+                        return $attached->concept()->firstOrFail();
+                    }
+
+                    return $concept;
+                }
+
+                $concept = Concept::query()->create([
+                    'canonical_key' => $this->canonicalKeyFor($term, $locale),
+                ]);
+
+                $attached = $this->attachPreferredTerm(
                     $concept,
                     $locale,
                     $term,
@@ -78,26 +95,26 @@ class ConceptCanonicalizer
                     $complexity
                 );
 
+                if ($attached instanceof ConceptTerm) {
+                    return $attached->concept()->firstOrFail();
+                }
+
                 return $concept;
+            });
+        } catch (UniqueConstraintViolationException $e) {
+            $existingTerm = ConceptTerm::query()
+                ->where('locale', $locale)
+                ->where('normalized_term', $normalized)
+                ->first();
+
+            if ($existingTerm instanceof ConceptTerm) {
+                $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
+
+                return $existingTerm->concept()->firstOrFail();
             }
 
-            $concept = Concept::query()->create([
-                'canonical_key' => $this->canonicalKeyFor($term, $locale),
-            ]);
-
-            $this->attachPreferredTerm(
-                $concept,
-                $locale,
-                $term,
-                $normalized,
-                $shortDescription,
-                $wikiUrl,
-                $mediaUrl,
-                $complexity
-            );
-
-            return $concept;
-        });
+            throw $e;
+        }
     }
 
     /**
@@ -237,13 +254,45 @@ class ConceptCanonicalizer
         });
     }
 
-    protected function lockedTerm(string $locale, string $normalized): ?ConceptTerm
+    protected function findExistingLocaleTerm(string $locale, string $normalized): ?ConceptTerm
+    {
+        return $this->findTermByLocaleNorm($locale, $normalized, lock: false);
+    }
+
+    protected function findCrossLocaleTerm(string $normalized): ?ConceptTerm
     {
         return ConceptTerm::query()
-            ->where('locale', $locale)
             ->where('normalized_term', $normalized)
-            ->lockForUpdate()
+            ->orderByRaw('CASE WHEN locale = ? THEN 0 ELSE 1 END', [$this->defaultLocale()])
             ->first();
+    }
+
+    protected function lockedTerm(string $locale, string $normalized): ?ConceptTerm
+    {
+        return $this->findTermByLocaleNorm($locale, $normalized, lock: true);
+    }
+
+    protected function findTermByLocaleNorm(string $locale, string $normalized, bool $lock = false): ?ConceptTerm
+    {
+        $query = ConceptTerm::query()
+            ->where('locale', $locale)
+            ->where('normalized_term', $normalized);
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
+    }
+
+    protected function demoteOtherPreferredTerms(ConceptTerm $preferred): void
+    {
+        ConceptTerm::query()
+            ->where('concept_id', $preferred->concept_id)
+            ->where('locale', $preferred->locale)
+            ->where('id', '!=', $preferred->id)
+            ->where('is_preferred', true)
+            ->update(['is_preferred' => false]);
     }
 
     /**
@@ -273,6 +322,9 @@ class ConceptCanonicalizer
             if ($updates !== []) {
                 $owned->fill($updates)->save();
             }
+            if (($updates['is_preferred'] ?? false) === true) {
+                $this->demoteOtherPreferredTerms($owned);
+            }
 
             return $owned->fresh();
         }
@@ -288,9 +340,18 @@ class ConceptCanonicalizer
             return null;
         }
 
-        $this->enrichTerm($owned, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
-
-        return $owned->fresh();
+        throw new UniqueConstraintViolationException(
+            (string) DB::getDefaultConnection(),
+            'concept_terms.concept_terms_locale_norm_unique',
+            [$owned->locale, $owned->normalized_term],
+            new \RuntimeException(sprintf(
+                'Duplicate locale_norm %s-%s already owned by concept %d (requested %d)',
+                $owned->locale,
+                $owned->normalized_term,
+                (int) $owned->concept_id,
+                (int) $concept->id
+            )),
+        );
     }
 
     /**

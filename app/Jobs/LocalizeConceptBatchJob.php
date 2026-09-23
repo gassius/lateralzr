@@ -98,10 +98,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
             }
 
             if ($this->runUuid) {
-                $status = $deferred > 0 ? 'partial' : 'succeeded';
-                $message = $deferred > 0
-                    ? "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were re-queued".($followKey ? " as {$followKey}" : '').'.'
-                    : null;
+                [$status, $message] = $this->deferredOutcome($deferred, $followKey);
 
                 ConceptGraphRunJob::query()
                     ->where('run_uuid', $this->runUuid)
@@ -252,5 +249,27 @@ class LocalizeConceptBatchJob implements ShouldQueue
         }
 
         return $base.'+'.$suffix;
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    protected function deferredOutcome(int $deferred, ?string $followKey): array
+    {
+        if ($deferred === 0) {
+            return ['succeeded', null];
+        }
+
+        if ($followKey !== null) {
+            return [
+                'partial',
+                "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were re-queued as {$followKey}.",
+            ];
+        }
+
+        return [
+            'failed',
+            "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were not re-queued (follow-up depth cap).",
+        ];
     }
 }

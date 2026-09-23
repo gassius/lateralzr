@@ -63,6 +63,74 @@ class ConceptLocaleSupportTest extends TestCase
         $this->assertSame('creativity', $en->fresh()->canonical_key);
     }
 
+    public function test_resolve_or_create_race_does_not_leave_an_orphan_concept(): void
+    {
+        $winner = app(ConceptCanonicalizer::class)->resolveOrCreate(
+            'semáforo',
+            'es',
+            'Señal de tráfico.',
+        );
+
+        $racer = new class extends ConceptCanonicalizer
+        {
+            protected function findExistingLocaleTerm(string $locale, string $normalized): ?ConceptTerm
+            {
+                return null;
+            }
+
+            protected function findCrossLocaleTerm(string $normalized): ?ConceptTerm
+            {
+                return null;
+            }
+        };
+
+        $resolved = $racer->resolveOrCreate('Semáforo', 'es', 'Señal luminosa.');
+
+        $this->assertSame($winner->id, $resolved->id);
+        $this->assertSame(1, Concept::query()->count());
+        $this->assertSame(1, ConceptTerm::query()->where('locale', 'es')->where('normalized_term', 'semáforo')->count());
+        $this->assertNotNull($resolved->fresh()->termForLocale('es', fallback: false));
+    }
+
+    public function test_promoting_a_locale_term_demotes_the_previous_preferred(): void
+    {
+        $canonicalizer = app(ConceptCanonicalizer::class);
+        $concept = $canonicalizer->resolveOrCreate('traffic light', 'en', 'A signal that controls road traffic.');
+        $preferred = $canonicalizer->attachLocalizedTerm(
+            concept: $concept,
+            locale: 'es',
+            term: 'luz de tráfico',
+            shortDescription: 'Señal de tráfico.',
+        );
+        $this->assertNotNull($preferred);
+
+        ConceptTerm::query()->create([
+            'concept_id' => $concept->id,
+            'locale' => 'es',
+            'term' => 'semáforo',
+            'normalized_term' => 'semáforo',
+            'short_description' => 'Señal luminosa.',
+            'complexity' => 2,
+            'is_preferred' => false,
+        ]);
+
+        $promoted = $canonicalizer->attachLocalizedTerm(
+            concept: $concept,
+            locale: 'es',
+            term: 'semáforo',
+            shortDescription: 'Señal luminosa.',
+        );
+
+        $this->assertNotNull($promoted);
+        $this->assertTrue($promoted->is_preferred);
+        $this->assertFalse($preferred->fresh()->is_preferred);
+        $this->assertSame(1, ConceptTerm::query()
+            ->where('concept_id', $concept->id)
+            ->where('locale', 'es')
+            ->where('is_preferred', true)
+            ->count());
+    }
+
     public function test_graph_query_returns_localized_labels_without_cross_locale_fallback(): void
     {
         $conceptA = Concept::query()->create(['canonical_key' => 'creativity']);

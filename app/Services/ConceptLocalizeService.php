@@ -13,7 +13,7 @@ use Laravel\Ai\Responses\StructuredAgentResponse;
 
 class ConceptLocalizeService
 {
-    public const HTTP_TIMEOUT_SECONDS = 210;
+    public const HTTP_TIMEOUT_SECONDS = ConceptLocalizeAgent::HTTP_TIMEOUT_SECONDS;
 
     public const WRITE_BUDGET_SECONDS = 15;
 
@@ -27,6 +27,12 @@ class ConceptLocalizeService
 
     /**
      * Worst-case time for one structured localize call plus term writes.
+     *
+     * Queued jobs set deadlineAt to now + (job timeout - 60) ≈ 240s. One
+     * translate batch is HTTP_TIMEOUT_SECONDS + WRITE_BUDGET_SECONDS = 225s,
+     * so a job typically finishes one DEFAULT_BATCH_SIZE chunk and defers
+     * the rest. MAX_BATCH_SIZE only caps artisan/dispatch grouping; intra-job
+     * LLM calls use DEFAULT_BATCH_SIZE.
      */
     public static function estimatedWorstCaseSeconds(): int
     {

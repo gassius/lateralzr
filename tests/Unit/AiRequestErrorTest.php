@@ -47,6 +47,10 @@ class AiRequestErrorTest extends TestCase
         $this->assertStringContainsString('will retry', $message);
         $this->assertStringNotContainsString('failOnTimeout', $message);
         $this->assertStringNotContainsString('retries exhausted', $message);
+
+        $unspecified = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini');
+        $this->assertStringContainsString('may retry', $unspecified);
+        $this->assertStringNotContainsString('the job will retry', $unspecified);
     }
 
     public function test_provider_timeout_does_not_claim_retry_when_retries_are_exhausted(): void

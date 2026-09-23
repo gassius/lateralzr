@@ -15,9 +15,11 @@ use Stringable;
 
 #[MaxSteps(5)]
 #[Temperature(0.2)]
-#[Timeout(210)]
+#[Timeout(self::HTTP_TIMEOUT_SECONDS)]
 class ConceptLocalizeAgent implements Agent, HasStructuredOutput
 {
+    public const HTTP_TIMEOUT_SECONDS = 210;
+
     use Promptable;
 
     public function __construct(
