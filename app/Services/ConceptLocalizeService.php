@@ -6,6 +6,7 @@ use App\Ai\Agents\ConceptLocalizeAgent;
 use App\Ai\Support\AiRequestError;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
@@ -177,15 +178,27 @@ class ConceptLocalizeService
 
                 // Wiki lookup stays on concepts:complete-info so localisation does not search.
                 // Media already stored on the source term is concept-level and can be copied.
-                $attached = $this->canonicalizer->attachLocalizedTerm(
-                    concept: $concept,
-                    locale: $toLocale,
-                    term: $termLabel,
-                    shortDescription: $shortDescription !== '' ? $shortDescription : null,
-                    wikiUrl: null,
-                    mediaUrl: $item['mediaUrl'] ?? null,
-                    complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
-                );
+                // Sibling batches (or a retry after timeout) can already own (locale, normalized_term).
+                try {
+                    $attached = $this->canonicalizer->attachLocalizedTerm(
+                        concept: $concept,
+                        locale: $toLocale,
+                        term: $termLabel,
+                        shortDescription: $shortDescription !== '' ? $shortDescription : null,
+                        wikiUrl: null,
+                        mediaUrl: $item['mediaUrl'] ?? null,
+                        complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
+                    );
+                } catch (UniqueConstraintViolationException $e) {
+                    Log::info('ConceptLocalizeService: skipped locale_norm unique conflict', [
+                        'concept_id' => $concept->id,
+                        'locale' => $toLocale,
+                        'term' => $termLabel,
+                    ]);
+                    $stats['skipped']++;
+
+                    continue;
+                }
 
                 if ($attached === null) {
                     $stats['skipped']++;

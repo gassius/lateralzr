@@ -3,7 +3,9 @@
 namespace Tests\Unit;
 
 use App\Ai\Support\AiRequestError;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Queue\TimeoutExceededException;
+use PDOException;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -68,6 +70,18 @@ class AiRequestErrorTest extends TestCase
     public function test_auth_errors_are_not_retryable(): void
     {
         $e = new RuntimeException('OpenRouter Authentication Error: 401 invalid api key');
+
+        $this->assertFalse(AiRequestError::isRetryable($e));
+    }
+
+    public function test_unique_locale_norm_violations_are_not_retryable(): void
+    {
+        $e = new UniqueConstraintViolationException(
+            'mysql',
+            'insert into concept_terms',
+            [],
+            new PDOException("SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'es-semaforo' for key 'concept_terms.concept_terms_locale_norm_unique'"),
+        );
 
         $this->assertFalse(AiRequestError::isRetryable($e));
     }

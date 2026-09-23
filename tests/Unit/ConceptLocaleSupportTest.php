@@ -9,9 +9,11 @@ use App\Services\ConceptCanonicalizer;
 use App\Services\ConceptGraphQuery;
 use App\Services\ConceptLocalizeService;
 use App\Support\ConceptLocale;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery;
+use PDOException;
 use Tests\TestCase;
 
 class ConceptLocaleSupportTest extends TestCase
@@ -333,6 +335,79 @@ class ConceptLocaleSupportTest extends TestCase
         ]);
         $this->assertDatabaseMissing('concept_terms', [
             'concept_id' => $semaphore->id,
+            'locale' => 'es',
+        ]);
+    }
+
+    public function test_localize_skips_when_unique_constraint_still_bubbles(): void
+    {
+        $concept = Concept::query()->create(['canonical_key' => 'lucid-dream']);
+        ConceptTerm::query()->create([
+            'concept_id' => $concept->id,
+            'locale' => 'en',
+            'term' => 'lucid dream',
+            'normalized_term' => 'lucid dream',
+            'short_description' => 'A dream in which the dreamer is aware.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')->andReturn([
+            'translations' => [
+                [
+                    'id' => $concept->id,
+                    'term' => 'sueño lúcido',
+                    'shortDescription' => 'Un sueño consciente.',
+                ],
+            ],
+        ]);
+
+        $fakeAgent = new class($mockResponse)
+        {
+            public function __construct(private StructuredAgentResponse $response) {}
+
+            public function prompt(string $prompt): StructuredAgentResponse
+            {
+                return $this->response;
+            }
+        };
+
+        $canonicalizer = new class extends ConceptCanonicalizer
+        {
+            public function attachLocalizedTerm(
+                Concept $concept,
+                string $locale,
+                string $term,
+                ?string $shortDescription = null,
+                ?string $wikiUrl = null,
+                ?string $mediaUrl = null,
+                ?int $complexity = null
+            ): ?ConceptTerm {
+                throw new UniqueConstraintViolationException(
+                    'mysql',
+                    'insert into concept_terms',
+                    [],
+                    new PDOException("SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry for key 'concept_terms.concept_terms_locale_norm_unique'"),
+                );
+            }
+        };
+
+        $stats = (new ConceptLocalizeService($canonicalizer))->localize(
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            batchSize: 10,
+            agent: $fakeAgent,
+            conceptIds: [$concept->id],
+        );
+
+        $this->assertSame(1, $stats['processed']);
+        $this->assertSame(0, $stats['created']);
+        $this->assertSame(1, $stats['skipped']);
+        $this->assertSame(0, $stats['failed']);
+        $this->assertDatabaseMissing('concept_terms', [
+            'concept_id' => $concept->id,
             'locale' => 'es',
         ]);
     }

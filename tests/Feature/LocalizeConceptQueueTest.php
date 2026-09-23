@@ -13,6 +13,7 @@ use App\Support\ConceptLocale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Laravel\Ai\Responses\StructuredAgentResponse;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -155,6 +156,104 @@ class LocalizeConceptQueueTest extends TestCase
             ->first();
 
         $this->assertSame('succeeded', $record?->status);
+    }
+
+    public function test_batch_job_succeeds_when_sibling_batch_already_owns_locale_norm(): void
+    {
+        $owner = Concept::query()->create(['canonical_key' => 'traffic-light-sibling']);
+        $retrying = Concept::query()->create(['canonical_key' => 'semaphore-retry']);
+
+        ConceptTerm::query()->create([
+            'concept_id' => $owner->id,
+            'locale' => 'en',
+            'term' => 'traffic light',
+            'normalized_term' => 'traffic light',
+            'short_description' => 'A signal that controls road traffic.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+        ConceptTerm::query()->create([
+            'concept_id' => $owner->id,
+            'locale' => 'es',
+            'term' => 'semáforo',
+            'normalized_term' => 'semáforo',
+            'short_description' => 'Señal de tráfico.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+        ConceptTerm::query()->create([
+            'concept_id' => $retrying->id,
+            'locale' => 'en',
+            'term' => 'semaphore',
+            'normalized_term' => 'semaphore',
+            'short_description' => 'A signaling system using flags or lights.',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $mockResponse = Mockery::mock(StructuredAgentResponse::class);
+        $mockResponse->shouldReceive('toArray')->andReturn([
+            'translations' => [
+                [
+                    'id' => $retrying->id,
+                    'term' => 'semáforo',
+                    'shortDescription' => 'Sistema de señales.',
+                ],
+            ],
+        ]);
+
+        $fakeAgent = new class($mockResponse)
+        {
+            public function __construct(private StructuredAgentResponse $response) {}
+
+            public function prompt(string $prompt): StructuredAgentResponse
+            {
+                return $this->response;
+            }
+        };
+
+        $runUuid = (string) Str::uuid();
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'localize#7',
+            'status' => 'pending',
+            'attempts' => 1,
+        ]);
+
+        $service = Mockery::mock(ConceptLocalizeService::class)->makePartial();
+        $service->shouldReceive('localize')->once()->andReturnUsing(function () use ($fakeAgent, $retrying) {
+            return app(ConceptLocalizeService::class)->localize(
+                fromLocale: 'en',
+                toLocale: 'es',
+                missingOnly: true,
+                batchSize: 10,
+                agent: $fakeAgent,
+                conceptIds: [$retrying->id],
+            );
+        });
+
+        $job = new LocalizeConceptBatchJob(
+            conceptIds: [$retrying->id],
+            fromLocale: 'en',
+            toLocale: 'es',
+            missingOnly: true,
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-v4-flash-0731',
+            runUuid: $runUuid,
+            jobKey: 'localize#7',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'localize#7')
+            ->first();
+
+        $this->assertSame('succeeded', $record?->status);
+        $this->assertNull($record?->error_message);
+        $this->assertSame(1, ConceptTerm::query()->where('locale', 'es')->where('normalized_term', 'semáforo')->count());
+        $this->assertNull($retrying->fresh()->termForLocale('es', fallback: false));
     }
 
     public function test_service_rethrows_retryable_llm_timeouts(): void
