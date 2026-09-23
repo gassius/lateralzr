@@ -3,7 +3,9 @@
 namespace Tests\Unit;
 
 use App\Ai\Support\AiRequestError;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Queue\TimeoutExceededException;
+use PDOException;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -40,15 +42,50 @@ class AiRequestErrorTest extends TestCase
         $this->assertTrue(AiRequestError::isRetryable($timeout));
         $this->assertTrue(AiRequestError::isRetryable($rate));
         $this->assertTrue(AiRequestError::isRetryable($server));
-        $message = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini');
+        $message = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini', willRetry: true);
         $this->assertStringContainsString('timed out', $message);
         $this->assertStringContainsString('will retry', $message);
         $this->assertStringNotContainsString('failOnTimeout', $message);
+        $this->assertStringNotContainsString('retries exhausted', $message);
+
+        $unspecified = AiRequestError::displayMessage($timeout, 'openrouter', 'openai/gpt-4o-mini');
+        $this->assertStringContainsString('may retry', $unspecified);
+        $this->assertStringNotContainsString('the job will retry', $unspecified);
+    }
+
+    public function test_provider_timeout_does_not_claim_retry_when_retries_are_exhausted(): void
+    {
+        $timeout = new RuntimeException('cURL error 28: Operation timed out after 180000 milliseconds');
+
+        $message = AiRequestError::displayMessage(
+            $timeout,
+            'openrouter',
+            'deepseek/deepseek-v4-flash-0731',
+            willRetry: false,
+        );
+
+        $this->assertTrue(AiRequestError::isRetryable($timeout));
+        $this->assertStringContainsString('timed out', $message);
+        $this->assertStringContainsString('retries exhausted', $message);
+        $this->assertStringNotContainsString('the job will retry', $message);
+        $this->assertStringNotContainsString('will retry with backoff', $message);
     }
 
     public function test_auth_errors_are_not_retryable(): void
     {
         $e = new RuntimeException('OpenRouter Authentication Error: 401 invalid api key');
+
+        $this->assertFalse(AiRequestError::isRetryable($e));
+    }
+
+    public function test_unique_locale_norm_violations_are_not_retryable(): void
+    {
+        $e = new UniqueConstraintViolationException(
+            'mysql',
+            'insert into concept_terms',
+            [],
+            new PDOException("SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'es-semaforo' for key 'concept_terms.concept_terms_locale_norm_unique'"),
+        );
 
         $this->assertFalse(AiRequestError::isRetryable($e));
     }

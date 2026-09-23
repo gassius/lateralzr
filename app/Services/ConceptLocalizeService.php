@@ -6,30 +6,54 @@ use App\Ai\Agents\ConceptLocalizeAgent;
 use App\Ai\Support\AiRequestError;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 
 class ConceptLocalizeService
 {
+    public const HTTP_TIMEOUT_SECONDS = ConceptLocalizeAgent::HTTP_TIMEOUT_SECONDS;
+
+    public const WRITE_BUDGET_SECONDS = 15;
+
+    public const MAX_BATCH_SIZE = 20;
+
+    public const DEFAULT_BATCH_SIZE = 10;
+
     public function __construct(
         protected ConceptCanonicalizer $canonicalizer,
     ) {}
 
     /**
+     * Worst-case time for one structured localize call plus term writes.
+     *
+     * Queued jobs set deadlineAt to now + (job timeout - 60) ≈ 240s. One
+     * translate batch is HTTP_TIMEOUT_SECONDS + WRITE_BUDGET_SECONDS = 225s,
+     * so a job typically finishes one DEFAULT_BATCH_SIZE chunk and defers
+     * the rest. MAX_BATCH_SIZE only caps artisan/dispatch grouping; intra-job
+     * LLM calls use DEFAULT_BATCH_SIZE.
+     */
+    public static function estimatedWorstCaseSeconds(): int
+    {
+        return self::HTTP_TIMEOUT_SECONDS + self::WRITE_BUDGET_SECONDS;
+    }
+
+    /**
      * Localize preferred terms from one locale onto another for the same concepts.
      *
      * @param  list<int>|null  $conceptIds  When set, only these concept IDs are processed (queued batches).
-     * @return array{processed:int,created:int,skipped:int,failed:int}
+     * @return array{processed:int,created:int,skipped:int,failed:int,deferred:int,deferredConceptIds:list<int>}
      */
     public function localize(
         string $fromLocale = 'en',
         string $toLocale = 'es',
         ?int $limit = null,
         bool $missingOnly = true,
-        int $batchSize = 20,
+        int $batchSize = self::DEFAULT_BATCH_SIZE,
         ?object $agent = null,
         ?array $conceptIds = null,
+        ?int $deadlineAt = null,
     ): array {
         $fromLocale = ConceptLocale::resolve($fromLocale);
         $toLocale = ConceptLocale::resolve($toLocale);
@@ -38,8 +62,15 @@ class ConceptLocalizeService
             throw new \InvalidArgumentException('--from and --to must be different locales.');
         }
 
-        $batchSize = max(1, min(50, $batchSize));
-        $stats = ['processed' => 0, 'created' => 0, 'skipped' => 0, 'failed' => 0];
+        $batchSize = max(1, min(self::MAX_BATCH_SIZE, $batchSize));
+        $stats = [
+            'processed' => 0,
+            'created' => 0,
+            'skipped' => 0,
+            'failed' => 0,
+            'deferred' => 0,
+            'deferredConceptIds' => [],
+        ];
 
         $query = Concept::query()
             ->with(['terms'])
@@ -67,7 +98,28 @@ class ConceptLocalizeService
             return $stats;
         }
 
-        foreach ($concepts->chunk($batchSize) as $chunk) {
+        $chunks = $concepts->chunk($batchSize)->values();
+        foreach ($chunks as $index => $chunk) {
+            if ($this->shouldStopBeforeBatch($deadlineAt)) {
+                $stats['deferredConceptIds'] = $chunks
+                    ->slice($index)
+                    ->reduce(function (array $ids, $remaining) {
+                        foreach ($remaining as $concept) {
+                            $ids[] = (int) $concept->id;
+                        }
+
+                        return $ids;
+                    }, []);
+                $stats['deferred'] = count($stats['deferredConceptIds']);
+                Log::info('ConceptLocalizeService: stopping before worker timeout', [
+                    'deferred' => $stats['deferred'],
+                    'processed' => $stats['processed'],
+                    'worst_case_seconds' => self::estimatedWorstCaseSeconds(),
+                ]);
+
+                break;
+            }
+
             $payload = $chunk->map(function (Concept $concept) use ($fromLocale) {
                 $term = $concept->termForLocale($fromLocale, fallback: false);
                 if ($term === null) {
@@ -132,15 +184,33 @@ class ConceptLocalizeService
 
                 // Wiki lookup stays on concepts:complete-info so localisation does not search.
                 // Media already stored on the source term is concept-level and can be copied.
-                $this->canonicalizer->attachLocalizedTerm(
-                    concept: $concept,
-                    locale: $toLocale,
-                    term: $termLabel,
-                    shortDescription: $shortDescription !== '' ? $shortDescription : null,
-                    wikiUrl: null,
-                    mediaUrl: $item['mediaUrl'] ?? null,
-                    complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
-                );
+                // Sibling batches (or a retry after timeout) can already own (locale, normalized_term).
+                try {
+                    $attached = $this->canonicalizer->attachLocalizedTerm(
+                        concept: $concept,
+                        locale: $toLocale,
+                        term: $termLabel,
+                        shortDescription: $shortDescription !== '' ? $shortDescription : null,
+                        wikiUrl: null,
+                        mediaUrl: $item['mediaUrl'] ?? null,
+                        complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
+                    );
+                } catch (UniqueConstraintViolationException $e) {
+                    Log::info('ConceptLocalizeService: skipped locale_norm unique conflict', [
+                        'concept_id' => $concept->id,
+                        'locale' => $toLocale,
+                        'term' => $termLabel,
+                    ]);
+                    $stats['skipped']++;
+
+                    continue;
+                }
+
+                if ($attached === null) {
+                    $stats['skipped']++;
+
+                    continue;
+                }
 
                 $stats['created']++;
             }
@@ -193,5 +263,14 @@ PROMPT;
                 'shortDescription' => trim((string) ($row['shortDescription'] ?? '')),
             ])
             ->values();
+    }
+
+    protected function shouldStopBeforeBatch(?int $deadlineAt): bool
+    {
+        if ($deadlineAt === null) {
+            return false;
+        }
+
+        return time() + self::estimatedWorstCaseSeconds() >= $deadlineAt;
     }
 }

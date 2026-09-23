@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Ai\Support\AiRequestError;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptLocalizeService;
 use Illuminate\Bus\Queueable;
@@ -74,25 +75,39 @@ class LocalizeConceptBatchJob implements ShouldQueue
         }
 
         try {
-            $service->localize(
+            // Leave a margin under $timeout so a slow LLM call fail-softs
+            // (remaining concept IDs are re-queued) instead of a worker SIGKILL.
+            $deadlineAt = time() + max(30, $this->timeout - 60);
+
+            $stats = $service->localize(
                 fromLocale: $this->fromLocale,
                 toLocale: $this->toLocale,
                 limit: null,
                 missingOnly: $this->missingOnly,
-                batchSize: max(1, count($this->conceptIds)),
+                batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
                 agent: null,
                 conceptIds: $this->conceptIds,
+                deadlineAt: $deadlineAt,
             );
 
+            $deferredIds = array_values(array_map('intval', $stats['deferredConceptIds'] ?? []));
+            $deferred = count($deferredIds);
+            $followKey = null;
+            if ($deferred > 0) {
+                $followKey = $this->requeueDeferred($deferredIds);
+            }
+
             if ($this->runUuid) {
+                [$status, $message] = $this->deferredOutcome($deferred, $followKey);
+
                 ConceptGraphRunJob::query()
                     ->where('run_uuid', $this->runUuid)
                     ->where('seed', $this->jobKey)
                     ->update([
-                        'status' => 'succeeded',
+                        'status' => $status,
                         'attempts' => (int) (($this->attempts() ?? 0)),
                         'finished_at' => now(),
-                        'error_message' => null,
+                        'error_message' => $message,
                     ]);
             }
 
@@ -102,13 +117,15 @@ class LocalizeConceptBatchJob implements ShouldQueue
                 'seconds' => round(microtime(true) - $startedAt, 2),
                 'attempt' => $this->attempts(),
                 'count' => count($this->conceptIds),
+                'stats' => $stats,
+                'follow_key' => $followKey,
                 'provider' => $this->provider,
                 'model' => $this->model,
             ]);
         } catch (Throwable $e) {
-            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model);
             $retryable = AiRequestError::isRetryable($e);
             $willRetry = $retryable && $this->attempts() < $this->tries;
+            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
 
             Log::warning('LocalizeConceptBatchJob failed', [
                 'run_uuid' => $this->runUuid,
@@ -154,7 +171,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
         }
 
         $message = $exception
-            ? AiRequestError::displayMessage($exception, $this->provider, $this->model)
+            ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
             : 'Job failed or timed out.';
 
         ConceptGraphRunJob::query()
@@ -166,5 +183,93 @@ class LocalizeConceptBatchJob implements ShouldQueue
                 'finished_at' => now(),
                 'error_message' => $message,
             ]);
+    }
+
+    /**
+     * @param  list<int>  $conceptIds
+     */
+    protected function requeueDeferred(array $conceptIds): ?string
+    {
+        $followKey = $this->nextDeferredJobKey();
+        if ($followKey === null) {
+            Log::warning('LocalizeConceptBatchJob: not re-queuing deferred concepts (follow-up depth cap)', [
+                'run_uuid' => $this->runUuid,
+                'job_key' => $this->jobKey,
+                'deferred' => count($conceptIds),
+            ]);
+
+            return null;
+        }
+
+        if ($this->runUuid) {
+            $run = ConceptGraphRun::query()->where('run_uuid', $this->runUuid)->first();
+            if ($run instanceof ConceptGraphRun) {
+                $seeds = is_array($run->seeds) ? $run->seeds : [];
+                $batches = is_array($seeds['batches'] ?? null) ? $seeds['batches'] : [];
+                $batches[$followKey] = $conceptIds;
+                $seeds['batches'] = $batches;
+                $run->seeds = $seeds;
+                $run->seed_count = count($batches);
+                $run->save();
+            }
+
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $this->runUuid,
+                'seed' => $followKey,
+                'status' => 'pending',
+                'attempts' => 0,
+            ]);
+        }
+
+        self::dispatch(
+            conceptIds: $conceptIds,
+            fromLocale: $this->fromLocale,
+            toLocale: $this->toLocale,
+            missingOnly: $this->missingOnly,
+            provider: $this->provider,
+            model: $this->model,
+            runUuid: $this->runUuid,
+            jobKey: $followKey,
+        )->onQueue($this->queue ?? 'default');
+
+        return $followKey;
+    }
+
+    protected function nextDeferredJobKey(): ?string
+    {
+        $base = $this->jobKey;
+        $suffix = 1;
+        if (preg_match('/^(.*)\+(\d+)$/', $this->jobKey, $matches) === 1) {
+            $base = $matches[1];
+            $suffix = (int) $matches[2] + 1;
+        }
+
+        if ($suffix > 20) {
+            return null;
+        }
+
+        return $base.'+'.$suffix;
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    protected function deferredOutcome(int $deferred, ?string $followKey): array
+    {
+        if ($deferred === 0) {
+            return ['succeeded', null];
+        }
+
+        if ($followKey !== null) {
+            return [
+                'partial',
+                "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were re-queued as {$followKey}.",
+            ];
+        }
+
+        return [
+            'failed',
+            "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were not re-queued (follow-up depth cap).",
+        ];
     }
 }

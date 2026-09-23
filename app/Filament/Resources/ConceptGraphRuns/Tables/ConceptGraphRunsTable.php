@@ -74,6 +74,9 @@ class ConceptGraphRunsTable
                 TextColumn::make('succeeded_jobs_count')
                     ->label('Succeeded')
                     ->sortable(),
+                TextColumn::make('partial_jobs_count')
+                    ->label('Partial')
+                    ->sortable(),
                 TextColumn::make('failed_jobs_count')
                     ->label('Failed')
                     ->sortable(),

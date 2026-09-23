@@ -60,8 +60,8 @@ class ConceptGraphRunResource extends Resource
                 'jobs as pending_jobs_count' => fn (Builder $q) => $q->where('status', 'pending'),
                 'jobs as processing_jobs_count' => fn (Builder $q) => $q->where('status', 'processing'),
                 'jobs as succeeded_jobs_count' => fn (Builder $q) => $q->where('status', 'succeeded'),
+                'jobs as partial_jobs_count' => fn (Builder $q) => $q->where('status', 'partial'),
                 'jobs as failed_jobs_count' => fn (Builder $q) => $q->where('status', 'failed'),
             ]);
     }
 }
-
