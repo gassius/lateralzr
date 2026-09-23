@@ -55,4 +55,18 @@ class FilamentConceptsAdminTest extends TestCase
             ->sortTable('display_complexity')
             ->assertCanSeeTableRecords([$simple, $dense], inOrder: true);
     }
+
+    public function test_concepts_can_sort_by_wiki_url(): void
+    {
+        $this->actingAsAdmin();
+
+        $later = $this->makeConcept('Later', 'later', wikiUrl: 'https://en.wikipedia.org/wiki/Zulu');
+        $earlier = $this->makeConcept('Earlier', 'earlier', wikiUrl: 'https://en.wikipedia.org/wiki/Apple');
+
+        $this->get('/admin/concepts?sort=display_wiki_url:asc')->assertSuccessful();
+
+        Livewire::test(ListConcepts::class)
+            ->sortTable('display_wiki_url')
+            ->assertCanSeeTableRecords([$earlier, $later], inOrder: true);
+    }
 }
