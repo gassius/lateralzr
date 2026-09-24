@@ -33,7 +33,8 @@ type LateralitySubmenuProps = {
 };
 
 const WORDMARK_WIDTH = Math.round(LATERALITY_WORDMARK_HEIGHT * WORDMARK_ASPECT);
-const STEP_STROKE = 3.25;
+const STEP_STROKE = 4.25;
+const STEP_GLYPH = 32;
 
 function LateralityNodes({ color, testID }: { color: string; testID: string }) {
   return (
@@ -97,23 +98,33 @@ function LateralityWordmark({ laterality, swapping }: { laterality: number; swap
 }
 
 function StepGlyph({ kind }: { kind: 'minus' | 'plus' }) {
+  const mid = STEP_GLYPH / 2;
+  const pad = 7;
   return (
-    <Svg width={28} height={28} viewBox="0 0 28 28" accessible={false}>
+    <Svg width={STEP_GLYPH} height={STEP_GLYPH} viewBox={`0 0 ${STEP_GLYPH} ${STEP_GLYPH}`} accessible={false}>
+      <Circle
+        cx={mid}
+        cy={mid}
+        r={mid - 1.25}
+        fill="rgba(245,245,242,0.08)"
+        stroke="rgba(245,245,242,0.42)"
+        strokeWidth={1.75}
+      />
       <Line
-        x1="4"
-        y1="14"
-        x2="24"
-        y2="14"
+        x1={pad}
+        y1={mid}
+        x2={STEP_GLYPH - pad}
+        y2={mid}
         stroke={Palette.offWhite}
         strokeWidth={STEP_STROKE}
         strokeLinecap="round"
       />
       {kind === 'plus' ? (
         <Line
-          x1="14"
-          y1="4"
-          x2="14"
-          y2="24"
+          x1={mid}
+          y1={pad}
+          x2={mid}
+          y2={STEP_GLYPH - pad}
           stroke={Palette.offWhite}
           strokeWidth={STEP_STROKE}
           strokeLinecap="round"
