@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 import {
-  WORDMARK_ASPECT,
   WORDMARK_GROUP_TRANSFORM,
   WORDMARK_LETTERS,
   wordmarkViewBoxAttr,
@@ -9,10 +9,12 @@ import {
 import { Palette } from '@/constants/Colors';
 import { t } from '@/lib/i18n';
 import {
-  LATERALITY_NODES_WIDTH,
+  lateralityBarFit,
+  LATERALITY_BAR_MIN_ROW_WIDTH,
+  LATERALITY_ROW_GAP,
+  LATERALITY_ROW_PADDING_HORIZONTAL,
   LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
-  LATERALITY_WORDMARK_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
   lateralityGradientStops,
@@ -23,8 +25,6 @@ import {
 
 export { LATERALITY_CARD_GAP, LATERALITY_SUBMENU_HEIGHT } from '@/lib/lateralityChrome';
 
-/** Lightbulb / idea mark stays off this row — reserved for the future feedback CTA. */
-
 type LateralitySubmenuProps = {
   laterality: LateralityGrade | number;
   swapping?: boolean;
@@ -32,14 +32,22 @@ type LateralitySubmenuProps = {
   onIncrease: () => void;
 };
 
-const WORDMARK_WIDTH = Math.round(LATERALITY_WORDMARK_HEIGHT * WORDMARK_ASPECT);
 const STEP_STROKE = 4.25;
 const STEP_GLYPH = 32;
 
-function LateralityNodes({ color, testID }: { color: string; testID: string }) {
+function LateralityNodes({
+  color,
+  testID,
+  width,
+}: {
+  color: string;
+  testID: string;
+  width: number;
+}) {
+  if (width <= 0) return null;
   return (
-    <View testID={testID} accessible={false} importantForAccessibility="no" style={styles.nodes}>
-      <Svg width={LATERALITY_NODES_WIDTH} height={16} viewBox="0 0 32 16">
+    <View testID={testID} accessible={false} importantForAccessibility="no" style={{ width, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={width} height={16} viewBox="0 0 32 16">
         <Line
           x1="4"
           y1="8"
@@ -56,21 +64,32 @@ function LateralityNodes({ color, testID }: { color: string; testID: string }) {
   );
 }
 
-function LateralityWordmark({ laterality, swapping }: { laterality: number; swapping: boolean }) {
+function LateralityWordmark({
+  laterality,
+  swapping,
+  width,
+  height,
+}: {
+  laterality: number;
+  swapping: boolean;
+  width: number;
+  height: number;
+}) {
   const stops = lateralityGradientStops(laterality);
   const gradientId = `laterality-wordmark-${laterality}`;
+  if (width <= 0 || height <= 0) return null;
 
   return (
     <View
       accessible
       accessibilityRole="text"
       accessibilityLabel={t('lateralityGrade', { grade: String(laterality) })}
-      style={[styles.wordWrap, swapping ? styles.wordSwapping : null]}
+      style={[styles.wordWrap, { width, height }, swapping ? styles.wordSwapping : null]}
       testID="laterality-wordmark"
     >
       <Svg
-        width={WORDMARK_WIDTH}
-        height={LATERALITY_WORDMARK_HEIGHT}
+        width={width}
+        height={height}
         viewBox={wordmarkViewBoxAttr()}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
@@ -84,12 +103,7 @@ function LateralityWordmark({ laterality, swapping }: { laterality: number; swap
         </Defs>
         <G transform={WORDMARK_GROUP_TRANSFORM} fill={`url(#${gradientId})`}>
           {WORDMARK_LETTERS.map((letter) => (
-            <Path
-              key={letter.id}
-              d={letter.d}
-              transform={letter.transform}
-              fill={`url(#${gradientId})`}
-            />
+            <Path key={letter.id} d={letter.d} transform={letter.transform} />
           ))}
         </G>
       </Svg>
@@ -143,12 +157,25 @@ export function LateralitySubmenu({
   const canDecrease = laterality > MIN_LATERALITY;
   const canIncrease = laterality < MAX_LATERALITY;
   const stops = lateralityGradientStops(laterality);
+  const { width: windowWidth } = useWindowDimensions();
+  const [layoutWidth, setLayoutWidth] = useState(0);
+  const rowWidth =
+    layoutWidth > 0 ? layoutWidth : windowWidth > 0 ? windowWidth : LATERALITY_BAR_MIN_ROW_WIDTH;
+  const fit = lateralityBarFit(rowWidth);
 
   return (
-    <View style={styles.row} testID="laterality-submenu">
+    <View
+      style={styles.row}
+      testID="laterality-submenu"
+      onLayout={(event) => {
+        const next = Math.floor(event.nativeEvent.layout.width);
+        if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
+      }}
+    >
       <Pressable
         onPress={onDecrease}
         disabled={!canDecrease}
+        // 48px box already meets ≥44; hitSlop is a small extra, not the reachable area.
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('decreaseLaterality')}
@@ -163,9 +190,14 @@ export function LateralitySubmenu({
         <StepGlyph kind="minus" />
       </Pressable>
 
-      <LateralityNodes color={stops.start} testID="laterality-nodes-left" />
-      <LateralityWordmark laterality={laterality} swapping={swapping} />
-      <LateralityNodes color={stops.end} testID="laterality-nodes-right" />
+      <LateralityNodes color={stops.start} testID="laterality-nodes-left" width={fit.nodesWidth} />
+      <LateralityWordmark
+        laterality={laterality}
+        swapping={swapping}
+        width={fit.wordmarkWidth}
+        height={fit.wordmarkHeight}
+      />
+      <LateralityNodes color={stops.end} testID="laterality-nodes-right" width={fit.nodesWidth} />
 
       <Pressable
         onPress={onIncrease}
@@ -189,18 +221,20 @@ export function LateralitySubmenu({
 
 const styles = StyleSheet.create({
   row: {
+    width: '100%',
     height: LATERALITY_SUBMENU_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
-    gap: 6,
+    paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
+    gap: LATERALITY_ROW_GAP,
   },
   step: {
     width: LATERALITY_STEP_SIZE,
     height: LATERALITY_STEP_SIZE,
     minWidth: LATERALITY_STEP_SIZE,
     minHeight: LATERALITY_STEP_SIZE,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -210,16 +244,10 @@ const styles = StyleSheet.create({
   stepDisabled: {
     opacity: 0.28,
   },
-  nodes: {
-    width: LATERALITY_NODES_WIDTH,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   wordWrap: {
-    width: WORDMARK_WIDTH,
-    height: LATERALITY_WORDMARK_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 1,
   },
   wordSwapping: {
     opacity: 0.72,
