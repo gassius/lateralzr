@@ -27,6 +27,8 @@ import {
   CONCEPT_FRONT_LABEL_TEXT_ALIGN,
 } from '@/lib/conceptFrontLabelAlign';
 import { CoachHint } from './CoachHint';
+import { ConceptCardBrandTexture } from './ConceptCardBrandTexture';
+import { CARD_BRAND_FALLBACK_FACE_WIDTH } from '@/lib/conceptCardBrand';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
@@ -66,6 +68,7 @@ export function ConceptCard({
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const [backFaceH, setBackFaceH] = useState(0);
+  const [faceWidth, setFaceWidth] = useState(0);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
@@ -118,14 +121,25 @@ export function ConceptCard({
   });
 
   const onUntransformedFaceLayout = (event: {
-    nativeEvent: { layout: { height: number } };
+    nativeEvent: { layout: { width: number; height: number } };
   }) => {
-    const next = event.nativeEvent.layout.height;
-    setBackFaceH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+    const nextH = event.nativeEvent.layout.height;
+    const nextW = event.nativeEvent.layout.width;
+    // Flip rotateY can report a collapsed box; keep the last real face size
+    // so no-media backs stay vertically centered.
+    if (nextH > 1) {
+      setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
+    }
+    if (nextW > 1) {
+      setFaceWidth((prev) => (Math.abs(prev - nextW) < 0.5 ? prev : nextW));
+    }
   };
+
+  const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
 
   const front = (
     <View style={styles.faceInner} onLayout={onUntransformedFaceLayout}>
+      <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
       <View style={styles.frontCenter}>
         <Text style={styles.conceptNameFront}>{title}</Text>
       </View>
@@ -243,6 +257,7 @@ export function ConceptCard({
    */
   const back = (
     <View style={styles.faceInner}>
+      <ConceptCardBrandTexture face="back" faceWidth={brandFaceWidth} />
       {backLayout.balanceCopy ? (
         <View
           style={[styles.backInnerBalanced, noMediaColumnStyle]}
@@ -358,6 +373,7 @@ const styles = StyleSheet.create({
   backScroll: {
     flex: 1,
     minHeight: 0,
+    zIndex: 1,
   },
   backScrollContent: {
     flexGrow: 1,
@@ -365,6 +381,7 @@ const styles = StyleSheet.create({
   backInnerWithMedia: {
     flexGrow: 1,
     width: '100%',
+    zIndex: 1,
   },
   /**
    * Pin to the face box with a measured pixel height. flex leftover and
@@ -375,6 +392,7 @@ const styles = StyleSheet.create({
     top: CARD_BACK_FACE_PADDING,
     left: CARD_BACK_FACE_PADDING,
     right: CARD_BACK_FACE_PADDING,
+    zIndex: 1,
   },
   noMediaCopyGroup: {
     width: '100%',
@@ -409,6 +427,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     minHeight: 0,
+    zIndex: 1,
   },
   conceptNameFront: {
     fontSize: CONCEPT_FRONT_LABEL_FONT_SIZE,
