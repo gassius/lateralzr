@@ -36,13 +36,6 @@ class ConceptResource extends Resource
         return ConceptsTable::configure($table);
     }
 
-    public static function getRelations(): array
-    {
-        return [
-            //
-        ];
-    }
-
     public static function getPages(): array
     {
         return [

@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Concepts\Pages;
 
 use App\Filament\Resources\Concepts\ConceptResource;
 use App\Models\ConceptTerm;
-use App\Support\ConceptLocale;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -25,17 +24,7 @@ class EditConcept extends EditRecord
 
     protected function afterSave(): void
     {
-        $this->record->terms()->each(function (ConceptTerm $term): void {
-            if ($term->locale === null || $term->locale === '') {
-                $term->locale = ConceptLocale::default();
-            }
-            $term->normalized_term = ConceptTerm::normalizeTerm((string) $term->term);
-            $term->complexity = max(1, min(5, (int) ($term->complexity ?? config('concepts.default_complexity', 2))));
-            if ($term->is_preferred === null) {
-                $term->is_preferred = true;
-            }
-            $term->save();
-        });
+        ConceptTerm::applyPersistedDefaults($this->record->terms());
     }
 
     protected function getHeaderActions(): array

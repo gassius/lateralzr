@@ -3,13 +3,11 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Resources\Concepts\ConceptResource;
-use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Services\ConceptGraphQuery;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\On;
 
 class ConceptGraphExplorer extends Page
@@ -35,7 +33,7 @@ class ConceptGraphExplorer extends Page
 
     public ?int $selectedRelationshipId = null;
 
-    /** @var array{relationship_type?: string, strength?: float|int|string, user_weight?: int|string} */
+    /** @var array{strength?: float|int|string, user_weight?: int|string} */
     public array $edgeForm = [];
 
     public function mount(): void
@@ -191,25 +189,6 @@ class ConceptGraphExplorer extends Page
         ]);
 
         $this->loadGraph();
-    }
-
-    protected function resolveConceptId(string $seed): ?int
-    {
-        $seed = trim($seed);
-        if ($seed === '') {
-            return null;
-        }
-
-        $locale = (string) config('concepts.default_locale', 'en');
-
-        $concept = Concept::query()
-            ->whereHas('terms', function (Builder $q) use ($seed, $locale) {
-                $q->where('locale', $locale)
-                    ->where('normalized_term', \App\Models\ConceptTerm::normalizeTerm($seed));
-            })
-            ->first();
-
-        return $concept?->id;
     }
 
     protected function defaultSeed(): ?string
