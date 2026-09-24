@@ -1,6 +1,6 @@
 import { MARK_ASPECT } from '../assets/images/lateralzrMark';
 import { Palette } from '../constants/Colors';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
+import { CONCEPT_FRONT_LABEL_COLOR, CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
 import { blendHexOver, contrastRatio } from './coachHintPresentation';
 
 /**
@@ -10,9 +10,9 @@ import { blendHexOver, contrastRatio } from './coachHintPresentation';
  * Wordmark belongs on the laterality bar (separate ticket). The bulb here is
  * decorative texture, not a tappable feedback control.
  *
- * Light (white) ink on orange so the 48px title stays AA+ even when a
+ * Light (white) mark on orange so the 48px ink title stays AA+ even when a
  * multiline wrap overlaps the watermark. A dark stamp would darken the slab
- * and drop current teal title contrast below large-text AA.
+ * for no gain — #51 already set the title to logo ink.
  */
 
 export type CardBrandFace = 'front' | 'back';
@@ -24,8 +24,8 @@ export const CARD_BRAND_FILL = '#ffffff';
 
 export const CARD_BRAND_FACE_COLOR = Palette.orange;
 
-/** Front title color this PR does not change (PR #51 may switch it to ink). */
-export const CARD_BRAND_TITLE_COLOR = Palette.darkBlue;
+/** Front title color from #51 — logo ink, not teal chrome. */
+export const CARD_BRAND_TITLE_COLOR = CONCEPT_FRONT_LABEL_COLOR;
 
 /** Fallback face width: letterboxed preview content (~301) + 20px padding each side. */
 export const CARD_BRAND_FALLBACK_FACE_WIDTH = 341;
@@ -111,8 +111,8 @@ export function cardBrandInkTitleContrast(face: CardBrandFace = 'front'): number
   return contrastRatio(CARD_BRAND_INK, cardBrandBlendedFace(face));
 }
 
-/** Large-text WCAG AA (48px / 700). */
-export const CARD_BRAND_TITLE_MIN_CONTRAST = 3;
+/** Normal-text WCAG AA. Ink-on-orange clears this; large-text AA is 3. */
+export const CARD_BRAND_TITLE_MIN_CONTRAST = 4.5;
 
 export function cardBrandUsesMotion(): boolean {
   return false;

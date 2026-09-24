@@ -119,7 +119,7 @@ describe('concept card brand hierarchy', () => {
 describe('concept card brand contrast', () => {
   it('uses a light watermark so title contrast does not regress', () => {
     assert.equal(CARD_BRAND_FACE_COLOR, Palette.orange);
-    assert.equal(CARD_BRAND_TITLE_COLOR, Palette.darkBlue);
+    assert.equal(CARD_BRAND_TITLE_COLOR, Palette.ink);
     assert.equal(CARD_BRAND_INK, Palette.ink);
     assert.equal(CARD_BRAND_FILL, '#ffffff');
 
@@ -133,6 +133,7 @@ describe('concept card brand contrast', () => {
     assert.ok(cardBrandInkTitleContrast('front') >= 4.5);
 
     const blended = cardBrandBlendedFace('front');
-    assert.ok(contrastRatio(Palette.darkBlue, blended) >= plain);
+    assert.ok(contrastRatio(Palette.ink, blended) >= plain);
+    assert.ok(contrastRatio(Palette.ink, blended) > contrastRatio(Palette.darkBlue, blended));
   });
 });
