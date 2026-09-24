@@ -29,8 +29,41 @@ export type LateralitySwirlPose = {
   zIndex: number;
 };
 
+/**
+ * Web can read `matchMedia` synchronously. Native / unknown has no
+ * `matchMedia`, so seed Reduce Motion ON until AccessibilityInfo resolves.
+ * Same contract as #53 `resolveInitialReducedMotion(webMatchMedia ?? true)`.
+ */
+export function resolveInitialReducedMotion(webMatchMedia: boolean | null): boolean {
+  return webMatchMedia ?? true;
+}
+
+/** `null` means native / unknown — do not treat as “motion allowed”. */
+export function readWebPrefersReducedMotion(): boolean | null {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return null;
+  }
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return null;
+  }
+}
+
 export function shouldAnimateLateralitySwirl(reduceMotion: boolean): boolean {
   return !reduceMotion;
+}
+
+/**
+ * The min-hold clock starts when this swirl token is born (or re-enters
+ * pending). Success / failure must not zero elapsed, or a slow fetch always
+ * waits a full MIN after the tree lands.
+ */
+export function lateralitySwirlHoldClockShouldReset(input: {
+  tokenChanged: boolean;
+  outcome: LateralitySwirlOutcome;
+}): boolean {
+  return input.tokenChanged || input.outcome === 'pending';
 }
 
 export function lateralitySwirlCardCount(reduceMotion: boolean): number {

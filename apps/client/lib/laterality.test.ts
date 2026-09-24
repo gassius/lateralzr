@@ -11,6 +11,7 @@ import {
   parseLateralityParam,
   resolveHydratedLaterality,
   resolveInitialLaterality,
+  lateralityControlDisabled,
   restoreLateralityAfterFailedSwap,
   shouldPersistLaterality,
   shouldPersistLateralityAfterSwap,
@@ -79,6 +80,13 @@ describe('session-only URL laterality', () => {
   it('restores the last confirmed grade when the laterality fetch fails', () => {
     assert.equal(restoreLateralityAfterFailedSwap(3), 3);
     assert.equal(restoreLateralityAfterFailedSwap(1), 1);
+  });
+
+  it('disables laterality ± while a neighborhood swap is in flight', () => {
+    assert.equal(lateralityControlDisabled(true, true), true);
+    assert.equal(lateralityControlDisabled(true, false), false);
+    assert.equal(lateralityControlDisabled(false, false), true);
+    assert.equal(lateralityControlDisabled(false, true), true);
   });
 });
 

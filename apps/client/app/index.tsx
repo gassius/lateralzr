@@ -114,6 +114,7 @@ export default function HomeScreen() {
   const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const lateralitySwapTokenRef = useRef(0);
+  const lateralitySwapActiveRef = useRef(false);
   const committedLateralityRef = useRef<LateralityGrade>(DEFAULT_LATERALITY);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
@@ -579,11 +580,13 @@ export default function HomeScreen() {
   const onLateralitySwirlExit = useCallback((token: number) => {
     setLateralitySwap((current) => {
       if (current == null || current.token !== token) return current;
+      lateralitySwapActiveRef.current = false;
       return null;
     });
   }, []);
 
   const onChangeLaterality = useCallback((delta: -1 | 1) => {
+    if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
     const next = stepLaterality(lateralityRef.current, delta);
     if (next === lateralityRef.current) return;
     lateralityRef.current = next;
@@ -595,8 +598,9 @@ export default function HomeScreen() {
       committedLateralityRef.current = next;
       return;
     }
+    lateralitySwapActiveRef.current = true;
     void prefetchLateralityTree();
-  }, [prefetchLateralityTree]);
+  }, [lateralitySwap, prefetchLateralityTree]);
 
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);

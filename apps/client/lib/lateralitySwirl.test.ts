@@ -4,10 +4,12 @@ import {
   lateralitySwirlAngle,
   lateralitySwirlCardCount,
   lateralitySwirlCardPose,
+  lateralitySwirlHoldClockShouldReset,
   lateralitySwirlHoldMs,
   lateralitySwirlOverlayOpacity,
   lateralitySwirlSettledPose,
   lateralitySwirlStaticPose,
+  resolveInitialReducedMotion,
   LATERALITY_SWIRL_CARD_COUNT,
   LATERALITY_SWIRL_FAILURE_MIN_MS,
   LATERALITY_SWIRL_MAX_TILT_DEG,
@@ -70,6 +72,13 @@ describe('laterality swirl motion language', () => {
 });
 
 describe('laterality swirl reduced motion', () => {
+  it('seeds Reduce Motion ON when matchMedia is missing (native / unknown)', () => {
+    assert.equal(resolveInitialReducedMotion(null), true);
+    assert.equal(resolveInitialReducedMotion(true), true);
+    assert.equal(resolveInitialReducedMotion(false), false);
+    assert.equal(shouldAnimateLateralitySwirl(resolveInitialReducedMotion(null)), false);
+  });
+
   it('skips compulsory orbit when reduced motion is requested', () => {
     assert.equal(shouldAnimateLateralitySwirl(true), false);
     assert.equal(shouldAnimateLateralitySwirl(false), true);
@@ -98,5 +107,25 @@ describe('laterality swirl timing vs fetch', () => {
     assert.ok(LATERALITY_SWIRL_FAILURE_MIN_MS < LATERALITY_SWIRL_MIN_MS);
     assert.equal(lateralitySwirlHoldMs('failure', 0, true), LATERALITY_SWIRL_FAILURE_MIN_MS);
     assert.equal(lateralitySwirlHoldMs('failure', LATERALITY_SWIRL_FAILURE_MIN_MS, true), 0);
+  });
+
+  it('does not reset the hold clock when the fetch flips to success or failure', () => {
+    assert.equal(
+      lateralitySwirlHoldClockShouldReset({ tokenChanged: false, outcome: 'success' }),
+      false,
+    );
+    assert.equal(
+      lateralitySwirlHoldClockShouldReset({ tokenChanged: false, outcome: 'failure' }),
+      false,
+    );
+    assert.equal(
+      lateralitySwirlHoldClockShouldReset({ tokenChanged: false, outcome: 'pending' }),
+      true,
+    );
+    assert.equal(
+      lateralitySwirlHoldClockShouldReset({ tokenChanged: true, outcome: 'success' }),
+      true,
+    );
+    assert.equal(lateralitySwirlHoldMs('success', 400, true), Math.max(0, LATERALITY_SWIRL_MIN_MS - 400));
   });
 });

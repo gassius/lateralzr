@@ -78,6 +78,11 @@ export function restoreLateralityAfterFailedSwap(committed: LateralityGrade): La
   return committed;
 }
 
+/** − / + stay inert while the neighborhood swirl is covering the tree swap. */
+export function lateralityControlDisabled(canStep: boolean, swapping: boolean): boolean {
+  return swapping || !canStep;
+}
+
 /** Apply a URL laterality for this load without overwriting stored preference. */
 export function resolveHydratedLaterality(
   urlLaterality: LateralityGrade | undefined,

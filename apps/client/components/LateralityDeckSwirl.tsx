@@ -16,10 +16,13 @@ import { lateralityGradientStops } from '@/lib/laterality';
 import {
   lateralitySwirlCardCount,
   lateralitySwirlCardPose,
+  lateralitySwirlHoldClockShouldReset,
   lateralitySwirlHoldMs,
   lateralitySwirlOverlayOpacity,
   lateralitySwirlSettledPose,
   lateralitySwirlStaticPose,
+  readWebPrefersReducedMotion,
+  resolveInitialReducedMotion,
   LATERALITY_SWIRL_APPEAR_MS,
   LATERALITY_SWIRL_CARD_SIZE,
   LATERALITY_SWIRL_FAN_SPREAD_RATIO,
@@ -31,14 +34,7 @@ import {
 } from '@/lib/lateralitySwirl';
 
 function initialReduceMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false;
-  }
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
+  return resolveInitialReducedMotion(readWebPrefersReducedMotion());
 }
 
 type LateralityDeckSwirlProps = {
@@ -57,6 +53,7 @@ export function LateralityDeckSwirl({
   const [reduceMotion, setReduceMotion] = useState(initialReduceMotion);
   const [area, setArea] = useState({ width: 0, height: 0 });
   const startedAtRef = useRef(Date.now());
+  const tokenRef = useRef(token);
   const onExitCompleteRef = useRef(onExitComplete);
   const animate = shouldAnimateLateralitySwirl(reduceMotion);
   const cardCount = lateralitySwirlCardCount(reduceMotion);
@@ -104,8 +101,12 @@ export function LateralityDeckSwirl({
   }, [animate, appear, progress]);
 
   useEffect(() => {
-    startedAtRef.current = Date.now();
-    if (outcome === 'pending') {
+    const tokenChanged = tokenRef.current !== token;
+    tokenRef.current = token;
+    if (lateralitySwirlHoldClockShouldReset({ tokenChanged, outcome })) {
+      startedAtRef.current = Date.now();
+    }
+    if (tokenChanged || outcome === 'pending') {
       cancelAnimation(settle);
       settle.value = 0;
     }
