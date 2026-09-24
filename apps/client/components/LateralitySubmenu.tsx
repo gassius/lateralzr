@@ -17,6 +17,7 @@ import {
   LATERALITY_SUBMENU_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
+  lateralityControlDisabled,
   lateralityGradientStops,
   MAX_LATERALITY,
   MIN_LATERALITY,
@@ -156,6 +157,8 @@ export function LateralitySubmenu({
 }: LateralitySubmenuProps) {
   const canDecrease = laterality > MIN_LATERALITY;
   const canIncrease = laterality < MAX_LATERALITY;
+  const decreaseDisabled = lateralityControlDisabled(canDecrease, swapping);
+  const increaseDisabled = lateralityControlDisabled(canIncrease, swapping);
   const stops = lateralityGradientStops(laterality);
   const { width: windowWidth } = useWindowDimensions();
   const [layoutWidth, setLayoutWidth] = useState(0);
@@ -167,6 +170,7 @@ export function LateralitySubmenu({
     <View
       style={styles.row}
       testID="laterality-submenu"
+      accessibilityState={{ busy: swapping }}
       onLayout={(event) => {
         const next = Math.floor(event.nativeEvent.layout.width);
         if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
@@ -174,17 +178,17 @@ export function LateralitySubmenu({
     >
       <Pressable
         onPress={onDecrease}
-        disabled={!canDecrease}
+        disabled={decreaseDisabled}
         // 48px box already meets ≥44; hitSlop is a small extra, not the reachable area.
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('decreaseLaterality')}
-        accessibilityState={{ disabled: !canDecrease }}
+        accessibilityState={{ disabled: decreaseDisabled, busy: swapping }}
         testID="laterality-decrease"
         style={({ pressed }) => [
           styles.step,
-          !canDecrease ? styles.stepDisabled : null,
-          pressed && canDecrease ? styles.stepPressed : null,
+          decreaseDisabled ? styles.stepDisabled : null,
+          pressed && !decreaseDisabled ? styles.stepPressed : null,
         ]}
       >
         <StepGlyph kind="minus" />
@@ -201,16 +205,16 @@ export function LateralitySubmenu({
 
       <Pressable
         onPress={onIncrease}
-        disabled={!canIncrease}
+        disabled={increaseDisabled}
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('increaseLaterality')}
-        accessibilityState={{ disabled: !canIncrease }}
+        accessibilityState={{ disabled: increaseDisabled, busy: swapping }}
         testID="laterality-increase"
         style={({ pressed }) => [
           styles.step,
-          !canIncrease ? styles.stepDisabled : null,
-          pressed && canIncrease ? styles.stepPressed : null,
+          increaseDisabled ? styles.stepDisabled : null,
+          pressed && !increaseDisabled ? styles.stepPressed : null,
         ]}
       >
         <StepGlyph kind="plus" />

@@ -72,4 +72,12 @@ describe('laterality accessible names', () => {
       assert.doesNotMatch(t(key, { grade: '3' }), /\blaterality\b/i);
     }
   });
+
+  it('announces laterality neighborhood loading without mixed English in es', () => {
+    setActiveLocale('en');
+    assert.equal(t('loadingLateralNeighborhood'), 'Loading a new neighborhood');
+    setActiveLocale('es');
+    assert.equal(t('loadingLateralNeighborhood'), 'Cargando un vecindario nuevo');
+    assert.doesNotMatch(t('loadingLateralNeighborhood'), /\blaterality\b/i);
+  });
 });

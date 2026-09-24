@@ -25,10 +25,13 @@ import {
   applyLateralityTreeSwap,
   DEFAULT_LATERALITY,
   resolveHydratedLaterality,
+  restoreLateralityAfterFailedSwap,
   shouldPersistLaterality,
+  shouldPersistLateralityAfterSwap,
   stepLaterality,
   type LateralityGrade,
 } from '@/lib/laterality';
+import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import {
   cardStackAvailableHeight,
   LATERALITY_CARD_GAP,
@@ -87,7 +90,10 @@ export default function HomeScreen() {
   } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
-  const [swappingLaterality, setSwappingLaterality] = useState(false);
+  const [lateralitySwap, setLateralitySwap] = useState<{
+    token: number;
+    outcome: LateralitySwirlOutcome;
+  } | null>(null);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -107,6 +113,9 @@ export default function HomeScreen() {
   const lateralityRef = useRef(laterality);
   const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
+  const lateralitySwapTokenRef = useRef(0);
+  const lateralitySwapActiveRef = useRef(false);
+  const committedLateralityRef = useRef<LateralityGrade>(DEFAULT_LATERALITY);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
   const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
@@ -175,6 +184,7 @@ export default function HomeScreen() {
       if (cancelled) return;
       const hydrated = resolveHydratedLaterality(journeyTestParamsRef.current.laterality, stored);
       lateralityRef.current = hydrated.laterality;
+      committedLateralityRef.current = hydrated.laterality;
       setLaterality(hydrated.laterality);
       if (hydrated.persist && shouldPersistLaterality('hydrate')) {
         void persistLaterality(hydrated.laterality);
@@ -512,7 +522,8 @@ export default function HomeScreen() {
     // Invalidate in-flight load-more so it cannot append the previous laterality.
     fetchGenRef.current += 1;
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
-    setSwappingLaterality(true);
+    const token = ++lateralitySwapTokenRef.current;
+    setLateralitySwap({ token, outcome: 'pending' });
 
     const current = conceptsRef.current[currentIndexRef.current];
     const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
@@ -552,24 +563,44 @@ export default function HomeScreen() {
       setCurrentIndex(swap.currentIndex);
       setPendingEndDeckLoad(false);
       setLoadMoreError(false);
+      if (shouldPersistLateralityAfterSwap('control', 'success')) {
+        void persistLaterality(lateralityRef.current);
+      }
+      committedLateralityRef.current = lateralityRef.current;
+      setLateralitySwap({ token, outcome: 'success' });
     } catch {
-      // Keep the visible tree; the new laterality still applies to later fetches.
-    } finally {
-      if (stillCurrent()) setSwappingLaterality(false);
+      if (!stillCurrent()) return;
+      const restored = restoreLateralityAfterFailedSwap(committedLateralityRef.current);
+      lateralityRef.current = restored;
+      setLaterality(restored);
+      setLateralitySwap({ token, outcome: 'failure' });
     }
   }, [fetchBatch]);
 
+  const onLateralitySwirlExit = useCallback((token: number) => {
+    setLateralitySwap((current) => {
+      if (current == null || current.token !== token) return current;
+      lateralitySwapActiveRef.current = false;
+      return null;
+    });
+  }, []);
+
   const onChangeLaterality = useCallback((delta: -1 | 1) => {
+    if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
     const next = stepLaterality(lateralityRef.current, delta);
     if (next === lateralityRef.current) return;
     lateralityRef.current = next;
     setLaterality(next);
-    if (shouldPersistLaterality('control')) {
-      void persistLaterality(next);
+    if (conceptsRef.current.length === 0) {
+      if (shouldPersistLateralityAfterSwap('control', 'success')) {
+        void persistLaterality(next);
+      }
+      committedLateralityRef.current = next;
+      return;
     }
-    if (conceptsRef.current.length === 0) return;
+    lateralitySwapActiveRef.current = true;
     void prefetchLateralityTree();
-  }, [prefetchLateralityTree]);
+  }, [lateralitySwap, prefetchLateralityTree]);
 
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
@@ -699,10 +730,20 @@ export default function HomeScreen() {
             showDeckLoading={showDeckLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
+            lateralitySwirl={
+              lateralitySwap
+                ? {
+                    laterality,
+                    token: lateralitySwap.token,
+                    outcome: lateralitySwap.outcome,
+                    onExitComplete: () => onLateralitySwirlExit(lateralitySwap.token),
+                  }
+                : null
+            }
           />
           <LateralitySubmenu
             laterality={laterality}
-            swapping={swappingLaterality}
+            swapping={lateralitySwap != null}
             onDecrease={() => onChangeLaterality(-1)}
             onIncrease={() => onChangeLaterality(1)}
           />

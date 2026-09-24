@@ -60,6 +60,29 @@ export function shouldPersistLaterality(reason: LateralityPersistReason): boolea
   return reason === 'control';
 }
 
+export type LateralitySwapResult = 'success' | 'failure';
+
+/**
+ * Write storage only after a successful neighborhood swap.
+ * A failed +/− must not persist the optimistic grade (or overwrite a session `?laterality=`).
+ */
+export function shouldPersistLateralityAfterSwap(
+  reason: LateralityPersistReason,
+  result: LateralitySwapResult,
+): boolean {
+  return result === 'success' && shouldPersistLaterality(reason);
+}
+
+/** Last confirmed grade — used to roll the submenu back when the tree fetch fails. */
+export function restoreLateralityAfterFailedSwap(committed: LateralityGrade): LateralityGrade {
+  return committed;
+}
+
+/** − / + stay inert while the neighborhood swirl is covering the tree swap. */
+export function lateralityControlDisabled(canStep: boolean, swapping: boolean): boolean {
+  return swapping || !canStep;
+}
+
 /** Apply a URL laterality for this load without overwriting stored preference. */
 export function resolveHydratedLaterality(
   urlLaterality: LateralityGrade | undefined,
