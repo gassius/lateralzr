@@ -50,7 +50,9 @@ export function initialPrefersReducedMotion(): boolean {
 
 function clamp(value: number, min: number, max: number): number {
   'worklet';
-  return Math.max(min, Math.min(max, value));
+  const next = Math.max(min, Math.min(max, value));
+  // Avoid -0 so settle writes `0deg` rather than `-0deg`.
+  return next === 0 ? 0 : next;
 }
 
 /** Roll for the front card: left travel only, same formula as the previous deck. */
@@ -96,14 +98,14 @@ export function cardReturnOverlayRollDeg(progress: number, reduceMotion: boolean
   'worklet';
   if (reduceMotion) return 0;
   const p = clamp(progress, 0, 1);
-  return -CARD_SWIPE_ENTER_ROLL_DEG * (1 - p);
+  return clamp(-CARD_SWIPE_ENTER_ROLL_DEG * (1 - p), -CARD_SWIPE_ENTER_ROLL_DEG, CARD_SWIPE_ENTER_ROLL_DEG);
 }
 
 export function cardReturnOverlayYawDeg(progress: number, reduceMotion: boolean): number {
   'worklet';
   if (reduceMotion) return 0;
   const p = clamp(progress, 0, 1);
-  return -CARD_SWIPE_MAX_YAW_DEG * (1 - p);
+  return clamp(-CARD_SWIPE_MAX_YAW_DEG * (1 - p), -CARD_SWIPE_MAX_YAW_DEG, CARD_SWIPE_MAX_YAW_DEG);
 }
 
 /** Front card dims as the return overlay covers it (same tint family as the rear stack). */
