@@ -94,8 +94,9 @@ describe('concept card brand mark identity', () => {
 describe('concept card brand hierarchy', () => {
   it('stays secondary to the 48px concept title', () => {
     assert.ok(cardBrandIsSecondaryToTitle());
-    assert.ok(CARD_BRAND_FRONT_OPACITY <= 0.22);
-    assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO <= 0.78);
+    assert.ok(CARD_BRAND_FRONT_OPACITY <= 0.18);
+    assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO <= 0.58);
+    assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO >= 0.4);
     assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO > CARD_BRAND_BACK_WIDTH_RATIO);
     assert.ok(CARD_BRAND_BACK_OPACITY <= CARD_BRAND_FRONT_OPACITY);
     assert.equal(CONCEPT_FRONT_LABEL_FONT_SIZE, 48);

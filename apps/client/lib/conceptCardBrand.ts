@@ -30,19 +30,22 @@ export const CARD_BRAND_TITLE_COLOR = Palette.darkBlue;
 /** Fallback face width: letterboxed preview content (~301) + 20px padding each side. */
 export const CARD_BRAND_FALLBACK_FACE_WIDTH = 341;
 
-/** Front mark is large enough to read as texture, not a logo badge. */
-export const CARD_BRAND_FRONT_WIDTH_RATIO = 0.72;
+/**
+ * Front mark is a lower-edge texture, not a title-sized badge.
+ * Phone-frame review: 0.72 sat the bulb behind the word and stole the stage.
+ */
+export const CARD_BRAND_FRONT_WIDTH_RATIO = 0.52;
 
 /** Back mark stays a corner stamp so media / balanced copy keep the stage. */
-export const CARD_BRAND_BACK_WIDTH_RATIO = 0.28;
+export const CARD_BRAND_BACK_WIDTH_RATIO = 0.26;
 
 /** Visible but secondary — well below the title's full-opacity ink. */
-export const CARD_BRAND_FRONT_OPACITY = 0.18;
+export const CARD_BRAND_FRONT_OPACITY = 0.16;
 
-export const CARD_BRAND_BACK_OPACITY = 0.14;
+export const CARD_BRAND_BACK_OPACITY = 0.12;
 
-/** Bottom inset so the front mark sits on the slab, not in the laterality gap. */
-export const CARD_BRAND_FRONT_BOTTOM = 16;
+/** Sit the mark on the lower slab so the 48px title keeps the optical center. */
+export const CARD_BRAND_FRONT_BOTTOM = 6;
 
 export const CARD_BRAND_BACK_BOTTOM = 10;
 export const CARD_BRAND_BACK_RIGHT = 8;
