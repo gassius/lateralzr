@@ -22,9 +22,9 @@ import {
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
 import {
-  conceptFrontLabelTextAlign,
-  conceptFrontLabelTextAlignFromLineCount,
+  CONCEPT_FRONT_LABEL_COLOR,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
+  CONCEPT_FRONT_LABEL_TEXT_ALIGN,
 } from '@/lib/conceptFrontLabelAlign';
 import { CoachHint } from './CoachHint';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
@@ -66,13 +66,6 @@ export function ConceptCard({
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
   const [backFaceH, setBackFaceH] = useState(0);
-  const [frontContentWidth, setFrontContentWidth] = useState(0);
-  const [frontLineCount, setFrontLineCount] = useState<number | null>(null);
-  const estimatedFrontAlign = conceptFrontLabelTextAlign(title, frontContentWidth);
-  const frontLabelAlign =
-    frontLineCount == null
-      ? estimatedFrontAlign
-      : conceptFrontLabelTextAlignFromLineCount(frontLineCount);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
@@ -84,10 +77,6 @@ export function ConceptCard({
       easing: Easing.out(Easing.cubic),
     });
   }, [flipped, flipProgress]);
-
-  useLayoutEffect(() => {
-    setFrontLineCount(null);
-  }, [title]);
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
@@ -137,18 +126,8 @@ export function ConceptCard({
 
   const front = (
     <View style={styles.faceInner} onLayout={onUntransformedFaceLayout}>
-      <View
-        style={styles.frontCenter}
-        onLayout={(event) => setFrontContentWidth(event.nativeEvent.layout.width)}
-      >
-        <Text
-          style={[styles.conceptNameFront, { textAlign: frontLabelAlign }]}
-          onTextLayout={(event) => {
-            setFrontLineCount(event.nativeEvent.lines.length);
-          }}
-        >
-          {title}
-        </Text>
+      <View style={styles.frontCenter}>
+        <Text style={styles.conceptNameFront}>{title}</Text>
       </View>
       {coachHint ? (
         <CoachHint text={coachHint} animateAppear={animateCoachAppear} surface="orange" />
@@ -427,6 +406,7 @@ const styles = StyleSheet.create({
   frontCenter: {
     flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
     minHeight: 0,
   },
@@ -435,7 +415,8 @@ const styles = StyleSheet.create({
     lineHeight: Math.round(CONCEPT_FRONT_LABEL_FONT_SIZE * 1.5),
     fontWeight: '700',
     width: '100%',
-    color: Palette.darkBlue,
+    textAlign: CONCEPT_FRONT_LABEL_TEXT_ALIGN,
+    color: CONCEPT_FRONT_LABEL_COLOR,
   },
   conceptName: {
     fontWeight: '700',
