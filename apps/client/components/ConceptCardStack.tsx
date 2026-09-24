@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -24,6 +24,14 @@ import {
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import {
+  CARD_STACK_BEHIND_TINT,
+  CARD_SWIPE_ENTER_ROLL_DEG,
+  cardCoverDimOpacity,
+  cardSwipeFrontTransform,
+  cardSwipeReturnOverlayTransform,
+  initialPrefersReducedMotion,
+} from '@/lib/cardSwipeMotion';
 import { clampComplexity } from '@/lib/complexityStorage';
 import {
   coachMessageKey,
@@ -55,9 +63,7 @@ const SWIPE_THRESHOLD = 56;
 const SWIPE_VELOCITY_Y = 650;
 const springConfig = { damping: 22, stiffness: 220 };
 const PAN_ACTIVE_OFFSET = 18;
-const MAX_ROTATION_DEG = 45;
 const ENTER_OFFSET_PX = 72;
-const ENTER_ROTATION_DEG = 14;
 /** Smoothly seats the “return” card after swipe right; commit runs only after this finishes (no pre-reset of translateX). */
 const SWIPE_RIGHT_COMMIT_DURATION_MS = 200;
 /** Front card exits left before index advances; same pattern as swipe right. */
@@ -113,6 +119,8 @@ export function ConceptCardStack({
   const coachPeekX = useSharedValue(0);
   const flipPeek = useSharedValue(0);
   const peekedKindRef = useRef<CoachKind | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(initialPrefersReducedMotion);
+  const reduceMotionSV = useSharedValue(initialPrefersReducedMotion() ? 1 : 0);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -129,6 +137,24 @@ export function ConceptCardStack({
   useEffect(() => {
     flippedRef.current = flipped;
   }, [flipped]);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+      setReduceMotion(enabled);
+    });
+    return () => {
+      mounted = false;
+      sub?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    reduceMotionSV.value = reduceMotion ? 1 : 0;
+  }, [reduceMotion, reduceMotionSV]);
 
   const cardWidth = Math.max(0, containerW);
   const desiredCardHeight = cardWidth > 0 ? cardWidth * CARD_ASPECT : 0;
@@ -302,9 +328,14 @@ export function ConceptCardStack({
       enterR.value = 0;
     } else if (intent === 'backward') {
       enterX.value = -ENTER_OFFSET_PX;
-      enterR.value = -ENTER_ROTATION_DEG;
       enterX.value = withTiming(0, { duration: 220 });
-      enterR.value = withTiming(0, { duration: 220 });
+      // Skip enter tilt when RM is on (or still optimistic-on on native).
+      if (reduceMotionSV.value > 0.5) {
+        enterR.value = 0;
+      } else {
+        enterR.value = -CARD_SWIPE_ENTER_ROLL_DEG;
+        enterR.value = withTiming(0, { duration: 220 });
+      }
     } else {
       enterX.value = 0;
       enterR.value = 0;
@@ -531,33 +562,23 @@ export function ConceptCardStack({
       ? Gesture.Exclusive(tap, panX)
       : Gesture.Exclusive(tap, panX, panY);
 
-  /** Current / top-of-deck card — horizontal forward: tilt + X; vertical forward: Y only. */
+  /**
+   * Current / top-of-deck card.
+   * Horizontal: existing bottom-center roll + subtle rotateY.
+   * Vertical: mild pitch + the same rotateY hint.
+   * Reduced motion: translate only (no 3D).
+   */
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const w = Math.max(1, cardWidthSV.value);
     const h = cardHeightSV.value;
     const ty = translateY.value;
     const peekX = coachPeekX.value;
-    if (Math.abs(ty) > 0.5) {
-      return {
-        transform: [{ translateX: enterX.value + peekX }, { translateY: ty }],
-      };
-    }
+    const reduceMotionOn = reduceMotionSV.value > 0.5;
     const tx = (translateX.value < 0 ? translateX.value : 0) + peekX;
-    const rotBase =
-      tx < 0
-        ? Math.max(
-            -MAX_ROTATION_DEG,
-            Math.min(MAX_ROTATION_DEG, (tx / Math.max(1, w / 2)) * MAX_ROTATION_DEG),
-          )
-        : 0;
-    const rot = rotBase + enterR.value;
+    const x = enterX.value + tx;
+    const extraRoll = enterR.value;
     return {
-      transform: [
-        { translateX: enterX.value + tx },
-        { translateY: h / 2 },
-        { rotateZ: `${rot}deg` },
-        { translateY: -h / 2 },
-      ],
+      transform: cardSwipeFrontTransform(x, ty, w, h, extraRoll, reduceMotionOn),
     };
   });
 
@@ -571,18 +592,24 @@ export function ConceptCardStack({
     const h = cardHeightSV.value;
     const active = translateX.value > 0;
     const suppressed = returnOverlaySuppressSV.value > 0.5;
+    const reduceMotionOn = reduceMotionSV.value > 0.5;
     const tx = active ? -w + translateX.value : -w;
     const p = active ? Math.min(1, translateX.value / w) : 0;
-    const rot = active ? -ENTER_ROTATION_DEG * (1 - p) : 0;
     const baseOpacity = active && !suppressed ? 1 : 0;
     return {
       opacity: baseOpacity,
-      transform: [
-        { translateX: tx },
-        { translateY: h / 2 },
-        { rotateZ: `${rot}deg` },
-        { translateY: -h / 2 },
-      ],
+      transform: cardSwipeReturnOverlayTransform(tx, h, p, reduceMotionOn),
+    };
+  });
+
+  /** Current card darkens as the return overlay covers it — same stack-depth read as the rear tint. */
+  const frontCoverDimStyle = useAnimatedStyle(() => {
+    const w = Math.max(1, cardWidthSV.value);
+    const p = translateX.value > 0 ? Math.min(1, translateX.value / w) : 0;
+    return {
+      opacity: cardCoverDimOpacity(p),
+      // Park off-screen at rest — a persistent opacity:0 sibling has flashed on handoff before.
+      transform: [{ translateX: p > 0.001 ? 0 : BEHIND_PEEK_OFFSCREEN_X }],
     };
   });
 
@@ -655,6 +682,7 @@ export function ConceptCardStack({
                 flipPeek={flipPeek}
               />
             )}
+            <Animated.View style={[styles.frontCoverDim, frontCoverDimStyle]} pointerEvents="none" />
           </Animated.View>
 
           {showReturnOverlay ? (
@@ -730,7 +758,8 @@ const styles = StyleSheet.create({
   },
   behindOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,91,119,0.10)',
+    backgroundColor: CARD_STACK_BEHIND_TINT,
+    borderRadius: 16,
   },
   frontWrap: {
     position: 'absolute',
@@ -739,6 +768,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 2,
+  },
+  frontCoverDim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: CARD_STACK_BEHIND_TINT,
+    borderRadius: 16,
   },
   returnOverlay: {
     position: 'absolute',
