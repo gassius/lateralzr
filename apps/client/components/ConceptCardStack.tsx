@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
+import { LateralityDeckSwirl } from './LateralityDeckSwirl';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import {
   trackCardBackView,
@@ -40,6 +41,7 @@ import {
 } from '@/lib/discoveryCoaching';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
+import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
 type ConceptCardStackProps = {
@@ -57,6 +59,13 @@ type ConceptCardStackProps = {
   showDeckLoading: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
+  /** Laterality neighborhood reload — overlay only; swipe/tilt path is unchanged. */
+  lateralitySwirl?: {
+    laterality: number;
+    token: number;
+    outcome: LateralitySwirlOutcome;
+    onExitComplete: () => void;
+  } | null;
 };
 
 const SWIPE_THRESHOLD = 56;
@@ -86,6 +95,7 @@ export function ConceptCardStack({
   showDeckLoading,
   loadMoreError,
   onRetryLoadMore,
+  lateralitySwirl = null,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -648,10 +658,15 @@ export function ConceptCardStack({
         setContainerW(e.nativeEvent.layout.width);
       }}
     >
-      <GestureDetector gesture={composed}>
-        <View style={[styles.cardWrap, { height: cardAreaHeight }]}>
+      <View style={[styles.cardWrap, { height: cardAreaHeight }]}>
+        <GestureDetector gesture={composed}>
+          <View style={styles.gestureFill}>
           {showBehindNext ? (
-            <Animated.View style={[styles.behindWrap, behindFadeStyle]} pointerEvents="none">
+            <Animated.View
+              style={[styles.behindWrap, behindFadeStyle]}
+              pointerEvents="none"
+              accessibilityElementsHidden={lateralitySwirl != null}
+            >
               <ConceptCardForIndex
                 concepts={concepts}
                 currentIndex={behindDisplayIndex}
@@ -665,6 +680,7 @@ export function ConceptCardStack({
           <Animated.View
             key={showDeckStatus ? `deck-${deckStatusVariant}-${currentIndex}` : 'front-card'}
             style={[styles.frontWrap, frontAnimatedStyle]}
+            accessibilityElementsHidden={lateralitySwirl != null}
           >
             {showDeckStatus ? (
               <DeckStatusCard
@@ -686,7 +702,11 @@ export function ConceptCardStack({
           </Animated.View>
 
           {showReturnOverlay ? (
-            <Animated.View style={[styles.returnOverlay, returnOverlayStyle]} pointerEvents="none">
+            <Animated.View
+              style={[styles.returnOverlay, returnOverlayStyle]}
+              pointerEvents="none"
+              accessibilityElementsHidden={lateralitySwirl != null}
+            >
               <ConceptCardForIndex
                 concepts={concepts}
                 currentIndex={returnOverlayIndex}
@@ -695,8 +715,18 @@ export function ConceptCardStack({
               />
             </Animated.View>
           ) : null}
-        </View>
-      </GestureDetector>
+          </View>
+        </GestureDetector>
+
+        {lateralitySwirl ? (
+          <LateralityDeckSwirl
+            laterality={lateralitySwirl.laterality}
+            token={lateralitySwirl.token}
+            outcome={lateralitySwirl.outcome}
+            onExitComplete={lateralitySwirl.onExitComplete}
+          />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -746,6 +776,9 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
     position: 'relative',
+  },
+  gestureFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   /** Same size as front (no scale) so the next card never “grows” when it becomes the top card. Depth reads from the tint overlay only. */
   behindWrap: {

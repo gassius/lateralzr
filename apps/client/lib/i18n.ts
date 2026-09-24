@@ -20,7 +20,8 @@ type MessageKey =
   | 'decreaseLaterality'
   | 'increaseLaterality'
   | 'lateralityGrade'
-  | 'complexityGrade';
+  | 'complexityGrade'
+  | 'loadingLateralNeighborhood';
 
 const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -40,6 +41,7 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     increaseLaterality: 'Increase laterality',
     lateralityGrade: 'Laterality {grade}',
     complexityGrade: 'Complexity {grade}',
+    loadingLateralNeighborhood: 'Loading a new neighborhood',
   },
   es: {
     swipeCoach: 'Desliza para otra idea',
@@ -58,6 +60,7 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     increaseLaterality: 'Aumentar lateralidad',
     lateralityGrade: 'Lateralidad {grade}',
     complexityGrade: 'Complejidad {grade}',
+    loadingLateralNeighborhood: 'Cargando un vecindario nuevo',
   },
 };
 

@@ -167,6 +167,7 @@ export function LateralitySubmenu({
     <View
       style={styles.row}
       testID="laterality-submenu"
+      accessibilityState={{ busy: swapping }}
       onLayout={(event) => {
         const next = Math.floor(event.nativeEvent.layout.width);
         if (next > 0 && next !== layoutWidth) setLayoutWidth(next);
@@ -179,7 +180,7 @@ export function LateralitySubmenu({
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('decreaseLaterality')}
-        accessibilityState={{ disabled: !canDecrease }}
+        accessibilityState={{ disabled: !canDecrease, busy: swapping }}
         testID="laterality-decrease"
         style={({ pressed }) => [
           styles.step,
@@ -205,7 +206,7 @@ export function LateralitySubmenu({
         hitSlop={4}
         accessibilityRole="button"
         accessibilityLabel={t('increaseLaterality')}
-        accessibilityState={{ disabled: !canIncrease }}
+        accessibilityState={{ disabled: !canIncrease, busy: swapping }}
         testID="laterality-increase"
         style={({ pressed }) => [
           styles.step,
