@@ -7,6 +7,7 @@ import {
   CARD_SWIPE_ENTER_ROLL_DEG,
   CARD_SWIPE_MAX_PITCH_DEG,
   CARD_SWIPE_MAX_ROLL_DEG,
+  CARD_SWIPE_MAX_VERTICAL_ROLL_DEG,
   CARD_SWIPE_MAX_YAW_DEG,
   CARD_SWIPE_PERSPECTIVE,
   cardCoverDimOpacity,
@@ -14,6 +15,7 @@ import {
   cardReturnOverlayYawDeg,
   cardSwipePitchDeg,
   cardSwipeRollDeg,
+  cardSwipeVerticalRollDeg,
   cardSwipeYawDeg,
   shouldUseCardSwipe3d,
 } from './cardSwipeMotion.ts';
@@ -25,6 +27,8 @@ describe('card swipe 3D budget', () => {
   it('keeps pitch and yaw mild (tactile, not arcade)', () => {
     assert.ok(CARD_SWIPE_MAX_PITCH_DEG >= 6);
     assert.ok(CARD_SWIPE_MAX_PITCH_DEG <= 10);
+    assert.ok(CARD_SWIPE_MAX_VERTICAL_ROLL_DEG >= 4);
+    assert.ok(CARD_SWIPE_MAX_VERTICAL_ROLL_DEG <= 8);
     assert.ok(CARD_SWIPE_MAX_YAW_DEG >= 3);
     assert.ok(CARD_SWIPE_MAX_YAW_DEG <= 6);
     assert.ok(CARD_SWIPE_MAX_YAW_DEG < CARD_SWIPE_MAX_PITCH_DEG);
@@ -38,6 +42,7 @@ describe('card swipe 3D budget', () => {
     assert.equal(shouldUseCardSwipe3d(true), false);
     assert.equal(cardSwipeRollDeg(-90, CARD_W, true), 0);
     assert.equal(cardSwipePitchDeg(-120, CARD_H, true), 0);
+    assert.equal(cardSwipeVerticalRollDeg(-120, CARD_H, true), 0);
     assert.equal(cardSwipeYawDeg(-90, -80, CARD_W, CARD_H, -14, true), 0);
     assert.equal(cardReturnOverlayRollDeg(0, true), 0);
     assert.equal(cardReturnOverlayYawDeg(0, true), 0);
@@ -61,6 +66,18 @@ describe('card swipe pitch', () => {
     assert.equal(cardSwipePitchDeg(CARD_H / 2, CARD_H, false), -CARD_SWIPE_MAX_PITCH_DEG);
     assert.ok(cardSwipePitchDeg(-56, CARD_H, false) > 0);
     assert.ok(cardSwipePitchDeg(56, CARD_H, false) < 0);
+  });
+});
+
+describe('card swipe vertical roll', () => {
+  it('tilts a little with up/down travel and returns to flat at rest', () => {
+    assert.equal(cardSwipeVerticalRollDeg(0, CARD_H, false), 0);
+    assert.equal(
+      cardSwipeVerticalRollDeg(CARD_H / 2, CARD_H, false),
+      CARD_SWIPE_MAX_VERTICAL_ROLL_DEG,
+    );
+    assert.ok(cardSwipeVerticalRollDeg(-56, CARD_H, false) < 0);
+    assert.ok(cardSwipeVerticalRollDeg(56, CARD_H, false) > 0);
   });
 });
 

@@ -18,6 +18,9 @@ export const CARD_SWIPE_ENTER_ROLL_DEG = 14;
 /** Mild pitch on the vertical travel axis. */
 export const CARD_SWIPE_MAX_PITCH_DEG = 9;
 
+/** Mild roll that travels with swipe up/down so tilt reads in the phone frame. */
+export const CARD_SWIPE_MAX_VERTICAL_ROLL_DEG = 6;
+
 /** Subtle Y-axis depth across swipe / enter / return. */
 export const CARD_SWIPE_MAX_YAW_DEG = 4.5;
 
@@ -72,6 +75,18 @@ export function cardSwipePitchDeg(ty: number, height: number, reduceMotion: bool
   if (reduceMotion) return 0;
   const half = Math.max(1, height / 2);
   return clamp((-ty / half) * CARD_SWIPE_MAX_PITCH_DEG, -CARD_SWIPE_MAX_PITCH_DEG, CARD_SWIPE_MAX_PITCH_DEG);
+}
+
+/** Small roll on the vertical travel axis. Settles to 0 with ty. */
+export function cardSwipeVerticalRollDeg(ty: number, height: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  const half = Math.max(1, height / 2);
+  return clamp(
+    (ty / half) * CARD_SWIPE_MAX_VERTICAL_ROLL_DEG,
+    -CARD_SWIPE_MAX_VERTICAL_ROLL_DEG,
+    CARD_SWIPE_MAX_VERTICAL_ROLL_DEG,
+  );
 }
 
 /**

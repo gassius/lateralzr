@@ -33,6 +33,7 @@ import {
   cardReturnOverlayYawDeg,
   cardSwipePitchDeg,
   cardSwipeRollDeg,
+  cardSwipeVerticalRollDeg,
   cardSwipeYawDeg,
   initialPrefersReducedMotion,
 } from '@/lib/cardSwipeMotion';
@@ -583,14 +584,18 @@ export function ConceptCardStack({
     }
     const pitch = cardSwipePitchDeg(ty, h, false);
     const yaw = cardSwipeYawDeg(tx, ty, w, h, extraRoll, false);
-    const roll = cardSwipeRollDeg(tx, w, false) + extraRoll;
+    const roll =
+      cardSwipeRollDeg(tx, w, false) + extraRoll + cardSwipeVerticalRollDeg(ty, h, false);
+    // Pitch/yaw around the card center so vertical travel shows tilt.
+    // Roll keeps the existing bottom-center pivot (identity when roll is 0).
     return {
       transform: [
         { perspective: CARD_SWIPE_PERSPECTIVE },
         { translateX: x },
-        { translateY: ty + h / 2 },
+        { translateY: ty },
         { rotateX: `${pitch}deg` },
         { rotateY: `${yaw}deg` },
+        { translateY: h / 2 },
         { rotateZ: `${roll}deg` },
         { translateY: -h / 2 },
       ],
