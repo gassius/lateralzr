@@ -125,8 +125,14 @@ export function ConceptCard({
   }) => {
     const nextH = event.nativeEvent.layout.height;
     const nextW = event.nativeEvent.layout.width;
-    setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
-    setFaceWidth((prev) => (Math.abs(prev - nextW) < 0.5 ? prev : nextW));
+    // Flip rotateY can report a collapsed box; keep the last real face size
+    // so no-media backs stay vertically centered.
+    if (nextH > 1) {
+      setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
+    }
+    if (nextW > 1) {
+      setFaceWidth((prev) => (Math.abs(prev - nextW) < 0.5 ? prev : nextW));
+    }
   };
 
   const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
