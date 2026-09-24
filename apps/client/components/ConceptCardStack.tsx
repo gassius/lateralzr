@@ -711,6 +711,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: CARD_STACK_PADDING_TOP,
     justifyContent: 'flex-start',
+    flexGrow: 0,
+    flexShrink: 0,
   },
   cardWrap: {
     width: '100%',
