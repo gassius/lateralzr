@@ -23,9 +23,6 @@ class UsersTable
                     ->label('Roles')
                     ->badge()
                     ->separator(','),
-                TextColumn::make('email_verified_at')
-                    ->dateTime()
-                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
