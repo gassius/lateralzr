@@ -27,14 +27,9 @@ import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_STACK_BEHIND_TINT,
   CARD_SWIPE_ENTER_ROLL_DEG,
-  CARD_SWIPE_PERSPECTIVE,
   cardCoverDimOpacity,
-  cardReturnOverlayRollDeg,
-  cardReturnOverlayYawDeg,
-  cardSwipePitchDeg,
-  cardSwipeRollDeg,
-  cardSwipeVerticalRollDeg,
-  cardSwipeYawDeg,
+  cardSwipeFrontTransform,
+  cardSwipeReturnOverlayTransform,
   initialPrefersReducedMotion,
 } from '@/lib/cardSwipeMotion';
 import { clampComplexity } from '@/lib/complexityStorage';
@@ -333,9 +328,14 @@ export function ConceptCardStack({
       enterR.value = 0;
     } else if (intent === 'backward') {
       enterX.value = -ENTER_OFFSET_PX;
-      enterR.value = -CARD_SWIPE_ENTER_ROLL_DEG;
       enterX.value = withTiming(0, { duration: 220 });
-      enterR.value = withTiming(0, { duration: 220 });
+      // Skip enter tilt when RM is on (or still optimistic-on on native).
+      if (reduceMotionSV.value > 0.5) {
+        enterR.value = 0;
+      } else {
+        enterR.value = -CARD_SWIPE_ENTER_ROLL_DEG;
+        enterR.value = withTiming(0, { duration: 220 });
+      }
     } else {
       enterX.value = 0;
       enterR.value = 0;
@@ -577,28 +577,8 @@ export function ConceptCardStack({
     const tx = (translateX.value < 0 ? translateX.value : 0) + peekX;
     const x = enterX.value + tx;
     const extraRoll = enterR.value;
-    if (reduceMotionOn) {
-      return {
-        transform: [{ translateX: x }, { translateY: ty }],
-      };
-    }
-    const pitch = cardSwipePitchDeg(ty, h, false);
-    const yaw = cardSwipeYawDeg(tx, ty, w, h, extraRoll, false);
-    const roll =
-      cardSwipeRollDeg(tx, w, false) + extraRoll + cardSwipeVerticalRollDeg(ty, h, false);
-    // Pitch/yaw around the card center so vertical travel shows tilt.
-    // Roll keeps the existing bottom-center pivot (identity when roll is 0).
     return {
-      transform: [
-        { perspective: CARD_SWIPE_PERSPECTIVE },
-        { translateX: x },
-        { translateY: ty },
-        { rotateX: `${pitch}deg` },
-        { rotateY: `${yaw}deg` },
-        { translateY: h / 2 },
-        { rotateZ: `${roll}deg` },
-        { translateY: -h / 2 },
-      ],
+      transform: cardSwipeFrontTransform(x, ty, w, h, extraRoll, reduceMotionOn),
     };
   });
 
@@ -615,25 +595,10 @@ export function ConceptCardStack({
     const reduceMotionOn = reduceMotionSV.value > 0.5;
     const tx = active ? -w + translateX.value : -w;
     const p = active ? Math.min(1, translateX.value / w) : 0;
-    const roll = cardReturnOverlayRollDeg(p, reduceMotionOn);
-    const yaw = cardReturnOverlayYawDeg(p, reduceMotionOn);
     const baseOpacity = active && !suppressed ? 1 : 0;
-    if (reduceMotionOn) {
-      return {
-        opacity: baseOpacity,
-        transform: [{ translateX: tx }],
-      };
-    }
     return {
       opacity: baseOpacity,
-      transform: [
-        { perspective: CARD_SWIPE_PERSPECTIVE },
-        { translateX: tx },
-        { translateY: h / 2 },
-        { rotateY: `${yaw}deg` },
-        { rotateZ: `${roll}deg` },
-        { translateY: -h / 2 },
-      ],
+      transform: cardSwipeReturnOverlayTransform(tx, h, p, reduceMotionOn),
     };
   });
 

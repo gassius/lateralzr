@@ -30,7 +30,7 @@ export const CARD_SWIPE_MAX_YAW_DEG = 4.5;
  */
 export const CARD_STACK_BEHIND_TINT_ALPHA = 0.22;
 
-export const CARD_STACK_BEHIND_TINT = 'rgba(19,91,119,0.22)';
+export const CARD_STACK_BEHIND_TINT = `rgba(19,91,119,${CARD_STACK_BEHIND_TINT_ALPHA})`;
 
 /** Previous overlay — kept for tests so the contrast upgrade stays explicit. */
 export const CARD_STACK_BEHIND_TINT_ALPHA_LEGACY = 0.1;
@@ -40,15 +40,32 @@ export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
   return !reduceMotion;
 }
 
-export function initialPrefersReducedMotion(): boolean {
+/**
+ * Sync `matchMedia` on web. `null` on native / when matchMedia is missing
+ * (Hermes has `window` but typically no matchMedia).
+ */
+export function readWebPrefersReducedMotion(): boolean | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false;
+    return null;
   }
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/**
+ * First-paint Reduce Motion flag.
+ * Web: live matchMedia. Native / unknown: optimistic ON so a Reduce Motion
+ * user never sees 3D before AccessibilityInfo resolves.
+ */
+export function resolveInitialReducedMotion(webMatchMedia: boolean | null): boolean {
+  return webMatchMedia ?? true;
+}
+
+export function initialPrefersReducedMotion(): boolean {
+  return resolveInitialReducedMotion(readWebPrefersReducedMotion());
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -127,4 +144,94 @@ export function cardReturnOverlayYawDeg(progress: number, reduceMotion: boolean)
 export function cardCoverDimOpacity(coverProgress: number): number {
   'worklet';
   return clamp(coverProgress, 0, 1);
+}
+
+/** Exclusive transform steps so Reanimated/RN style types accept the arrays. */
+export type CardSwipeFrontTransform =
+  | [{ translateX: number }, { translateY: number }]
+  | [
+      { perspective: number },
+      { translateX: number },
+      { translateY: number },
+      { rotateX: string },
+      { rotateY: string },
+      { translateY: number },
+      { rotateZ: string },
+      { translateY: number },
+    ];
+
+export type CardSwipeReturnOverlayTransform =
+  | [{ translateX: number }]
+  | [
+      { perspective: number },
+      { translateX: number },
+      { translateY: number },
+      { rotateY: string },
+      { rotateZ: string },
+      { translateY: number },
+    ];
+
+/** True when the transform includes perspective (3D path, not a slide). */
+export function cardSwipeTransformHas3d(
+  transform: CardSwipeFrontTransform | CardSwipeReturnOverlayTransform,
+): boolean {
+  return transform[0] != null && 'perspective' in transform[0];
+}
+
+/**
+ * Front-card swipe transform. Reduced motion is translate-only.
+ * Same 1200 perspective as ConceptCard flip faces — wrapper 3D is travel only;
+ * flip still owns face rotateY. QA: flipped + swipe left on web and native.
+ */
+export function cardSwipeFrontTransform(
+  translateX: number,
+  translateY: number,
+  width: number,
+  height: number,
+  extraRollDeg: number,
+  reduceMotion: boolean,
+): CardSwipeFrontTransform {
+  'worklet';
+  if (!shouldUseCardSwipe3d(reduceMotion)) {
+    return [{ translateX }, { translateY }];
+  }
+  const pitch = cardSwipePitchDeg(translateY, height, reduceMotion);
+  const yaw = cardSwipeYawDeg(translateX, translateY, width, height, extraRollDeg, reduceMotion);
+  const roll =
+    cardSwipeRollDeg(translateX, width, reduceMotion) +
+    extraRollDeg +
+    cardSwipeVerticalRollDeg(translateY, height, reduceMotion);
+  return [
+    { perspective: CARD_SWIPE_PERSPECTIVE },
+    { translateX },
+    { translateY },
+    { rotateX: `${pitch}deg` },
+    { rotateY: `${yaw}deg` },
+    { translateY: height / 2 },
+    { rotateZ: `${roll}deg` },
+    { translateY: -height / 2 },
+  ];
+}
+
+/** Return-overlay transform. Reduced motion is translate-only. */
+export function cardSwipeReturnOverlayTransform(
+  translateX: number,
+  height: number,
+  progress: number,
+  reduceMotion: boolean,
+): CardSwipeReturnOverlayTransform {
+  'worklet';
+  if (!shouldUseCardSwipe3d(reduceMotion)) {
+    return [{ translateX }];
+  }
+  const roll = cardReturnOverlayRollDeg(progress, reduceMotion);
+  const yaw = cardReturnOverlayYawDeg(progress, reduceMotion);
+  return [
+    { perspective: CARD_SWIPE_PERSPECTIVE },
+    { translateX },
+    { translateY: height / 2 },
+    { rotateY: `${yaw}deg` },
+    { rotateZ: `${roll}deg` },
+    { translateY: -height / 2 },
+  ];
 }

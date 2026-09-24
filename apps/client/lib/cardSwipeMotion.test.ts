@@ -13,10 +13,15 @@ import {
   cardCoverDimOpacity,
   cardReturnOverlayRollDeg,
   cardReturnOverlayYawDeg,
+  cardSwipeFrontTransform,
   cardSwipePitchDeg,
+  cardSwipeReturnOverlayTransform,
   cardSwipeRollDeg,
+  cardSwipeTransformHas3d,
   cardSwipeVerticalRollDeg,
   cardSwipeYawDeg,
+  initialPrefersReducedMotion,
+  resolveInitialReducedMotion,
   shouldUseCardSwipe3d,
 } from './cardSwipeMotion.ts';
 
@@ -46,6 +51,53 @@ describe('card swipe 3D budget', () => {
     assert.equal(cardSwipeYawDeg(-90, -80, CARD_W, CARD_H, -14, true), 0);
     assert.equal(cardReturnOverlayRollDeg(0, true), 0);
     assert.equal(cardReturnOverlayYawDeg(0, true), 0);
+  });
+});
+
+describe('initial reduced-motion (native cold start)', () => {
+  it('is optimistic ON when matchMedia is unavailable (native / unknown)', () => {
+    assert.equal(resolveInitialReducedMotion(null), true);
+    assert.equal(shouldUseCardSwipe3d(resolveInitialReducedMotion(null)), false);
+  });
+
+  it('follows the sync web matchMedia read', () => {
+    assert.equal(resolveInitialReducedMotion(false), false);
+    assert.equal(shouldUseCardSwipe3d(resolveInitialReducedMotion(false)), true);
+    assert.equal(resolveInitialReducedMotion(true), true);
+    assert.equal(shouldUseCardSwipe3d(resolveInitialReducedMotion(true)), false);
+  });
+
+  it('treats this node test env as unknown (no window matchMedia) → optimistic ON', () => {
+    assert.equal(initialPrefersReducedMotion(), true);
+  });
+});
+
+describe('stack wiring (RM → translate-only transform)', () => {
+  it('front and return overlay omit perspective/rotates when reduced motion is on', () => {
+    const front = cardSwipeFrontTransform(-80, -120, CARD_W, CARD_H, -14, true);
+    const ret = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0.3, true);
+    assert.deepEqual(front, [{ translateX: -80 }, { translateY: -120 }]);
+    assert.deepEqual(ret, [{ translateX: -CARD_W * 0.4 }]);
+    assert.equal(cardSwipeTransformHas3d(front), false);
+    assert.equal(cardSwipeTransformHas3d(ret), false);
+  });
+
+  it('front and return overlay use 3D when reduced motion is off', () => {
+    const front = cardSwipeFrontTransform(-80, -120, CARD_W, CARD_H, 0, false);
+    const ret = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0, false);
+    assert.equal(front[0]?.perspective, CARD_SWIPE_PERSPECTIVE);
+    assert.equal(ret[0]?.perspective, CARD_SWIPE_PERSPECTIVE);
+    assert.equal(cardSwipeTransformHas3d(front), true);
+    assert.equal(cardSwipeTransformHas3d(ret), true);
+    assert.equal(front.length === 8 && 'rotateX' in front[3], true);
+    assert.equal(front.length === 8 && 'rotateY' in front[4], true);
+    assert.equal(front.length === 8 && 'rotateZ' in front[6], true);
+  });
+
+  it('native optimistic RM wires a translate-only front transform before AccessibilityInfo', () => {
+    const reduceMotion = resolveInitialReducedMotion(null);
+    const transform = cardSwipeFrontTransform(-56, -80, CARD_W, CARD_H, 0, reduceMotion);
+    assert.equal(cardSwipeTransformHas3d(transform), false);
   });
 });
 
