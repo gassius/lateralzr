@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -137,6 +137,8 @@ export function LateralityDeckSwirl({
   const cardWidth = Math.max(1, area.width * LATERALITY_SWIRL_CARD_SIZE);
   const cardHeight = Math.max(1, area.height * LATERALITY_SWIRL_CARD_SIZE);
   const spread = Math.max(12, area.width * LATERALITY_SWIRL_FAN_SPREAD_RATIO);
+  const webBusyProps =
+    Platform.OS === 'web' ? ({ 'aria-busy': true } as Record<string, unknown>) : {};
 
   return (
     <View
@@ -148,6 +150,7 @@ export function LateralityDeckSwirl({
       accessibilityState={{ busy: true }}
       accessibilityLiveRegion="polite"
       accessibilityLabel={caption}
+      {...webBusyProps}
       onLayout={(e) => {
         const { width, height } = e.nativeEvent.layout;
         if (width !== area.width || height !== area.height) {
@@ -263,7 +266,7 @@ const styles = StyleSheet.create({
   },
   wash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,91,119,0.55)',
+    backgroundColor: 'rgba(19,91,119,0.78)',
   },
   ghost: {
     position: 'absolute',
@@ -296,14 +299,21 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 16,
+    bottom: 18,
     alignItems: 'center',
+    zIndex: 40,
+    elevation: 40,
   },
   caption: {
-    color: Palette.offWhite,
+    color: Palette.darkBlue,
+    backgroundColor: Palette.offWhite,
+    overflow: 'hidden',
     fontSize: 14,
     lineHeight: 18,
     fontWeight: '500',
     textAlign: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 14,
   },
 });

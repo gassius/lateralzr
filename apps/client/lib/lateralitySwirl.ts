@@ -9,15 +9,15 @@
 export const LATERALITY_SWIRL_CARD_COUNT = 5;
 export const LATERALITY_SWIRL_REDUCED_CARD_COUNT = 3;
 export const LATERALITY_SWIRL_PERIOD_MS = 2600;
-export const LATERALITY_SWIRL_MIN_MS = 520;
+export const LATERALITY_SWIRL_MIN_MS = 720;
 export const LATERALITY_SWIRL_FAILURE_MIN_MS = 220;
 export const LATERALITY_SWIRL_REDUCED_HOLD_MS = 160;
 export const LATERALITY_SWIRL_SETTLE_MS = 380;
 export const LATERALITY_SWIRL_APPEAR_MS = 140;
-export const LATERALITY_SWIRL_CARD_SIZE = 0.78;
-export const LATERALITY_SWIRL_RADIUS_RATIO = 0.11;
-export const LATERALITY_SWIRL_FAN_SPREAD_RATIO = 0.075;
-export const LATERALITY_SWIRL_MAX_TILT_DEG = 15;
+export const LATERALITY_SWIRL_CARD_SIZE = 0.54;
+export const LATERALITY_SWIRL_RADIUS_RATIO = 0.2;
+export const LATERALITY_SWIRL_FAN_SPREAD_RATIO = 0.09;
+export const LATERALITY_SWIRL_MAX_TILT_DEG = 18;
 
 export type LateralitySwirlOutcome = 'pending' | 'success' | 'failure';
 
@@ -66,7 +66,7 @@ export function lateralitySwirlCardPose(
   const depth = (Math.sin(angle) + 1) / 2;
   return {
     x: Math.cos(angle) * radius,
-    y: Math.sin(angle) * radius * 0.52,
+    y: Math.sin(angle) * radius * 0.62,
     rotateDeg: Math.cos(angle) * LATERALITY_SWIRL_MAX_TILT_DEG,
     scale: 0.84 + depth * 0.16,
     zIndex: Math.round(depth * 20),
