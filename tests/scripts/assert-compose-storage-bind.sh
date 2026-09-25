@@ -85,6 +85,24 @@ fi
 echo "OK docker-missing stderr"
 rm -rf "$missing_dir" "$missing_err"
 
+echo "=== verify fails clearly if python3 is missing ==="
+no_py_dir="$(mktemp -d)"
+ln -s "$(command -v bash)" "$no_py_dir/bash"
+ln -s "$(command -v dirname)" "$no_py_dir/dirname"
+no_py_err="$(mktemp)"
+if PATH="$no_py_dir" "$VERIFY" --storage-only >/dev/null 2>"$no_py_err"; then
+    echo "FAIL verify should exit non-zero without python3" >&2
+    cat "$no_py_err" >&2
+    exit 1
+fi
+if ! grep -q 'python3 is required' "$no_py_err"; then
+    echo "FAIL verify without python3 should say python3 is required" >&2
+    cat "$no_py_err" >&2
+    exit 1
+fi
+echo "OK verify-missing-python3"
+rm -rf "$no_py_dir" "$no_py_err"
+
 if ! docker compose version >/dev/null 2>&1; then
     echo "docker compose is required" >&2
     exit 1

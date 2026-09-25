@@ -29,6 +29,10 @@ storage_paths_match() {
 }
 
 check_storage_bind() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "❌ python3 is required to read the compose storage bind" >&2
+        return 1
+    fi
     if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
         echo "❌ bin/storage-host is missing or not executable" >&2
         return 1

@@ -13,6 +13,9 @@ jobs:
     environment: prod
     
     steps:
+      # This script body is sent by Actions. The VPS checkout is still the
+      # previous commit until we fetch/merge, so new bin/* entrypoints cannot
+      # be the first command.
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -22,7 +25,38 @@ jobs:
           port: ${{ secrets.PROD_PORT }}
           script: |
             set -euo pipefail
-            "${{ secrets.PROD_PATH }}/bin/deploy-prod-ssh"
+            PROD_PATH="${{ secrets.PROD_PATH }}"
+            if [[ -z "${PROD_PATH}" ]]; then
+              echo "❌ PROD_PATH is empty"
+              exit 1
+            fi
+            if [[ "${PROD_PATH}" == \~* || "${PROD_PATH}" != /* ]]; then
+              echo "❌ PROD_PATH must be an absolute path without a leading tilde"
+              exit 1
+            fi
+            cd "${PROD_PATH}"
+            if [[ ! -d .git ]]; then
+              echo "❌ Error: Not a git repository"
+              exit 1
+            fi
+            if [[ -n "$(git status --porcelain)" ]]; then
+              echo "❌ Refusing to deploy with dirty working tree"
+              git status --short
+              exit 1
+            fi
+            branch="$(git rev-parse --abbrev-ref HEAD)"
+            if [[ "${branch}" != "main" ]]; then
+              echo "❌ Expected branch main, got ${branch}"
+              exit 1
+            fi
+            echo "🔄 Updating checkout to origin/main before new deploy scripts"
+            git fetch origin main
+            git merge --ff-only origin/main
+            if [[ ! -x ./bin/deploy-prod-ssh ]]; then
+              echo "❌ bin/deploy-prod-ssh missing after fast-forward to origin/main"
+              exit 1
+            fi
+            ./bin/deploy-prod-ssh
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
@@ -33,4 +67,22 @@ jobs:
           port: ${{ secrets.PROD_PORT }}
           script: |
             set -euo pipefail
-            "${{ secrets.PROD_PATH }}/bin/deploy-prod-verify"
+            PROD_PATH="${{ secrets.PROD_PATH }}"
+            if [[ -z "${PROD_PATH}" ]]; then
+              echo "❌ PROD_PATH is empty"
+              exit 1
+            fi
+            if [[ "${PROD_PATH}" == \~* || "${PROD_PATH}" != /* ]]; then
+              echo "❌ PROD_PATH must be an absolute path without a leading tilde"
+              exit 1
+            fi
+            cd "${PROD_PATH}"
+            if ! command -v python3 >/dev/null 2>&1; then
+              echo "❌ python3 is required on the deploy host"
+              exit 1
+            fi
+            if [[ ! -x ./bin/deploy-prod-verify ]]; then
+              echo "❌ bin/deploy-prod-verify is missing; Deploy must update the checkout first"
+              exit 1
+            fi
+            ./bin/deploy-prod-verify
