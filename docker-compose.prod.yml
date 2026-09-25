@@ -14,7 +14,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./docker/nginx/prod.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./storage/app/public:/var/www/html/public/storage:ro
+      # Host path overridable via LATERALZR_STORAGE (default ./storage).
+      - ${LATERALZR_STORAGE:-./storage}/app/public:/var/www/html/public/storage:ro
     depends_on:
       - app
     networks:
@@ -45,7 +46,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./storage:/var/www/html/storage
+      - ${LATERALZR_STORAGE:-./storage}:/var/www/html/storage
     networks:
       - gonzalezrico_platform
 
@@ -58,7 +59,7 @@ services:
       - .env
     command: php artisan queue:work --queue=default --tries=3 --timeout=300 --sleep=3 --max-jobs=1000
     volumes:
-      - ./storage:/var/www/html/storage
+      - ${LATERALZR_STORAGE:-./storage}:/var/www/html/storage
     networks:
       - gonzalezrico_platform
     depends_on:
@@ -73,7 +74,7 @@ services:
       - .env
     command: php artisan schedule:work --verbose
     volumes:
-      - ./storage:/var/www/html/storage
+      - ${LATERALZR_STORAGE:-./storage}:/var/www/html/storage
     networks:
       - gonzalezrico_platform
     depends_on:

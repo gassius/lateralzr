@@ -35,15 +35,23 @@ if [[ -z "$APP_KEY_VALUE" ]]; then
     exit 1
 fi
 
-echo "📁 Ensuring host storage directories exist..."
+# Resolve like Compose (shell env, then .env, then ./storage). Do not export
+# a defaulted value — that would hide .env from `docker compose`.
+if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
+    echo "❌ Error: bin/storage-host is missing or not executable"
+    exit 1
+fi
+storage_host="$("$SCRIPT_DIR/storage-host" --require-ready)"
+
+echo "📁 Ensuring host storage directories exist (${storage_host})..."
 mkdir -p \
-    storage/app/public \
-    storage/app/private \
-    storage/framework/cache/data \
-    storage/framework/sessions \
-    storage/framework/testing \
-    storage/framework/views \
-    storage/logs
+    "${storage_host}/app/public" \
+    "${storage_host}/app/private" \
+    "${storage_host}/framework/cache/data" \
+    "${storage_host}/framework/sessions" \
+    "${storage_host}/framework/testing" \
+    "${storage_host}/framework/views" \
+    "${storage_host}/logs"
 echo ""
 
 # Conservative Docker prune (build cache + dangling images only). Fail-soft:
@@ -156,7 +164,7 @@ while [ $attempt -le $MAX_ATTEMPTS ]; do
         echo "   API:   curl https://api.lateralzr.com/api/hello"
         echo "   Admin: curl -I https://api.lateralzr.com/admin/login"
         echo "   Logs:  docker compose -f $COMPOSE_FILE logs --tail=100 app"
-        echo "          tail -n 100 storage/logs/laravel.log"
+        echo "          tail -n 100 ${storage_host}/logs/laravel.log"
         exit 0
     fi
     
@@ -177,6 +185,6 @@ echo "     curl -i https://api.lateralzr.com/up"
 echo "     curl -i https://api.lateralzr.com/admin/login"
 echo "   Logs:"
 echo "     docker compose -f $COMPOSE_FILE logs --tail=200 app"
-echo "     tail -n 200 storage/logs/laravel.log"
+echo "     tail -n 200 ${storage_host}/logs/laravel.log"
 echo ""
 exit 1
