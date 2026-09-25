@@ -13,6 +13,9 @@ jobs:
     environment: prod
     
     steps:
+      # This script body is sent by Actions. The VPS checkout is still the
+      # previous commit until we fetch/merge, so new bin/* entrypoints cannot
+      # be the first command.
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -21,33 +24,40 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT }}
           script: |
-            set -e
-            
-            echo "🚀 Starting Lateralzr deployment"
-            echo "================================"
-            
-            cd ${{ secrets.PROD_PATH }}
-            
-            if [[ ! -d .git ]]; then
-              echo "❌ Error: Not a git repository: $(pwd)"
+            set -euo pipefail
+            PROD_PATH="${{ secrets.PROD_PATH }}"
+            if [[ -z "${PROD_PATH}" ]]; then
+              echo "❌ PROD_PATH is empty"
               exit 1
             fi
-            
-            echo "📍 Repository: $(git remote get-url origin 2>/dev/null || echo 'unknown')"
-            echo "📂 Working directory: $(pwd)"
-            
-            if [[ "$(pwd)" != "/home/cgonzalez/lateralzr" ]]; then
-              echo "⚠️  Warning: Expected /home/cgonzalez/lateralzr, got $(pwd)"
+            if [[ "${PROD_PATH}" == \~* || "${PROD_PATH}" != /* ]]; then
+              echo "❌ PROD_PATH must be an absolute path without a leading tilde"
+              exit 1
             fi
-            
-            echo ""
-            echo "🔄 Running deployment script..."
-            ./bin/deploy-prod
-            
-            echo ""
-            echo "✅ Deployment complete!"
-            echo "🔗 API: https://api.lateralzr.com"
-      
+            cd "${PROD_PATH}"
+            if [[ ! -d .git ]]; then
+              echo "❌ Error: Not a git repository"
+              exit 1
+            fi
+            if [[ -n "$(git status --porcelain)" ]]; then
+              echo "❌ Refusing to deploy with dirty working tree"
+              git status --short
+              exit 1
+            fi
+            branch="$(git rev-parse --abbrev-ref HEAD)"
+            if [[ "${branch}" != "main" ]]; then
+              echo "❌ Expected branch main, got ${branch}"
+              exit 1
+            fi
+            echo "🔄 Updating checkout to origin/main before new deploy scripts"
+            git fetch origin main
+            git merge --ff-only origin/main
+            if [[ ! -x ./bin/deploy-prod-ssh ]]; then
+              echo "❌ bin/deploy-prod-ssh missing after fast-forward to origin/main"
+              exit 1
+            fi
+            ./bin/deploy-prod-ssh
+
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -56,39 +66,23 @@ jobs:
           key: ${{ secrets.PROD_SSH_KEY }}
           port: ${{ secrets.PROD_PORT }}
           script: |
-            cd ${{ secrets.PROD_PATH }}
             set -euo pipefail
-
-            storage_host="$(./bin/storage-host)"
-            echo "Resolved storage host: ${storage_host}"
-            if command -v python3 >/dev/null 2>&1; then
-              app_bind="$(./bin/compose-storage-bind || true)"
-              echo "Compose app storage bind: ${app_bind:-unavailable}"
-            else
-              echo "Compose app storage bind: (python3 not available)"
-            fi
-            
-            echo "🔍 Verifying services..."
-            docker compose -f docker-compose.prod.yml ps
-            
-            echo ""
-            echo "📊 Recent logs (last 20 lines):"
-            docker compose -f docker-compose.prod.yml logs --tail=20
-            
-            echo ""
-            echo "🧪 Testing API and admin login..."
-            if curl -f -s https://api.lateralzr.com/api/hello > /dev/null; then
-              echo "✅ API is responding"
-            else
-              echo "⚠️  API health check failed"
+            PROD_PATH="${{ secrets.PROD_PATH }}"
+            if [[ -z "${PROD_PATH}" ]]; then
+              echo "❌ PROD_PATH is empty"
               exit 1
             fi
-            admin_code="$(curl -s -o /dev/null -w '%{http_code}' https://api.lateralzr.com/admin/login || true)"
-            if [[ "$admin_code" == "200" ]]; then
-              echo "✅ Admin login is responding (HTTP 200)"
-            else
-              echo "⚠️  Admin login health check failed (HTTP ${admin_code:-000})"
-              docker compose -f docker-compose.prod.yml logs --tail=80 app
-              tail -n 80 "${storage_host}/logs/laravel.log" || true
+            if [[ "${PROD_PATH}" == \~* || "${PROD_PATH}" != /* ]]; then
+              echo "❌ PROD_PATH must be an absolute path without a leading tilde"
               exit 1
             fi
+            cd "${PROD_PATH}"
+            if ! command -v python3 >/dev/null 2>&1; then
+              echo "❌ python3 is required on the deploy host"
+              exit 1
+            fi
+            if [[ ! -x ./bin/deploy-prod-verify ]]; then
+              echo "❌ bin/deploy-prod-verify is missing; Deploy must update the checkout first"
+              exit 1
+            fi
+            ./bin/deploy-prod-verify

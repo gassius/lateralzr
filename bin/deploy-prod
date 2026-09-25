@@ -72,7 +72,7 @@ run_deploy_docker_cleanup() {
 
 run_deploy_docker_cleanup "before disk check"
 
-# shellcheck source=deploy-disk-check.sh
+# shellcheck source=bin/deploy-disk-check.sh
 source "$SCRIPT_DIR/deploy-disk-check.sh"
 if ! check_deploy_disk_space "$PROJECT_ROOT"; then
     exit 1

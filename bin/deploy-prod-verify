@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+
+# Post-deploy checks used by .github/workflows/deploy-prod.yml.
+# Compares bin/storage-host against the app bind in `docker compose config`
+# and fails on mismatch. --storage-only skips live HTTP/docker ps checks.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="docker-compose.prod.yml"
+
+cd "$PROJECT_ROOT"
+
+storage_host_abs() {
+    local host="$1"
+    if [[ "$host" == /* ]]; then
+        realpath -m "$host"
+    else
+        realpath -m "$PROJECT_ROOT/$host"
+    fi
+}
+
+storage_paths_match() {
+    local host_abs bind_abs
+    host_abs="$(storage_host_abs "$1")"
+    bind_abs="$(realpath -m "$2")"
+    [[ "$host_abs" == "$bind_abs" ]]
+}
+
+check_storage_bind() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "❌ python3 is required to read the compose storage bind" >&2
+        return 1
+    fi
+    if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
+        echo "❌ bin/storage-host is missing or not executable" >&2
+        return 1
+    fi
+    if [[ ! -x "$SCRIPT_DIR/compose-storage-bind" ]]; then
+        echo "❌ bin/compose-storage-bind is missing or not executable" >&2
+        return 1
+    fi
+
+    local storage_host app_bind storage_abs
+    storage_host="$("$SCRIPT_DIR/storage-host")"
+    echo "Resolved storage host: ${storage_host}"
+
+    app_bind="$("$SCRIPT_DIR/compose-storage-bind" "$COMPOSE_FILE")"
+    if [[ -z "$app_bind" ]]; then
+        echo "❌ Could not read app storage bind from docker compose config" >&2
+        return 1
+    fi
+    echo "Compose app storage bind: ${app_bind}"
+
+    storage_abs="$(storage_host_abs "$storage_host")"
+    if ! storage_paths_match "$storage_host" "$app_bind"; then
+        echo "❌ Storage path mismatch: storage-host does not match the compose bind mount" >&2
+        echo "   storage-host: ${storage_host}" >&2
+        echo "   storage-host (absolute): ${storage_abs}" >&2
+        echo "   compose bind: ${app_bind}" >&2
+        return 1
+    fi
+    echo "✅ Storage host matches compose bind"
+}
+
+verify_services() {
+    local storage_host="$1"
+
+    echo "🔍 Verifying services..."
+    docker compose -f "$COMPOSE_FILE" ps
+
+    echo ""
+    echo "📊 Recent logs (last 20 lines):"
+    docker compose -f "$COMPOSE_FILE" logs --tail=20
+
+    echo ""
+    echo "🧪 Testing API and admin login..."
+    if curl -f -s https://api.lateralzr.com/api/hello > /dev/null; then
+        echo "✅ API is responding"
+    else
+        echo "⚠️  API health check failed"
+        return 1
+    fi
+    local admin_code
+    admin_code="$(curl -s -o /dev/null -w '%{http_code}' https://api.lateralzr.com/admin/login || true)"
+    if [[ "$admin_code" == "200" ]]; then
+        echo "✅ Admin login is responding (HTTP 200)"
+    else
+        echo "⚠️  Admin login health check failed (HTTP ${admin_code:-000})"
+        docker compose -f "$COMPOSE_FILE" logs --tail=80 app
+        tail -n 80 "${storage_host}/logs/laravel.log" || true
+        return 1
+    fi
+}
+
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    return 0
+fi
+
+storage_only=0
+for arg in "$@"; do
+    case "$arg" in
+        --storage-only)
+            storage_only=1
+            ;;
+        -h|--help)
+            echo "Usage: deploy-prod-verify [--storage-only]"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            exit 1
+            ;;
+    esac
+done
+
+check_storage_bind
+
+if [[ "$storage_only" -eq 1 ]]; then
+    exit 0
+fi
+
+verify_services "$(storage_host_abs "$("$SCRIPT_DIR/storage-host")")"

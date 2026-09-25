@@ -10,8 +10,13 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 jobs:
   workflow-lint:
+    # Job name "Workflow lint" is the required check name for main branch protection.
+    # No path filters or `if:` — must run on every PR so the check is never skipped.
     name: Workflow lint
     runs-on: ubuntu-latest
     steps:
@@ -20,10 +25,22 @@ jobs:
           fetch-depth: 0
 
       - name: Run actionlint
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on bin scripts
+        run: |
+          mapfile -t scripts < <(
+            find bin tests/scripts -type f \
+              ! -name 'lint-changed-yaml' ! -name '*.py' ! -name '*.pyc' \
+              ! -path '*/__pycache__/*' | sort
+          )
+          shellcheck -x "${scripts[@]}"
 
       - name: Install PyYAML
-        run: python3 -m pip install --user pyyaml
+        run: python3 -m pip install --user 'pyyaml==6.0.2'
 
       - name: Parse changed YAML files
         run: python3 bin/lint-changed-yaml
@@ -56,6 +73,21 @@ jobs:
       - name: Run tests
         run: php artisan test
 
+  vps-python36:
+    # Prod VPS is Ubuntu 18.04 / Python 3.6.9. Job name is stable.
+    name: VPS Python 3.6
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run VPS Python under 3.6
+        run: |
+          docker run --rm \
+            -e REQUIRE_PYTHON36=1 \
+            -v "$PWD:/repo" -w /repo \
+            python:3.6.15-buster \
+            python3 tests/scripts/test-vps-python36.py
+
   prod-storage:
     name: Prod storage binds
     runs-on: ubuntu-latest
@@ -64,6 +96,9 @@ jobs:
 
       - name: Assert compose storage binds (unset, empty, set, .env-only)
         run: bash tests/scripts/assert-prod-storage-binds.sh
+
+      - name: Assert compose-storage-bind and storage-host match
+        run: bash tests/scripts/assert-compose-storage-bind.sh
 
   client:
     name: Client (Expo)

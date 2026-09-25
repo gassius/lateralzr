@@ -25,6 +25,8 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 /.turbo
+__pycache__/
+*.pyc
 
 # Laravel Boost (optional - uncomment if you want each developer to configure their own)
 # boost.json

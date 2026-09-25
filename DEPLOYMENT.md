@@ -59,7 +59,9 @@ Volumes (intentionally narrow — do **not** bind-mount the host repo over `/var
 - `./docker/nginx/prod.conf` → nginx config (read-only)
 - `.env` via `env_file` (not copied into the image)
 
-`LATERALZR_STORAGE` is unset today, so the host path is `./storage`. Set it in `.env` (see `.env.production.example`) only when moving persistent data onto a Hetzner Volume. `bin/deploy-prod` resolves the value the same way Compose does (shell env, then `.env`, then `./storage`). A non-default path must already exist and be a mounted volume, or contain a `.lateralzr-storage` marker created during the data migration. Values with `:` or whitespace are rejected.
+When `LATERALZR_STORAGE` is unset or empty, the host path is `./storage`. After the volume cutover, production sets it in `.env` (see `.env.production.example`). `bin/storage-host` / `bin/deploy-prod` resolve the value the same way Compose interpolates `${LATERALZR_STORAGE:-./storage}`: non-empty shell env, else `.env`, else `./storage`. An empty shell value does not fall through to `.env`. A non-default path must already exist and be a mounted volume, or contain a `.lateralzr-storage` marker created during the data migration. Values with `:` or whitespace are rejected.
+
+`.env` parsing keeps simple `KEY=value` and quoted `KEY="value"` / `KEY='value'` lines identical to Compose. Leading and trailing whitespace around the value is trimmed; interior whitespace is kept and then rejected (Compose would interpolate a spaced path). Unquoted `#` comments are stripped, including inside quotes — Compose keeps `#` inside quotes; do not put `#` in a quoted storage path.
 
 Hetzner Volume cutover (keep `./storage` until verified):
 
@@ -393,7 +395,7 @@ tail -f "$(./bin/storage-host)/logs/laravel.log"
 tail -f "$(./bin/storage-host)/logs/scheduler-test.log"
 ```
 
-Host log files live on `${LATERALZR_STORAGE:-./storage}` (today `./storage` in the VPS checkout).
+Host log files live on `${LATERALZR_STORAGE:-./storage}` (resolved by `bin/storage-host`).
 
 ### Access Application Shell
 
