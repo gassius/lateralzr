@@ -14,8 +14,11 @@ class ComposeStorageBindTest extends TestCase
         $this->fixtureRoot = sys_get_temp_dir().'/lateralzr-compose-bind-'.uniqid('', true);
         mkdir($this->fixtureRoot.'/bin', 0777, true);
         $helper = dirname(__DIR__, 2).'/bin/compose-storage-bind';
+        $parser = dirname(__DIR__, 2).'/bin/compose-storage-bind.py';
         $this->assertFileIsReadable($helper);
+        $this->assertFileIsReadable($parser);
         $this->assertTrue(copy($helper, $this->fixtureRoot.'/bin/compose-storage-bind'));
+        $this->assertTrue(copy($parser, $this->fixtureRoot.'/bin/compose-storage-bind.py'));
         chmod($this->fixtureRoot.'/bin/compose-storage-bind', 0755);
     }
 
@@ -46,6 +49,16 @@ class ComposeStorageBindTest extends TestCase
         $source = file_get_contents(dirname(__DIR__, 2).'/bin/compose-storage-bind');
         $this->assertNotFalse($source);
         $this->assertStringNotContainsString('2>/dev/null', $source);
+    }
+
+    public function test_vps_parser_avoids_post_36_syntax(): void
+    {
+        $source = file_get_contents(dirname(__DIR__, 2).'/bin/compose-storage-bind.py');
+        $this->assertNotFalse($source);
+        $this->assertDoesNotMatchRegularExpression('/^from __future__ import annotations/m', $source);
+        $this->assertStringNotContainsString(':=', $source);
+        $this->assertStringNotContainsString('capture_output', $source);
+        $this->assertDoesNotMatchRegularExpression('/^import dataclasses|^from dataclasses /m', $source);
     }
 
     /**

@@ -7,6 +7,7 @@
 # workflow YAML (column-0 lines end a block scalar and invalidate the file).
 # Never fails the caller: missing tools, compose errors, or a missing bind
 # produce empty stdout and exit 0. Compose / tool errors go to stderr.
+# The parser (compose-storage-bind.py) must stay Python 3.6-compatible.
 
 set -u
 
@@ -26,16 +27,12 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 0
 fi
 
-docker compose -f "$COMPOSE_FILE" config --format json | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    raise SystemExit(0)
-for volume in data.get("services", {}).get("app", {}).get("volumes", []):
-    if isinstance(volume, dict) and volume.get("target") == "/var/www/html/storage":
-        print(volume.get("source", "") or "")
-        break
-' || true
+PARSER="$SCRIPT_DIR/compose-storage-bind.py"
+if [[ ! -f "$PARSER" ]]; then
+    echo "compose-storage-bind: $PARSER not found" >&2
+    exit 0
+fi
+
+docker compose -f "$COMPOSE_FILE" config --format json | python3 "$PARSER" || true
 
 exit 0
