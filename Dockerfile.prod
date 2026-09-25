@@ -30,13 +30,6 @@ RUN set -eux; \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Node.js and pnpm for asset building (Filament admin panel)
-RUN set -eux; \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; \
-    apt-get install -y --no-install-recommends nodejs; \
-    npm install -g pnpm; \
-    rm -rf /var/lib/apt/lists/*
-
 # Copy application files
 COPY . /var/www/html
 
@@ -57,11 +50,6 @@ RUN mkdir -p \
 # post-autoload-dump runs package:discover + filament:upgrade; needs the dirs above.
 RUN composer install --optimize-autoloader --no-dev --no-interaction --prefer-dist
 
-# Build frontend assets (Filament admin panel)
-RUN pnpm install --frozen-lockfile --filter=!client \
-    && pnpm run build \
-    && rm -rf node_modules
-
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage \
@@ -80,7 +68,7 @@ EXPOSE 9000
 ENTRYPOINT ["/usr/local/bin/app-entrypoint.sh"]
 CMD ["php-fpm"]
 
-# Nginx serves public/ from the app image (built assets + index.php path).
+# Nginx serves public/ from the app image (committed Filament public/js + index.php path).
 # Do not bind-mount the host repo over /var/www/html in compose — that hides vendor/.
 FROM nginx:alpine AS nginx
 

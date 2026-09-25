@@ -4,24 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite",
     "build:all": "turbo run build",
     "dev:all": "turbo run dev",
     "dev:full": "bash ./dev.sh up && pnpm dev:all",
     "dev:client": "turbo run dev --filter=client"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.0.0",
-    "axios": "^1.11.0",
     "concurrently": "^9.0.1",
-    "laravel-vite-plugin": "^2.0.0",
-    "tailwindcss": "^4.0.0",
-    "turbo": "^2.3.0",
-    "vite": "^7.0.7"
+    "turbo": "^2.3.0"
   },
-  "packageManager": "pnpm@9.15.0",
-  "dependencies": {
-    "cytoscape": "^3.33.2"
-  }
+  "packageManager": "pnpm@9.15.0"
 }

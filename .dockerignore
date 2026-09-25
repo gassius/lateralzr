@@ -18,8 +18,8 @@ Plans/
 node_modules/
 apps/client/node_modules/
 .turbo/
-# Keep pnpm-lock.yaml in the build context — Dockerfile.prod runs
-# `pnpm install --frozen-lockfile` after composer install.
+# pnpm-lock.yaml is unused by Dockerfile.prod (no Node/Vite asset build).
+# Leave it in the context; host/CI monorepo install still needs the file.
 
 # Laravel Sail
 compose.yaml
