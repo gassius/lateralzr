@@ -6,7 +6,7 @@
 # Used by the GitHub Actions verify step so multiline Python never sits in
 # workflow YAML (column-0 lines end a block scalar and invalidate the file).
 # Never fails the caller: missing tools, compose errors, or a missing bind
-# produce empty stdout and exit 0.
+# produce empty stdout and exit 0. Compose / tool errors go to stderr.
 
 set -u
 
@@ -17,14 +17,16 @@ COMPOSE_FILE="${1:-docker-compose.prod.yml}"
 cd "$PROJECT_ROOT" || exit 0
 
 if ! command -v docker >/dev/null 2>&1; then
+    echo "compose-storage-bind: docker not found" >&2
     exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
+    echo "compose-storage-bind: python3 not found" >&2
     exit 0
 fi
 
-docker compose -f "$COMPOSE_FILE" config --format json 2>/dev/null | python3 -c '
+docker compose -f "$COMPOSE_FILE" config --format json | python3 -c '
 import json, sys
 try:
     data = json.load(sys.stdin)

@@ -74,6 +74,36 @@ class ProdStorageHostPathTest extends TestCase
         $this->assertSame(1, $code);
     }
 
+    public function test_dotenv_quoted_and_padded_simple_values_match_previous_helper(): void
+    {
+        file_put_contents($this->fixtureRoot.'/.env', "LATERALZR_STORAGE=\"/mnt/from-env\"\n");
+        [$code, $stdout] = $this->runHelper(['LATERALZR_STORAGE' => null]);
+        $this->assertSame(0, $code);
+        $this->assertSame('/mnt/from-env', $stdout);
+
+        file_put_contents($this->fixtureRoot.'/.env', "LATERALZR_STORAGE='/mnt/from-env'\n");
+        [$code, $stdout] = $this->runHelper(['LATERALZR_STORAGE' => null]);
+        $this->assertSame(0, $code);
+        $this->assertSame('/mnt/from-env', $stdout);
+
+        file_put_contents($this->fixtureRoot.'/.env', "LATERALZR_STORAGE=/mnt/from-env  \n");
+        [$code, $stdout] = $this->runHelper(['LATERALZR_STORAGE' => null]);
+        $this->assertSame(0, $code);
+        $this->assertSame('/mnt/from-env', $stdout);
+    }
+
+    public function test_dotenv_interior_whitespace_is_rejected_not_collapsed(): void
+    {
+        file_put_contents($this->fixtureRoot.'/.env', "LATERALZR_STORAGE=\"/mnt/env storage\"\n");
+
+        [$code, $stdout, $stderr] = $this->runHelper(['LATERALZR_STORAGE' => null]);
+        $this->assertSame(1, $code);
+        $this->assertSame('', $stdout);
+        $this->assertStringContainsString('must not contain', $stderr);
+        $this->assertStringContainsString('/mnt/env storage', $stderr);
+        $this->assertStringNotContainsString('/mnt/envstorage', $stderr);
+    }
+
     public function test_require_ready_allows_missing_default_path(): void
     {
         [$code, $stdout] = $this->runHelper(['LATERALZR_STORAGE' => null], ['--require-ready']);

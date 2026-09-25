@@ -5,8 +5,17 @@
 #   1. Non-empty LATERALZR_STORAGE in the process environment
 #   2. Else if the variable is set but empty, default ./storage
 #      (shell overrides .env; compose `:-` treats empty as unset)
-#   3. Else non-empty LATERALZR_STORAGE from the project .env (APP_KEY-style parse)
+#   3. Else non-empty LATERALZR_STORAGE from the project .env
 #   4. Else ./storage
+#
+# .env parse (simple KEY=value lines match Compose and the previous helper):
+#   - First LATERALZR_STORAGE= line only
+#   - Unquoted '#' starts a comment (also stripped inside quotes — Compose keeps
+#     '#' inside quotes; we do not, so quoted values must not contain '#')
+#   - Leading/trailing whitespace is trimmed; wrapping "..." or '...' is removed
+#   - Interior whitespace is kept, then rejected below (Compose would interpolate
+#     a spaced path; this helper still refuses ':' and whitespace so a bind
+#     mount cannot split). Previously `tr -d '[:space:]'` collapsed those values.
 #
 # Usage:
 #   bin/storage-host                 # print the resolved path
@@ -27,7 +36,32 @@ read_env_storage() {
     if [[ ! -f "$env_file" ]]; then
         return 0
     fi
-    grep -E '^LATERALZR_STORAGE=' "$env_file" | head -n1 | cut -d= -f2- | sed 's/#.*//' | tr -d '[:space:]' | tr -d '"' | tr -d "'"
+
+    local raw
+    raw="$(grep -E '^LATERALZR_STORAGE=' "$env_file" | head -n1 | cut -d= -f2- || true)"
+    if [[ -z "$raw" ]]; then
+        return 0
+    fi
+
+    # Same as the previous helper for unquoted comments. Difference vs Compose:
+    # '#' is stripped even inside quotes.
+    raw="${raw%%#*}"
+
+    # Trim leading/trailing whitespace only (do not delete interior spaces).
+    raw="${raw#"${raw%%[![:space:]]*}"}"
+    raw="${raw%"${raw##*[![:space:]]}"}"
+
+    if [[ ${#raw} -ge 2 ]]; then
+        local first="${raw:0:1}"
+        local last="${raw: -1}"
+        if [[ ( "$first" == '"' && "$last" == '"' ) || ( "$first" == "'" && "$last" == "'" ) ]]; then
+            raw="${raw:1:${#raw}-2}"
+            raw="${raw#"${raw%%[![:space:]]*}"}"
+            raw="${raw%"${raw##*[![:space:]]}"}"
+        fi
+    fi
+
+    printf '%s' "$raw"
 }
 
 resolve_lateralzr_storage() {

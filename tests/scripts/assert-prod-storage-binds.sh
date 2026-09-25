@@ -77,7 +77,7 @@ unset LATERALZR_STORAGE || true
 assert_case "unset" "$default_storage" "$default_public"
 
 echo "=== empty LATERALZR_STORAGE ==="
-LATERALZR_STORAGE= assert_case "empty" "$default_storage" "$default_public"
+LATERALZR_STORAGE='' assert_case "empty" "$default_storage" "$default_public"
 
 echo "=== LATERALZR_STORAGE=/mnt/x ==="
 LATERALZR_STORAGE=/mnt/x assert_case "set" "/mnt/x" "/mnt/x/app/public"

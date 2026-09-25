@@ -10,8 +10,13 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+
 jobs:
   workflow-lint:
+    # Job name "Workflow lint" is the required check name for main branch protection.
+    # No path filters or `if:` — must run on every PR so the check is never skipped.
     name: Workflow lint
     runs-on: ubuntu-latest
     steps:
@@ -20,10 +25,18 @@ jobs:
           fetch-depth: 0
 
       - name: Run actionlint
-        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on bin scripts
+        run: |
+          mapfile -t scripts < <(find bin tests/scripts -type f ! -name 'lint-changed-yaml' | sort)
+          shellcheck -x "${scripts[@]}"
 
       - name: Install PyYAML
-        run: python3 -m pip install --user pyyaml
+        run: python3 -m pip install --user 'pyyaml==6.0.2'
 
       - name: Parse changed YAML files
         run: python3 bin/lint-changed-yaml
@@ -64,6 +77,9 @@ jobs:
 
       - name: Assert compose storage binds (unset, empty, set, .env-only)
         run: bash tests/scripts/assert-prod-storage-binds.sh
+
+      - name: Assert compose-storage-bind and storage-host match
+        run: bash tests/scripts/assert-compose-storage-bind.sh
 
   client:
     name: Client (Expo)

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# GitHub Actions SSH entrypoint for production deploy.
+# Invoked from .github/workflows/deploy-prod.yml; run from any cwd.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo "🚀 Starting Lateralzr deployment"
+echo "================================"
+
+cd "$PROJECT_ROOT"
+
+if [[ ! -d .git ]]; then
+    echo "❌ Error: Not a git repository: $(pwd)"
+    exit 1
+fi
+
+echo "📍 Repository: $(git remote get-url origin 2>/dev/null || echo 'unknown')"
+echo "📂 Working directory: $(pwd)"
+
+if [[ "$(pwd)" != "/home/cgonzalez/lateralzr" ]]; then
+    echo "⚠️  Warning: Expected /home/cgonzalez/lateralzr, got $(pwd)"
+fi
+
+echo ""
+echo "🔄 Running deployment script..."
+"$SCRIPT_DIR/deploy-prod"
+
+echo ""
+echo "✅ Deployment complete!"
+echo "🔗 API: https://api.lateralzr.com"

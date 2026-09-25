@@ -52,7 +52,9 @@ def changed_yaml() -> list[str]:
     event = os.environ.get("GITHUB_EVENT_NAME", "")
     if event == "pull_request":
         base = os.environ.get("GITHUB_BASE_REF") or "main"
-        run_git(["git", "fetch", "--depth", "1", "origin", base])
+        # Do not pass --depth: checkout uses fetch-depth: 0, and a shallow
+        # fetch would mark the repo shallow and break origin/base...HEAD.
+        run_git(["git", "fetch", "origin", base])
         result = run_git(
             ["git", "diff", "--name-only", "--diff-filter=ACMR", f"origin/{base}...HEAD"]
         )
