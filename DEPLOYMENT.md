@@ -54,10 +54,20 @@ The production setup consists of:
 
 Volumes (intentionally narrow — do **not** bind-mount the host repo over `/var/www/html`):
 
-- `./storage` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, logs, cache)
-- `./storage/app/public` → `/var/www/html/public/storage` on nginx (public disk files)
+- `${LATERALZR_STORAGE:-./storage}` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, logs, cache)
+- `${LATERALZR_STORAGE:-./storage}/app/public` → `/var/www/html/public/storage` on nginx (public disk files)
 - `./docker/nginx/prod.conf` → nginx config (read-only)
 - `.env` via `env_file` (not copied into the image)
+
+`LATERALZR_STORAGE` is unset today, so the host path is `./storage`. Set it in `.env` (see `.env.production.example`) only when moving persistent data onto a Hetzner Volume. `bin/deploy-prod` resolves the value the same way Compose does (shell env, then `.env`, then `./storage`). A non-default path must already exist and be a mounted volume, or contain a `.lateralzr-storage` marker created during the data migration. Values with `:` or whitespace are rejected.
+
+Hetzner Volume cutover (keep `./storage` until verified):
+
+1. Stop the Lateralzr stack (`docker compose -f docker-compose.prod.yml stop`)
+2. `rsync -a --numeric-ids ./storage/ /mnt/data/lateralzr/storage/`
+3. `touch /mnt/data/lateralzr/storage/.lateralzr-storage`
+4. Set `LATERALZR_STORAGE=/mnt/data/lateralzr/storage` in `.env`
+5. Deploy (`./bin/deploy-prod`) and confirm uploads, public disk, and `$(./bin/storage-host)/logs/laravel.log`
 
 The app image **entrypoint** (`docker/app-entrypoint.sh`) runs on every start: it recreates `storage/framework/*` and `storage/logs` on the bind mount, `chown`s them to `www-data`, and symlinks `public/storage`. Queue and scheduler artisan processes are dropped to `www-data` so they cannot recreate `laravel.log` as `root:root`.
 
@@ -301,7 +311,7 @@ Filament / Laravel **web** 500s must show up in **both** places below. If `larav
 
 ```bash
 # Laravel file log (host bind-mount of storage/)
-tail -n 200 storage/logs/laravel.log
+tail -n 200 "$(./bin/storage-host)/logs/laravel.log"
 
 # PHP-FPM + Laravel stderr (PHP fatals, reportable exceptions)
 docker compose -f docker-compose.prod.yml logs --tail=200 app
@@ -379,11 +389,11 @@ Check that it is running:
 ```bash
 ./bin/artisan schedule:list
 docker compose -f docker-compose.prod.yml logs -f scheduler
-tail -f storage/logs/laravel.log
-tail -f storage/logs/scheduler-test.log
+tail -f "$(./bin/storage-host)/logs/laravel.log"
+tail -f "$(./bin/storage-host)/logs/scheduler-test.log"
 ```
 
-`storage/` is bind-mounted from the VPS checkout, so those log files are on the host.
+Host log files live on `${LATERALZR_STORAGE:-./storage}` (today `./storage` in the VPS checkout).
 
 ### Access Application Shell
 
@@ -486,7 +496,7 @@ DB_PASSWORD=<provided-by-admin>
 
 ## Storage and Permissions
 
-The host `./storage` bind-mount hides the image's storage tree. The **app entrypoint** (not a one-off `chown` on the VPS) is the durable fix:
+The host `${LATERALZR_STORAGE:-./storage}` bind-mount hides the image's storage tree. The **app entrypoint** (not a one-off `chown` on the VPS) is the durable fix:
 
 - Creates `storage/framework/{cache/data,sessions,testing,views}` and `storage/logs` if missing
 - `chown www-data:www-data` and `chmod ug+rwX` so PHP-FPM workers can compile Blade views and append laravel.log
@@ -497,7 +507,7 @@ Queue and scheduler also use that entrypoint and run artisan **as www-data**, so
 After a deploy you should see:
 
 ```bash
-ls -ld storage/logs storage/framework/views
+ls -ld "$(./bin/storage-host)/logs" "$(./bin/storage-host)/framework/views"
 # drwxrwxr-x www-data www-data ...
 ```
 
@@ -623,7 +633,7 @@ Where to look when it 500s:
 ```bash
 curl -i https://api.lateralzr.com/admin/login
 docker compose -f docker-compose.prod.yml logs --tail=200 app
-tail -n 200 storage/logs/laravel.log
+tail -n 200 "$(./bin/storage-host)/logs/laravel.log"
 ./bin/artisan about
 ```
 

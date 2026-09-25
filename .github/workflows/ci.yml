@@ -39,6 +39,15 @@ jobs:
       - name: Run tests
         run: php artisan test
 
+  prod-storage:
+    name: Prod storage binds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert compose storage binds (unset, empty, set, .env-only)
+        run: bash tests/scripts/assert-prod-storage-binds.sh
+
   client:
     name: Client (Expo)
     runs-on: ubuntu-latest

@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+
+# Resolve the prod storage bind-mount host path the same way Compose interpolates
+# ${LATERALZR_STORAGE:-./storage}:
+#   1. Non-empty LATERALZR_STORAGE in the process environment
+#   2. Else if the variable is set but empty, default ./storage
+#      (shell overrides .env; compose `:-` treats empty as unset)
+#   3. Else non-empty LATERALZR_STORAGE from the project .env (APP_KEY-style parse)
+#   4. Else ./storage
+#
+# Usage:
+#   bin/storage-host                 # print the resolved path
+#   bin/storage-host --require-ready # also fail-fast for a non-default path
+#
+# Do not export a defaulted value from callers — that would hide .env from compose.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+LATERALZR_STORAGE_DEFAULT="./storage"
+LATERALZR_STORAGE_MARKER=".lateralzr-storage"
+
+read_env_storage() {
+    local env_file="$PROJECT_ROOT/.env"
+    if [[ ! -f "$env_file" ]]; then
+        return 0
+    fi
+    grep -E '^LATERALZR_STORAGE=' "$env_file" | head -n1 | cut -d= -f2- | sed 's/#.*//' | tr -d '[:space:]' | tr -d '"' | tr -d "'"
+}
+
+resolve_lateralzr_storage() {
+    local value=""
+    if [[ -n "${LATERALZR_STORAGE+x}" ]]; then
+        value="${LATERALZR_STORAGE}"
+    else
+        value="$(read_env_storage)"
+    fi
+    if [[ -z "$value" ]]; then
+        value="$LATERALZR_STORAGE_DEFAULT"
+    fi
+    if [[ "$value" == *:* || "$value" =~ [[:space:]] ]]; then
+        echo "❌ LATERALZR_STORAGE must not contain ':' or whitespace: ${value}" >&2
+        return 1
+    fi
+    printf '%s\n' "$value"
+}
+
+storage_host_abs() {
+    local host="$1"
+    if [[ "$host" == /* ]]; then
+        realpath -m "$host"
+    else
+        realpath -m "$PROJECT_ROOT/$host"
+    fi
+}
+
+storage_host_is_default() {
+    local host_abs default_abs
+    host_abs="$(storage_host_abs "$1")"
+    default_abs="$(realpath -m "$PROJECT_ROOT/storage")"
+    [[ "$host_abs" == "$default_abs" ]]
+}
+
+storage_host_is_mounted() {
+    local host_abs="$1"
+    local target
+    target="$(findmnt -T "$host_abs" -no TARGET 2>/dev/null || true)"
+    if [[ -n "$target" && "$target" != "/" ]]; then
+        return 0
+    fi
+    local p="$host_abs"
+    while [[ -n "$p" && "$p" != "/" ]]; do
+        if mountpoint -q "$p" 2>/dev/null; then
+            return 0
+        fi
+        p="$(dirname "$p")"
+    done
+    return 1
+}
+
+require_storage_host_ready() {
+    local host="$1"
+    local host_abs
+    host_abs="$(storage_host_abs "$host")"
+
+    if storage_host_is_default "$host"; then
+        return 0
+    fi
+
+    if [[ ! -d "$host_abs" ]]; then
+        echo "❌ LATERALZR_STORAGE is not an existing directory: ${host}" >&2
+        echo "   Non-default paths are not created by deploy. Mount the volume and rsync data first." >&2
+        return 1
+    fi
+
+    if [[ -e "$host_abs/$LATERALZR_STORAGE_MARKER" ]]; then
+        return 0
+    fi
+
+    if storage_host_is_mounted "$host_abs"; then
+        return 0
+    fi
+
+    echo "❌ LATERALZR_STORAGE is not a mounted volume: ${host}" >&2
+    echo "   Mount the Hetzner Volume first, or create ${host_abs}/${LATERALZR_STORAGE_MARKER} during the data migration." >&2
+    return 1
+}
+
+require_ready=0
+for arg in "$@"; do
+    case "$arg" in
+        --require-ready)
+            require_ready=1
+            ;;
+        -h|--help)
+            echo "Usage: storage-host [--require-ready]"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg" >&2
+            exit 1
+            ;;
+    esac
+done
+
+storage_host="$(resolve_lateralzr_storage)"
+if [[ "$require_ready" -eq 1 ]]; then
+    require_storage_host_ready "$storage_host"
+fi
+printf '%s\n' "$storage_host"

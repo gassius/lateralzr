@@ -35,9 +35,13 @@ if [[ -z "$APP_KEY_VALUE" ]]; then
     exit 1
 fi
 
-# Same default as docker-compose.prod.yml. Do not export a defaulted value:
-# that would override .env interpolation for `docker compose`.
-storage_host="${LATERALZR_STORAGE:-./storage}"
+# Resolve like Compose (shell env, then .env, then ./storage). Do not export
+# a defaulted value — that would hide .env from `docker compose`.
+if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
+    echo "❌ Error: bin/storage-host is missing or not executable"
+    exit 1
+fi
+storage_host="$("$SCRIPT_DIR/storage-host" --require-ready)"
 
 echo "📁 Ensuring host storage directories exist (${storage_host})..."
 mkdir -p \
