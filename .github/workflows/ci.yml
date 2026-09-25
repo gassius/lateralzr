@@ -11,6 +11,23 @@ on:
     branches: [main, master]
 
 jobs:
+  workflow-lint:
+    name: Workflow lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run actionlint
+        run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest -color
+
+      - name: Install PyYAML
+        run: python3 -m pip install --user pyyaml
+
+      - name: Parse changed YAML files
+        run: python3 bin/lint-changed-yaml
+
   api:
     name: API (Laravel)
     runs-on: ubuntu-latest
