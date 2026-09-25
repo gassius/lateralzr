@@ -43,7 +43,7 @@ check_deploy_disk_space() {
     if [[ "$failed" -ne 0 ]]; then
         echo ""
         echo "   deploy-prod already ran ./bin/deploy-cleanup-docker before this check."
-        echo "   If still short: inspect volumes, container logs, and storage/logs."
+        echo "   If still short: inspect volumes, container logs, and ${LATERALZR_STORAGE:-./storage}/logs."
         echo "   See DEPLOYMENT.md § Disk space and maintenance"
         echo "   Emergency bypass (not recommended): SKIP_DISK_CHECK=1 ./bin/deploy-prod"
         return 1
