@@ -135,18 +135,23 @@ class ProdStorageHostPathTest extends TestCase
      */
     private function runHelper(array $env, array $args = []): array
     {
-        $command = array_merge([$this->fixtureRoot.'/bin/storage-host'], $args);
         $processEnv = getenv();
         if ($processEnv === false) {
             $processEnv = [];
         }
+
+        $command = ['env'];
         foreach ($env as $key => $value) {
             if ($value === null) {
+                $command[] = '-u';
+                $command[] = $key;
                 unset($processEnv[$key]);
             } else {
-                $processEnv[$key] = $value;
+                $command[] = $key.'='.$value;
             }
         }
+        $command[] = $this->fixtureRoot.'/bin/storage-host';
+        $command = array_merge($command, $args);
 
         $spec = [
             1 => ['pipe', 'w'],
