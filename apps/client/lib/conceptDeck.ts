@@ -2,7 +2,6 @@ export type DeckConcept = {
   concept: string;
   shortDescription: string;
   laterality?: number;
-  complexity?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
 };
@@ -11,7 +10,6 @@ export type DeckGraphNode = {
   id: number;
   label: string;
   shortDescription: string;
-  complexity?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
 };
@@ -46,7 +44,6 @@ function nodeToItem(node: DeckGraphNode): DeckConcept {
   return {
     concept: node.label,
     shortDescription: node.shortDescription,
-    complexity: node.complexity,
     wikiUrl: node.wikiUrl,
     mediaUrl: node.mediaUrl,
   };

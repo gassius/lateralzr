@@ -19,13 +19,7 @@ import {
   type AnalyticsParams,
 } from './analyticsTypes';
 
-export {
-  AnalyticsEvent,
-  type AnalyticsEventName,
-  type AnalyticsParams,
-  type CardAnalyticsParams,
-  type CardFace,
-} from './analyticsTypes';
+export type { CardFace } from './analyticsTypes';
 
 function resolveNativeGtmId(): string | undefined {
   const raw =
@@ -34,15 +28,6 @@ function resolveNativeGtmId(): string | undefined {
       : process.env.EXPO_PUBLIC_GTM_ANDROID;
   const id = raw?.trim();
   return id && id.length > 0 ? id : undefined;
-}
-
-/** True when the platform GTM container env var is set. */
-export function isAnalyticsConfigured(): boolean {
-  return resolveNativeGtmId() != null;
-}
-
-export function getGtmContainerId(): string | undefined {
-  return resolveNativeGtmId();
 }
 
 /** Web-only GTM snippet. Native builds must never load gtm.js. */

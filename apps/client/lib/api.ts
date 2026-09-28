@@ -1,5 +1,4 @@
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
-import { graphToDeckItems } from '@/lib/conceptDeck';
 import { assertAndFilterGraphLocale } from '@/lib/graphLocale';
 import { getActiveLocale, isSupportedLocale, t } from '@/lib/i18n';
 import { buildRelationshipsRequestBody } from '@/lib/testQueryParams';
@@ -10,7 +9,6 @@ export type ConceptItem = {
   concept: string;
   shortDescription: string;
   laterality?: number;
-  complexity?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
 };
@@ -67,12 +65,9 @@ export class ApiError extends Error {
   }
 }
 
-export { assertAndFilterGraphLocale } from '@/lib/graphLocale';
-
 export async function fetchConceptRelationships(
   options?: {
     start?: string;
-    seed?: string;
     canonicalStart?: string;
     onlyWithMedia?: boolean;
     limit?: number;
@@ -86,7 +81,6 @@ export async function fetchConceptRelationships(
   const locale = options?.locale ?? getActiveLocale();
   const body = buildRelationshipsRequestBody({
     start: options?.start,
-    seed: options?.seed,
     canonicalStart: options?.canonicalStart,
     onlyWithMedia: options?.onlyWithMedia,
     limit: options?.limit,
@@ -118,8 +112,4 @@ export async function fetchConceptRelationships(
 
   const expected = isSupportedLocale(locale) ? locale : getActiveLocale();
   return assertAndFilterGraphLocale(json.data, expected);
-}
-
-export function graphNodesToConceptItems(data: ConceptGraphResponse['data']): ConceptItem[] {
-  return graphToDeckItems(data);
 }
