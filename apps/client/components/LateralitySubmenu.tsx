@@ -24,8 +24,6 @@ import {
   type LateralityGrade,
 } from '@/lib/laterality';
 
-export { LATERALITY_CARD_GAP, LATERALITY_SUBMENU_HEIGHT } from '@/lib/lateralityChrome';
-
 type LateralitySubmenuProps = {
   laterality: LateralityGrade | number;
   swapping?: boolean;

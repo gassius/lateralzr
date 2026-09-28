@@ -219,7 +219,6 @@ export function applyJourneyTestDeck<T extends { concept: string; mediaUrl: stri
 
 export function buildRelationshipsRequestBody(options?: {
   start?: string;
-  seed?: string;
   canonicalStart?: string;
   onlyWithMedia?: boolean;
   limit?: number;
@@ -230,7 +229,7 @@ export function buildRelationshipsRequestBody(options?: {
   laterality?: number;
 }): RelationshipsRequestBody {
   const body: RelationshipsRequestBody = {};
-  const start = options?.start ?? options?.seed;
+  const start = options?.start;
   if (start != null && start.trim() !== '') body.start = start.trim();
   if (options?.canonicalStart != null && options.canonicalStart.trim() !== '') {
     body.canonicalStart = options.canonicalStart.trim();

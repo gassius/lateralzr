@@ -17,13 +17,7 @@ import {
 } from './analyticsTypes';
 import { injectGtmWeb, parseGtmWebId } from './gtmWeb';
 
-export {
-  AnalyticsEvent,
-  type AnalyticsEventName,
-  type AnalyticsParams,
-  type CardAnalyticsParams,
-  type CardFace,
-} from './analyticsTypes';
+export type { CardFace } from './analyticsTypes';
 
 declare global {
   interface Window {
@@ -33,15 +27,6 @@ declare global {
 
 function resolveWebGtmId(): string | undefined {
   return parseGtmWebId(process.env.EXPO_PUBLIC_GTM_WEB);
-}
-
-/** True when `EXPO_PUBLIC_GTM_WEB` is a GTM-XXXX container ID. */
-export function isAnalyticsConfigured(): boolean {
-  return resolveWebGtmId() != null;
-}
-
-export function getGtmContainerId(): string | undefined {
-  return resolveWebGtmId();
 }
 
 /**
