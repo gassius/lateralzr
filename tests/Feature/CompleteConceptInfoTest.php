@@ -17,6 +17,7 @@ use App\Services\Enrichment\WikipediaArticleResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use Mockery;
 use RuntimeException;
 use Tests\TestCase;
@@ -127,6 +128,14 @@ class CompleteConceptInfoTest extends TestCase
         $this->artisan('concepts:complete-info', ['--locale' => 'fr'])
             ->expectsOutputToContain('supported list')
             ->assertFailed();
+    }
+
+    public function test_dispatch_rejects_unsupported_locale(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('supported list');
+
+        app(ConceptCompleteInfoDispatchService::class)->dispatch(locale: 'fr');
     }
 
     public function test_command_sync_runs_inline_without_queue(): void

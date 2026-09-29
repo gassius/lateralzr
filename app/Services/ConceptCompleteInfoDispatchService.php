@@ -31,18 +31,7 @@ class ConceptCompleteInfoDispatchService
         $mode = $this->completeInfoService->normalizeMode($mode);
         $batchSize = max(1, min(ConceptCompleteInfoService::MAX_BATCH_SIZE, $batchSize));
 
-        $resolvedLocale = null;
-        if ($locale !== null && trim($locale) !== '') {
-            $normalized = strtolower(trim($locale));
-            $primary = explode('-', $normalized, 2)[0];
-            $supported = ConceptLocale::supported();
-            if (! in_array($normalized, $supported, true) && ! in_array($primary, $supported, true)) {
-                throw new InvalidArgumentException(
-                    'Locale must be in supported list: '.implode(', ', $supported)
-                );
-            }
-            $resolvedLocale = ConceptLocale::resolve($normalized);
-        }
+        $resolvedLocale = $this->resolveOptionalLocale($locale);
 
         $termIds = $this->matchingTermIds($resolvedLocale, $mode, $limit);
         $targetCount = count($termIds);
@@ -133,6 +122,29 @@ class ConceptCompleteInfoDispatchService
         }
 
         return $query->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * Accept a requested locale, or null for all supported locales.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function resolveOptionalLocale(?string $locale): ?string
+    {
+        if ($locale === null || trim($locale) === '') {
+            return null;
+        }
+
+        $normalized = strtolower(trim($locale));
+        $primary = explode('-', $normalized, 2)[0];
+        $supported = ConceptLocale::supported();
+        if (! in_array($normalized, $supported, true) && ! in_array($primary, $supported, true)) {
+            throw new InvalidArgumentException(
+                'Locale must be in supported list: '.implode(', ', $supported)
+            );
+        }
+
+        return ConceptLocale::resolve($normalized);
     }
 
     /**

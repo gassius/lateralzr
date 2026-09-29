@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use App\Services\ConceptCompleteInfoDispatchService;
 use App\Services\ConceptCompleteInfoService;
-use App\Support\ConceptLocale;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
@@ -26,17 +25,14 @@ class CompleteConceptInfo extends Command
         ConceptCompleteInfoDispatchService $dispatch,
     ): int {
         $localeRaw = $this->option('locale');
-        $locale = null;
-        if (is_string($localeRaw) && trim($localeRaw) !== '') {
-            $normalized = strtolower(trim($localeRaw));
-            $primary = explode('-', $normalized, 2)[0];
-            $supported = ConceptLocale::supported();
-            if (! in_array($normalized, $supported, true) && ! in_array($primary, $supported, true)) {
-                $this->error('Locale must be in supported list: '.implode(', ', $supported));
+        $localeRaw = is_string($localeRaw) && trim($localeRaw) !== '' ? $localeRaw : null;
 
-                return self::FAILURE;
-            }
-            $locale = ConceptLocale::resolve($normalized);
+        try {
+            $locale = $dispatch->resolveOptionalLocale($localeRaw);
+        } catch (InvalidArgumentException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
         }
 
         $wikiOnly = (bool) $this->option('wiki-only');

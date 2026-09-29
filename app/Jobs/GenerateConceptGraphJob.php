@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiRequestError;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptGraphStore;
@@ -53,105 +54,82 @@ class GenerateConceptGraphJob implements ShouldQueue
         $startedAt = microtime(true);
         $trackingKey = $this->jobKey ?? $this->seed;
 
-        if ($this->runUuid && $trackingKey) {
-            ConceptGraphRunJob::query()
-                ->where('run_uuid', $this->runUuid)
-                ->where('seed', $trackingKey)
-                ->update([
-                    'status' => 'processing',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
-                    'started_at' => now(),
-                    'error_message' => null,
-                ]);
-        }
+        ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+            'status' => 'processing',
+            'attempts' => (int) (($this->attempts() ?? 0)),
+            'started_at' => now(),
+            'error_message' => null,
+        ]);
 
         $previousProvider = config('ai.default');
         $previousModel = config('ai.models.text');
 
-        if ($this->provider) {
-            config()->set('ai.default', $this->provider);
-        }
-        if ($this->model) {
-            config()->set('ai.models.text', $this->model);
-        }
+        AiConfigOverride::run($this->provider, $this->model, function () use ($service, $store, $startedAt, $trackingKey, $previousProvider, $previousModel): void {
+            try {
+                $result = $service->generateRelationships(
+                    startConcept: $this->seed,
+                    count: $this->count,
+                    agent: null,
+                    complexity: $this->complexity
+                );
 
-        try {
-            $result = $service->generateRelationships(
-                startConcept: $this->seed,
-                count: $this->count,
-                agent: null,
-                complexity: $this->complexity
-            );
+                $store->storeGraph(
+                    concepts: $result['concepts'] ?? [],
+                    edges: $result['edges'] ?? [],
+                    complexity: (int) ($result['complexity'] ?? $this->complexity),
+                    provider: $this->provider ?? $previousProvider,
+                    model: $this->model ?? $previousModel,
+                    runUuid: $this->runUuid
+                );
 
-            $store->storeGraph(
-                concepts: $result['concepts'] ?? [],
-                edges: $result['edges'] ?? [],
-                complexity: (int) ($result['complexity'] ?? $this->complexity),
-                provider: $this->provider ?? $previousProvider,
-                model: $this->model ?? $previousModel,
-                runUuid: $this->runUuid
-            );
+                ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+                    'status' => 'succeeded',
+                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'finished_at' => now(),
+                    'error_message' => null,
+                ]);
 
-            if ($this->runUuid && $trackingKey) {
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $trackingKey)
-                    ->update([
-                        'status' => 'succeeded',
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => now(),
-                        'error_message' => null,
-                    ]);
+                Log::info('GenerateConceptGraphJob succeeded', [
+                    'run_uuid' => $this->runUuid,
+                    'job_key' => $trackingKey,
+                    'seconds' => round(microtime(true) - $startedAt, 2),
+                    'attempt' => $this->attempts(),
+                    'provider' => $this->provider,
+                    'model' => $this->model,
+                ]);
+            } catch (Throwable $e) {
+                $retryable = AiRequestError::isRetryable($e);
+                $willRetry = $retryable && $this->attempts() < $this->tries;
+                $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+
+                Log::warning('GenerateConceptGraphJob failed', [
+                    'run_uuid' => $this->runUuid,
+                    'job_key' => $trackingKey,
+                    'seconds' => round(microtime(true) - $startedAt, 2),
+                    'attempt' => $this->attempts(),
+                    'retryable' => $retryable,
+                    'will_retry' => $willRetry,
+                    'provider' => $this->provider,
+                    'model' => $this->model,
+                    'error' => $mapped,
+                ]);
+
+                ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+                    'status' => $willRetry ? 'processing' : 'failed',
+                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'finished_at' => $willRetry ? null : now(),
+                    'error_message' => $mapped,
+                ]);
+
+                if (! $retryable) {
+                    $this->fail(new RuntimeException($mapped, 0, $e));
+
+                    return;
+                }
+
+                throw $e;
             }
-
-            Log::info('GenerateConceptGraphJob succeeded', [
-                'run_uuid' => $this->runUuid,
-                'job_key' => $trackingKey,
-                'seconds' => round(microtime(true) - $startedAt, 2),
-                'attempt' => $this->attempts(),
-                'provider' => $this->provider,
-                'model' => $this->model,
-            ]);
-        } catch (Throwable $e) {
-            $retryable = AiRequestError::isRetryable($e);
-            $willRetry = $retryable && $this->attempts() < $this->tries;
-            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
-
-            Log::warning('GenerateConceptGraphJob failed', [
-                'run_uuid' => $this->runUuid,
-                'job_key' => $trackingKey,
-                'seconds' => round(microtime(true) - $startedAt, 2),
-                'attempt' => $this->attempts(),
-                'retryable' => $retryable,
-                'will_retry' => $willRetry,
-                'provider' => $this->provider,
-                'model' => $this->model,
-                'error' => $mapped,
-            ]);
-
-            if ($this->runUuid && $trackingKey) {
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $trackingKey)
-                    ->update([
-                        'status' => $willRetry ? 'processing' : 'failed',
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => $willRetry ? null : now(),
-                        'error_message' => $mapped,
-                    ]);
-            }
-
-            if (! $retryable) {
-                $this->fail(new RuntimeException($mapped, 0, $e));
-
-                return;
-            }
-
-            throw $e;
-        } finally {
-            config()->set('ai.default', $previousProvider);
-            config()->set('ai.models.text', $previousModel);
-        }
+        });
     }
 
     public function failed(?Throwable $exception): void
@@ -166,14 +144,11 @@ class GenerateConceptGraphJob implements ShouldQueue
             ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
             : 'Job failed or timed out.';
 
-        ConceptGraphRunJob::query()
-            ->where('run_uuid', $this->runUuid)
-            ->where('seed', $trackingKey)
-            ->update([
-                'status' => 'failed',
-                'attempts' => max(1, (int) (($this->attempts() ?? 0))),
-                'finished_at' => now(),
-                'error_message' => $message,
-            ]);
+        ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+            'status' => 'failed',
+            'attempts' => max(1, (int) (($this->attempts() ?? 0))),
+            'finished_at' => now(),
+            'error_message' => $message,
+        ]);
     }
 }

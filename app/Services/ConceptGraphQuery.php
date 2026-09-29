@@ -94,11 +94,21 @@ class ConceptGraphQuery
             return null;
         }
 
-        $nodes = Concept::query()
+        $concepts = Concept::query()
             ->with(['terms', 'media'])
             ->whereIn('id', array_keys($nodeIds))
-            ->get()
-            ->map(fn (Concept $concept) => $this->formatNode($concept, $locale, $onlyWithMedia, $complexity))
+            ->get();
+
+        $degrees = $this->relationshipDegrees($concepts->pluck('id')->all());
+
+        $nodes = $concepts
+            ->map(fn (Concept $concept) => $this->formatNode(
+                $concept,
+                $locale,
+                $onlyWithMedia,
+                $complexity,
+                $degrees[(int) $concept->id] ?? 0
+            ))
             ->filter()
             ->values()
             ->all();
@@ -345,7 +355,46 @@ class ConceptGraphQuery
             ->first();
     }
 
-    protected function formatNode(Concept $concept, string $locale, bool $onlyWithMedia = false, ?int $complexity = null): ?array
+    /**
+     * Global incident-edge counts (from + to), matching
+     * `where from = id or to = id` per node. Self-loops count once.
+     *
+     * @param  list<int|string>  $conceptIds
+     * @return array<int, int>
+     */
+    protected function relationshipDegrees(array $conceptIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $conceptIds)));
+        if ($ids === []) {
+            return [];
+        }
+
+        $degrees = array_fill_keys($ids, 0);
+
+        $fromCounts = ConceptRelationship::query()
+            ->whereIn('from_concept_id', $ids)
+            ->selectRaw('from_concept_id as concept_id, COUNT(*) as aggregate')
+            ->groupBy('from_concept_id')
+            ->pluck('aggregate', 'concept_id');
+
+        $toCounts = ConceptRelationship::query()
+            ->whereIn('to_concept_id', $ids)
+            ->whereColumn('from_concept_id', '!=', 'to_concept_id')
+            ->selectRaw('to_concept_id as concept_id, COUNT(*) as aggregate')
+            ->groupBy('to_concept_id')
+            ->pluck('aggregate', 'concept_id');
+
+        foreach ($fromCounts as $id => $count) {
+            $degrees[(int) $id] = ($degrees[(int) $id] ?? 0) + (int) $count;
+        }
+        foreach ($toCounts as $id => $count) {
+            $degrees[(int) $id] = ($degrees[(int) $id] ?? 0) + (int) $count;
+        }
+
+        return $degrees;
+    }
+
+    protected function formatNode(Concept $concept, string $locale, bool $onlyWithMedia = false, ?int $complexity = null, int $degree = 0): ?array
     {
         $term = $this->selectTerm($concept, $locale, $complexity);
         if ($term === null) {
@@ -364,10 +413,7 @@ class ConceptGraphQuery
             'mediaUrl' => $term->media_url,
             'media' => $this->formatMedia($concept),
             'locale' => $locale,
-            'degree' => ConceptRelationship::query()
-                ->where('from_concept_id', $concept->id)
-                ->orWhere('to_concept_id', $concept->id)
-                ->count(),
+            'degree' => $degree,
         ];
     }
 

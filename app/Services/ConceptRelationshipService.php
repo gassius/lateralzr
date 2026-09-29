@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Models\ConceptTerm;
-use Illuminate\Support\Arr;
+use App\Support\ConceptSeed;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Responses\StructuredAgentResponse;
 
@@ -190,18 +190,7 @@ PROMPT;
      */
     protected function resolveRandomSeed(): string
     {
-        $locale = (string) config('concepts.default_locale', 'en');
-        $fromDb = ConceptTerm::query()->where('locale', $locale)->inRandomOrder()->first()?->term;
-        if ($fromDb !== null && $fromDb !== '') {
-            return (string) $fromDb;
-        }
-
-        $defaults = config('concepts.default_seeds', []);
-        if ($defaults !== []) {
-            return (string) Arr::random($defaults);
-        }
-
-        return 'creativity';
+        return ConceptSeed::randomTerm();
     }
 
     /**

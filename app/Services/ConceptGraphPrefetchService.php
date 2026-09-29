@@ -7,7 +7,7 @@ use App\Jobs\GenerateConceptGraphJob;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Models\ConceptTerm;
-use Illuminate\Support\Arr;
+use App\Support\ConceptSeed;
 use Illuminate\Support\Str;
 
 class ConceptGraphPrefetchService
@@ -136,30 +136,6 @@ class ConceptGraphPrefetchService
      */
     protected function randomStarts(int $n): array
     {
-        $locale = (string) config('concepts.default_locale', 'en');
-        $fromDb = ConceptTerm::query()
-            ->where('locale', $locale)
-            ->inRandomOrder()
-            ->limit($n)
-            ->pluck('term')
-            ->all();
-
-        if (count($fromDb) > 0) {
-            return array_values(array_unique(array_map('strval', $fromDb)));
-        }
-
-        $defaults = config('concepts.default_seeds', []);
-        if (is_array($defaults) && count($defaults) > 0) {
-            $picked = [];
-            for ($i = 0; $i < $n; $i++) {
-                $picked[] = (string) Arr::random($defaults);
-            }
-
-            $picked = array_map(fn (string $s) => ConceptTerm::normalizeTerm($s), $picked);
-
-            return array_values(array_unique($picked));
-        }
-
-        return ['creativity'];
+        return ConceptSeed::randomTerms($n);
     }
 }

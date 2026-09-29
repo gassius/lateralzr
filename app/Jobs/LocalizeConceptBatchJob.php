@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiRequestError;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
@@ -52,116 +53,90 @@ class LocalizeConceptBatchJob implements ShouldQueue
     {
         $startedAt = microtime(true);
 
-        if ($this->runUuid) {
-            ConceptGraphRunJob::query()
-                ->where('run_uuid', $this->runUuid)
-                ->where('seed', $this->jobKey)
-                ->update([
-                    'status' => 'processing',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
-                    'started_at' => now(),
-                    'error_message' => null,
-                ]);
-        }
+        ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+            'status' => 'processing',
+            'attempts' => (int) (($this->attempts() ?? 0)),
+            'started_at' => now(),
+            'error_message' => null,
+        ]);
 
-        $previousProvider = config('ai.default');
-        $previousModel = config('ai.models.text');
+        AiConfigOverride::run($this->provider, $this->model, function () use ($service, $startedAt): void {
+            try {
+                // Leave a margin under $timeout so a slow LLM call fail-softs
+                // (remaining concept IDs are re-queued) instead of a worker SIGKILL.
+                $deadlineAt = time() + max(30, $this->timeout - 60);
 
-        if ($this->provider) {
-            config()->set('ai.default', $this->provider);
-        }
-        if ($this->model) {
-            config()->set('ai.models.text', $this->model);
-        }
+                $stats = $service->localize(
+                    fromLocale: $this->fromLocale,
+                    toLocale: $this->toLocale,
+                    limit: null,
+                    missingOnly: $this->missingOnly,
+                    batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
+                    agent: null,
+                    conceptIds: $this->conceptIds,
+                    deadlineAt: $deadlineAt,
+                );
 
-        try {
-            // Leave a margin under $timeout so a slow LLM call fail-softs
-            // (remaining concept IDs are re-queued) instead of a worker SIGKILL.
-            $deadlineAt = time() + max(30, $this->timeout - 60);
+                $deferredIds = array_values(array_map('intval', $stats['deferredConceptIds'] ?? []));
+                $deferred = count($deferredIds);
+                $followKey = null;
+                if ($deferred > 0) {
+                    $followKey = $this->requeueDeferred($deferredIds);
+                }
 
-            $stats = $service->localize(
-                fromLocale: $this->fromLocale,
-                toLocale: $this->toLocale,
-                limit: null,
-                missingOnly: $this->missingOnly,
-                batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
-                agent: null,
-                conceptIds: $this->conceptIds,
-                deadlineAt: $deadlineAt,
-            );
-
-            $deferredIds = array_values(array_map('intval', $stats['deferredConceptIds'] ?? []));
-            $deferred = count($deferredIds);
-            $followKey = null;
-            if ($deferred > 0) {
-                $followKey = $this->requeueDeferred($deferredIds);
-            }
-
-            if ($this->runUuid) {
                 [$status, $message] = $this->deferredOutcome($deferred, $followKey);
 
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $this->jobKey)
-                    ->update([
-                        'status' => $status,
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => now(),
-                        'error_message' => $message,
-                    ]);
+                ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                    'status' => $status,
+                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'finished_at' => now(),
+                    'error_message' => $message,
+                ]);
+
+                Log::info('LocalizeConceptBatchJob succeeded', [
+                    'run_uuid' => $this->runUuid,
+                    'job_key' => $this->jobKey,
+                    'seconds' => round(microtime(true) - $startedAt, 2),
+                    'attempt' => $this->attempts(),
+                    'count' => count($this->conceptIds),
+                    'stats' => $stats,
+                    'follow_key' => $followKey,
+                    'provider' => $this->provider,
+                    'model' => $this->model,
+                ]);
+            } catch (Throwable $e) {
+                $retryable = AiRequestError::isRetryable($e);
+                $willRetry = $retryable && $this->attempts() < $this->tries;
+                $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+
+                Log::warning('LocalizeConceptBatchJob failed', [
+                    'run_uuid' => $this->runUuid,
+                    'job_key' => $this->jobKey,
+                    'seconds' => round(microtime(true) - $startedAt, 2),
+                    'attempt' => $this->attempts(),
+                    'retryable' => $retryable,
+                    'will_retry' => $willRetry,
+                    'provider' => $this->provider,
+                    'model' => $this->model,
+                    'error' => $mapped,
+                ]);
+
+                ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                    'status' => $willRetry ? 'processing' : 'failed',
+                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'finished_at' => $willRetry ? null : now(),
+                    'error_message' => $mapped,
+                ]);
+
+                if (! $retryable) {
+                    $this->fail(new RuntimeException($mapped, 0, $e));
+
+                    return;
+                }
+
+                throw $e;
             }
-
-            Log::info('LocalizeConceptBatchJob succeeded', [
-                'run_uuid' => $this->runUuid,
-                'job_key' => $this->jobKey,
-                'seconds' => round(microtime(true) - $startedAt, 2),
-                'attempt' => $this->attempts(),
-                'count' => count($this->conceptIds),
-                'stats' => $stats,
-                'follow_key' => $followKey,
-                'provider' => $this->provider,
-                'model' => $this->model,
-            ]);
-        } catch (Throwable $e) {
-            $retryable = AiRequestError::isRetryable($e);
-            $willRetry = $retryable && $this->attempts() < $this->tries;
-            $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
-
-            Log::warning('LocalizeConceptBatchJob failed', [
-                'run_uuid' => $this->runUuid,
-                'job_key' => $this->jobKey,
-                'seconds' => round(microtime(true) - $startedAt, 2),
-                'attempt' => $this->attempts(),
-                'retryable' => $retryable,
-                'will_retry' => $willRetry,
-                'provider' => $this->provider,
-                'model' => $this->model,
-                'error' => $mapped,
-            ]);
-
-            if ($this->runUuid) {
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $this->jobKey)
-                    ->update([
-                        'status' => $willRetry ? 'processing' : 'failed',
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => $willRetry ? null : now(),
-                        'error_message' => $mapped,
-                    ]);
-            }
-
-            if (! $retryable) {
-                $this->fail(new RuntimeException($mapped, 0, $e));
-
-                return;
-            }
-
-            throw $e;
-        } finally {
-            config()->set('ai.default', $previousProvider);
-            config()->set('ai.models.text', $previousModel);
-        }
+        });
     }
 
     public function failed(?Throwable $exception): void
@@ -174,15 +149,12 @@ class LocalizeConceptBatchJob implements ShouldQueue
             ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
             : 'Job failed or timed out.';
 
-        ConceptGraphRunJob::query()
-            ->where('run_uuid', $this->runUuid)
-            ->where('seed', $this->jobKey)
-            ->update([
-                'status' => 'failed',
-                'attempts' => max(1, (int) (($this->attempts() ?? 0))),
-                'finished_at' => now(),
-                'error_message' => $message,
-            ]);
+        ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+            'status' => 'failed',
+            'attempts' => max(1, (int) (($this->attempts() ?? 0))),
+            'finished_at' => now(),
+            'error_message' => $message,
+        ]);
     }
 
     /**

@@ -4,7 +4,6 @@ namespace App\Ai\Tools;
 
 use App\Support\ConceptLocale;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -51,105 +50,17 @@ class WikipediaSearchTool implements Tool
             'locale' => $locale,
         ]);
 
-        $host = $this->wikipediaHost($locale);
-
         try {
-            // Normalize concept name: capitalize first letter of each word, replace spaces with underscores
-            $normalizedConcept = $this->normalizeConceptName($concept);
-            $encodedTitle = rawurlencode($normalizedConcept);
-
-            // Try to fetch page summary from Wikipedia API
-            $response = Http::timeout(10)
-                ->withoutVerifying() // Skip SSL verification in Docker if needed
-                ->withHeaders([
-                    'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                ])
-                ->get("https://{$host}/api/rest_v1/page/summary/{$encodedTitle}");
-
-            if ($response->successful()) {
-                $data = $response->json();
-                $pageType = $data['type'] ?? 'standard';
-
-                // Skip disambiguation pages - try to find a more specific article using shortDescription
-                if ($pageType === 'disambiguation' && $shortDescription !== '') {
-                    $specificUrl = $this->searchForSpecificPage($concept, $shortDescription, $locale);
-                    if ($specificUrl !== '') {
-                        return $this->ensureEncodedUrl($specificUrl);
-                    }
-                    // No specific page found - don't return disambiguation page
-                    Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page, no specific match found', [
-                        'concept' => $concept,
-                        'locale' => $locale,
-                    ]);
-
-                    return '';
-                }
-
-                if ($pageType === 'disambiguation') {
-                    Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page skipped (no shortDescription)', [
-                        'concept' => $concept,
-                        'locale' => $locale,
-                    ]);
-
-                    return '';
-                }
-
-                $url = $data['content_urls']['desktop']['page'] ?? null;
-
-                if ($url) {
-                    Log::channel('single')->debug('WikipediaSearchTool: Found URL', [
-                        'concept' => $concept,
-                        'locale' => $locale,
-                        'url' => $url,
-                    ]);
-
-                    return $this->ensureEncodedUrl($url);
-                }
+            $url = $this->urlFromSummary(
+                $this->fetchSummary($this->normalizeConceptName($concept), $locale),
+                $concept,
+                $shortDescription,
+                $locale,
+            );
+            if ($url !== null) {
+                return $url;
             }
 
-            // If direct lookup failed, try with spaces replaced by underscores
-            $underscoredConcept = str_replace(' ', '_', ucwords(strtolower($concept)));
-            if ($underscoredConcept !== $normalizedConcept) {
-                $encodedUnderscored = rawurlencode($underscoredConcept);
-                $response = Http::timeout(10)
-                    ->withoutVerifying() // Skip SSL verification in Docker if needed
-                    ->withHeaders([
-                        'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                    ])
-                    ->get("https://{$host}/api/rest_v1/page/summary/{$encodedUnderscored}");
-
-                if ($response->successful()) {
-                    $data = $response->json();
-                    $pageType = $data['type'] ?? 'standard';
-
-                    if ($pageType === 'disambiguation' && $shortDescription !== '') {
-                        $specificUrl = $this->searchForSpecificPage($concept, $shortDescription, $locale);
-                        if ($specificUrl !== '') {
-                            return $this->ensureEncodedUrl($specificUrl);
-                        }
-
-                        return '';
-                    }
-
-                    if ($pageType === 'disambiguation') {
-                        return '';
-                    }
-
-                    $url = $data['content_urls']['desktop']['page'] ?? null;
-
-                    if ($url) {
-                        Log::channel('single')->debug('WikipediaSearchTool: Found URL (with underscores)', [
-                            'concept' => $concept,
-                            'locale' => $locale,
-                            'url' => $url,
-                        ]);
-
-                        return $this->ensureEncodedUrl($url);
-                    }
-                }
-            }
-
-            // No page found - return empty string
             Log::channel('single')->debug('WikipediaSearchTool: No page found', [
                 'concept' => $concept,
                 'locale' => $locale,
@@ -180,19 +91,14 @@ class WikipediaSearchTool implements Tool
         $keywords = array_filter($words, fn ($w) => strlen($w) > 2 && ! in_array(strtolower($w), $stopWords, true));
         $searchQuery = $concept.' '.implode(' ', array_slice($keywords, 0, 3));
 
-        $response = Http::timeout(10)
-            ->withoutVerifying()
-            ->withHeaders([
-                'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-            ])
-            ->get("https://{$host}/w/api.php", [
-                'action' => 'query',
-                'format' => 'json',
-                'list' => 'search',
-                'srsearch' => $searchQuery,
-                'srlimit' => 3,
-                'srprop' => 'title',
-            ]);
+        $response = $this->httpClient()->get("https://{$host}/w/api.php", [
+            'action' => 'query',
+            'format' => 'json',
+            'list' => 'search',
+            'srsearch' => $searchQuery,
+            'srlimit' => 3,
+            'srprop' => 'title',
+        ]);
 
         if (! $response->successful()) {
             return '';
@@ -206,22 +112,11 @@ class WikipediaSearchTool implements Tool
             if ($title === '') {
                 continue;
             }
-            // Fetch summary to confirm it's not another disambiguation page
-            $encodedTitle = rawurlencode($title);
-            $summaryResponse = Http::timeout(10)
-                ->withoutVerifying()
-                ->withHeaders([
-                    'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                ])
-                ->get("https://{$host}/api/rest_v1/page/summary/{$encodedTitle}");
-
-            if ($summaryResponse->successful()) {
-                $summaryData = $summaryResponse->json();
-                if (($summaryData['type'] ?? '') !== 'disambiguation') {
-                    $url = $summaryData['content_urls']['desktop']['page'] ?? null;
-                    if ($url) {
-                        return $url;
-                    }
+            $summaryData = $this->fetchSummary($title, $locale);
+            if ($summaryData !== null && ($summaryData['type'] ?? '') !== 'disambiguation') {
+                $url = $summaryData['content_urls']['desktop']['page'] ?? null;
+                if ($url) {
+                    return $url;
                 }
             }
         }
@@ -282,5 +177,77 @@ class WikipediaSearchTool implements Tool
     {
         // Capitalize first letter of each word and replace spaces with underscores
         return str_replace(' ', '_', ucwords(strtolower(trim($concept))));
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    protected function fetchSummary(string $title, string $locale): ?array
+    {
+        $host = $this->wikipediaHost($locale);
+        $response = $this->httpClient()->get(
+            "https://{$host}/api/rest_v1/page/summary/".rawurlencode($title)
+        );
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $data = $response->json();
+
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $data
+     */
+    protected function urlFromSummary(?array $data, string $concept, string $shortDescription, string $locale): ?string
+    {
+        if ($data === null) {
+            return null;
+        }
+
+        $pageType = $data['type'] ?? 'standard';
+
+        if ($pageType === 'disambiguation' && $shortDescription !== '') {
+            $specificUrl = $this->searchForSpecificPage($concept, $shortDescription, $locale);
+            if ($specificUrl !== '') {
+                return $this->ensureEncodedUrl($specificUrl);
+            }
+
+            Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page, no specific match found', [
+                'concept' => $concept,
+                'locale' => $locale,
+            ]);
+
+            return '';
+        }
+
+        if ($pageType === 'disambiguation') {
+            Log::channel('single')->debug('WikipediaSearchTool: Disambiguation page skipped (no shortDescription)', [
+                'concept' => $concept,
+                'locale' => $locale,
+            ]);
+
+            return '';
+        }
+
+        $url = $data['content_urls']['desktop']['page'] ?? null;
+        if ($url) {
+            Log::channel('single')->debug('WikipediaSearchTool: Found URL', [
+                'concept' => $concept,
+                'locale' => $locale,
+                'url' => $url,
+            ]);
+
+            return $this->ensureEncodedUrl($url);
+        }
+
+        return null;
+    }
+
+    protected function httpClient(int $timeoutSeconds = 10): \Illuminate\Http\Client\PendingRequest
+    {
+        return WikiHttp::client($timeoutSeconds);
     }
 }

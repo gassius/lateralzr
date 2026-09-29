@@ -46,17 +46,12 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
     {
         $startedAt = microtime(true);
 
-        if ($this->runUuid) {
-            ConceptGraphRunJob::query()
-                ->where('run_uuid', $this->runUuid)
-                ->where('seed', $this->jobKey)
-                ->update([
-                    'status' => 'processing',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
-                    'started_at' => now(),
-                    'error_message' => null,
-                ]);
-        }
+        ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+            'status' => 'processing',
+            'attempts' => (int) (($this->attempts() ?? 0)),
+            'started_at' => now(),
+            'error_message' => null,
+        ]);
 
         try {
             // Leave a margin under $timeout so Wikimedia slowness fails soft
@@ -86,36 +81,26 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
                 'follow_key' => $followKey,
             ]);
 
-            if ($this->runUuid) {
-                $status = $deferred > 0 ? 'partial' : 'succeeded';
-                $message = $deferred > 0
-                    ? "Stopped {$deferred} term(s) to stay under the worker timeout; remaining IDs were re-queued".($followKey ? " as {$followKey}" : '').'.'
-                    : null;
+            $status = $deferred > 0 ? 'partial' : 'succeeded';
+            $message = $deferred > 0
+                ? "Stopped {$deferred} term(s) to stay under the worker timeout; remaining IDs were re-queued".($followKey ? " as {$followKey}" : '').'.'
+                : null;
 
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $this->jobKey)
-                    ->update([
-                        'status' => $status,
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => now(),
-                        'error_message' => $message,
-                    ]);
-            }
+            ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                'status' => $status,
+                'attempts' => (int) (($this->attempts() ?? 0)),
+                'finished_at' => now(),
+                'error_message' => $message,
+            ]);
         } catch (Throwable $e) {
             $willRetry = $this->attempts() < $this->tries;
 
-            if ($this->runUuid) {
-                ConceptGraphRunJob::query()
-                    ->where('run_uuid', $this->runUuid)
-                    ->where('seed', $this->jobKey)
-                    ->update([
-                        'status' => $willRetry ? 'processing' : 'failed',
-                        'attempts' => (int) (($this->attempts() ?? 0)),
-                        'finished_at' => $willRetry ? null : now(),
-                        'error_message' => $e->getMessage(),
-                    ]);
-            }
+            ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                'status' => $willRetry ? 'processing' : 'failed',
+                'attempts' => (int) (($this->attempts() ?? 0)),
+                'finished_at' => $willRetry ? null : now(),
+                'error_message' => $e->getMessage(),
+            ]);
 
             throw $e;
         }
@@ -129,15 +114,12 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
 
         $message = $exception?->getMessage() ?: 'Job failed or timed out.';
 
-        ConceptGraphRunJob::query()
-            ->where('run_uuid', $this->runUuid)
-            ->where('seed', $this->jobKey)
-            ->update([
-                'status' => 'failed',
-                'attempts' => max(1, (int) (($this->attempts() ?? 0))),
-                'finished_at' => now(),
-                'error_message' => $message,
-            ]);
+        ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+            'status' => 'failed',
+            'attempts' => max(1, (int) (($this->attempts() ?? 0))),
+            'finished_at' => now(),
+            'error_message' => $message,
+        ]);
     }
 
     /**
