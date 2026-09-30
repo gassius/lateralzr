@@ -14,10 +14,12 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 
 - **Framework**: Laravel 12
 - **Development Environment**: Laravel Sail (Docker)
-- **AI Integration**: Laravel AI SDK with Ollama (local LLM)
+- **Admin**: Filament 5 at `/admin` (Livewire/Blade; no Vite build)
+- **Client**: Expo (React Native / web) in `apps/client`
+- **AI Integration**: Laravel AI SDK with Ollama (local LLM) or OpenRouter (production)
 - **AI Development Tools**: Laravel Boost (MCP/Agent integration)
 - **Database**: MySQL (via Sail)
-- **Testing**: PHPUnit
+- **Testing**: PHPUnit (API), Node test runner (Expo client)
 
 ## Prerequisites
 
@@ -34,7 +36,7 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 
 ```bash
 git clone <repository-url>
-cd lateralzr-api
+cd lateralzr
 ```
 
 ### 2. Set Up Environment
@@ -104,11 +106,11 @@ The API will be available at `http://localhost` (or the port configured in your 
 
 ### Monorepo
 
-This repository is a **monorepo**: the **Laravel API** lives at the **root**; the **Expo client** lives in **`apps/client`**. The **package manager is pnpm** ([pnpm-workspace.yaml](pnpm-workspace.yaml)). [Turborepo](https://turbo.build) orchestrates tasks so the root (Laravel Admin / Vite) and the client (Expo) do not collide: run admin builds from the root, client from `apps/client` or via Turbo.
+This repository is a **monorepo**: the **Laravel API** (and Filament admin at `/admin`) lives at the **root**; the **Expo client** lives in **`apps/client`**. The **package manager is pnpm** ([pnpm-workspace.yaml](pnpm-workspace.yaml)). There is **no Vite / Laravel frontend asset pipeline** at the root (removed with the old welcome page). [Turborepo](https://turbo.build) orchestrates **Expo client** `build` / `dev` only — root `package.json` scripts (`dev:client`, `dev:all`, `build:all`) filter or run the client workspace.
 
-- **Node version**: Use the version in [.nvmrc](.nvmrc) (e.g. `nvm use` in the repo root) for both Vite and the Expo app. Alternatively, use the optional **Node Docker service** (profile `client`) to run client commands in a container. Ensure pnpm is available (e.g. `corepack enable && corepack prepare pnpm@9.15.0 --activate` in the image or use a pnpm-aware image), then from the repo root:  
+- **Node version**: Use the version in [.nvmrc](.nvmrc) (e.g. `nvm use` in the repo root) for the Expo app. Alternatively, use the optional **Node Docker service** (profile `client`) to run client commands in a container. Ensure pnpm is available (e.g. `corepack enable && corepack prepare pnpm@9.15.0 --activate` in the image or use a pnpm-aware image), then from the repo root:  
   `docker compose --profile client run --rm node sh -c "pnpm install --frozen-lockfile && pnpm turbo run dev --filter=client"`.
-- **Run the API**: from the repo root, `./sail up -d` (or `./vendor/bin/sail up -d`, or `./dev.sh up`); see [Installation](#installation).
+- **Run the API**: from the repo root, `./sail up -d` (or `./vendor/bin/sail up -d`, or `./dev.sh up`); see [Installation](#installation). Filament admin needs no `pnpm`/`vite` build — it is PHP/Livewire plus committed `public/js/filament` assets. The Concept Graph Explorer loads `window.cytoscape` from the unpkg script registered in `AdminPanelProvider` (not an npm/Vite bundle).
 - **Run the client**: from the repo root, `cd apps/client && pnpm exec expo start`, then choose web (`w`), iOS (`i`), or Android (`a`). Or use Turbo: `pnpm turbo run dev --filter=client` (from root).
 - **Independent deployment**: In CI, deploy only the API when changes are outside `apps/client/**`; deploy only the client when changes are under `apps/client/**`.
 
@@ -117,7 +119,7 @@ This repository is a **monorepo**: the **Laravel API** lives at the **root**; th
 - **Prerequisites**: Node version per [.nvmrc](.nvmrc) (NVM on host or Node Docker service); optionally Xcode (iOS) / Android Studio (Android) for native runs.
 - **Environment**: Set `EXPO_PUBLIC_API_URL` (e.g. in `apps/client/.env`) to the API base URL (no trailing slash). Example: `EXPO_PUBLIC_API_URL=http://localhost`.
 - See [Expo Documentation](https://docs.expo.dev) for building and deploying the app.
-- **Test URL params** (Expo web / Critiquito): `canonicalConcept`, `localizedConcept`, `onlyWithMedia`, `complexity` (this load/session only; does not persist), plus existing `locale`. Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es&complexity=5`. Docs: [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md).
+- **Test URL params** (Expo web / Critiquito): `canonicalConcept`, `localizedConcept`, `onlyWithMedia`, `complexity`, `laterality` (complexity/laterality are this load/session only; they do not persist), plus existing `locale`. Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&locale=es&complexity=5`. Docs: [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md).
 
 ### Admin Backoffice
 
@@ -206,11 +208,11 @@ Allowlisted reverse proxy for concept card images. The Expo **web** client loads
 
 Only `https` URLs on `upload.wikimedia.org` with a raster image extension are fetched. SVG is rejected. Responses are cached by browsers (`Cache-Control`) and the route is throttled.
 
-### Generate Concept Relationships
+### Concept graph neighborhood
 
 **POST** `/api/concepts/relationships`
 
-Returns a prefetched graph neighborhood. **Cold start**: omit `start` (or send an empty body) to let the API choose a random concept.
+Returns a **prefetched** graph neighborhood from the database (`start` + `nodes` + `edges` + `meta`). It does **not** call the LLM. **Cold start**: omit `start` (or send an empty body) to let the API choose a random concept that already has edges. Missing graphs return **404** (`No prefetched graph found for this start yet.`).
 
 Test/dev filters (same names as the Expo web query params; see [apps/client/TEST-URL-PARAMS.md](apps/client/TEST-URL-PARAMS.md)):
 
@@ -219,50 +221,51 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
 - `onlyWithMedia` — only concepts that have a `mediaUrl`
 - `locale` — `en` or `es`
 - `complexity` — optional integer **1–5**; prefers terms generated at that label-density tier. Omitted requests keep the unfiltered walk (backward compatible).
+- `laterality` — optional integer **1–5**; biases neighborhood edge order
+- `limit` / `depth` / `minStrength` — neighborhood size (defaults 100 / 2 / 0)
 
 **Request:**
 ```json
 {
-  "seed": "creativity",
-  "count": 5,
+  "start": "creativity",
+  "locale": "en",
   "complexity": 2
 }
 ```
-- `seed` — optional; when omitted, the API picks a random concept from config or the database.
-- `count` — optional (default 3–5 concepts, max 10).
-- `complexity` — optional, integer **1–5**: controls **label length** for each `concept` (word caps: 1 = one word, 2 = **max two words**—places, people, short artwork titles; 3–4 = up to 3–4 words; 5 = longer scholarly titles). Default **2** (`CONCEPTS_DEFAULT_COMPLEXITY` in `.env`).
+- `start` (`seed` / `localizedConcept` aliases) — optional; when omitted, the API picks a random concept that already has relationships.
+- `complexity` — optional integer **1–5**; when set, prefers a term at that stored complexity. Omitted requests do not force a default complexity on the walk.
 
 **Response:**
 ```json
 {
   "data": {
-    "complexity": 2,
-    "seed": {
-      "concept": "creativity",
-      "shortDescription": "...",
-      "wikiUrl": "...",
-      "mediaUrl": null
-    },
-    "related_concepts": [
+    "start": { "id": 1, "label": "creativity" },
+    "nodes": [
       {
-        "concept": "constraint",
-        "shortDescription": "Limitations can spark creative solutions",
-        "larelality": 3,
-        "wikiUrl": null,
-        "mediaUrl": null
+        "id": 1,
+        "label": "creativity",
+        "shortDescription": "...",
+        "complexity": 2,
+        "wikiUrl": "...",
+        "mediaUrl": null,
+        "degree": 1
       }
-    ]
+    ],
+    "edges": [
+      { "id": 10, "from": 1, "to": 2, "strength": 0.72, "laterality": 3 }
+    ],
+    "meta": { "depth": 2, "limit": 100, "minStrength": 0.0, "hasMore": false, "locale": "en" }
   },
   "status": "success"
 }
 ```
 
-**Note**: Requires Ollama to be running. See [Local LLM Setup](#local-llm-setup) below.
+**Note**: This read path does not need Ollama. Use [Local LLM Setup](#local-llm-setup) and `./sail artisan concepts:prefetch` (plus the queue worker) to **grow** the graph.
 
 ## Project Structure
 
 ```
-lateralzr-api/
+lateralzr/
 ├── app/                    # Laravel application code
 │   ├── Http/
 │   │   └── Controllers/   # API controllers
@@ -278,12 +281,12 @@ lateralzr-api/
 │   └── api.php            # API routes
 ├── tests/                 # Test suite
 │   └── Feature/           # Feature tests
-├── turbo.json             # Turborepo pipeline
+├── turbo.json             # Turborepo pipeline (Expo client tasks)
 ├── pnpm-workspace.yaml     # pnpm workspace (apps/*)
 ├── pnpm-lock.yaml         # pnpm lockfile
 ├── .nvmrc                  # Node version (e.g. 20)
-├── .cursor/plans/         # Project plans
-└── compose.yaml           # Docker Compose configuration
+├── .cursor/plans/         # Historical project plans (not current setup)
+└── compose.yaml           # Docker Compose (Sail) configuration
 ```
 
 ## Local LLM Setup
@@ -308,11 +311,16 @@ This project uses **Ollama** running natively on macOS for local LLM development
    ./dev.sh up
    ```
 
-4. **Test the concept generation endpoint**:
+4. **Grow the graph** (LLM + queue; not the public read API):
+   ```bash
+   ./sail artisan concepts:prefetch --starts=creativity --count=10
+   ./sail artisan queue:work --queue=default --timeout=300
+   ```
+   Then exercise the **prefetched** read API:
    ```bash
    curl -X POST http://localhost/api/concepts/relationships \
      -H "Content-Type: application/json" \
-     -d '{"seed": "innovation"}'
+     -d '{"start": "creativity"}'
    ```
 
 ### Configuration
@@ -395,15 +403,6 @@ Quick specs:
 ## License
 
 [To be determined]
-
-## Next Steps
-
-- Design database schema for concepts and relationships
-- ~~Set up Laravel AI SDK for LLM integration~~ ✅ Complete
-- ~~Create concept generation endpoints~~ ✅ Complete
-- Implement relationship mapping logic
-- Add caching for generated relationships
-- Add authentication if needed
 
 ## Resources
 
