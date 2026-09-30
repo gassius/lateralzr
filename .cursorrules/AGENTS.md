@@ -162,7 +162,71 @@ See `database/migrations/` and the models under `app/Models/`.
 3. Implement feature
 4. Ensure all tests pass
 5. Run code quality checks (Pint)
-6. Commit with descriptive messages
+6. Commit with descriptive messages (AI agents must also add [git trailers](#agent-attribution))
+
+## Agent attribution
+
+Every commit, pull request, and review comment made by an AI agent must identify the agent, the ClickUp ticket (or `none` / a GitHub issue-or-PR reference), and (when known) the Cursor agent run. A short always-applied reminder lives in [`.cursor/rules/agent-attribution.mdc`](../.cursor/rules/agent-attribution.mdc).
+
+### Commits
+
+AI-agent commits must end with **one contiguous trailer block**: the final paragraph of the message, with no blank lines inside it. Git only treats that last paragraph as trailers. The block contains `Agent:`, `Agent-Ticket:`, `Agent-Run:` (when known), and any other trailers such as `Co-authored-by:`. There must be no blank line between the `Agent:` lines and `Co-authored-by:`.
+
+Add them with `--trailer` so they form that final paragraph (do not type a separate paragraph by hand):
+
+```bash
+git commit --trailer 'Agent: …' --trailer 'Agent-Ticket: …' --trailer 'Agent-Run: …'
+```
+
+Example with a subject and body:
+
+```bash
+git commit -m "subject" -m "body" \
+  --trailer 'Agent: GasNet Implementer' \
+  --trailer 'Agent-Ticket: 869f9e0zr' \
+  --trailer 'Agent-Run: https://cursor.com/agents/<bc id>'
+```
+
+`Agent:` is exactly one name from [Known identities](#known-identities).
+
+`Agent-Ticket:` is the ClickUp task id. When there is no ClickUp task, use `Agent-Ticket: none`, or the GitHub issue/PR reference if there is one (for example `Agent-Ticket: #64`).
+
+`Agent-Run:` is always the full `https://cursor.com/agents/<bc id>` URL. Omit the line when the run URL is unknown.
+
+If tooling would append `Co-authored-by:` after a blank line, include that trailer yourself so it joins the same block (`--trailer 'Co-authored-by: …'` or `git interpret-trailers --in-place --trailer …`). Cursor's commit-msg hook skips adding `Co-authored-by:` when the message already has one.
+
+Before pushing, check:
+
+```bash
+git log -1 --format='%(trailers:key=Agent,valueonly)'
+```
+
+It must print the agent name. `git interpret-trailers --parse` on the commit message must list every `Agent*` trailer (and `Co-authored-by:` if present) in one block.
+
+**Carve-out:** merge commits created by GitHub's update-branch button or API have no trailers. That is acceptable. Attribute those updates in a PR comment instead.
+
+### Pull requests
+
+The same three lines appear as a footer. That footer is the last human-written section of the PR description; tool-appended HTML (Open in Web / Open in Cursor badges, `<!-- CURSOR_AGENT_PR_BODY_* -->` wrappers) may follow.
+
+In the PR body, the footer may use the bare bc id for `Agent-Run:` if the form rejects the `https://cursor.com/agents/…` URL. Commits still use the full URL.
+
+### PR comments and reviews
+
+Every agent comment starts with `### Agent: <name>` as the first line.
+
+`**Verdict:**` is required on reviews and on verdict or status comments only (for example `**Verdict:** Approve | Request changes | Comment`). Plain replies need only the `### Agent:` header.
+
+### Known identities
+
+- **GasNet Implementer**: Cursor cloud agents launched by Engineer Supervisor. Commits are authored by Cursor's `cursoragent` account (`Cursor Agent <cursoragent@cursor.com>`) and identified by `Agent: GasNet Implementer` trailers.
+- **Nightly Audit Engineer**: also uses Cursor cloud agents; identified by `Agent: Nightly Audit Engineer`.
+- **Engineer Supervisor**: writes as GitHub App `gasnet-supervisor-gassius[bot]` (since 2026-09-30).
+- **Pull Request Reviewer**: writes as GitHub App `gasnet-reviewer-gassius[bot]` (since 2026-09-30).
+
+Before 2026-09-30, Engineer Supervisor and Pull Request Reviewer actions appear as `gassius`. The `### Agent:` header is then the only attribution.
+
+Only Carlos (`gassius`) merges PRs. Agents never merge, enable auto-merge, or mark PRs Ready unless Carlos asks.
 
 ## Code Quality
 

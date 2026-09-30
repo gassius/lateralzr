@@ -1,0 +1,14 @@
+---
+description: Require git trailers on every AI-agent commit
+alwaysApply: true
+---
+
+# Agent attribution
+
+Every AI-agent commit ends with one contiguous git trailer block as the message's final paragraph: `Agent:`, `Agent-Ticket:`, `Agent-Run:` (full `https://cursor.com/agents/<bc id>` URL when known), plus any `Co-authored-by:`. No blank lines inside the block.
+
+Use `git commit --trailer 'Agent: …' --trailer 'Agent-Ticket: …' --trailer 'Agent-Run: …'`. If tooling would append `Co-authored-by:` after a blank line, pass it with `--trailer` too so it stays in the same block.
+
+Before pushing, `git log -1 --format='%(trailers:key=Agent,valueonly)'` must print the agent name.
+
+Full rule: [Agent attribution](../../.cursorrules/AGENTS.md#agent-attribution) in `.cursorrules/AGENTS.md`.
