@@ -27,21 +27,20 @@ This document provides context and guidelines for AI agents working on the Later
 
 ### API Design Principles
 - RESTful API design
-- JSON responses only (no HTML/Blade views)
-- Resource-based routing (`/api/concepts`, `/api/relationships`)
+- Public API responses are JSON (`routes/api.php`). Filament admin at `/admin` is Livewire/Blade HTML — not a Vite SPA.
+- Resource-based routing (`/api/concepts/relationships`, `/api/media`, `/api/hello`)
 - Consistent error handling and response formatting
 - API versioning when needed (future consideration)
 
 ### Code Organization
 - Follow Laravel conventions strictly
-- Use Form Requests for validation
-- Use API Resources for response transformation
 - Keep controllers thin, move logic to services/actions
+- Validate at the controller/`Request` layer (no unused Form Request / API Resource skeleton)
 - Use Eloquent models with proper relationships
 - Implement repository pattern if complexity grows
 
 ### Monorepo
-- **API** lives at the **repository root** (Laravel, Sail, `app/`, `routes/`, `compose.yaml`). **Expo client** lives in **`apps/client`**. Turborepo orchestrates the root package (admin/Vite) and the client (Expo) so their build and dev tasks do not collide.
+- **API** lives at the **repository root** (Laravel, Sail, Filament `/admin`, `app/`, `routes/`, `compose.yaml`). **Expo client** lives in **`apps/client`**. There is **no root Vite / Laravel frontend asset pipeline**. Root `package.json` is the pnpm workspace root (`concurrently`, `turbo`); Turborepo runs **Expo client** `build` / `dev` only (`pnpm turbo run dev --filter=client`). Filament Concept Graph Explorer uses `window.cytoscape` from the unpkg script in `AdminPanelProvider`, not an npm cytoscape bundle.
 - **Node version** is defined in [.nvmrc](.nvmrc); use NVM on the host or the optional Node Docker service (profile `client`) for client tooling.
 - **Agents must not assume a single app**: run API commands from the repo root with Sail (`./sail ...`, wrapper for `./vendor/bin/sail`). Run client commands from `apps/client` (e.g. `pnpm exec expo start`, `pnpm exec expo start --web`) or from the root with Turbo: `pnpm turbo run dev --filter=client`. The project uses **pnpm** as the package manager (see [pnpm-workspace.yaml](pnpm-workspace.yaml)).
 - **Critical Sail rule (local)**: Do not run `php artisan`, `composer`, `vendor/bin/pint`, or `vendor/bin/phpunit` directly on the host. The `.env` database host (`mysql`) is resolved inside Sail containers. Use `./sail artisan <command>`, `./sail composer <command>`, `./sail test`, and `./sail pint`.
@@ -60,9 +59,8 @@ This document provides context and guidelines for AI agents working on the Later
 
 ### Controllers
 - Place in `app/Http/Controllers/Api/`
-- Use `ApiController` base class if needed
 - Keep actions focused and single-purpose
-- Return JSON responses using `response()->json()` or API Resources
+- Return JSON with `response()->json()` (no API Resource classes today)
 
 ### Models
 - Use Eloquent models in `app/Models/`
@@ -127,23 +125,14 @@ This document provides context and guidelines for AI agents working on the Later
 
 ## Database Schema Patterns
 
-### Concepts Table (Future)
-- `id` (primary key)
-- `title` (string)
-- `description` (text, nullable)
-- `category` (string, nullable)
-- `generated_at` (timestamp)
-- `metadata` (JSON, nullable)
-- `timestamps`
+Do **not** invent a parallel concepts schema. Current tables/models already exist:
 
-### Relationships Table (Future)
-- `id` (primary key)
-- `source_concept_id` (foreign key)
-- `target_concept_id` (foreign key)
-- `relationship_type` (string)
-- `strength` (decimal, 0-1)
-- `metadata` (JSON, nullable)
-- `timestamps`
+- `concepts` — language-neutral `canonical_key` (`app/Models/Concept.php`)
+- `concept_terms` — per-locale label, description, wiki/media URLs, complexity
+- `concept_relationships` — from/to, strength, laterality
+- `concept_media` — ordered media rows on a concept
+
+See `database/migrations/` and the models under `app/Models/`.
 
 ## Testing Standards
 
@@ -185,24 +174,16 @@ This document provides context and guidelines for AI agents working on the Later
 
 ## Common Patterns
 
-### Service Classes
+### Existing service / HTTP surfaces
 ```php
-app/Services/ConceptService.php
-app/Services/RelationshipService.php
-app/Services/LlmService.php
+app/Services/ConceptGraphQuery.php
+app/Services/ConceptRelationshipService.php
+app/Services/ConceptGraphPrefetchService.php
+app/Http/Controllers/Api/ConceptRelationshipController.php
+app/Http/Controllers/Api/RemoteMediaController.php
 ```
 
-### Form Requests
-```php
-app/Http/Requests/Api/StoreConceptRequest.php
-app/Http/Requests/Api/UpdateConceptRequest.php
-```
-
-### API Resources
-```php
-app/Http/Resources/ConceptResource.php
-app/Http/Resources/RelationshipResource.php
-```
+Public API controllers validate with `Request` today. There are no `app/Http/Requests/Api/*` or `app/Http/Resources/*` classes — do not recreate those Laravel-skeleton names unless a task needs them.
 
 ## Notes for AI Agents
 
@@ -216,12 +197,12 @@ app/Http/Resources/RelationshipResource.php
 
 ## Future Considerations
 
-- Authentication/Authorization (Laravel Sanctum)
-- Rate limiting for API endpoints
-- Caching strategy for frequently accessed concepts
-- Queue jobs for async LLM operations
+- Authentication/Authorization (Laravel Sanctum) for the public API
+- Broader rate limiting beyond `/api/media`
 - API versioning
-- Documentation (API documentation generation)
+- Generated public API documentation
+
+Queue workers for graph generation, localisation, and wiki/media enrichment already exist (`GenerateConceptGraphJob`, `LocalizeConceptBatchJob`, `CompleteConceptInfoBatchJob`). Do not add a second job stack.
 
 ## Laravel Boost & MCP Usage
 
