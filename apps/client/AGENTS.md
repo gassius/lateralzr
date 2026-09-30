@@ -44,6 +44,8 @@ Run `pnpm test` and `pnpm typecheck` before declaring any client task done.
 
 API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) — see root agent context in `.cursorrules/AGENTS.md`.
 
+Repo-wide **Agent attribution** (commit trailers, PR footers, review headers) is defined in [`.cursorrules/AGENTS.md`](../../.cursorrules/AGENTS.md#agent-attribution) and applies to client work as well.
+
 ## Test / Critiquito URL params (Expo web)
 
 Testers can deep-link the web preview with query params. **Do not treat this as product UX.** Full table and copy-paste URLs: [TEST-URL-PARAMS.md](./TEST-URL-PARAMS.md).
