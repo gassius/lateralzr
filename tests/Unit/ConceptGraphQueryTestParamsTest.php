@@ -205,6 +205,27 @@ class ConceptGraphQueryTestParamsTest extends TestCase
         $this->assertArrayNotHasKey('complexity', $graph['meta']);
     }
 
+    public function test_node_degree_counts_all_incident_edges_not_just_the_subgraph(): void
+    {
+        [$creativity, $silence] = $this->seedBilingualPair();
+        $pattern = $this->makeConcept('pattern', [
+            ['locale' => 'en', 'term' => 'pattern', 'media' => null],
+        ]);
+        $this->link($silence, $pattern);
+
+        $graph = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: 'creativity',
+            depth: 1,
+            locale: 'en',
+        );
+
+        $this->assertNotNull($graph);
+        $byId = collect($graph['nodes'])->keyBy('id');
+        $this->assertSame(1, $byId[$creativity->id]['degree']);
+        $this->assertSame(2, $byId[$silence->id]['degree']);
+        $this->assertArrayNotHasKey($pattern->id, $byId);
+    }
+
     /**
      * @return array{0: Concept, 1: Concept}
      */

@@ -3,7 +3,6 @@
 namespace App\Ai\Tools;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -161,19 +160,14 @@ class WikimediaCommonsSearchTool implements Tool
     protected function trySearchStrategy(string $concept, array $strategy): ?string
     {
         try {
-            $response = Http::timeout(10)
-                ->withoutVerifying()
-                ->withHeaders([
-                    'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                ])
-                ->get('https://commons.wikimedia.org/w/api.php', [
-                    'action' => 'query',
-                    'format' => 'json',
-                    'list' => 'search',
-                    'srsearch' => $strategy['query'],
-                    'srnamespace' => 6, // File namespace
-                    'srlimit' => 3, // Get a few results to try
-                ]);
+            $response = $this->httpClient()->get('https://commons.wikimedia.org/w/api.php', [
+                'action' => 'query',
+                'format' => 'json',
+                'list' => 'search',
+                'srsearch' => $strategy['query'],
+                'srnamespace' => 6, // File namespace
+                'srlimit' => 3, // Get a few results to try
+            ]);
 
             if (! $response->successful()) {
                 return null;
@@ -227,19 +221,14 @@ class WikimediaCommonsSearchTool implements Tool
             $availableThumbnails = [];
 
             foreach ($widths as $width) {
-                $response = Http::timeout(8)
-                    ->withoutVerifying()
-                    ->withHeaders([
-                        'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                    ])
-                    ->get('https://commons.wikimedia.org/w/api.php', [
-                        'action' => 'query',
-                        'format' => 'json',
-                        'titles' => $title,
-                        'prop' => 'imageinfo',
-                        'iiprop' => 'url',
-                        'iiurlwidth' => $width,
-                    ]);
+                $response = $this->httpClient(8)->get('https://commons.wikimedia.org/w/api.php', [
+                    'action' => 'query',
+                    'format' => 'json',
+                    'titles' => $title,
+                    'prop' => 'imageinfo',
+                    'iiprop' => 'url',
+                    'iiurlwidth' => $width,
+                ]);
 
                 if ($response->successful()) {
                     $data = $response->json();
@@ -279,18 +268,13 @@ class WikimediaCommonsSearchTool implements Tool
             }
 
             // Fallback: get original image URL if no thumbnails found (must be direct upload URL)
-            $fallbackResponse = Http::timeout(8)
-                ->withoutVerifying()
-                ->withHeaders([
-                    'User-Agent' => 'Lateralzr-API/1.0 (https://github.com/yourusername/lateralzr-api; contact@example.com)',
-                ])
-                ->get('https://commons.wikimedia.org/w/api.php', [
-                    'action' => 'query',
-                    'format' => 'json',
-                    'titles' => $title,
-                    'prop' => 'imageinfo',
-                    'iiprop' => 'url',
-                ]);
+            $fallbackResponse = $this->httpClient(8)->get('https://commons.wikimedia.org/w/api.php', [
+                'action' => 'query',
+                'format' => 'json',
+                'titles' => $title,
+                'prop' => 'imageinfo',
+                'iiprop' => 'url',
+            ]);
 
             if ($fallbackResponse->successful()) {
                 $fallbackData = $fallbackResponse->json();
@@ -315,5 +299,10 @@ class WikimediaCommonsSearchTool implements Tool
 
             return null;
         }
+    }
+
+    protected function httpClient(int $timeoutSeconds = 10): \Illuminate\Http\Client\PendingRequest
+    {
+        return WikiHttp::client($timeoutSeconds);
     }
 }

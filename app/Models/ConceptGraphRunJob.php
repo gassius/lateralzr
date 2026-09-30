@@ -57,4 +57,21 @@ class ConceptGraphRunJob extends Model
     {
         return $this->belongsTo(ConceptGraphRun::class, 'run_uuid', 'run_uuid');
     }
+
+    /**
+     * Update the tracked worker row for this run/seed when tracking is enabled.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    public static function mark(?string $runUuid, ?string $seed, array $values): void
+    {
+        if ($runUuid === null || $runUuid === '' || $seed === null || $seed === '') {
+            return;
+        }
+
+        static::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', $seed)
+            ->update($values);
+    }
 }
