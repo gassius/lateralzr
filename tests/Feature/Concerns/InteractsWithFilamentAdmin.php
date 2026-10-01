@@ -10,10 +10,15 @@ use Filament\Facades\Filament;
 
 trait InteractsWithFilamentAdmin
 {
-    protected function actingAsAdmin(): User
+    protected function bootAdminPanel(): void
     {
         SuperAdminRole::ensureExists();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+    }
+
+    protected function actingAsAdmin(): User
+    {
+        $this->bootAdminPanel();
 
         $user = User::factory()->create();
         $user->assignRole(SuperAdminRole::NAME);

@@ -41,7 +41,7 @@ describe('laterality wordmark matches the logo outlines', () => {
   });
 
   it('does not ship the reserved lightbulb / idea mark on the laterality bar', () => {
-    const ids = WORDMARK_LETTERS.map((letter) => letter.id);
+    const ids: string[] = WORDMARK_LETTERS.map((letter) => letter.id);
     for (const reserved of RESERVED_LIGHTBULB_PATH_IDS) {
       assert.equal(ids.includes(reserved), false);
       assert.match(logoSvg, new RegExp(`id="${reserved}"`));

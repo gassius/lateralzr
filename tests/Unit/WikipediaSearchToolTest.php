@@ -8,6 +8,14 @@ use Tests\TestCase;
 
 class WikipediaSearchToolTest extends TestCase
 {
+    private const TEST_USER_AGENT = 'Lateralzr-Test-Agent/1.0';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['media.user_agent' => self::TEST_USER_AGENT]);
+    }
+
     public function test_lookup_uses_configured_user_agent_and_a_single_normalized_title(): void
     {
         Http::fake([
@@ -28,7 +36,7 @@ class WikipediaSearchToolTest extends TestCase
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/page/summary/Foo_Bar')
                 && ! str_contains($request->url(), '_Foo_Bar_')
-                && $request->hasHeader('User-Agent', (string) config('media.user_agent'));
+                && $request->hasHeader('User-Agent', self::TEST_USER_AGENT);
         });
     }
 
@@ -58,6 +66,6 @@ class WikipediaSearchToolTest extends TestCase
         $this->assertStringContainsString('Mercury', $url);
         Http::assertSent(fn ($request) => str_contains($request->url(), '/w/api.php'));
         Http::assertSent(fn ($request) => str_contains($request->url(), 'Mercury%20%28element%29')
-            && $request->hasHeader('User-Agent', (string) config('media.user_agent')));
+            && $request->hasHeader('User-Agent', self::TEST_USER_AGENT));
     }
 }

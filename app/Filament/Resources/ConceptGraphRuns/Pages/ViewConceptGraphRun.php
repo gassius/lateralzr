@@ -9,4 +9,3 @@ class ViewConceptGraphRun extends ViewRecord
 {
     protected static string $resource = ConceptGraphRunResource::class;
 }
-

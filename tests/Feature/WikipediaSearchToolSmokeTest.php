@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Ai\Tools\WikipediaSearchTool;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Tools\Request;
 use PHPUnit\Framework\Attributes\Group;
@@ -12,14 +11,12 @@ use Tests\TestCase;
 #[Group('smoke')]
 class WikipediaSearchToolSmokeTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Skip tests if smoke tests are not enabled
-        if (! env('AI_SMOKE_TESTS', false)) {
+        // phpunit.xml stores env values as strings; "0" is truthy without a boolean cast.
+        if (! filter_var(env('AI_SMOKE_TESTS', false), FILTER_VALIDATE_BOOLEAN)) {
             $this->markTestSkipped('Smoke tests are disabled. Set AI_SMOKE_TESTS=1 to enable.');
         }
 
@@ -43,7 +40,7 @@ class WikipediaSearchToolSmokeTest extends TestCase
 
     public function test_wikipedia_tool_returns_url_for_known_concept(): void
     {
-        $tool = new WikipediaSearchTool();
+        $tool = new WikipediaSearchTool;
         $request = new Request(['concept' => 'sonar']);
 
         $result = $tool->handle($request);
@@ -56,7 +53,7 @@ class WikipediaSearchToolSmokeTest extends TestCase
 
     public function test_wikipedia_tool_handles_invalid_concept_gracefully(): void
     {
-        $tool = new WikipediaSearchTool();
+        $tool = new WikipediaSearchTool;
         $request = new Request(['concept' => 'nonexistentconcept12345xyz']);
 
         $result = $tool->handle($request);

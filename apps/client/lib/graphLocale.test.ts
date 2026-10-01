@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import { assertAndFilterGraphLocale, type LocaleAwareGraph } from './graphLocale.ts';
-import { setActiveLocale } from './i18n.ts';
+import { DEFAULT_LOCALE, setActiveLocale } from './i18n.ts';
+
+afterEach(() => {
+  setActiveLocale(DEFAULT_LOCALE);
+});
 
 function sampleGraph(overrides?: Partial<LocaleAwareGraph>): LocaleAwareGraph {
   return {

@@ -85,8 +85,10 @@ describe('stack wiring (RM → translate-only transform)', () => {
   it('front and return overlay use 3D when reduced motion is off', () => {
     const front = cardSwipeFrontTransform(-80, -120, CARD_W, CARD_H, 0, false);
     const ret = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0, false);
-    assert.equal(front[0]?.perspective, CARD_SWIPE_PERSPECTIVE);
-    assert.equal(ret[0]?.perspective, CARD_SWIPE_PERSPECTIVE);
+    assert.ok(front[0] && 'perspective' in front[0]);
+    assert.ok(ret[0] && 'perspective' in ret[0]);
+    assert.equal(front[0].perspective, CARD_SWIPE_PERSPECTIVE);
+    assert.equal(ret[0].perspective, CARD_SWIPE_PERSPECTIVE);
     assert.equal(cardSwipeTransformHas3d(front), true);
     assert.equal(cardSwipeTransformHas3d(ret), true);
     assert.equal(front.length === 8 && 'rotateX' in front[3], true);

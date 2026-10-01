@@ -129,7 +129,7 @@ Do **not** invent a parallel concepts schema. Current tables/models already exis
 
 - `concepts` — language-neutral `canonical_key` (`app/Models/Concept.php`)
 - `concept_terms` — per-locale label, description, wiki/media URLs, complexity
-- `concept_relationships` — from/to, strength, laterality
+- `concept_relationships` — from/to, strength, last_laterality (the API edge JSON exposes laterality)
 - `concept_media` — ordered media rows on a concept
 
 See `database/migrations/` and the models under `app/Models/`.

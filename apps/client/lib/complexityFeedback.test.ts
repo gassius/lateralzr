@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import { Palette } from '../constants/Colors.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
@@ -21,8 +21,12 @@ import {
   shouldAnnounceComplexity,
   shouldKeepSessionComplexityMark,
 } from './complexityFeedback.ts';
-import { setActiveLocale, t } from './i18n.ts';
+import { DEFAULT_LOCALE, setActiveLocale, t } from './i18n.ts';
 import { shouldPersistComplexity } from './testQueryParams.ts';
+
+afterEach(() => {
+  setActiveLocale(DEFAULT_LOCALE);
+});
 
 describe('shouldAnnounceComplexity', () => {
   it('announces a session deep-link complexity so the rung is visible without the URL', () => {

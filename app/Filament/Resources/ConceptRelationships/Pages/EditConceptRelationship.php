@@ -9,4 +9,3 @@ class EditConceptRelationship extends EditRecord
 {
     protected static string $resource = ConceptRelationshipResource::class;
 }
-

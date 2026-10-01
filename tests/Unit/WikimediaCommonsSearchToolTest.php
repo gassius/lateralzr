@@ -8,6 +8,14 @@ use Tests\TestCase;
 
 class WikimediaCommonsSearchToolTest extends TestCase
 {
+    private const TEST_USER_AGENT = 'Lateralzr-Test-Agent/1.0';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['media.user_agent' => self::TEST_USER_AGENT]);
+    }
+
     public function test_lookup_uses_configured_user_agent(): void
     {
         Http::fake([
@@ -20,7 +28,7 @@ class WikimediaCommonsSearchToolTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), 'commons.wikimedia.org')
-                && $request->hasHeader('User-Agent', (string) config('media.user_agent'));
+                && $request->hasHeader('User-Agent', self::TEST_USER_AGENT);
         });
     }
 }

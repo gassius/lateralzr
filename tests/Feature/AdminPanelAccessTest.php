@@ -9,17 +9,18 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Livewire\Livewire;
+use Tests\Feature\Concerns\InteractsWithFilamentAdmin;
 use Tests\TestCase;
 
 class AdminPanelAccessTest extends TestCase
 {
+    use InteractsWithFilamentAdmin;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
-        SuperAdminRole::ensureExists();
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->bootAdminPanel();
     }
 
     public function test_unauthenticated_user_redirected_to_login(): void

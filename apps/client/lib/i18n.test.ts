@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import {
   DEFAULT_LOCALE,
   getActiveLocale,
@@ -8,6 +8,10 @@ import {
   setActiveLocale,
   t,
 } from '../lib/i18n.ts';
+
+afterEach(() => {
+  setActiveLocale(DEFAULT_LOCALE);
+});
 
 describe('i18n locale catalogs', () => {
   it('translates keys for en and es', () => {

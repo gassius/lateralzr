@@ -1,36 +1,17 @@
-'use strict';
-
-/**
- * Node 20-friendly tests for webPhoneFrame.ts (CI uses .nvmrc Node 20).
- * Transpiles the TypeScript source with the workspace `typescript` package.
- */
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { describe, it } = require('node:test');
-const ts = require('typescript');
-
-const sourcePath = path.join(__dirname, 'webPhoneFrame.ts');
-const source = fs.readFileSync(sourcePath, 'utf8');
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2020,
-    esModuleInterop: true,
-  },
-});
-
-const compiledPath = path.join(os.tmpdir(), `webPhoneFrame-${process.pid}.cjs`);
-fs.writeFileSync(compiledPath, outputText);
-
-const {
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
   WEB_PHONE_ASPECT_RATIO,
   WEB_PHONE_MAX_WIDTH,
   WEB_PHONE_MIN_HEIGHT,
   WEB_PHONE_MIN_WIDTH,
   webPhoneFrameSize,
-} = require(compiledPath);
+} from './webPhoneFrame.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 describe('webPhoneFrameSize', () => {
   it('fills a typical iPhone viewport without letterboxing', () => {
@@ -90,8 +71,8 @@ describe('webPhoneFrameSize', () => {
 });
 
 describe('native isolation', () => {
-  const nativeSrc = fs.readFileSync(path.join(__dirname, '../components/WebPhoneFrame.tsx'), 'utf8');
-  const webSrc = fs.readFileSync(path.join(__dirname, '../components/WebPhoneFrame.web.tsx'), 'utf8');
+  const nativeSrc = readFileSync(join(here, '../components/WebPhoneFrame.tsx'), 'utf8');
+  const webSrc = readFileSync(join(here, '../components/WebPhoneFrame.web.tsx'), 'utf8');
 
   it('native WebPhoneFrame is a passthrough with a null size hook', () => {
     assert.match(nativeSrc, /return children/);
@@ -107,4 +88,3 @@ describe('native isolation', () => {
     assert.match(webSrc, /lateralzr-web-phone-frame/);
   });
 });
-
