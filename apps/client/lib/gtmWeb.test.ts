@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   GTM_NOSCRIPT_MARKER,
   GTM_NOSCRIPT_ORIGIN,
@@ -15,6 +16,8 @@ import {
   type GtmElement,
   type GtmWindow,
 } from './gtmWeb';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 function createFakeDom(preloaded: { scripts?: GtmElement[]; iframes?: GtmElement[] } = {}) {
   const scripts = [...(preloaded.scripts ?? [])];
@@ -140,9 +143,9 @@ test('injectGtmWeb skips when +html (or another loader) already added gtm.js', (
 });
 
 test('native analytics never loads web gtm.js', () => {
-  const nativeSrc = fs.readFileSync(path.join(__dirname, 'analytics.ts'), 'utf8');
-  const webSrc = fs.readFileSync(path.join(__dirname, 'analytics.web.ts'), 'utf8');
-  const layoutSrc = fs.readFileSync(path.join(__dirname, '../app/_layout.tsx'), 'utf8');
+  const nativeSrc = fs.readFileSync(path.join(here, 'analytics.ts'), 'utf8');
+  const webSrc = fs.readFileSync(path.join(here, 'analytics.web.ts'), 'utf8');
+  const layoutSrc = fs.readFileSync(path.join(here, '../app/_layout.tsx'), 'utf8');
 
   assert.match(nativeSrc, /export function ensureGtmWebLoaded/);
   assert.match(nativeSrc, /return false/);

@@ -7,10 +7,13 @@ use Tests\TestCase;
 
 class RemoteMediaProxyApiTest extends TestCase
 {
+    private const TEST_USER_AGENT = 'Lateralzr-Test-Agent/1.0';
+
     protected function setUp(): void
     {
         parent::setUp();
         Http::preventStrayRequests();
+        config(['media.user_agent' => self::TEST_USER_AGENT]);
     }
 
     public function test_requires_url(): void
@@ -44,6 +47,10 @@ class RemoteMediaProxyApiTest extends TestCase
 
         $this->assertSame('fake-jpeg-bytes', $response->getContent());
         $this->assertStringContainsString('max-age=', (string) $response->headers->get('Cache-Control'));
+        Http::assertSent(function ($request) use ($url) {
+            return $request->url() === $url
+                && $request->hasHeader('User-Agent', self::TEST_USER_AGENT);
+        });
     }
 
     public function test_maps_upstream_errors(): void

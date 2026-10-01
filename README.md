@@ -171,18 +171,7 @@ A Filament 5 admin panel is available at **`/admin`** for quick inspection and m
 ./sail tinker
 ```
 
-### Running Tests
-
-```bash
-# Run all tests
-./sail test
-
-# Run specific test file
-./sail test tests/Feature/ApiHealthTest.php
-
-# Run with coverage
-./sail test --coverage
-```
+See [Testing](#testing) for the default mocked suite and opt-in smoke tests.
 
 ## API Endpoints
 
@@ -248,13 +237,15 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
         "complexity": 2,
         "wikiUrl": "...",
         "mediaUrl": null,
+        "locale": "en",
+        "media": [{ "url": "...", "kind": "image", "license": "CC0" }],
         "degree": 1
       }
     ],
     "edges": [
       { "id": 10, "from": 1, "to": 2, "strength": 0.72, "laterality": 3 }
     ],
-    "meta": { "depth": 2, "limit": 100, "minStrength": 0.0, "hasMore": false, "locale": "en" }
+    "meta": { "depth": 2, "limit": 100, "minStrength": 0.0, "hasMore": false, "locale": "en", "complexity": 2 }
   },
   "status": "success"
 }
@@ -332,16 +323,7 @@ OLLAMA_MODEL=llama3.1:8b  # For higher quality (slower)
 OLLAMA_MODEL=llama3.2:1b  # For faster responses
 ```
 
-### Testing
-
-Run tests:
-```bash
-# Unit and feature tests (mocked)
-./sail test
-
-# Smoke tests with real Ollama (requires Ollama running)
-AI_SMOKE_TESTS=1 ./sail test --group=ollama
-```
+Prefetch and grow the graph with Ollama (or OpenRouter). The public **POST** `/api/concepts/relationships` read path does not call the LLM. See [Testing](#testing) for the mocked default suite and opt-in live HTTP smoke tests.
 
 For detailed setup instructions, troubleshooting, and model recommendations, see [.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md).
 
@@ -367,17 +349,29 @@ Configuration files:
 
 ## Testing
 
-This project emphasizes test-driven development. All new features should include:
-
-- Unit tests for business logic
-- Feature tests for API endpoints
-- Integration tests for complex workflows
-
-Run the test suite:
+Default API tests are **mocked**. They do not call Ollama, Wikipedia, or Wikimedia. `phpunit.xml` sets `AI_SMOKE_TESTS=0`, so live HTTP smoke tests are an explicit opt-in.
 
 ```bash
+# Laravel (from repo root; use Sail locally)
 ./sail test
+
+# Specific file
+./sail test tests/Feature/ApiHealthTest.php
+
+# Coverage
+./sail test --coverage
+
+# Live Wikipedia / Wikimedia Commons HTTP smoke tests
+AI_SMOKE_TESTS=1 ./sail test --group=smoke
+
+# Expo client
+pnpm --filter client test
+pnpm --filter client typecheck
 ```
+
+CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests. Do not enable smoke tests in the default suite or CI.
+
+This project emphasizes test-driven development. New features should include unit tests for business logic and feature tests for API endpoints.
 
 ## Production Deployment
 

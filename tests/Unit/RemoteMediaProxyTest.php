@@ -10,12 +10,15 @@ use Tests\TestCase;
 
 class RemoteMediaProxyTest extends TestCase
 {
+    private const TEST_USER_AGENT = 'Lateralzr-Test-Agent/1.0';
+
     private RemoteMediaProxy $proxy;
 
     protected function setUp(): void
     {
         parent::setUp();
         Http::preventStrayRequests();
+        config(['media.user_agent' => self::TEST_USER_AGENT]);
         $this->proxy = new RemoteMediaProxy;
     }
 
@@ -70,7 +73,7 @@ class RemoteMediaProxyTest extends TestCase
         $this->assertSame('image/jpeg', $media['contentType']);
         Http::assertSent(function ($request) use ($url) {
             return $request->url() === $url
-                && $request->hasHeader('User-Agent');
+                && $request->hasHeader('User-Agent', self::TEST_USER_AGENT);
         });
     }
 

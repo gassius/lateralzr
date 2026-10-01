@@ -39,10 +39,7 @@ return [
 
     'max_bytes' => (int) env('MEDIA_PROXY_MAX_BYTES', 5_000_000),
 
-    'user_agent' => env(
-        'MEDIA_PROXY_USER_AGENT',
-        'Lateralzr-API/1.0 (https://github.com/gassius/lateralzr; educational)'
-    ),
+    'user_agent' => env('MEDIA_PROXY_USER_AGENT') ?: 'Lateralzr-API/1.0 (https://github.com/gassius/lateralzr; educational)',
 
     'cache_max_age' => (int) env('MEDIA_PROXY_CACHE_MAX_AGE', 86400),
 

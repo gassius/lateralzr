@@ -13,17 +13,18 @@ use Filament\Facades\Filament;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Tests\Feature\Concerns\InteractsWithFilamentAdmin;
 use Tests\TestCase;
 
 class AdminDashboardAdjustmentsTest extends TestCase
 {
+    use InteractsWithFilamentAdmin;
     use RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
-        SuperAdminRole::ensureExists();
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $this->bootAdminPanel();
     }
 
     public function test_admin_panel_brand_name_and_widgets_are_configured(): void

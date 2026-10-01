@@ -6,10 +6,7 @@ use Tests\TestCase;
 
 class ApiHealthTest extends TestCase
 {
-    /**
-     * Test that the hello endpoint returns a successful response.
-     */
-    public function test_hello_endpoint_returns_successful_response(): void
+    public function test_hello_endpoint_returns_ok_payload(): void
     {
         $response = $this->getJson('/api/hello');
 
@@ -20,18 +17,17 @@ class ApiHealthTest extends TestCase
             ])
             ->assertJson([
                 'status' => 'ok',
+                'message' => 'Hello, Lateralzr API is running!',
             ]);
     }
 
-    /**
-     * Test that the hello endpoint returns the correct message.
-     */
-    public function test_hello_endpoint_returns_correct_message(): void
+    public function test_root_returns_no_content(): void
     {
-        $response = $this->getJson('/api/hello');
+        $this->get('/')->assertNoContent();
+    }
 
-        $response->assertJson([
-            'message' => 'Hello, Lateralzr API is running!',
-        ]);
+    public function test_up_health_endpoint_returns_ok(): void
+    {
+        $this->get('/up')->assertOk();
     }
 }

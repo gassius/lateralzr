@@ -56,7 +56,7 @@ describe('concept card brand mark identity', () => {
       'path187',
     ]);
 
-    const ids = MARK_PATHS.map((path) => path.id);
+    const ids: string[] = MARK_PATHS.map((path) => path.id);
     for (const reserved of WORDMARK_PATH_IDS) {
       assert.equal(ids.includes(reserved), false);
     }

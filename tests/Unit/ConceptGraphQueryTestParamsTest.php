@@ -226,6 +226,30 @@ class ConceptGraphQueryTestParamsTest extends TestCase
         $this->assertArrayNotHasKey($pattern->id, $byId);
     }
 
+    public function test_node_degree_counts_self_loop_once_and_includes_reverse_edges(): void
+    {
+        $alpha = $this->makeConcept('alpha', [
+            ['locale' => 'en', 'term' => 'alpha', 'media' => null],
+        ]);
+        $beta = $this->makeConcept('beta', [
+            ['locale' => 'en', 'term' => 'beta', 'media' => null],
+        ]);
+        $this->link($alpha, $alpha);
+        $this->link($alpha, $beta);
+        $this->link($beta, $alpha);
+
+        $graph = app(ConceptGraphQuery::class)->getGraph(
+            startConcept: 'alpha',
+            depth: 1,
+            locale: 'en',
+        );
+
+        $this->assertNotNull($graph);
+        $byId = collect($graph['nodes'])->keyBy('id');
+        $this->assertSame(3, $byId[$alpha->id]['degree']);
+        $this->assertSame(2, $byId[$beta->id]['degree']);
+    }
+
     /**
      * @return array{0: Concept, 1: Concept}
      */
