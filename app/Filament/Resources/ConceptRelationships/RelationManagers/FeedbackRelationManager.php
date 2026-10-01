@@ -26,4 +26,3 @@ class FeedbackRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc');
     }
 }
-

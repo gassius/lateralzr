@@ -9,4 +9,3 @@ class ListConceptRelationships extends ListRecords
 {
     protected static string $resource = ConceptRelationshipResource::class;
 }
-

@@ -52,4 +52,3 @@ return new class extends Migration
         Schema::dropIfExists('concept_graph_runs');
     }
 };
-

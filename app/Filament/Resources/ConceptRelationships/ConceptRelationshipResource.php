@@ -53,4 +53,3 @@ class ConceptRelationshipResource extends Resource
         ];
     }
 }
-
