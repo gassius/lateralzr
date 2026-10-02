@@ -10,9 +10,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Group;
 use Tests\TestCase;
 
-#[Group('smoke')]
 #[Group('db-graph')]
-class ConceptRelationshipDbGraphSmokeTest extends TestCase
+class ConceptRelationshipDbGraphTest extends TestCase
 {
     use RefreshDatabase;
 

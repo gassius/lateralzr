@@ -349,7 +349,7 @@ Configuration files:
 
 ## Testing
 
-Default API tests are **mocked**. They do not call Ollama, Wikipedia, or Wikimedia. `phpunit.xml` sets `AI_SMOKE_TESTS=0`, so live HTTP smoke tests are an explicit opt-in.
+Default API tests are **mocked**. They do not call Ollama, Wikipedia, or Wikimedia.
 
 ```bash
 # Laravel (from repo root; use Sail locally)
@@ -361,15 +361,17 @@ Default API tests are **mocked**. They do not call Ollama, Wikipedia, or Wikimed
 # Coverage
 ./sail test --coverage
 
-# Live Wikipedia / Wikimedia Commons HTTP smoke tests
-AI_SMOKE_TESTS=1 ./sail test --group=smoke
+# Seeded DB graph neighborhood (runs in the default suite)
+./sail test --group=db-graph
 
 # Expo client
 pnpm --filter client test
 pnpm --filter client typecheck
 ```
 
-CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests. Do not enable smoke tests in the default suite or CI.
+`AI_SMOKE_TESTS` is forwarded into the Sail `laravel.test` service as `${AI_SMOKE_TESTS:-0}` (`compose.yaml`). Recreate the container after changing it (`AI_SMOKE_TESTS=1 ./sail up -d`). There is currently no live-HTTP `smoke` group: the unused Wikipedia/Wikimedia agent-tool tests were removed. Enrichment lives in `app/Services/Enrichment/*`.
+
+CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests.
 
 This project emphasizes test-driven development. New features should include unit tests for business logic and feature tests for API endpoints.
 
