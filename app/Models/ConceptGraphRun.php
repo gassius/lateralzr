@@ -46,11 +46,6 @@ class ConceptGraphRun extends Model
         return $this->type === self::TYPE_COMPLETE_INFO;
     }
 
-    public function isGraph(): bool
-    {
-        return $this->type === self::TYPE_GRAPH || (! $this->isLocalize() && ! $this->isCompleteInfo());
-    }
-
     public function getTargetCountAttribute(): ?int
     {
         $value = data_get($this->seeds, 'targetCount');

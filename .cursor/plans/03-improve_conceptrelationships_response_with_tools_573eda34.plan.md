@@ -1,6 +1,6 @@
 ---
 name: Improve ConceptRelationships Response with Tools
-overview: Enhance the ConceptRelationships feature by implementing Laravel AI SDK Tools for Wikipedia and Wikimedia Commons searches, updating the response structure, implementing concept chaining, and ensuring comprehensive test coverage.
+overview: Historical. WikipediaSearchTool, WikimediaCommonsSearchTool, and WikiHttp were removed; wiki/media enrichment lives in app/Services/Enrichment. The rest of this plan is a record of the original agent-tool approach.
 todos:
   - id: create-wikipedia-tool
     content: Run `php artisan make:tool WikipediaSearchTool` and implement Wikipedia API integration with logging and error handling

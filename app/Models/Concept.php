@@ -89,11 +89,6 @@ class Concept extends Model
         return $this->preferredTerm?->term;
     }
 
-    public function getDisplayShortDescriptionAttribute(): ?string
-    {
-        return $this->preferredTerm?->short_description;
-    }
-
     public function getDisplayWikiUrlAttribute(): ?string
     {
         return $this->preferredTerm?->wiki_url;

@@ -47,7 +47,7 @@ class CompleteConceptInfo extends Command
 
         $limit = $this->option('limit');
         $limit = $limit !== null && $limit !== '' ? (int) $limit : null;
-        $batchSize = (int) ($this->option('batch-size') ?? 20);
+        $batchSize = (int) $this->option('batch-size');
         $queue = (string) $this->option('queue');
 
         if (! (bool) $this->option('sync')) {

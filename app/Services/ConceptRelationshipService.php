@@ -158,8 +158,6 @@ PROMPT;
         ];
     }
 
-    // Note: concept label truncation removed intentionally (see above).
-
     /**
      * Ensure shortDescription is never blank (models sometimes omit when asked to stay "oblique").
      */
@@ -197,7 +195,7 @@ PROMPT;
      * Surface wiki and media already stored for this concept. Never searches.
      * Model-invented URLs are discarded when nothing is stored yet.
      *
-     * @param  array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null, larelality?: int}  $item
+     * @param  array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null, laterality?: int}  $item
      * @return array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}
      */
     protected function resolveUrlsForConcept(array $item): array

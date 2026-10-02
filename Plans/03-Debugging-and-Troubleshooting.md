@@ -117,7 +117,7 @@ If smoke tests fail:
 
 4. **Run tests with verbose output**:
    ```bash
-   AI_SMOKE_TESTS=1 sail test --group=ollama -v
+   ./sail test --group=db-graph -v
    ```
 
 5. **Check test logs** for specific error messages
@@ -223,5 +223,5 @@ curl -X POST http://127.0.0.1:11434/api/generate -d '{"model":"llama3.2:3b","pro
 > storage/logs/laravel.log
 
 # Run tests with debug output
-AI_SMOKE_TESTS=1 sail test --group=ollama --debug
+./sail test --group=db-graph --debug
 ```
