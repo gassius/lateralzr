@@ -6,22 +6,10 @@ import {
   CONCEPT_FRONT_LABEL_COLOR,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
   CONCEPT_FRONT_LABEL_TEXT_ALIGN,
-  conceptFrontLabelTextAlign,
-  conceptFrontLabelTextAlignFromLineCount,
 } from './conceptFrontLabelAlign';
 
 test('front titles always center, including Critiquito multiline examples', () => {
   assert.equal(CONCEPT_FRONT_LABEL_TEXT_ALIGN, 'center');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(1), 'center');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(2), 'center');
-  assert.equal(conceptFrontLabelTextAlignFromLineCount(3), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Silo'), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Seta'), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Glass harmonica'), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Svalbard Global Seed Vault'), 'center');
-  assert.equal(conceptFrontLabelTextAlign('The persistence of memory'), 'center');
-  assert.equal(conceptFrontLabelTextAlign('Tide\nPool'), 'center');
-  assert.equal(conceptFrontLabelTextAlign(''), 'center');
 });
 
 test('front title ink matches the logo blackish, not teal chrome', () => {

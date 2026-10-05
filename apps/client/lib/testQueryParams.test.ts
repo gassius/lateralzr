@@ -198,17 +198,12 @@ describe('resolveInitialComplexity', () => {
 
 describe('resolveHydratedComplexity', () => {
   it('applies a URL complexity for this load without marking it for persistence', () => {
-    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false, complexity: 5 }, 2), {
-      complexity: 5,
-      persist: false,
-    });
+    assert.equal(resolveHydratedComplexity({ onlyWithMedia: false, complexity: 5 }, 2), 5);
+    assert.equal(shouldPersistComplexity('hydrate'), false);
   });
 
   it('keeps the stored complexity when the URL has no override', () => {
-    assert.deepEqual(resolveHydratedComplexity({ onlyWithMedia: false }, 3), {
-      complexity: 3,
-      persist: false,
-    });
+    assert.equal(resolveHydratedComplexity({ onlyWithMedia: false }, 3), 3);
   });
 });
 
@@ -216,7 +211,6 @@ describe('shouldPersistComplexity', () => {
   it('persists only after an intentional up/down swipe', () => {
     assert.equal(shouldPersistComplexity('swipe'), true);
     assert.equal(shouldPersistComplexity('hydrate'), false);
-    assert.equal(shouldPersistComplexity('fallback'), false);
   });
 });
 

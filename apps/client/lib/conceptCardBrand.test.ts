@@ -28,12 +28,10 @@ import {
   CARD_BRAND_TITLE_MIN_CONTRAST,
   cardBrandBlendedFace,
   cardBrandInkTitleContrast,
-  cardBrandIsInteractive,
   cardBrandIsSecondaryToTitle,
   cardBrandPlainTitleContrast,
   cardBrandSize,
   cardBrandTitleContrast,
-  cardBrandUsesMotion,
 } from './conceptCardBrand.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -100,11 +98,6 @@ describe('concept card brand hierarchy', () => {
     assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO > CARD_BRAND_BACK_WIDTH_RATIO);
     assert.ok(CARD_BRAND_BACK_OPACITY <= CARD_BRAND_FRONT_OPACITY);
     assert.equal(CONCEPT_FRONT_LABEL_FONT_SIZE, 48);
-  });
-
-  it('is decorative texture, not a control and not motion', () => {
-    assert.equal(cardBrandIsInteractive(), false);
-    assert.equal(cardBrandUsesMotion(), false);
   });
 
   it('sizes the front mark from the orange face, not the laterality bar', () => {

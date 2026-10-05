@@ -87,10 +87,6 @@ export function complexityCueText(grade: number): string {
   return t('complexityGrade', { grade: String(grade) });
 }
 
-export function complexityCueSharesLateralityRow(): boolean {
-  return false;
-}
-
 /** Deep-link sessions keep a tiny mark after the chip; stored-pref hydrate does not. */
 export function shouldKeepSessionComplexityMark(
   reason: ComplexityAnnounceEvent['reason'],

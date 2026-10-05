@@ -12,7 +12,6 @@ import {
   resolveHydratedLaterality,
   resolveInitialLaterality,
   lateralityControlDisabled,
-  restoreLateralityAfterFailedSwap,
   shouldPersistLaterality,
   shouldPersistLateralityAfterSwap,
   stepLaterality,
@@ -51,18 +50,13 @@ describe('parseLateralityParam', () => {
 
 describe('session-only URL laterality', () => {
   it('lets ?laterality=N win for this load without asking to persist', () => {
-    const hydrated = resolveHydratedLaterality(4, 2);
-    assert.equal(hydrated.laterality, 4);
-    assert.equal(hydrated.persist, false);
+    assert.equal(resolveHydratedLaterality(4, 2), 4);
     assert.equal(resolveInitialLaterality(4, 2), 4);
     assert.equal(shouldPersistLaterality('hydrate'), false);
   });
 
   it('falls back to stored laterality when the URL param is absent', () => {
-    assert.deepEqual(resolveHydratedLaterality(undefined, 2), {
-      laterality: 2,
-      persist: false,
-    });
+    assert.equal(resolveHydratedLaterality(undefined, 2), 2);
     assert.equal(resolveInitialLaterality(undefined, 2), 2);
   });
 
@@ -75,11 +69,6 @@ describe('session-only URL laterality', () => {
     assert.equal(shouldPersistLateralityAfterSwap('control', 'success'), true);
     assert.equal(shouldPersistLateralityAfterSwap('control', 'failure'), false);
     assert.equal(shouldPersistLateralityAfterSwap('hydrate', 'success'), false);
-  });
-
-  it('restores the last confirmed grade when the laterality fetch fails', () => {
-    assert.equal(restoreLateralityAfterFailedSwap(3), 3);
-    assert.equal(restoreLateralityAfterFailedSwap(1), 1);
   });
 
   it('disables laterality ± while a neighborhood swap is in flight', () => {

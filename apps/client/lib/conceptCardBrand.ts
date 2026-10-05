@@ -113,11 +113,3 @@ export function cardBrandInkTitleContrast(face: CardBrandFace = 'front'): number
 
 /** Normal-text WCAG AA. Ink-on-orange clears this; large-text AA is 3. */
 export const CARD_BRAND_TITLE_MIN_CONTRAST = 4.5;
-
-export function cardBrandUsesMotion(): boolean {
-  return false;
-}
-
-export function cardBrandIsInteractive(): boolean {
-  return false;
-}
