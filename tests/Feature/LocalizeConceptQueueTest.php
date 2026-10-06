@@ -588,7 +588,7 @@ class LocalizeConceptQueueTest extends TestCase
         $this->assertSame([7, 8], data_get($run?->seeds, 'batches.localize#1+1'));
     }
 
-    public function test_batch_job_marks_failed_when_deferred_depth_cap_is_hit(): void
+    public function test_batch_job_marks_partial_when_deferred_depth_cap_is_hit(): void
     {
         Queue::fake();
 
@@ -646,7 +646,7 @@ class LocalizeConceptQueueTest extends TestCase
             ->where('seed', 'localize#1+20')
             ->first();
 
-        $this->assertSame('failed', $record?->status);
+        $this->assertSame('partial', $record?->status);
         $this->assertStringContainsString('not re-queued', (string) $record?->error_message);
         $this->assertStringContainsString('depth cap', (string) $record?->error_message);
         $this->assertStringNotContainsString('were re-queued', (string) $record?->error_message);

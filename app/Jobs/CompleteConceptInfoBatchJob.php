@@ -141,9 +141,4 @@ class CompleteConceptInfoBatchJob implements ShouldQueue
     {
         return 'term(s)';
     }
-
-    protected function deferredCapStatus(): string
-    {
-        return 'partial';
-    }
 }
