@@ -98,8 +98,16 @@ trait DeferredBatchFollowUp
 
     abstract protected function deferredUnitLabel(): string;
 
+    /**
+     * Status when remainder IDs are dropped at the follow-up depth cap.
+     *
+     * Use partial: earlier hops (and possibly this one) already persisted work;
+     * only the deferred remainder was not re-queued. failed is reserved for
+     * exceptions and worker timeouts. Filament Retry batch is offered for both
+     * statuses; the dashboard error metric and failed-job column count failed only.
+     */
     protected function deferredCapStatus(): string
     {
-        return 'failed';
+        return 'partial';
     }
 }
