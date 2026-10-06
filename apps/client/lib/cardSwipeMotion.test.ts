@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import {
   CARD_STACK_BEHIND_TINT,
   CARD_STACK_BEHIND_TINT_ALPHA,
-  CARD_STACK_BEHIND_TINT_ALPHA_LEGACY,
   CARD_SWIPE_ENTER_ROLL_DEG,
   CARD_SWIPE_MAX_PITCH_DEG,
   CARD_SWIPE_MAX_ROLL_DEG,
@@ -160,7 +159,7 @@ describe('return overlay settle', () => {
 
 describe('stack depth tint', () => {
   it('darkens the rear card more than the previous 10% overlay', () => {
-    assert.ok(CARD_STACK_BEHIND_TINT_ALPHA > CARD_STACK_BEHIND_TINT_ALPHA_LEGACY);
+    assert.ok(CARD_STACK_BEHIND_TINT_ALPHA > 0.1);
     assert.ok(CARD_STACK_BEHIND_TINT_ALPHA <= 0.28);
     assert.equal(CARD_STACK_BEHIND_TINT, `rgba(19,91,119,${CARD_STACK_BEHIND_TINT_ALPHA})`);
     assert.equal(cardCoverDimOpacity(0), 0);

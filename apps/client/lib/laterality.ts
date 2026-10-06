@@ -42,11 +42,6 @@ export function stepLaterality(current: number, delta: -1 | 1): LateralityGrade 
 
 export type LateralityPersistReason = 'hydrate' | 'control';
 
-export type HydratedLaterality = {
-  laterality: LateralityGrade;
-  persist: boolean;
-};
-
 /** URL `?laterality=N` wins for this session/load only. */
 export function resolveInitialLaterality(
   urlLaterality: LateralityGrade | undefined,
@@ -73,11 +68,6 @@ export function shouldPersistLateralityAfterSwap(
   return result === 'success' && shouldPersistLaterality(reason);
 }
 
-/** Last confirmed grade — used to roll the submenu back when the tree fetch fails. */
-export function restoreLateralityAfterFailedSwap(committed: LateralityGrade): LateralityGrade {
-  return committed;
-}
-
 /** − / + stay inert while the neighborhood swirl is covering the tree swap. */
 export function lateralityControlDisabled(canStep: boolean, swapping: boolean): boolean {
   return swapping || !canStep;
@@ -87,11 +77,8 @@ export function lateralityControlDisabled(canStep: boolean, swapping: boolean): 
 export function resolveHydratedLaterality(
   urlLaterality: LateralityGrade | undefined,
   stored: LateralityGrade,
-): HydratedLaterality {
-  return {
-    laterality: resolveInitialLaterality(urlLaterality, stored),
-    persist: shouldPersistLaterality('hydrate'),
-  };
+): LateralityGrade {
+  return resolveInitialLaterality(urlLaterality, stored);
 }
 
 /**
@@ -128,7 +115,7 @@ export function applyLateralityTreeSwap(
   if (!current) {
     return {
       concepts: incoming,
-      currentIndex: incoming.length > 0 ? 0 : 0,
+      currentIndex: 0,
     };
   }
   if (incoming.length === 0) {

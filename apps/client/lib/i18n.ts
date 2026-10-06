@@ -9,7 +9,6 @@ type MessageKey =
   | 'flipCoach'
   | 'noDescription'
   | 'wikipedia'
-  | 'imageUnavailable'
   | 'illustrationFor'
   | 'loadingMoreIdeas'
   | 'couldNotLoadMore'
@@ -29,7 +28,6 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     flipCoach: 'Tap the card to learn more',
     noDescription: 'No description.',
     wikipedia: 'Wikipedia',
-    imageUnavailable: 'Image unavailable',
     illustrationFor: 'Illustration for {concept}',
     loadingMoreIdeas: 'Loading more ideas…',
     couldNotLoadMore: "Couldn't load more concepts.",
@@ -48,7 +46,6 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     flipCoach: 'Toca la tarjeta para saber más',
     noDescription: 'Sin descripción.',
     wikipedia: 'Wikipedia',
-    imageUnavailable: 'Imagen no disponible',
     illustrationFor: 'Ilustración de {concept}',
     loadingMoreIdeas: 'Cargando más ideas…',
     couldNotLoadMore: 'No se pudieron cargar más conceptos.',

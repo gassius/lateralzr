@@ -1,7 +1,6 @@
 export type DeckConcept = {
   concept: string;
   shortDescription: string;
-  laterality?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
 };
@@ -17,8 +16,6 @@ export type DeckGraphNode = {
 export type DeckGraphEdge = {
   from: number;
   to: number;
-  strength?: number;
-  laterality?: number;
 };
 
 export type DeckGraph = {

@@ -25,8 +25,6 @@ import {
   applyLateralityTreeSwap,
   DEFAULT_LATERALITY,
   resolveHydratedLaterality,
-  restoreLateralityAfterFailedSwap,
-  shouldPersistLaterality,
   shouldPersistLateralityAfterSwap,
   stepLaterality,
   type LateralityGrade,
@@ -155,21 +153,18 @@ export default function HomeScreen() {
       };
       journeyTestParamsRef.current = params;
       const hydrated = resolveHydratedComplexity(params, stored);
-      complexityRef.current = hydrated.complexity;
-      setComplexity(hydrated.complexity);
+      complexityRef.current = hydrated;
+      setComplexity(hydrated);
       if (
         shouldAnnounceComplexity({
           reason: params.complexity != null ? 'session-url' : 'hydrate-stored',
-          complexity: hydrated.complexity,
+          complexity: hydrated,
         })
       ) {
-        setPendingSessionComplexity(hydrated.complexity);
+        setPendingSessionComplexity(hydrated);
         if (shouldKeepSessionComplexityMark('session-url')) {
           setShowSessionComplexityMark(true);
         }
-      }
-      if (hydrated.persist && shouldPersistComplexity('hydrate')) {
-        void persistComplexity(hydrated.complexity);
       }
       setComplexityHydrated(true);
     });
@@ -183,12 +178,9 @@ export default function HomeScreen() {
     void loadStoredLaterality().then((stored) => {
       if (cancelled) return;
       const hydrated = resolveHydratedLaterality(journeyTestParamsRef.current.laterality, stored);
-      lateralityRef.current = hydrated.laterality;
-      committedLateralityRef.current = hydrated.laterality;
-      setLaterality(hydrated.laterality);
-      if (hydrated.persist && shouldPersistLaterality('hydrate')) {
-        void persistLaterality(hydrated.laterality);
-      }
+      lateralityRef.current = hydrated;
+      committedLateralityRef.current = hydrated;
+      setLaterality(hydrated);
       setLateralityHydrated(true);
     });
     return () => {
@@ -248,9 +240,6 @@ export default function HomeScreen() {
           });
           complexityRef.current = DEFAULT_CONCEPT_COMPLEXITY;
           setComplexity(DEFAULT_CONCEPT_COMPLEXITY);
-          if (shouldPersistComplexity('fallback')) {
-            void persistComplexity(DEFAULT_CONCEPT_COMPLEXITY);
-          }
           return data;
         }
         throw e;
@@ -570,9 +559,8 @@ export default function HomeScreen() {
       setLateralitySwap({ token, outcome: 'success' });
     } catch {
       if (!stillCurrent()) return;
-      const restored = restoreLateralityAfterFailedSwap(committedLateralityRef.current);
-      lateralityRef.current = restored;
-      setLaterality(restored);
+      lateralityRef.current = committedLateralityRef.current;
+      setLaterality(committedLateralityRef.current);
       setLateralitySwap({ token, outcome: 'failure' });
     }
   }, [fetchBatch]);

@@ -8,15 +8,8 @@ const API_URL = resolveApiBaseUrl();
 export type ConceptItem = {
   concept: string;
   shortDescription: string;
-  laterality?: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
-};
-
-export type ConceptMediaItem = {
-  url: string;
-  kind: 'image' | 'clip' | string;
-  license: string;
 };
 
 export type ConceptGraphNode = {
@@ -25,11 +18,7 @@ export type ConceptGraphNode = {
   shortDescription: string;
   complexity: number;
   wikiUrl: string | null;
-  /** Primary image. Clips and extra images live on `media`. */
   mediaUrl: string | null;
-  /** Qualified media for this concept. The card still shows `mediaUrl`. */
-  media?: ConceptMediaItem[];
-  degree: number;
   /** Present on API payloads; used to reject cross-locale leakage. */
   locale?: string;
 };
@@ -38,8 +27,6 @@ export type ConceptGraphEdge = {
   id: number;
   from: number;
   to: number;
-  strength: number;
-  laterality: number;
 };
 
 export type ConceptGraphResponse = {
