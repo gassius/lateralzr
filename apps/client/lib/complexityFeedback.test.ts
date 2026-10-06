@@ -15,7 +15,6 @@ import {
   complexityCueIsSecondaryToConceptTitle,
   complexityCueLabel,
   complexityCuePalette,
-  complexityCueSharesLateralityRow,
   resolveSessionComplexityToAnnounce,
   shouldAnimateComplexityCue,
   shouldAnnounceComplexity,
@@ -138,7 +137,6 @@ describe('complexity cue copy', () => {
 describe('complexity cue placement and hierarchy', () => {
   it('lives on the letterbox overlay, not the laterality − / wordmark / + row', () => {
     assert.equal(COMPLEXITY_CUE_PLACEMENT, 'letterbox-overlay');
-    assert.equal(complexityCueSharesLateralityRow(), false);
   });
 
   it('stays secondary to the concept title and quieter than swipe/flip coaching', () => {

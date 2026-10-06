@@ -31,8 +31,3 @@ export function remainingIntroMs(
   const elapsed = Math.max(0, nowMs - startedAtMs);
   return Math.max(0, minMs - elapsed);
 }
-
-export function waitMs(ms: number): Promise<void> {
-  if (ms <= 0) return Promise.resolve();
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}

@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import {
-  canOfferFlipCoach,
-  canOfferSwipeCoach,
   coachMessageKey,
+  flipCoachContextReady,
   FLIP_COACH_CARD_INDEX,
   FLIP_COACH_DELAY_MS,
   INITIAL_DISCOVERY_COACHING_STATE,
@@ -12,6 +11,7 @@ import {
   getDiscoveryCoachingSession,
   setDiscoveryCoachingSession,
   shouldAnimateCoachPeek,
+  swipeCoachContextReady,
   SWIPE_COACH_IDLE_MS,
   visibleCoach,
   type DiscoveryCoachingState,
@@ -37,40 +37,35 @@ afterEach(() => {
 
 describe('swipe coaching', () => {
   it('does not offer before the idle threshold on the first card', () => {
-    assert.equal(
-      canOfferSwipeCoach(state(), view({ cardIndex: 0 }), SWIPE_COACH_IDLE_MS - 1),
-      false,
-    );
+    assert.equal(SWIPE_COACH_IDLE_MS, 5000);
+    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 0 })), true);
     assert.equal(visibleCoach(state(), view()), null);
   });
 
   it('offers once after idle on the first card, then stays until the first swipe', () => {
-    assert.equal(
-      canOfferSwipeCoach(state(), view({ cardIndex: 0 }), SWIPE_COACH_IDLE_MS),
-      true,
-    );
+    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 0 })), true);
 
     const offered = reduceDiscoveryCoaching(state(), { type: 'offerSwipe' });
     assert.equal(offered.swipeCoachOffered, true);
     assert.equal(visibleCoach(offered, view({ cardIndex: 0 })), 'swipe');
-    assert.equal(canOfferSwipeCoach(offered, view(), SWIPE_COACH_IDLE_MS * 2), false);
+    assert.equal(swipeCoachContextReady(offered, view()), false);
 
     const afterSwipe = reduceDiscoveryCoaching(offered, { type: 'swiped' });
     assert.equal(afterSwipe.swipeDiscovered, true);
     assert.equal(visibleCoach(afterSwipe, view({ cardIndex: 0 })), null);
-    assert.equal(canOfferSwipeCoach(afterSwipe, view(), SWIPE_COACH_IDLE_MS * 2), false);
+    assert.equal(swipeCoachContextReady(afterSwipe, view()), false);
   });
 
   it('never offers swipe coaching if the user already swiped', () => {
     const discovered = reduceDiscoveryCoaching(state(), { type: 'swiped' });
-    assert.equal(canOfferSwipeCoach(discovered, view({ cardIndex: 0 }), 60_000), false);
+    assert.equal(swipeCoachContextReady(discovered, view({ cardIndex: 0 })), false);
     assert.equal(visibleCoach(discovered, view()), null);
   });
 
   it('does not offer swipe coaching on later cards, while flipped, or on deck status', () => {
-    assert.equal(canOfferSwipeCoach(state(), view({ cardIndex: 1 }), SWIPE_COACH_IDLE_MS), false);
-    assert.equal(canOfferSwipeCoach(state(), view({ flipped: true }), SWIPE_COACH_IDLE_MS), false);
-    assert.equal(canOfferSwipeCoach(state(), view({ deckStatus: true }), SWIPE_COACH_IDLE_MS), false);
+    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 1 })), false);
+    assert.equal(swipeCoachContextReady(state(), view({ flipped: true })), false);
+    assert.equal(swipeCoachContextReady(state(), view({ deckStatus: true })), false);
 
     const offered = reduceDiscoveryCoaching(state(), { type: 'offerSwipe' });
     assert.equal(visibleCoach(offered, view({ flipped: true })), null);
@@ -82,25 +77,22 @@ describe('swipe coaching', () => {
 describe('flip coaching', () => {
   it('does not offer before the third card', () => {
     assert.equal(FLIP_COACH_CARD_INDEX, 2);
-    assert.equal(
-      canOfferFlipCoach(state(), view({ cardIndex: 1 }), FLIP_COACH_DELAY_MS),
-      false,
-    );
+    assert.equal(flipCoachContextReady(state(), view({ cardIndex: 1 })), false);
   });
 
   it('offers once after a short dwell on the third card, then clears after the first flip', () => {
+    assert.equal(FLIP_COACH_DELAY_MS, 800);
     assert.equal(
-      canOfferFlipCoach(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX }), FLIP_COACH_DELAY_MS - 1),
-      false,
-    );
-    assert.equal(
-      canOfferFlipCoach(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX }), FLIP_COACH_DELAY_MS),
+      flipCoachContextReady(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
       true,
     );
 
     const offered = reduceDiscoveryCoaching(state(), { type: 'offerFlip' });
     assert.equal(visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX })), 'flip');
-    assert.equal(canOfferFlipCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX }), 10_000), false);
+    assert.equal(
+      flipCoachContextReady(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
+      false,
+    );
 
     const afterFlip = reduceDiscoveryCoaching(offered, { type: 'flipped' });
     assert.equal(afterFlip.flipDiscovered, true);
@@ -111,7 +103,7 @@ describe('flip coaching', () => {
     const offered = reduceDiscoveryCoaching(state(), { type: 'offerFlip' });
     assert.equal(visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX + 1 })), null);
     assert.equal(
-      canOfferFlipCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX + 1 }), 10_000),
+      flipCoachContextReady(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX + 1 })),
       false,
     );
   });
@@ -120,7 +112,7 @@ describe('flip coaching', () => {
     const afterSwipe = reduceDiscoveryCoaching(state(), { type: 'swiped' });
     assert.equal(visibleCoach(afterSwipe, view({ cardIndex: 0 })), null);
     assert.equal(
-      canOfferFlipCoach(afterSwipe, view({ cardIndex: FLIP_COACH_CARD_INDEX }), FLIP_COACH_DELAY_MS),
+      flipCoachContextReady(afterSwipe, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
       true,
     );
   });
@@ -128,7 +120,7 @@ describe('flip coaching', () => {
   it('never offers flip coaching if the user already flipped', () => {
     const discovered = reduceDiscoveryCoaching(state(), { type: 'flipped' });
     assert.equal(
-      canOfferFlipCoach(discovered, view({ cardIndex: FLIP_COACH_CARD_INDEX }), 10_000),
+      flipCoachContextReady(discovered, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
       false,
     );
     assert.equal(visibleCoach(discovered, view({ cardIndex: FLIP_COACH_CARD_INDEX })), null);

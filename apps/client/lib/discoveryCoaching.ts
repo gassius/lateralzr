@@ -109,24 +109,6 @@ export function flipCoachContextReady(
   return currentView.cardIndex === FLIP_COACH_CARD_INDEX;
 }
 
-export function canOfferSwipeCoach(
-  current: DiscoveryCoachingState,
-  currentView: DiscoveryCoachingView,
-  idleMs: number,
-): boolean {
-  if (!swipeCoachContextReady(current, currentView)) return false;
-  return idleMs >= SWIPE_COACH_IDLE_MS;
-}
-
-export function canOfferFlipCoach(
-  current: DiscoveryCoachingState,
-  currentView: DiscoveryCoachingView,
-  dwellMs: number,
-): boolean {
-  if (!flipCoachContextReady(current, currentView)) return false;
-  return dwellMs >= FLIP_COACH_DELAY_MS;
-}
-
 /** Visible coach for this card. Null after discovery or when the UI should stay quiet. */
 export function visibleCoach(
   current: DiscoveryCoachingState,

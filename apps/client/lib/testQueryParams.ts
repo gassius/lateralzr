@@ -55,27 +55,19 @@ export function resolveInitialComplexity(params: JourneyTestParams, stored: numb
   return params.complexity ?? stored;
 }
 
-export type ComplexityPersistReason = 'hydrate' | 'swipe' | 'fallback';
+export type ComplexityPersistReason = 'hydrate' | 'swipe';
 
 /** Persist only after the user swipes up/down. Deep-link overrides stay session-only. */
 export function shouldPersistComplexity(reason: ComplexityPersistReason): boolean {
   return reason === 'swipe';
 }
 
-export type HydratedComplexity = {
-  complexity: number;
-  persist: boolean;
-};
-
 /** Apply a URL complexity for this load without overwriting stored preference. */
 export function resolveHydratedComplexity(
   params: JourneyTestParams,
   stored: number,
-): HydratedComplexity {
-  return {
-    complexity: resolveInitialComplexity(params, stored),
-    persist: shouldPersistComplexity('hydrate'),
-  };
+): number {
+  return resolveInitialComplexity(params, stored);
 }
 
 /**

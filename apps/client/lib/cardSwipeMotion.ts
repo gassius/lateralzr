@@ -32,9 +32,6 @@ export const CARD_STACK_BEHIND_TINT_ALPHA = 0.22;
 
 export const CARD_STACK_BEHIND_TINT = `rgba(19,91,119,${CARD_STACK_BEHIND_TINT_ALPHA})`;
 
-/** Previous overlay — kept for tests so the contrast upgrade stays explicit. */
-export const CARD_STACK_BEHIND_TINT_ALPHA_LEGACY = 0.1;
-
 export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
   'worklet';
   return !reduceMotion;

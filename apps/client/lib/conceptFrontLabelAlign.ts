@@ -16,11 +16,3 @@ export const CONCEPT_FRONT_LABEL_FONT_SIZE = 48;
 export const CONCEPT_FRONT_LABEL_TEXT_ALIGN = 'center' as const;
 
 export const CONCEPT_FRONT_LABEL_COLOR = Palette.ink;
-
-export function conceptFrontLabelTextAlign(_title?: string): 'center' {
-  return CONCEPT_FRONT_LABEL_TEXT_ALIGN;
-}
-
-export function conceptFrontLabelTextAlignFromLineCount(_lineCount?: number): 'center' {
-  return CONCEPT_FRONT_LABEL_TEXT_ALIGN;
-}
