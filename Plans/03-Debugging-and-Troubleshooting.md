@@ -115,9 +115,9 @@ If smoke tests fail:
    ollama pull llama3.2:3b
    ```
 
-4. **Run tests with verbose output**:
+4. **Run the default mocked suite** (there is no live Ollama / smoke PHPUnit group):
    ```bash
-   ./sail test --group=db-graph -v
+   ./sail test
    ```
 
 5. **Check test logs** for specific error messages
@@ -222,6 +222,6 @@ curl -X POST http://127.0.0.1:11434/api/generate -d '{"model":"llama3.2:3b","pro
 # Clear logs
 > storage/logs/laravel.log
 
-# Run tests with debug output
-./sail test --group=db-graph --debug
+# Run the default mocked suite
+./sail test
 ```

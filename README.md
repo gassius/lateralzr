@@ -171,7 +171,7 @@ A Filament 5 admin panel is available at **`/admin`** for quick inspection and m
 ./sail tinker
 ```
 
-See [Testing](#testing) for the default mocked suite and opt-in smoke tests.
+See [Testing](#testing) for the default mocked suite.
 
 ## API Endpoints
 
@@ -323,7 +323,7 @@ OLLAMA_MODEL=llama3.1:8b  # For higher quality (slower)
 OLLAMA_MODEL=llama3.2:1b  # For faster responses
 ```
 
-Prefetch and grow the graph with Ollama (or OpenRouter). The public **POST** `/api/concepts/relationships` read path does not call the LLM. See [Testing](#testing) for the mocked default suite and opt-in live HTTP smoke tests.
+Prefetch and grow the graph with Ollama (or OpenRouter). The public **POST** `/api/concepts/relationships` read path does not call the LLM. See [Testing](#testing) for the mocked default suite.
 
 For detailed setup instructions, troubleshooting, and model recommendations, see [.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md).
 
@@ -369,7 +369,7 @@ pnpm --filter client test
 pnpm --filter client typecheck
 ```
 
-`AI_SMOKE_TESTS` is forwarded into the Sail `laravel.test` service as `${AI_SMOKE_TESTS:-0}` (`compose.yaml`). Recreate the container after changing it (`AI_SMOKE_TESTS=1 ./sail up -d`). There is currently no live-HTTP `smoke` group: the unused Wikipedia/Wikimedia agent-tool tests were removed. Enrichment lives in `app/Services/Enrichment/*`.
+Enrichment lives in `app/Services/Enrichment/*`. There is no live-HTTP `smoke` group.
 
 CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests.
 
