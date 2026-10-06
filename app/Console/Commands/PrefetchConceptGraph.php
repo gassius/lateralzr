@@ -38,8 +38,8 @@ class PrefetchConceptGraph extends Command
             return self::FAILURE;
         }
 
-        $count = max(1, (int) ($this->option('count') ?? 100));
-        $batchSize = max(1, min(100, (int) ($this->option('batch-size') ?? 10)));
+        $count = max(1, (int) $this->option('count'));
+        $batchSize = max(1, min(100, (int) $this->option('batch-size')));
 
         $queue = (string) $this->option('queue');
 

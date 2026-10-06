@@ -106,11 +106,11 @@ class ConceptLocalizeDispatchService
         $toLocale = ConceptLocale::resolve($toLocale);
 
         $query = Concept::query()
-            ->whereHas('terms', fn ($q) => $q->where('locale', $fromLocale)->where('is_preferred', true))
+            ->withPreferredFromLocale($fromLocale)
             ->orderBy('id');
 
         if ($missingOnly) {
-            $query->whereDoesntHave('terms', fn ($q) => $q->where('locale', $toLocale));
+            $query->missingTargetLocale($toLocale);
         }
 
         if ($limit !== null) {

@@ -32,7 +32,7 @@ class ConceptRelationshipService
     public function generateRelationships(?string $startConcept, ?int $count = null, ?object $agent = null, ?int $complexity = null): array
     {
         if ($startConcept === null || trim($startConcept) === '') {
-            $startConcept = $this->resolveRandomSeed();
+            $startConcept = ConceptSeed::randomTerm();
         } else {
             $startConcept = trim($startConcept);
         }
@@ -180,15 +180,6 @@ PROMPT;
         ]);
 
         return "Short label in this chain: {$label}.";
-    }
-
-    /**
-     * Resolve a random seed concept for cold start (no user-provided seed).
-     * Prefers a random concept from the database; falls back to config default_seeds.
-     */
-    protected function resolveRandomSeed(): string
-    {
-        return ConceptSeed::randomTerm();
     }
 
     /**

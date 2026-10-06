@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Agents\PingAgent;
+use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiProviders;
 use App\Ai\Support\AiRequestError;
 use Illuminate\Console\Command;
@@ -50,33 +51,27 @@ class PingAiProvider extends Command
             return self::FAILURE;
         }
 
-        $previousProvider = config('ai.default');
-        $previousModel = config('ai.models.text');
-        config()->set('ai.default', $provider);
-        config()->set('ai.models.text', $model);
+        return AiConfigOverride::run($provider, $model, function () use ($provider, $model): int {
+            try {
+                $response = (new PingAgent)->prompt(
+                    'Reply with exactly the word pong.',
+                    provider: $provider,
+                    model: $model,
+                );
+                $text = '';
+                if (is_object($response) && isset($response->text)) {
+                    $text = trim((string) $response->text);
+                } elseif (is_object($response) && method_exists($response, '__toString')) {
+                    $text = trim((string) $response);
+                }
+                $this->info($text !== '' ? $text : '(empty response)');
 
-        try {
-            $response = (new PingAgent)->prompt(
-                'Reply with exactly the word pong.',
-                provider: $provider,
-                model: $model,
-            );
-            $text = '';
-            if (is_object($response) && isset($response->text)) {
-                $text = trim((string) $response->text);
-            } elseif (is_object($response) && method_exists($response, '__toString')) {
-                $text = trim((string) $response);
+                return self::SUCCESS;
+            } catch (Throwable $e) {
+                $this->error(AiRequestError::displayMessage($e, $provider, $model));
+
+                return self::FAILURE;
             }
-            $this->info($text !== '' ? $text : '(empty response)');
-
-            return self::SUCCESS;
-        } catch (Throwable $e) {
-            $this->error(AiRequestError::displayMessage($e, $provider, $model));
-
-            return self::FAILURE;
-        } finally {
-            config()->set('ai.default', $previousProvider);
-            config()->set('ai.models.text', $previousModel);
-        }
+        });
     }
 }

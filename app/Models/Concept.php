@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ConceptLocale;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -29,6 +30,24 @@ class Concept extends Model
     protected $casts = [
         'merged_into_concept_id' => 'integer',
     ];
+
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeWithPreferredFromLocale(Builder $query, string $locale): Builder
+    {
+        return $query->whereHas('terms', fn ($q) => $q->where('locale', $locale)->where('is_preferred', true));
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     * @return Builder<static>
+     */
+    public function scopeMissingTargetLocale(Builder $query, string $locale): Builder
+    {
+        return $query->whereDoesntHave('terms', fn ($q) => $q->where('locale', $locale));
+    }
 
     public function terms(): HasMany
     {
