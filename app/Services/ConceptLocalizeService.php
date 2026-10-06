@@ -74,7 +74,7 @@ class ConceptLocalizeService
 
         $query = Concept::query()
             ->with(['terms'])
-            ->whereHas('terms', fn ($q) => $q->where('locale', $fromLocale)->where('is_preferred', true))
+            ->withPreferredFromLocale($fromLocale)
             ->orderBy('id');
 
         if ($conceptIds !== null) {
@@ -85,7 +85,7 @@ class ConceptLocalizeService
             $query->whereIn('id', $ids);
         } else {
             if ($missingOnly) {
-                $query->whereDoesntHave('terms', fn ($q) => $q->where('locale', $toLocale));
+                $query->missingTargetLocale($toLocale);
             }
 
             if ($limit !== null) {

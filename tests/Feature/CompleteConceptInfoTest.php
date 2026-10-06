@@ -426,6 +426,71 @@ class CompleteConceptInfoTest extends TestCase
         $this->assertSame([7, 8], data_get($run?->seeds, 'batches.complete-info#1+1'));
     }
 
+    public function test_batch_job_marks_partial_when_deferred_depth_cap_is_hit(): void
+    {
+        Queue::fake();
+
+        $runUuid = (string) Str::uuid();
+        ConceptGraphRun::query()->create([
+            'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_COMPLETE_INFO,
+            'complexity' => 2,
+            'queue' => 'default',
+            'seed_count' => 1,
+            'seeds' => [
+                'mode' => 'wiki',
+                'batchSize' => 10,
+                'batches' => ['complete-info#1+20' => [7, 8]],
+            ],
+            'related_count' => 2,
+            'dispatched_at' => now(),
+        ]);
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'complete-info#1+20',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptCompleteInfoService::class);
+        $service->shouldReceive('complete')
+            ->once()
+            ->andReturn([
+                'processed' => 0,
+                'wikiUpdated' => 0,
+                'mediaUpdated' => 0,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 2,
+                'deferredTermIds' => [7, 8],
+            ]);
+
+        $job = new CompleteConceptInfoBatchJob(
+            termIds: [7, 8],
+            mode: 'wiki',
+            runUuid: $runUuid,
+            jobKey: 'complete-info#1+20',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service);
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'complete-info#1+20')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('not re-queued', (string) $record?->error_message);
+        $this->assertStringContainsString('depth cap', (string) $record?->error_message);
+        $this->assertStringNotContainsString('were re-queued', (string) $record?->error_message);
+
+        $this->assertDatabaseMissing('concept_graph_run_jobs', [
+            'run_uuid' => $runUuid,
+            'seed' => 'complete-info#1+21',
+        ]);
+        Queue::assertNotPushed(CompleteConceptInfoBatchJob::class);
+    }
+
     public function test_batch_job_failed_callback_records_error(): void
     {
         $runUuid = (string) Str::uuid();

@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiRequestError;
-use App\Models\ConceptGraphRun;
+use App\Jobs\Concerns\DeferredBatchFollowUp;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptLocalizeService;
 use Illuminate\Bus\Queueable;
@@ -18,7 +18,7 @@ use Throwable;
 
 class LocalizeConceptBatchJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use DeferredBatchFollowUp, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     /**
      * Structured LLM translation for a batch of terms. Wiki/media lookup is
@@ -158,43 +158,12 @@ class LocalizeConceptBatchJob implements ShouldQueue
     }
 
     /**
-     * @param  list<int>  $conceptIds
+     * @param  list<int>  $ids
      */
-    protected function requeueDeferred(array $conceptIds): ?string
+    protected function dispatchFollowUp(array $ids, string $followKey): void
     {
-        $followKey = $this->nextDeferredJobKey();
-        if ($followKey === null) {
-            Log::warning('LocalizeConceptBatchJob: not re-queuing deferred concepts (follow-up depth cap)', [
-                'run_uuid' => $this->runUuid,
-                'job_key' => $this->jobKey,
-                'deferred' => count($conceptIds),
-            ]);
-
-            return null;
-        }
-
-        if ($this->runUuid) {
-            $run = ConceptGraphRun::query()->where('run_uuid', $this->runUuid)->first();
-            if ($run instanceof ConceptGraphRun) {
-                $seeds = is_array($run->seeds) ? $run->seeds : [];
-                $batches = is_array($seeds['batches'] ?? null) ? $seeds['batches'] : [];
-                $batches[$followKey] = $conceptIds;
-                $seeds['batches'] = $batches;
-                $run->seeds = $seeds;
-                $run->seed_count = count($batches);
-                $run->save();
-            }
-
-            ConceptGraphRunJob::query()->create([
-                'run_uuid' => $this->runUuid,
-                'seed' => $followKey,
-                'status' => 'pending',
-                'attempts' => 0,
-            ]);
-        }
-
         self::dispatch(
-            conceptIds: $conceptIds,
+            conceptIds: $ids,
             fromLocale: $this->fromLocale,
             toLocale: $this->toLocale,
             missingOnly: $this->missingOnly,
@@ -203,45 +172,15 @@ class LocalizeConceptBatchJob implements ShouldQueue
             runUuid: $this->runUuid,
             jobKey: $followKey,
         )->onQueue($this->queue ?? 'default');
-
-        return $followKey;
     }
 
-    protected function nextDeferredJobKey(): ?string
+    protected function deferredDepthCapLogMessage(): string
     {
-        $base = $this->jobKey;
-        $suffix = 1;
-        if (preg_match('/^(.*)\+(\d+)$/', $this->jobKey, $matches) === 1) {
-            $base = $matches[1];
-            $suffix = (int) $matches[2] + 1;
-        }
-
-        if ($suffix > 20) {
-            return null;
-        }
-
-        return $base.'+'.$suffix;
+        return 'LocalizeConceptBatchJob: not re-queuing deferred concepts (follow-up depth cap)';
     }
 
-    /**
-     * @return array{0:string,1:?string}
-     */
-    protected function deferredOutcome(int $deferred, ?string $followKey): array
+    protected function deferredUnitLabel(): string
     {
-        if ($deferred === 0) {
-            return ['succeeded', null];
-        }
-
-        if ($followKey !== null) {
-            return [
-                'partial',
-                "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were re-queued as {$followKey}.",
-            ];
-        }
-
-        return [
-            'failed',
-            "Stopped {$deferred} concept(s) to stay under the worker timeout; remaining IDs were not re-queued (follow-up depth cap).",
-        ];
+        return 'concept(s)';
     }
 }

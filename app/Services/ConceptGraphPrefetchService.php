@@ -37,13 +37,13 @@ class ConceptGraphPrefetchService
         $starts = array_values(array_unique(array_filter($starts, fn ($v) => $v !== '')));
 
         if ($randomExisting > 0) {
-            $starts = array_merge($starts, $this->randomStarts($randomExisting));
+            $starts = array_merge($starts, ConceptSeed::randomTerms($randomExisting));
         }
 
         $starts = array_values(array_unique($starts));
 
         if (count($starts) === 0 && ! $randomIdea) {
-            $starts = $this->randomStarts(1);
+            $starts = ConceptSeed::randomTerms(1);
         }
 
         $jobsToCreate = max(1, (int) ceil($targetCount / $batchSize));
@@ -129,13 +129,5 @@ class ConceptGraphPrefetchService
                 jobKey: $jobKey
             )->onQueue($queue);
         }
-    }
-
-    /**
-     * @return list<string>
-     */
-    protected function randomStarts(int $n): array
-    {
-        return ConceptSeed::randomTerms($n);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiProviders;
 use App\Services\ConceptLocalizeDispatchService;
 use App\Services\ConceptLocalizeService;
@@ -65,7 +66,7 @@ class LocalizeConceptTerms extends Command
         if ($this->option('missing-only')) {
             $missingOnly = true;
         }
-        $batchSize = (int) ($this->option('batch-size') ?? ConceptLocalizeService::DEFAULT_BATCH_SIZE);
+        $batchSize = (int) $this->option('batch-size');
         $queue = (string) $this->option('queue');
 
         if (! (bool) $this->option('sync')) {
@@ -92,23 +93,16 @@ class LocalizeConceptTerms extends Command
             return self::SUCCESS;
         }
 
-        if ($provider !== null && $provider !== '') {
-            config(['ai.default' => $provider]);
-        }
-        if ($model !== null && $model !== '') {
-            config(['ai.models.text' => $model]);
-        }
-
         $this->info("Localizing concepts {$from} → {$to} sync (missing_only=".($missingOnly ? 'yes' : 'no').')');
 
         try {
-            $stats = $service->localize(
+            $stats = AiConfigOverride::run($provider, $model, fn () => $service->localize(
                 fromLocale: $from,
                 toLocale: $to,
                 limit: $limit,
                 missingOnly: $missingOnly,
                 batchSize: $batchSize,
-            );
+            ));
         } catch (InvalidArgumentException $e) {
             $this->error($e->getMessage());
 
