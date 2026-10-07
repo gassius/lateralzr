@@ -20,20 +20,27 @@ cp .env.production.example .env
 docker compose -f docker-compose.prod.yml run --rm app php artisan key:generate --show
 # Copy output to .env as APP_KEY
 
-# 3. Deploy
-./deploy-prod.sh deploy
+# 3. Deploy (canonical)
+./bin/deploy-prod
+# Alias: ./deploy-prod.sh deploy  (wrapper that execs bin/deploy-prod)
 ```
 
 ## Regular Deployment
 
 ```bash
 cd /home/cgonzalez/lateralzr
-./deploy-prod.sh deploy
+./bin/deploy-prod
+# Alias: ./deploy-prod.sh deploy
 ```
 
 ## Quick Commands
 
 ```bash
+# Canonical deploy (used by GitHub Actions):
+./bin/deploy-prod
+
+# Wrapper alias plus extra utilities (status/logs/restart/…):
+./deploy-prod.sh deploy
 ./deploy-prod.sh status    # Check services
 ./deploy-prod.sh logs      # View logs
 ./deploy-prod.sh restart   # Restart all
@@ -117,7 +124,7 @@ docker network ls | grep gonzalezrico_platform
 
 **Database connection failed?**
 ```bash
-docker compose -f docker-compose.prod.yml exec app php artisan db:show
+./bin/artisan db:show
 ```
 
 **Permission errors?** The image entrypoint chowns `storage/` to `www-data` on start. Confirm:

@@ -1,33 +1,35 @@
 # 03 - Debugging and Troubleshooting
 
+The public concept graph API is **read-only**. `POST /api/concepts/relationships` loads an existing neighborhood via `ConceptGraphQuery` and does **not** call the LLM. Graph growth is `concepts:prefetch` plus a queue worker (`GenerateConceptGraphJob`). Current request/response shapes are in [README.md](../README.md#concept-graph-neighborhood).
+
 ## Ollama Request/Response Logging
 
-Raw Ollama requests and responses are automatically logged when `APP_DEBUG=true` in your `.env` file.
+When `APP_DEBUG=true`, `AppServiceProvider` registers `LogOllamaRequests` on Laravel AI `PromptingAgent` / `AgentPrompted`. Only the Ollama provider is logged. These events fire on the **prefetch / worker** path (`ConceptRelationshipService` + `ConceptsOnlyAgent`), not on the public read API.
+
+The listener calls `Log::debug('Ollama Request', …)` and `Log::debug('Ollama Response', …)`. Laravel’s log **level** is `DEBUG`; the message string itself has **no** `[DEBUG]` prefix.
 
 ### Viewing Logs
 
 ```bash
-# View logs in real-time
-sail logs -f
+# Sail container logs
+./sail logs -f
 
-# Or view the log file directly
+# Laravel log (storage is bind-mounted)
 tail -f storage/logs/laravel.log
 ```
 
 ### What Gets Logged
 
-- **Outgoing Requests**: `agent_class`, `system_instructions` (from the agent’s `instructions()` method), `user_message` (the string passed to `->prompt()`), model, provider, invocation ID. The old field name `prompt_text` only reflected the user message; the system prompt is sent separately by Laravel AI and was easy to miss in logs.
-- **Incoming Responses**: Response text, structured data, usage information
+- **Outgoing requests** (`Ollama Request`): `invocation_id`, `provider`, `model`, `agent_class`, `system_instructions` (the agent’s `instructions()`), `user_message` (the string passed to `->prompt()`), `timeout`.
+- **Incoming responses** (`Ollama Response`): `invocation_id`, `provider`, `model`, `response_text`, optional `response_data` (when the result is a `StructuredAgentResponse`), `usage`.
 
-Look for log entries prefixed with:
-- `[DEBUG] Ollama Request`
-- `[DEBUG] Ollama Response`
+There is no `normalizeResponse()`, no `Raw AI Response` log line, and no title / rationale / strength field extraction on either the read API or the current agent schema.
 
 ### Example Log Output
 
 ```
-[2026-02-13 10:54:27] local.DEBUG: Ollama Request {"invocation_id":"abc123","agent_class":"App\\Ai\\Agents\\ConceptsOnlyAgent","system_instructions":"You are a lateral thinking assistant...","user_message":"Seed concept: \"creativity\"..."}
-[2026-02-13 10:54:28] local.DEBUG: Ollama Response {"invocation_id":"abc123","provider":"OllamaProvider","model":"llama3.2:3b","response_text":"...","response_data":{"seed":"creativity","related_concepts":[...]}}
+[2026-02-13 10:54:27] local.DEBUG: Ollama Request {"invocation_id":"abc123","provider":"OllamaProvider","model":"llama3.2:3b","agent_class":"App\\Ai\\Agents\\ConceptsOnlyAgent","system_instructions":"You are a lateral thinking assistant...","user_message":"Starting concept: \"creativity\"...","timeout":null}
+[2026-02-13 10:54:28] local.DEBUG: Ollama Response {"invocation_id":"abc123","provider":"OllamaProvider","model":"llama3.2:3b","response_text":"...","response_data":{"start_concept":"creativity","concepts":[...],"edges":[...]},"usage":null}
 ```
 
 ## Xdebug Configuration
@@ -44,8 +46,8 @@ Xdebug is configured in `compose.yaml` but disabled by default. To enable:
 
 2. **Restart Sail**:
    ```bash
-   sail down
-   sail up -d
+   ./sail down
+   ./sail up -d
    ```
 
 3. **Configure your IDE**:
@@ -74,84 +76,78 @@ Set in `.env`:
 SAIL_XDEBUG_MODE=off
 ```
 
-Then restart Sail.
+Then restart Sail (`./sail down && ./sail up -d`).
 
 ## Common Issues
 
-### Empty Concept Strings
+### Prefetch / Ollama not reachable
 
-If you're seeing empty strings in the `concept` field:
+There is **no** live-Ollama or `smoke` PHPUnit group. `./sail test` runs the default **mocked** suite (no Ollama, Wikipedia, or Wikimedia).
 
-1. **Check the logs** for the raw response structure
-2. The LLM might be returning data in a different format than expected
-3. The normalization logic tries multiple field names (`concept`, `name`, `title`)
-4. If concept is empty but rationale exists, it attempts to extract concept from rationale
+Ollama’s host depends on **where** the command runs:
 
-**Debug steps**:
-```bash
-# Check logs for raw response
-sail logs | grep "Raw AI Response Data"
+| Where you run the command | URL | Source |
+|---|---|---|
+| Host shell (`curl`, `ollama`, `./dev.sh`) | `http://127.0.0.1:11434` | Native Ollama daemon on the host |
+| Inside Sail / Laravel (`OLLAMA_BASE_URL`) | `http://host.docker.internal:11434` | Default in `config/ai.php` and `.env.example` so the container reaches the host daemon |
 
-# Or check log file
-tail -n 100 storage/logs/laravel.log | grep -A 20 "Raw AI Response"
-```
-
-### Smoke Tests Failing
-
-If smoke tests fail:
-
-1. **Ensure Ollama is running**:
+1. **From the host**, confirm Ollama is up:
    ```bash
    curl http://127.0.0.1:11434/api/tags
    ```
 
-2. **Check model is available**:
+2. **Check the model** (default `llama3.2:3b`, same as `.env.example` / `config/ai.php` / `./dev.sh`):
    ```bash
    ollama list
-   ```
-
-3. **Pull the model if missing**:
-   ```bash
    ollama pull llama3.2:3b
    ```
 
-4. **Run the default mocked suite** (there is no live Ollama / smoke PHPUnit group):
+3. **From Sail**, Laravel uses `OLLAMA_BASE_URL=http://host.docker.internal:11434`. Do not point the container at `127.0.0.1:11434` — that is the container’s own loopback, not the host daemon.
+
+4. **Grow the graph**, then read it (the public POST does not generate):
+   ```bash
+   ./sail artisan concepts:prefetch --starts=creativity --count=10
+   ./sail artisan queue:work --queue=default --timeout=300
+   curl -X POST http://localhost/api/concepts/relationships \
+     -H "Content-Type: application/json" \
+     -d '{"start":"creativity"}'
+   ```
+
+5. **Run the mocked suite**:
    ```bash
    ./sail test
    ```
 
-5. **Check test logs** for specific error messages
+### Graph 404 / empty neighborhood
 
-### Response Structure Issues
+The read API returns **404** (`No prefetched graph found for this start yet.`) when it cannot resolve a start that already has edges.
 
-The LLM might return data in unexpected formats. The service handles:
-- `concept`, `name`, or `title` fields
-- `rationale`, `explanation`, or `reason` fields  
-- `strength` or `score` fields
+- Cold start (omit `start` / `seed`) picks a random concept that **already has relationships**. It does **not** pick `config('concepts.default_seeds')`.
+- `default_seeds` is for prefetch / `ConceptSeed` when the terms table is empty (and for the seeder path).
+- POST `complexity` only **filters** stored terms; it does not drive generation. Prefetch `--complexity` (default `concepts.default_complexity`) is what the worker writes.
 
-If issues persist, check the raw response in logs and adjust the normalization logic in `ConceptRelationshipService::normalizeResponse()`.
-
-## Postman Collection
-
-A Postman collection can be created for testing. Basic endpoints:
+## API examples (curl / Postman)
 
 ### Health Check
+
 - **GET** `http://localhost/api/hello`
 
-### Generate Concept Relationships
+### Read a prefetched neighborhood
+
 - **POST** `http://localhost/api/concepts/relationships`
 - **Headers**: `Content-Type: application/json`
-- **Body**:
+- **Body** (read filters only — this does not generate):
   ```json
   {
-    "seed": "creativity",
-    "count": 5
+    "start": "creativity",
+    "locale": "en",
+    "complexity": 2
   }
   ```
 
-### Creating Postman Collection
+`start` aliases: `seed`, `localizedConcept`. There is no `{seed, count}` “Generate Concept Relationships” body. `count` is a `concepts:prefetch` CLI option.
 
-1. Import the following as a Postman collection:
+### Example Postman collection
 
 ```json
 {
@@ -174,7 +170,7 @@ A Postman collection can be created for testing. Basic endpoints:
       }
     },
     {
-      "name": "Generate Concept Relationships",
+      "name": "Read concept graph neighborhood",
       "request": {
         "method": "POST",
         "header": [
@@ -185,7 +181,7 @@ A Postman collection can be created for testing. Basic endpoints:
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"seed\": \"creativity\",\n  \"count\": 5\n}"
+          "raw": "{\n  \"start\": \"creativity\",\n  \"locale\": \"en\"\n}"
         },
         "url": {
           "raw": "http://localhost/api/concepts/relationships",
@@ -199,25 +195,27 @@ A Postman collection can be created for testing. Basic endpoints:
 }
 ```
 
-2. Save as `Lateralzr-API.postman_collection.json` in your project root
-
 ## Debugging Tips
 
-1. **Enable detailed logging**: Already enabled when `APP_DEBUG=true`
-2. **Check response structure**: Look for "Raw AI Response Data" in logs
-3. **Test with simple prompts**: Start with basic concepts
-4. **Verify Ollama connectivity**: Use `curl` to test Ollama directly
-5. **Check model output**: Test model directly with `ollama run llama3.2:3b`
+1. **Ollama logs**: registered only when `APP_DEBUG=true`; look for `Ollama Request` / `Ollama Response` (not `[DEBUG] Ollama Request`).
+2. **Confirm the host**: `127.0.0.1:11434` from the host shell; `host.docker.internal:11434` from Sail.
+3. **Prefetch before reading**: a 404 means no stored edges for that start, not a live-generate failure.
+4. **Test the model on the host**: `ollama run llama3.2:3b`.
+5. **Default tests are mocked**: `./sail test` never hits Ollama.
 
 ## Useful Commands
 
 ```bash
 # View real-time logs
-sail logs -f
+./sail logs -f
 
-# Test Ollama directly
+# Host-shell Ollama checks (not the Sail default)
 curl http://127.0.0.1:11434/api/tags
 curl -X POST http://127.0.0.1:11434/api/generate -d '{"model":"llama3.2:3b","prompt":"test"}'
+
+# Grow the graph (LLM + queue)
+./sail artisan concepts:prefetch --starts=creativity --count=10
+./sail artisan queue:work --queue=default --timeout=300
 
 # Clear logs
 > storage/logs/laravel.log

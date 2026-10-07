@@ -1,6 +1,6 @@
 ---
 name: local-llm-and-ai-sdk
-overview: Set up Laravel AI SDK with a native macOS Ollama installation and a default local model, wire Laravel Sail containers to talk to the local LLM, and add tests plus a dev convenience script.
+overview: Historical / superseded. Set up Laravel AI SDK with a native macOS Ollama installation and a default local model, wire Laravel Sail containers to talk to the local LLM, and add tests plus a dev convenience script.
 todos:
   - id: install-laravel-ai-sdk
     content: Install and configure the laravel/ai SDK with Ollama provider and env-driven defaults.
@@ -16,6 +16,8 @@ todos:
     status: completed
 isProject: false
 ---
+
+> **Historical / superseded.** This plan is a snapshot of earlier work, not current setup. See [README.md](../../README.md).
 
 # 02 - Local LLM and AI SDK
 

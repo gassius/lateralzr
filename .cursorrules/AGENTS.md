@@ -35,7 +35,7 @@ This document provides context and guidelines for AI agents working on the Later
 ### Code Organization
 - Follow Laravel conventions strictly
 - Keep controllers thin, move logic to services/actions
-- Validate at the controller/`Request` layer (no unused Form Request / API Resource skeleton)
+- Validate at the controller with `Illuminate\Http\Request` (no Form Request / API Resource classes today)
 - Use Eloquent models with proper relationships
 - Implement repository pattern if complexity grows
 
@@ -69,10 +69,10 @@ This document provides context and guidelines for AI agents working on the Later
 - Implement proper casts and accessors/mutators
 
 ### Routes
-- API routes in `routes/api.php`
-- Use `Route::apiResource()` for RESTful resources
+- API routes in `routes/api.php` as explicit closures and controller actions (current: `GET /hello`, `POST /concepts/relationships`, `GET /media`)
+- Do not add unused `Route::apiResource()` skeletons
 - Group related routes with middleware
-- Use route model binding
+- Use route model binding when a route has an Eloquent parameter
 
 ### Testing
 - Feature tests for API endpoints in `tests/Feature/`
@@ -105,9 +105,9 @@ This document provides context and guidelines for AI agents working on the Later
 - Log errors appropriately
 
 ### Validation
-- Use Form Request classes for complex validation
+- Validate in the controller with `Illuminate\Http\Request` (no `app/Http/Requests` classes today)
 - Return validation errors in consistent format
-- Validate at the request level, not in controllers
+- Do not recreate unused Form Request / API Resource skeletons unless a task needs them
 
 ## LLM Integration Approach
 
@@ -270,14 +270,7 @@ Queue workers for graph generation, localisation, and wiki/media enrichment alre
 
 ## Laravel Boost & MCP Usage
 
-- Laravel Boost is installed and available in this project (`laravel/boost` v2.1.3 with `laravel/mcp` v0.5.6).
-- Agents **should use Boost MCP tools** to understand and work with the app instead of generic shell commands whenever possible.
-- Prefer these tools for:
-  - **Application info**: `project-0-lateralzr-api-laravel-boost-application-info`
-  - **Database**: `project-0-lateralzr-api-laravel-boost-database-schema`, `project-0-lateralzr-api-laravel-boost-database-query`, `project-0-lateralzr-api-laravel-boost-database-connections`
-  - **Routes**: `project-0-lateralzr-api-laravel-boost-list-routes`
-  - **Config & env**: `project-0-lateralzr-api-laravel-boost-get-config`, `project-0-lateralzr-api-laravel-boost-list-available-env-vars`
-  - **Logs & errors**: `project-0-lateralzr-api-laravel-boost-read-log-entries`, `project-0-lateralzr-api-laravel-boost-last-error`, `project-0-lateralzr-api-laravel-boost-browser-logs`
-  - **URLs**: `project-0-lateralzr-api-laravel-boost-get-absolute-url`
-  - **Artisan & Tinker**: `project-0-lateralzr-api-laravel-boost-list-artisan-commands`, `project-0-lateralzr-api-laravel-boost-tinker`
+- Laravel Boost is installed and available in this project (`laravel/boost` ^2.1 with `laravel/mcp`).
+- Agents **should use the Boost tools from the active MCP server** to understand and work with the app instead of generic shell commands whenever possible.
+- Do not hard-code Cursor project tool-id prefixes (`project-0-…-laravel-boost-*`); those drift with MCP wiring. Use the tools the active Boost server advertises (application info, database schema/query/connections, routes, config/env, logs, URLs, artisan/tinker).
 - When exploring or debugging, agents should **reach for Boost tools first**, then fall back to generic filesystem or shell tools only when necessary.
