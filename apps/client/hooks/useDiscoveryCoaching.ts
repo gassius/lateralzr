@@ -5,6 +5,7 @@ import {
   flipCoachContextReady,
   getDiscoveryCoachingSession,
   reduceDiscoveryCoaching,
+  scheduleCoachOffer,
   setDiscoveryCoachingSession,
   shouldAnimateCoachPeek,
   SWIPE_COACH_IDLE_MS,
@@ -95,19 +96,15 @@ export function useDiscoveryCoaching({
   }, []);
 
   useEffect(() => {
-    if (!swipeCoachContextReady(state, view)) return;
-    const timer = setTimeout(() => {
+    return scheduleCoachOffer(swipeCoachContextReady(state, view), SWIPE_COACH_IDLE_MS, () => {
       commitEvent({ type: 'offerSwipe' }, setState);
-    }, SWIPE_COACH_IDLE_MS);
-    return () => clearTimeout(timer);
+    });
   }, [state, view, idleEpoch]);
 
   useEffect(() => {
-    if (!flipCoachContextReady(state, view)) return;
-    const timer = setTimeout(() => {
+    return scheduleCoachOffer(flipCoachContextReady(state, view), FLIP_COACH_DELAY_MS, () => {
       commitEvent({ type: 'offerFlip' }, setState);
-    }, FLIP_COACH_DELAY_MS);
-    return () => clearTimeout(timer);
+    });
   }, [state, view]);
 
   const coach = visibleCoach(state, view);

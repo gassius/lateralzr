@@ -9,6 +9,7 @@ import {
   reduceDiscoveryCoaching,
   resetDiscoveryCoachingSession,
   getDiscoveryCoachingSession,
+  scheduleCoachOffer,
   setDiscoveryCoachingSession,
   shouldAnimateCoachPeek,
   swipeCoachContextReady,
@@ -34,6 +35,39 @@ function state(partial: Partial<DiscoveryCoachingState> = {}): DiscoveryCoaching
 afterEach(() => {
   resetDiscoveryCoachingSession();
 });
+
+type TimerHandle = ReturnType<typeof setTimeout>;
+
+function createFakeClock() {
+  let now = 0;
+  let nextId = 1;
+  const pending = new Map<number, { at: number; fn: () => void }>();
+
+  const timers = {
+    setTimeout(fn: () => void, delay?: number) {
+      const id = nextId++;
+      pending.set(id, { at: now + (delay ?? 0), fn });
+      return id as unknown as TimerHandle;
+    },
+    clearTimeout(id: TimerHandle) {
+      pending.delete(id as unknown as number);
+    },
+  } as Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'>;
+
+  function advance(ms: number) {
+    now += ms;
+    const due = [...pending.entries()]
+      .filter(([, item]) => item.at <= now)
+      .sort((a, b) => a[1].at - b[1].at);
+    for (const [id, item] of due) {
+      if (!pending.has(id)) continue;
+      pending.delete(id);
+      item.fn();
+    }
+  }
+
+  return { timers, advance };
+}
 
 describe('swipe coaching', () => {
   it('does not offer before the idle threshold on the first card', () => {
@@ -136,6 +170,127 @@ describe('flip coaching', () => {
       visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX, deckStatus: true })),
       null,
     );
+  });
+});
+
+describe('scheduleCoachOffer', () => {
+  it('fires swipe idle exactly at SWIPE_COACH_IDLE_MS and not 1 ms before', () => {
+    const { timers, advance } = createFakeClock();
+    let offers = 0;
+    scheduleCoachOffer(
+      swipeCoachContextReady(state(), view({ cardIndex: 0 })),
+      SWIPE_COACH_IDLE_MS,
+      () => {
+        offers += 1;
+      },
+      timers,
+    );
+
+    advance(SWIPE_COACH_IDLE_MS - 1);
+    assert.equal(offers, 0);
+    advance(1);
+    assert.equal(offers, 1);
+  });
+
+  it('resets interaction by cancel + reschedule and fires only after a second full idle', () => {
+    const { timers, advance } = createFakeClock();
+    let offers = 0;
+    const offer = () => {
+      offers += 1;
+    };
+    const ready = swipeCoachContextReady(state(), view({ cardIndex: 0 }));
+
+    const cancel = scheduleCoachOffer(ready, SWIPE_COACH_IDLE_MS, offer, timers);
+    advance(4000);
+    assert.equal(offers, 0);
+
+    cancel();
+    scheduleCoachOffer(ready, SWIPE_COACH_IDLE_MS, offer, timers);
+
+    advance(1000);
+    assert.equal(offers, 0);
+    advance(SWIPE_COACH_IDLE_MS - 1000);
+    assert.equal(offers, 1);
+  });
+
+  it('fires flip dwell at FLIP_COACH_DELAY_MS and not 799 ms', () => {
+    const { timers, advance } = createFakeClock();
+    let offers = 0;
+    scheduleCoachOffer(
+      flipCoachContextReady(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
+      FLIP_COACH_DELAY_MS,
+      () => {
+        offers += 1;
+      },
+      timers,
+    );
+
+    advance(799);
+    assert.equal(offers, 0);
+    advance(1);
+    assert.equal(offers, 1);
+  });
+
+  it('schedules nothing when swipe or flip context is not ready', () => {
+    const { timers, advance } = createFakeClock();
+    let offers = 0;
+    const offer = () => {
+      offers += 1;
+    };
+    const alreadyOffered = state({ swipeCoachOffered: true });
+    const alreadyDiscovered = state({ swipeDiscovered: true });
+
+    scheduleCoachOffer(
+      swipeCoachContextReady(state(), view({ cardIndex: 1 })),
+      SWIPE_COACH_IDLE_MS,
+      offer,
+      timers,
+    );
+    scheduleCoachOffer(
+      swipeCoachContextReady(state(), view({ flipped: true })),
+      SWIPE_COACH_IDLE_MS,
+      offer,
+      timers,
+    );
+    scheduleCoachOffer(
+      swipeCoachContextReady(alreadyOffered, view()),
+      SWIPE_COACH_IDLE_MS,
+      offer,
+      timers,
+    );
+    scheduleCoachOffer(
+      swipeCoachContextReady(alreadyDiscovered, view()),
+      SWIPE_COACH_IDLE_MS,
+      offer,
+      timers,
+    );
+    scheduleCoachOffer(
+      flipCoachContextReady(state({ flipDiscovered: true }), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
+      FLIP_COACH_DELAY_MS,
+      offer,
+      timers,
+    );
+
+    advance(SWIPE_COACH_IDLE_MS);
+    advance(FLIP_COACH_DELAY_MS);
+    assert.equal(offers, 0);
+  });
+
+  it('does not fire late after cancel (flip / deck-status cleanup)', () => {
+    const { timers, advance } = createFakeClock();
+    let offers = 0;
+    const cancel = scheduleCoachOffer(
+      swipeCoachContextReady(state(), view()),
+      SWIPE_COACH_IDLE_MS,
+      () => {
+        offers += 1;
+      },
+      timers,
+    );
+
+    cancel();
+    advance(SWIPE_COACH_IDLE_MS + 100);
+    assert.equal(offers, 0);
   });
 });
 

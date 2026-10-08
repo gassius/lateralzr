@@ -4,8 +4,6 @@ import { Palette } from '../constants/Colors.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
   blendHexOver,
-  coachAppearOpacity,
-  coachAppearTranslateY,
   coachHintContrastRatio,
   coachHintIsSecondaryToConceptTitle,
   contrastRatio,
@@ -15,7 +13,6 @@ import {
   COACH_HINT_FONT_WEIGHT,
   COACH_HINT_OPACITY,
   coachHintPalette,
-  shouldAnimateCoachAppear,
 } from './coachHintPresentation.ts';
 
 describe('coach hint type hierarchy', () => {
@@ -52,15 +49,8 @@ describe('coach hint contrast', () => {
 });
 
 describe('coach appear motion', () => {
-  it('is a short fade/slide, skipped entirely when reduced motion is requested', () => {
+  it('is a short fade/slide whose tokens stay locked', () => {
     assert.ok(COACH_APPEAR_DURATION_MS <= 400);
-    assert.equal(shouldAnimateCoachAppear(false), true);
-    assert.equal(shouldAnimateCoachAppear(true), false);
-    assert.equal(coachAppearOpacity(true, 0), 1);
-    assert.equal(coachAppearTranslateY(true, 0), 0);
-    assert.equal(coachAppearOpacity(false, 0), 0);
-    assert.equal(coachAppearTranslateY(false, 0), COACH_APPEAR_TRANSLATE_Y);
-    assert.equal(coachAppearOpacity(false, 1), 1);
-    assert.equal(coachAppearTranslateY(false, 1), 0);
+    assert.equal(COACH_APPEAR_TRANSLATE_Y, 8);
   });
 });

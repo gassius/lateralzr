@@ -62,14 +62,6 @@ export function shouldPersistComplexity(reason: ComplexityPersistReason): boolea
   return reason === 'swipe';
 }
 
-/** Apply a URL complexity for this load without overwriting stored preference. */
-export function resolveHydratedComplexity(
-  params: JourneyTestParams,
-  stored: number,
-): number {
-  return resolveInitialComplexity(params, stored);
-}
-
 /**
  * Parse Expo-web test overrides from a query string.
  * Invalid / empty values are ignored so the app can cold-start normally.

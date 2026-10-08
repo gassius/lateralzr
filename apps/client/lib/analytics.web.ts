@@ -52,7 +52,6 @@ export function track(event: AnalyticsEventName | string, params?: AnalyticsPara
   });
 
   if (__DEV__ && !resolveWebGtmId()) {
-    // eslint-disable-next-line no-console
     console.debug('[analytics:dataLayer]', event, payload);
   }
 }

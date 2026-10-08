@@ -1,4 +1,4 @@
-/** App palette — primary background orange, supporting neutrals and accent blue */
+/** App palette — deck chrome is darkBlue; orange is the card surface. */
 export const Palette = {
   orange: '#f78d1e',
   lightGray: '#cdced0',

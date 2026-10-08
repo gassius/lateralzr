@@ -3,18 +3,17 @@ import { afterEach, describe, it } from 'node:test';
 import { Palette } from '../constants/Colors.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
+  COMPLEXITY_CUE_APPEAR_TRANSLATE_Y,
   COMPLEXITY_CUE_DURATION_MS,
   COMPLEXITY_CUE_SESSION_DURATION_MS,
   COMPLEXITY_CUE_FONT_SIZE,
   COMPLEXITY_CUE_PLACEMENT,
   COMPLEXITY_SESSION_MARK_FONT_SIZE,
-  complexityCueAppearOpacity,
-  complexityCueAppearTranslateY,
   complexityCueContrastRatio,
   complexityCueHoldMs,
   complexityCueIsSecondaryToConceptTitle,
-  complexityCueLabel,
   complexityCuePalette,
+  complexityCueText,
   resolveSessionComplexityToAnnounce,
   shouldAnimateComplexityCue,
   shouldAnnounceComplexity,
@@ -118,19 +117,20 @@ describe('resolveSessionComplexityToAnnounce', () => {
 
 describe('complexity cue copy', () => {
   it('names the dimension Complexity, not Laterality, and includes the rung', () => {
-    assert.equal(complexityCueLabel(5, 'en'), 'Complexity 5');
-    assert.equal(complexityCueLabel(1, 'en'), 'Complexity 1');
-    assert.match(complexityCueLabel(5, 'es'), /complejidad 5/i);
-    assert.doesNotMatch(complexityCueLabel(5, 'en'), /laterality/i);
-    assert.doesNotMatch(complexityCueLabel(5, 'es'), /lateralidad/i);
+    setActiveLocale('en');
+    assert.equal(t('complexityGrade', { grade: '5' }), 'Complexity 5');
+    assert.equal(t('complexityGrade', { grade: '1' }), 'Complexity 1');
+    assert.doesNotMatch(t('complexityGrade', { grade: '5' }), /laterality/i);
+    setActiveLocale('es');
+    assert.match(t('complexityGrade', { grade: '5' }), /complejidad 5/i);
+    assert.doesNotMatch(t('complexityGrade', { grade: '5' }), /lateralidad/i);
   });
 
-  it('keeps i18n catalogs aligned with the cue label', () => {
+  it('renders cue copy from the active i18n catalog', () => {
     setActiveLocale('en');
-    assert.equal(t('complexityGrade', { grade: '5' }), complexityCueLabel(5, 'en'));
+    assert.equal(complexityCueText(5), t('complexityGrade', { grade: '5' }));
     setActiveLocale('es');
-    assert.equal(t('complexityGrade', { grade: '5' }), complexityCueLabel(5, 'es'));
-    setActiveLocale('en');
+    assert.equal(complexityCueText(5), t('complexityGrade', { grade: '5' }));
   });
 });
 
@@ -174,11 +174,6 @@ describe('complexity cue motion', () => {
     assert.equal(complexityCueHoldMs('swipe'), COMPLEXITY_CUE_DURATION_MS);
     assert.equal(shouldAnimateComplexityCue(false), true);
     assert.equal(shouldAnimateComplexityCue(true), false);
-    assert.equal(complexityCueAppearOpacity(true, 0), 1);
-    assert.equal(complexityCueAppearTranslateY(true, 0), 0);
-    assert.equal(complexityCueAppearOpacity(false, 0), 0);
-    assert.equal(complexityCueAppearTranslateY(false, 0), 6);
-    assert.equal(complexityCueAppearOpacity(false, 1), 1);
-    assert.equal(complexityCueAppearTranslateY(false, 1), 0);
+    assert.equal(COMPLEXITY_CUE_APPEAR_TRANSLATE_Y, 6);
   });
 });
