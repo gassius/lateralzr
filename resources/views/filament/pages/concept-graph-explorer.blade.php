@@ -328,8 +328,9 @@
                 window.__conceptGraphCy = cy;
             }
 
-            // Filament may run in SPA mode; DOMContentLoaded won't fire on internal navigations.
-            // We render on page load and on Livewire navigations, with retry until Cytoscape is available.
+            // Panel is not Filament spa(). First paint listens for window `load` and
+            // `livewire:navigated`; later updates use `concept-graph-updated`.
+            // renderConceptGraph retries until window.cytoscape is available.
             window.addEventListener('load', () => {
                 renderConceptGraph(@js($graphElements));
             });

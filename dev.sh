@@ -6,7 +6,7 @@
 set -e
 
 OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-qwen3.5:9b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
 SAIL_SCRIPT="./vendor/bin/sail"
 
 # Colors for output
@@ -137,9 +137,9 @@ up() {
     echo "Model:          ${OLLAMA_MODEL}"
     echo ""
     echo "Useful commands:"
-    echo "  sail artisan route:list    - List API routes"
-    echo "  sail test                 - Run tests"
-    echo "  sail logs                 - View logs"
+    echo "  ./sail artisan route:list    - List API routes"
+    echo "  ./sail test                  - Run tests"
+    echo "  ./sail logs                  - View logs"
     echo "  ./dev.sh down             - Stop services"
     echo ""
 }

@@ -5,6 +5,8 @@ todos: []
 isProject: false
 ---
 
+> **Historical / superseded.** This plan is a snapshot of earlier work, not current setup. See [README.md](../../README.md).
+
 # Expo Client and Monorepo Setup
 
 ## Architecture

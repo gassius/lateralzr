@@ -4,12 +4,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Default seed concepts (cold start)
+    | Default seed concepts (prefetch / seeder)
     |--------------------------------------------------------------------------
     |
-    | When POST /api/concepts/relationships is called without a seed, the API
-    | picks a random concept from this list (or from the concepts table if
-    | it has rows). These terms are used to bootstrap lateral thinking chains.
+    | Used by ConceptSeed when the terms table is empty (prefetch workers and
+    | seeder). POST /api/concepts/relationships is a read-only graph walk:
+    | omitting start/seed picks a random concept that already has edges
+    | (ConceptGraphQuery), not this list.
     |
     */
     'default_seeds' => [
@@ -27,11 +28,13 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Default concept complexity (POST /api/concepts/relationships)
+    | Default concept complexity (prefetch / generation)
     |--------------------------------------------------------------------------
     |
     | 1 = very simple labels (e.g. "Ball", "Fire"). 5 = dense academic named ideas.
-    | Clients may override per request with the "complexity" JSON field (1–5).
+    | Prefetch and other workers use this when they generate terms.
+    | POST /api/concepts/relationships "complexity" only filters stored terms;
+    | it does not drive generation or apply this default to the walk.
     |
     */
     'default_complexity' => env('CONCEPTS_DEFAULT_COMPLEXITY', 2),
