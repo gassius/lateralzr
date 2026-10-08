@@ -47,7 +47,6 @@ export function track(event: AnalyticsEventName | string, params?: AnalyticsPara
   const payload = sanitizeAnalyticsParams(params);
   // Firebase Analytics → GTM is not linked in Expo Go. Keep the public API ready.
   if (__DEV__) {
-    // eslint-disable-next-line no-console
     console.debug(`[analytics:${containerId}]`, event, payload);
   }
 }

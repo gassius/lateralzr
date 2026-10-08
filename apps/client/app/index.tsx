@@ -24,7 +24,7 @@ import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
   DEFAULT_LATERALITY,
-  resolveHydratedLaterality,
+  resolveInitialLaterality,
   shouldPersistLateralityAfterSwap,
   stepLaterality,
   type LateralityGrade,
@@ -42,7 +42,7 @@ import {
   journeyStartOptions,
   parseComplexityParam,
   readJourneyTestParams,
-  resolveHydratedComplexity,
+  resolveInitialComplexity,
   resolveJourneyStartFallback,
   shouldPersistComplexity,
   type JourneyFetchOptions,
@@ -152,7 +152,7 @@ export default function HomeScreen() {
           latest.complexity ?? journeyTestParamsRef.current.complexity ?? routeComplexity,
       };
       journeyTestParamsRef.current = params;
-      const hydrated = resolveHydratedComplexity(params, stored);
+      const hydrated = resolveInitialComplexity(params, stored);
       complexityRef.current = hydrated;
       setComplexity(hydrated);
       if (
@@ -177,7 +177,7 @@ export default function HomeScreen() {
     let cancelled = false;
     void loadStoredLaterality().then((stored) => {
       if (cancelled) return;
-      const hydrated = resolveHydratedLaterality(journeyTestParamsRef.current.laterality, stored);
+      const hydrated = resolveInitialLaterality(journeyTestParamsRef.current.laterality, stored);
       lateralityRef.current = hydrated;
       committedLateralityRef.current = hydrated;
       setLaterality(hydrated);

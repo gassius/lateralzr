@@ -139,3 +139,18 @@ export function shouldAnimateCoachPeek(reduceMotion: boolean): boolean {
 export function coachMessageKey(kind: CoachKind): 'swipeCoach' | 'flipCoach' {
   return kind === 'swipe' ? 'swipeCoach' : 'flipCoach';
 }
+
+/**
+ * Schedule a one-shot coach offer. Returns a cancel function (no-op when not ready).
+ * Both discovery-coaching effects share this so idle/dwell can be unit-tested.
+ */
+export function scheduleCoachOffer(
+  ready: boolean,
+  delayMs: number,
+  offer: () => void,
+  timers: Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'> = globalThis,
+): () => void {
+  if (!ready) return () => {};
+  const id = timers.setTimeout(offer, delayMs);
+  return () => timers.clearTimeout(id);
+}

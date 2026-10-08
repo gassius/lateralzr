@@ -51,20 +51,6 @@ export function coachHintPalette(surface: CoachHintSurface): CoachHintPalette {
   return COACH_HINT_PALETTE[surface];
 }
 
-export function shouldAnimateCoachAppear(reduceMotion: boolean): boolean {
-  return !reduceMotion;
-}
-
-/** Opacity at a 0–1 appear progress. Reduced motion is fully visible immediately. */
-export function coachAppearOpacity(reduceMotion: boolean, progress: number): number {
-  return reduceMotion ? 1 : progress;
-}
-
-/** Upward slide in px. Reduced motion stays put. */
-export function coachAppearTranslateY(reduceMotion: boolean, progress: number): number {
-  return reduceMotion ? 0 : (1 - progress) * COACH_APPEAR_TRANSLATE_Y;
-}
-
 export function coachHintIsSecondaryToConceptTitle(
   coachSize: number = COACH_HINT_FONT_SIZE,
   titleSize: number = CONCEPT_FRONT_LABEL_FONT_SIZE,

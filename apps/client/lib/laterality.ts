@@ -73,14 +73,6 @@ export function lateralityControlDisabled(canStep: boolean, swapping: boolean): 
   return swapping || !canStep;
 }
 
-/** Apply a URL laterality for this load without overwriting stored preference. */
-export function resolveHydratedLaterality(
-  urlLaterality: LateralityGrade | undefined,
-  stored: LateralityGrade,
-): LateralityGrade {
-  return resolveInitialLaterality(urlLaterality, stored);
-}
-
 /**
  * Calm 2–3 stop wordmark gradient on the dark-blue deck.
  * Low laterality stays cool/contained; high laterality opens toward orange.

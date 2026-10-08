@@ -1,7 +1,7 @@
 import { Palette } from '../constants/Colors';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
 import { contrastRatio } from './coachHintPresentation';
-import { t, type AppLocale } from './i18n';
+import { t } from './i18n';
 
 /**
  * Ephemeral complexity cue (Critiquito Lz-12).
@@ -46,11 +46,6 @@ export type ComplexityCuePalette = {
   backdrop: string;
 };
 
-const CUE_LABEL: Record<AppLocale, string> = {
-  en: 'Complexity {grade}',
-  es: 'Complejidad {grade}',
-};
-
 export function shouldAnnounceComplexity(event: ComplexityAnnounceEvent): boolean {
   if (event.reason === 'session-url') return true;
   if (event.reason === 'hydrate-stored') return false;
@@ -78,11 +73,7 @@ export function resolveSessionComplexityToAnnounce(input: {
   return grade;
 }
 
-export function complexityCueLabel(grade: number, locale: AppLocale = 'en'): string {
-  return CUE_LABEL[locale].replaceAll('{grade}', String(grade));
-}
-
-/** Runtime copy — same wording as `complexityCueLabel`, via the active catalog. */
+/** Runtime copy from the active i18n catalog. */
 export function complexityCueText(grade: number): string {
   return t('complexityGrade', { grade: String(grade) });
 }
@@ -121,12 +112,4 @@ export function complexityCueContrastRatio(): number {
 
 export function shouldAnimateComplexityCue(reduceMotion: boolean): boolean {
   return !reduceMotion;
-}
-
-export function complexityCueAppearOpacity(reduceMotion: boolean, progress: number): number {
-  return reduceMotion ? 1 : progress;
-}
-
-export function complexityCueAppearTranslateY(reduceMotion: boolean, progress: number): number {
-  return reduceMotion ? 0 : (1 - progress) * COMPLEXITY_CUE_APPEAR_TRANSLATE_Y;
 }

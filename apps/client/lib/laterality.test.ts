@@ -9,7 +9,6 @@ import {
   DEFAULT_LATERALITY,
   lateralityGradientStops,
   parseLateralityParam,
-  resolveHydratedLaterality,
   resolveInitialLaterality,
   lateralityControlDisabled,
   shouldPersistLaterality,
@@ -50,13 +49,11 @@ describe('parseLateralityParam', () => {
 
 describe('session-only URL laterality', () => {
   it('lets ?laterality=N win for this load without asking to persist', () => {
-    assert.equal(resolveHydratedLaterality(4, 2), 4);
     assert.equal(resolveInitialLaterality(4, 2), 4);
     assert.equal(shouldPersistLaterality('hydrate'), false);
   });
 
   it('falls back to stored laterality when the URL param is absent', () => {
-    assert.equal(resolveHydratedLaterality(undefined, 2), 2);
     assert.equal(resolveInitialLaterality(undefined, 2), 2);
   });
 

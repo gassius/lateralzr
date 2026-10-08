@@ -7,7 +7,6 @@ import {
   parseJourneyTestParams,
   rememberWebSearch,
   resetRememberedWebSearch,
-  resolveHydratedComplexity,
   resolveInitialComplexity,
   resolveJourneyStartFallback,
   shouldPersistComplexity,
@@ -193,17 +192,6 @@ describe('resolveInitialComplexity', () => {
 
   it('falls back to the stored complexity when the URL value is missing', () => {
     assert.equal(resolveInitialComplexity({ onlyWithMedia: false }, 3), 3);
-  });
-});
-
-describe('resolveHydratedComplexity', () => {
-  it('applies a URL complexity for this load without marking it for persistence', () => {
-    assert.equal(resolveHydratedComplexity({ onlyWithMedia: false, complexity: 5 }, 2), 5);
-    assert.equal(shouldPersistComplexity('hydrate'), false);
-  });
-
-  it('keeps the stored complexity when the URL has no override', () => {
-    assert.equal(resolveHydratedComplexity({ onlyWithMedia: false }, 3), 3);
   });
 });
 
