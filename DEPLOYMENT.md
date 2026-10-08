@@ -124,13 +124,10 @@ AI_DEFAULT_PROVIDER=openrouter
 OPENROUTER_API_KEY=<your-openrouter-key>
 OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
 
-# Set appropriate mail driver for production
-MAIL_MAILER=smtp
-MAIL_HOST=<your-smtp-host>
-MAIL_PORT=587
-MAIL_USERNAME=<your-smtp-username>
-MAIL_PASSWORD=<your-smtp-password>
-MAIL_FROM_ADDRESS=noreply@lateralzr.com
+# SMTP (MAIL_*) and Redis (REDIS_*) are unused. Cache, queue, and session
+# use the database driver. There is no app Mailable / Mail:: sender
+# (Filament uses in-app Notification::make). Framework stubs remain in
+# config/{mail,database}.php.
 ```
 
 ⚠️ **Never commit `.env` to git** - it contains production secrets.

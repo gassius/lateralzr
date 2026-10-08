@@ -280,9 +280,9 @@ See `apps/client/lib/apiBaseUrl.ts` for platform-specific resolution logic.
 
 ## Related Documentation
 
-- [Main Deployment Docs](../../DEPLOYMENT.md) - Laravel API production deployment
-- [Production Quickstart](../../PRODUCTION-QUICKSTART.md) - VPS setup guide
-- [Client README](../../README.md#monorepo) - Local development setup
+- [Main Deployment Docs](DEPLOYMENT.md) - Laravel API production deployment
+- [Production Quickstart](PRODUCTION-QUICKSTART.md) - VPS setup guide
+- [README monorepo](README.md#monorepo) - Local development setup
 
 ## Support
 

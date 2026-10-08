@@ -13,8 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // CORS middleware is automatically applied via fruitcake/php-cors
-        // Configuration is in config/cors.php
+        // CORS is Laravel's HandleCors middleware; see config/cors.php.
         $middleware->append(EnsureStorageDirectoriesExist::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

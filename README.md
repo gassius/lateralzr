@@ -26,9 +26,9 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 - Docker Desktop installed and running
 - Git
 - Composer (optional - Sail includes it)
-- **Node.js** (see [.nvmrc](.nvmrc); e.g. Node 20) and **pnpm** (package manager for the monorepo). Use [NVM](https://github.com/nvm-sh/nvm) on the host: `nvm use` in the repo root; install pnpm via `corepack enable && corepack prepare pnpm@latest --activate` or [pnpm.io](https://pnpm.io/installation). Optional: run the client via the Node Docker service (see [Monorepo](#monorepo)).
+- **Node.js** (see [.nvmrc](.nvmrc); e.g. Node 20) and **pnpm** (package manager for the monorepo). Use [NVM](https://github.com/nvm-sh/nvm) on the host: `nvm use` in the repo root; install pnpm via `corepack enable && corepack prepare pnpm@9.15.0 --activate` or [pnpm.io](https://pnpm.io/installation). Optional: run the client via the Node Docker service (see [Monorepo](#monorepo)).
 - Ollama installed on macOS (for local LLM development)
-  - See [02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md) for installation instructions
+  - See [Local LLM Setup](#local-llm-setup) for install and prefetch commands
 
 ## Installation
 
@@ -258,18 +258,22 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
 ```
 lateralzr/
 ├── app/                    # Laravel application code
+│   ├── Filament/          # Admin resources, pages, widgets
 │   ├── Http/
 │   │   └── Controllers/   # API controllers
-│   └── Models/            # Eloquent models
+│   ├── Models/            # Eloquent models
+│   └── Providers/         # AppServiceProvider; Filament AdminPanelProvider
 ├── apps/
 │   └── client/            # Expo client (React Native + TypeScript, Expo Router)
 ├── config/
-│   └── concepts.php       # Default seed concepts (cold start)
+│   └── concepts.php       # Prefetch/seeder default seeds + complexity
 ├── database/
 │   ├── migrations/        # Database migrations
 │   └── seeders/           # Database seeders
 ├── routes/
-│   └── api.php            # API routes
+│   ├── api.php            # Public JSON API
+│   ├── web.php            # Web routes (root 204; Filament registers /admin)
+│   └── console.php        # Scheduler tasks
 ├── tests/                 # Test suite
 │   └── Feature/           # Feature tests
 ├── turbo.json             # Turborepo pipeline (Expo client tasks)
@@ -323,9 +327,7 @@ OLLAMA_MODEL=llama3.1:8b  # For higher quality (slower)
 OLLAMA_MODEL=llama3.2:1b  # For faster responses
 ```
 
-Prefetch and grow the graph with Ollama (or OpenRouter). The public **POST** `/api/concepts/relationships` read path does not call the LLM. See [Testing](#testing) for the mocked default suite.
-
-For detailed setup instructions, troubleshooting, and model recommendations, see [.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md](.cursor/plans/02-local-llm-and-ai-sdk_daf470d7.plan.md).
+Prefetch and grow the graph with Ollama (or OpenRouter). The public **POST** `/api/concepts/relationships` read path does not call the LLM. See [Testing](#testing) for the mocked default suite and [Plans/03-Debugging-and-Troubleshooting.md](Plans/03-Debugging-and-Troubleshooting.md) for current log fields, Ollama hosts, and prefetch debugging.
 
 ## Laravel Boost Integration
 
