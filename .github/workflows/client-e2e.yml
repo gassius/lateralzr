@@ -100,14 +100,22 @@ jobs:
           E2E_PORT: '4173'
         run: pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
 
+      - name: Stage flat artifact tree
+        if: always()
+        working-directory: apps/client
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/e2e-artifact/screenshots /tmp/e2e-artifact/playwright-report
+          if [ -d e2e/screenshots ]; then cp -a e2e/screenshots/. /tmp/e2e-artifact/screenshots/; fi
+          if [ -d e2e/playwright-report ]; then cp -a e2e/playwright-report/. /tmp/e2e-artifact/playwright-report/; fi
+          find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
+
       - name: Upload screenshots, diffs, and report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: client-e2e-screenshots
-          path: |
-            apps/client/e2e/screenshots
-            apps/client/e2e/playwright-report
+          path: /tmp/e2e-artifact
           if-no-files-found: warn
           retention-days: 14
 

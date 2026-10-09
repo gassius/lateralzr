@@ -28,6 +28,13 @@ if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !GITHUB_EVENT_PATH || !SCREENSHOTS_DI
 }
 
 const SCREENSHOTS = path.resolve(SCREENSHOTS_DIR);
+console.log('SCREENSHOTS_DIR resolves to', SCREENSHOTS, 'exists=', fs.existsSync(SCREENSHOTS));
+if (fs.existsSync(SCREENSHOTS)) {
+  console.log(
+    'png count',
+    fs.readdirSync(SCREENSHOTS).filter((f) => f.endsWith('.png')).length,
+  );
+}
 const event = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8'));
 const pr = event.pull_request;
 if (!pr) {
