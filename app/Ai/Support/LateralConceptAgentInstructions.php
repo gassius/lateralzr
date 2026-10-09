@@ -206,7 +206,7 @@ TIER;
         return <<<BLOCK
 ## Target complexity for this request: **{$complexity}**
 {$tiers}
-Apply the **word limit for this target number** to the seed and every related `concept`. Shorter is fine; never exceed the cap. The **server may truncate** overlong labels—so respect the cap to avoid losing meaning. At complexity **2**, favor **places, people, artworks, concrete things**—not abstractions dressed as two words. Do not jump to tier 4–5 style labels when the target is 1–2. Obey laterality and domain-escape rules.
+Apply the **word limit for this target number** to the seed and every related `concept`. Shorter is fine; never exceed the cap. At complexity **2**, favor **places, people, artworks, concrete things**—not abstractions dressed as two words. Do not jump to tier 4–5 style labels when the target is 1–2. Obey laterality and domain-escape rules.
 
 
 
@@ -224,7 +224,9 @@ Apply the **word limit for this target number** to the seed and every related `c
 
   - DO NOT explain the obvious connection.
 
-  - Just describe the concept itself.---
+  - Just describe the concept itself.
+
+---
 
 ## Critical Notes
 

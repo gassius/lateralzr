@@ -20,7 +20,7 @@ class ConceptCanonicalizer
      * Language-neutral identity key for a concept (no locale prefix).
      * Locale-specific labels live on concept_terms.
      */
-    public function canonicalKeyFor(string $term, ?string $locale = null): string
+    public function canonicalKeyFor(string $term): string
     {
         return ConceptTerm::normalizeTerm($term);
     }
@@ -81,7 +81,7 @@ class ConceptCanonicalizer
                 }
 
                 $concept = Concept::query()->create([
-                    'canonical_key' => $this->canonicalKeyFor($term, $locale),
+                    'canonical_key' => $this->canonicalKeyFor($term),
                 ]);
 
                 $attached = $this->attachPreferredTerm(

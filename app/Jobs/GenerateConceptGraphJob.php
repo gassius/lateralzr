@@ -56,7 +56,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
         ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
             'status' => 'processing',
-            'attempts' => (int) (($this->attempts() ?? 0)),
+            'attempts' => (int) $this->attempts(),
             'started_at' => now(),
             'error_message' => null,
         ]);
@@ -84,7 +84,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
                 ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
                     'status' => 'succeeded',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'attempts' => (int) $this->attempts(),
                     'finished_at' => now(),
                     'error_message' => null,
                 ]);
@@ -116,7 +116,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
                 ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
                     'status' => $willRetry ? 'processing' : 'failed',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'attempts' => (int) $this->attempts(),
                     'finished_at' => $willRetry ? null : now(),
                     'error_message' => $mapped,
                 ]);
@@ -146,7 +146,7 @@ class GenerateConceptGraphJob implements ShouldQueue
 
         ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
             'status' => 'failed',
-            'attempts' => max(1, (int) (($this->attempts() ?? 0))),
+            'attempts' => max(1, (int) $this->attempts()),
             'finished_at' => now(),
             'error_message' => $message,
         ]);

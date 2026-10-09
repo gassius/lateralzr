@@ -21,7 +21,7 @@ class ConceptRelationshipApiTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_relationships_endpoint_returns_success_with_valid_seed(): void
+    public function test_relationships_endpoint_returns_success_with_valid_start(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')->once()->andReturn([
@@ -88,7 +88,7 @@ class ConceptRelationshipApiTest extends TestCase
             ->assertJsonStructure(['data' => ['start' => ['label'], 'nodes', 'edges']]);
     }
 
-    public function test_relationships_endpoint_validates_seed_is_string(): void
+    public function test_relationships_endpoint_validates_start_is_string(): void
     {
         $response = $this->postJson('/api/concepts/relationships', [
             'start' => 123,
@@ -98,7 +98,7 @@ class ConceptRelationshipApiTest extends TestCase
             ->assertJsonValidationErrors(['start']);
     }
 
-    public function test_relationships_endpoint_treats_whitespace_only_seed_as_cold_start(): void
+    public function test_relationships_endpoint_treats_whitespace_only_start_as_cold_start(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')->once()->andReturn([

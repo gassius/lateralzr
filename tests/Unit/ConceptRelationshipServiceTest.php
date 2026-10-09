@@ -85,7 +85,7 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->assertNull($firstConcept['mediaUrl']);
     }
 
-    public function test_generate_relationships_uses_stored_record_when_concept_in_cache(): void
+    public function test_generate_relationships_uses_stored_record_when_concept_term_exists(): void
     {
         $this->seed(ConceptSeeder::class);
 
@@ -251,7 +251,7 @@ class ConceptRelationshipServiceTest extends TestCase
         $this->service->generateRelationships('test', null, $mockAgent);
     }
 
-    public function test_generate_relationships_does_not_persist_or_attach_urls_on_cache_miss(): void
+    public function test_generate_relationships_does_not_persist_or_attach_urls_when_no_stored_term(): void
     {
         $this->assertDatabaseCount('concepts', 0);
 

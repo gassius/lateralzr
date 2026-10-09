@@ -55,7 +55,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
         ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
             'status' => 'processing',
-            'attempts' => (int) (($this->attempts() ?? 0)),
+            'attempts' => (int) $this->attempts(),
             'started_at' => now(),
             'error_message' => null,
         ]);
@@ -88,7 +88,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
                 ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
                     'status' => $status,
-                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'attempts' => (int) $this->attempts(),
                     'finished_at' => now(),
                     'error_message' => $message,
                 ]);
@@ -123,7 +123,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
                 ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
                     'status' => $willRetry ? 'processing' : 'failed',
-                    'attempts' => (int) (($this->attempts() ?? 0)),
+                    'attempts' => (int) $this->attempts(),
                     'finished_at' => $willRetry ? null : now(),
                     'error_message' => $mapped,
                 ]);
@@ -151,7 +151,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
 
         ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
             'status' => 'failed',
-            'attempts' => max(1, (int) (($this->attempts() ?? 0))),
+            'attempts' => max(1, (int) $this->attempts()),
             'finished_at' => now(),
             'error_message' => $message,
         ]);

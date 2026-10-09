@@ -127,7 +127,7 @@ class ConceptGraphStore
      * Strength in [0,1], based on:
      * - Laterality: used as a weak prior, not a hard penalty (laterality 3–5 is valuable).
      * - Occurrences: repeated LLM suggestions increase confidence with diminishing returns.
-     * - User weight: reserved for future client feedback (can be positive/negative).
+     * - User weight: signed admin/Filament adjustment (can be positive or negative).
      */
     protected function calculateStrength(int $laterality, int $llmOccurrences, int $userWeight): float
     {

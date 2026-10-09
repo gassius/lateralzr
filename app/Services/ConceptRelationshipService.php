@@ -11,10 +11,6 @@ use Laravel\Ai\Responses\StructuredAgentResponse;
 
 class ConceptRelationshipService
 {
-    public function __construct(
-        protected ConceptUrlCache $urlCache,
-    ) {}
-
     /**
      * Generate an interwoven concept graph from a starting concept.
      * Wiki and media URLs are not looked up here. Already stored URLs are copied onto the response;
@@ -186,18 +182,26 @@ PROMPT;
      * Surface wiki and media already stored for this concept. Never searches.
      * Model-invented URLs are discarded when nothing is stored yet.
      *
-     * @param  array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null, laterality?: int}  $item
+     * @param  array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}  $item
      * @return array{concept: string, shortDescription: string, wikiUrl: string|null, mediaUrl: string|null}
      */
     protected function resolveUrlsForConcept(array $item): array
     {
         $concept = (string) ($item['concept'] ?? '');
-        $cached = $this->urlCache->findByConcept($concept);
+        $locale = (string) config('concepts.default_locale', 'en');
+        $normalized = ConceptTerm::normalizeTerm($concept);
 
-        if ($cached !== null) {
-            Log::info('ConceptUrlCache: using stored record', ['concept' => ConceptTerm::normalizeTerm($concept)]);
-            $item['wikiUrl'] = $cached->wiki_url;
-            $item['mediaUrl'] = $cached->media_url;
+        $stored = ConceptTerm::query()
+            ->where('locale', $locale)
+            ->where('normalized_term', $normalized)
+            ->first();
+
+        if ($stored !== null) {
+            Log::debug('ConceptRelationshipService: using stored wiki/media URLs', [
+                'concept' => $normalized,
+            ]);
+            $item['wikiUrl'] = $stored->wiki_url;
+            $item['mediaUrl'] = $stored->media_url;
 
             return $item;
         }
