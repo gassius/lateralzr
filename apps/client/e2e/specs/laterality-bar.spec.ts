@@ -8,7 +8,11 @@ test.describe('laterality bar', () => {
       await openApp(page, `canonicalConcept=mushroom&laterality=${grade}`);
       await expect(page.getByTestId('laterality-wordmark')).toBeVisible();
       await expect(page.getByTestId('laterality-submenu')).toBeVisible();
-      await capture(page, testInfo, `laterality-bar-grade-${grade}`);
+      await capture(page, testInfo, {
+        screen: 'laterality-bar',
+        state: `grade-${grade}`,
+        locale: 'en',
+      });
     });
   }
 });

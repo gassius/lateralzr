@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 301,
+      "label": "schematic lattice"
+    },
+    "nodes": [
+      {
+        "id": 301,
+        "label": "schematic lattice",
+        "shortDescription": "A diagram-like map of linked nodes with edges and labels.",
+        "complexity": 3,
+        "wikiUrl": null,
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-diagram.png",
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 302,
+        "label": "node",
+        "shortDescription": "A vertex in the lattice.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-diagram.png",
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 310,
+        "from": 301,
+        "to": 302,
+        "strength": 0.8,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

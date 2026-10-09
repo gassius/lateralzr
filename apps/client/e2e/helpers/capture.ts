@@ -1,14 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, type Page, type TestInfo } from '@playwright/test';
+import { PNG } from 'pngjs';
+import pixelmatch from 'pixelmatch';
+import { type Page, type TestInfo } from '@playwright/test';
 import type { ViewportId } from './viewports';
+import { visibleText } from './locators';
 
 const HERE = __dirname;
 const SCREENSHOT_ROOT = path.join(HERE, '..', 'screenshots');
 const BASELINE_ROOT = path.join(HERE, '..', 'baselines');
 const DIFF_ROOT = path.join(SCREENSHOT_ROOT, 'diffs');
 
-/** Strict baselines only when Critiquito has approved and CI sets this. */
 export function strictBaselinesEnabled(): boolean {
   return process.env.E2E_STRICT_BASELINES === '1';
 }
@@ -21,19 +23,36 @@ function viewportIdFromProject(testInfo: TestInfo): ViewportId {
   throw new Error(`Unknown Playwright project viewport: ${name}`);
 }
 
+/** `<screen>_<state>_<viewport>_<locale>.png` */
+export function screenshotFileName(
+  screen: string,
+  state: string,
+  viewport: string,
+  locale: string,
+): string {
+  return `${screen}_${state}_${viewport}_${locale}.png`;
+}
+
+export type CaptureArgs = {
+  screen: string;
+  state: string;
+  locale?: string;
+};
+
 /**
- * Full-page capture into e2e/screenshots/<viewport>/<name>.png.
- * Optionally compares to e2e/baselines/<viewport>/<name>.png (report-only by default).
+ * Full-page capture into e2e/screenshots/<screen>_<state>_<viewport>_<locale>.png.
+ * Compares to e2e/baselines/ when present (report-only unless E2E_STRICT_BASELINES=1).
  */
 export async function capture(
   page: Page,
   testInfo: TestInfo,
-  name: string,
+  args: CaptureArgs,
 ): Promise<string> {
   const viewport = viewportIdFromProject(testInfo);
-  const dir = path.join(SCREENSHOT_ROOT, viewport);
-  fs.mkdirSync(dir, { recursive: true });
-  const outPath = path.join(dir, `${name}.png`);
+  const locale = args.locale ?? 'en';
+  const fileName = screenshotFileName(args.screen, args.state, viewport, locale);
+  fs.mkdirSync(SCREENSHOT_ROOT, { recursive: true });
+  const outPath = path.join(SCREENSHOT_ROOT, fileName);
 
   await page.screenshot({
     path: outPath,
@@ -42,68 +61,79 @@ export async function capture(
     caret: 'hide',
   });
 
-  await testInfo.attach(`${viewport}/${name}`, {
+  await testInfo.attach(fileName, {
     path: outPath,
     contentType: 'image/png',
   });
 
-  const baselinePath = path.join(BASELINE_ROOT, viewport, `${name}.png`);
+  const baselinePath = path.join(BASELINE_ROOT, fileName);
   if (fs.existsSync(baselinePath)) {
-    await compareToBaseline(page, testInfo, name, viewport, outPath, baselinePath);
+    await compareToBaseline(testInfo, fileName, outPath, baselinePath);
   }
 
   return outPath;
 }
 
 async function compareToBaseline(
-  page: Page,
   testInfo: TestInfo,
-  name: string,
-  viewport: ViewportId,
+  fileName: string,
   actualPath: string,
   baselinePath: string,
 ): Promise<void> {
   const soft = !strictBaselinesEnabled();
-  try {
-    // Snapshot dir is e2e/baselines/<project> via playwright.config snapshotPathTemplate.
-    await expect(page).toHaveScreenshot(`${name}.png`, {
-      fullPage: true,
-      maxDiffPixelRatio: 0.01,
-      animations: 'disabled',
-      caret: 'hide',
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  const actual = PNG.sync.read(fs.readFileSync(actualPath));
+  const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
+
+  if (actual.width !== baseline.width || actual.height !== baseline.height) {
     fs.mkdirSync(DIFF_ROOT, { recursive: true });
-    const notePath = path.join(DIFF_ROOT, `${viewport}__${name}.txt`);
+    const stem = fileName.replace(/\.png$/, '');
+    const notePath = path.join(DIFF_ROOT, `${stem}.txt`);
+    const actualCopy = path.join(DIFF_ROOT, `${stem}.actual.png`);
+    const baselineCopy = path.join(DIFF_ROOT, `${stem}.baseline.png`);
+    const message = `size mismatch actual=${actual.width}x${actual.height} baseline=${baseline.width}x${baseline.height}`;
+    fs.writeFileSync(notePath, `${message}\n`, 'utf8');
+    fs.copyFileSync(actualPath, actualCopy);
+    fs.copyFileSync(baselinePath, baselineCopy);
+    await testInfo.attach(`diff-note-${fileName}`, { path: notePath, contentType: 'text/plain' });
+    await testInfo.attach(`diff-actual-${fileName}`, { path: actualCopy, contentType: 'image/png' });
+    testInfo.annotations.push({ type: 'baseline-diff-report-only', description: `${fileName}: ${message}` });
+    if (!soft) throw new Error(message);
+    return;
+  }
+
+  const diff = new PNG({ width: actual.width, height: actual.height });
+  const mismatched = pixelmatch(actual.data, baseline.data, diff.data, actual.width, actual.height, {
+    threshold: 0.1,
+  });
+  const ratio = mismatched / (actual.width * actual.height);
+  const threshold = 0.01;
+
+  if (ratio > threshold) {
+    fs.mkdirSync(DIFF_ROOT, { recursive: true });
+    const diffPng = path.join(DIFF_ROOT, fileName.replace(/\.png$/, '.diff.png'));
+    const notePath = path.join(DIFF_ROOT, fileName.replace(/\.png$/, '.txt'));
+    fs.writeFileSync(diffPng, PNG.sync.write(diff));
+    const message = `diff ratio ${ratio.toFixed(4)} > ${threshold} (${mismatched} px)`;
     fs.writeFileSync(
       notePath,
-      [
-        `Baseline diff for ${viewport}/${name}`,
-        `actual: ${actualPath}`,
-        `baseline: ${baselinePath}`,
-        `strict: ${strictBaselinesEnabled()}`,
-        message,
-        '',
-      ].join('\n'),
+      [`Baseline diff for ${fileName}`, `actual: ${actualPath}`, `baseline: ${baselinePath}`, message, ''].join(
+        '\n',
+      ),
       'utf8',
     );
-    await testInfo.attach(`diff-note-${viewport}-${name}`, {
-      path: notePath,
-      contentType: 'text/plain',
-    });
-    if (!soft) {
-      throw err;
-    }
+    await testInfo.attach(`diff-${fileName}`, { path: diffPng, contentType: 'image/png' });
+    await testInfo.attach(`diff-note-${fileName}`, { path: notePath, contentType: 'text/plain' });
     testInfo.annotations.push({
       type: 'baseline-diff-report-only',
-      description: `${viewport}/${name}: ${message.slice(0, 200)}`,
+      description: `${fileName}: ${message}`,
     });
+    if (!soft) {
+      throw new Error(message);
+    }
   }
 }
 
 function cardPoint(box: { x: number; y: number; width: number; height: number }) {
-  // Stay in the upper card area; laterality submenu sits at the bottom of the group.
   return { x: box.x + box.width * 0.5, y: box.y + box.height * 0.3 };
 }
 
@@ -143,11 +173,16 @@ export async function flipCard(page: Page): Promise<void> {
     !wasFlipped,
     { timeout: 8_000 },
   );
-  await page.waitForTimeout(200);
 }
 
-/** Advance the deck with a left swipe across the card stack (not the laterality bar). */
-export async function swipeForward(page: Page): Promise<void> {
+/**
+ * Advance the deck with a left swipe.
+ * Pass `expectLabel` to wait for the next card's front label (preferred).
+ */
+export async function swipeForward(
+  page: Page,
+  expectLabel?: string | RegExp,
+): Promise<void> {
   const stack = page.getByTestId('card-laterality-group');
   const box = await stack.boundingBox();
   if (!box) throw new Error('card-laterality-group has no bounding box');
@@ -158,5 +193,9 @@ export async function swipeForward(page: Page): Promise<void> {
   await page.mouse.down();
   await page.mouse.move(toX, y, { steps: 16 });
   await page.mouse.up();
-  await page.waitForTimeout(500);
+
+  if (expectLabel != null) {
+    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+  }
+  // When no label is provided (e.g. end-of-deck loading), the caller waits on the resulting UI.
 }

@@ -7,14 +7,22 @@ test.describe('locale es', () => {
   test('front short label', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
     await expect(visibleText(page, 'Seta')).toBeVisible();
-    await capture(page, testInfo, 'es-card-front-short-label');
+    await capture(page, testInfo, { screen: 'card-front', state: 'short-label', locale: 'es' });
+  });
+
+  test('front long label', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=long-label&locale=es');
+    await expect(
+      visibleText(page, /marco conceptual multidisciplinario extraordinariamente elaborado/i),
+    ).toBeVisible();
+    await capture(page, testInfo, { screen: 'card-front', state: 'long-label', locale: 'es' });
   });
 
   test('back no media', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
-    await capture(page, testInfo, 'es-card-back-no-media');
+    await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'es' });
   });
 
   test('back with photo', async ({ page }, testInfo) => {
@@ -22,10 +30,6 @@ test.describe('locale es', () => {
     await expect(visibleText(page, 'Psicodélicos')).toBeVisible();
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
-    await capture(page, testInfo, 'es-card-back-with-photo');
-  });
-
-  test('laterality sheet open', async () => {
-    test.skip(true, 'Laterality sheet UI not on main yet — enable when epic ships the sheet.');
+    await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'es' });
   });
 });

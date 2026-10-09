@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 101,
+      "label": "marco conceptual multidisciplinario extraordinariamente elaborado"
+    },
+    "nodes": [
+      {
+        "id": 101,
+        "label": "marco conceptual multidisciplinario extraordinariamente elaborado",
+        "shortDescription": "Etiqueta larga a prop\u00f3sito para capturas de dise\u00f1o.",
+        "complexity": 5,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 0
+      },
+      {
+        "id": 102,
+        "label": "abstracci\u00f3n",
+        "shortDescription": "Idea relacionada.",
+        "complexity": 3,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 110,
+        "from": 101,
+        "to": 102,
+        "strength": 0.6,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "es",
+      "laterality": 3
+    }
+  }
+}

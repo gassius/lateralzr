@@ -1,6 +1,6 @@
 import type { ConsoleMessage, Page } from '@playwright/test';
 import { FIXED_CLOCK_ISO, INTRO_FAST_FORWARD_MS } from './viewports';
-import { installApiMocks } from './mockApi';
+import { installApiMocks, type MockOptions } from './mockApi';
 
 const DISABLE_MOTION_CSS = `
 *, *::before, *::after {
@@ -18,6 +18,12 @@ export type ConsoleBucket = {
   pageErrors: string[];
 };
 
+export type OpenAppOptions = {
+  mock?: MockOptions;
+  /** Skip networkidle — required when a mock holds a request open (loading deck). */
+  skipNetworkIdle?: boolean;
+};
+
 export function attachConsoleBucket(page: Page): ConsoleBucket {
   const bucket: ConsoleBucket = { errors: [], pageErrors: [] };
   page.on('console', (msg: ConsoleMessage) => {
@@ -31,13 +37,9 @@ export function attachConsoleBucket(page: Page): ConsoleBucket {
   return bucket;
 }
 
-/**
- * Prepare a deterministic page: mocks, fixed clock, empty storage hooks.
- * Call before the first goto. After goto, call settleAfterNavigation.
- */
-export async function preparePage(page: Page): Promise<ConsoleBucket> {
+export async function preparePage(page: Page, mock?: MockOptions): Promise<ConsoleBucket> {
   const bucket = attachConsoleBucket(page);
-  await installApiMocks(page);
+  await installApiMocks(page, mock);
   await page.clock.install({ time: new Date(FIXED_CLOCK_ISO) });
   await page.addInitScript(() => {
     try {
@@ -54,10 +56,10 @@ export async function disableMotionCss(page: Page): Promise<void> {
   await page.addStyleTag({ content: DISABLE_MOTION_CSS });
 }
 
-/**
- * Finish boot: advance past the intro logo gate, wait for the deck chrome, fonts, images.
- */
-export async function settleAfterNavigation(page: Page): Promise<void> {
+export async function settleAfterNavigation(
+  page: Page,
+  options: { skipNetworkIdle?: boolean } = {},
+): Promise<void> {
   await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
   await page.locator('[data-testid="card-laterality-group"]').waitFor({
     state: 'visible',
@@ -81,14 +83,21 @@ export async function settleAfterNavigation(page: Page): Promise<void> {
       }),
     );
   });
-  await page.waitForLoadState('networkidle').catch(() => undefined);
-  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+  if (!options.skipNetworkIdle) {
+    await page.waitForLoadState('networkidle').catch(() => undefined);
+  }
+  // Deck chrome visible = settled enough for captures (avoid clock.fastForward — it breaks RNGH).
+  await page.getByTestId('laterality-submenu').waitFor({ state: 'visible', timeout: 5_000 });
 }
 
-export async function openApp(page: Page, search: string): Promise<ConsoleBucket> {
-  const bucket = await preparePage(page);
+export async function openApp(
+  page: Page,
+  search: string,
+  options: OpenAppOptions = {},
+): Promise<ConsoleBucket> {
+  const bucket = await preparePage(page, options.mock);
   const path = search.startsWith('?') ? `/${search}` : `/?${search}`;
   await page.goto(path, { waitUntil: 'domcontentloaded' });
-  await settleAfterNavigation(page);
+  await settleAfterNavigation(page, { skipNetworkIdle: options.skipNetworkIdle });
   return bucket;
 }

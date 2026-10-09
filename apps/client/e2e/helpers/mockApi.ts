@@ -7,6 +7,11 @@ const FIXTURES = path.join(HERE, '..', 'fixtures');
 const REL = path.join(FIXTURES, 'relationships');
 const IMAGES = path.join(FIXTURES, 'images');
 
+export type MockOptions = {
+  /** Hold load-more / subsequent relationship calls open this long (Node timer). */
+  delayLoadMoreMs?: number;
+};
+
 type RelationshipsBody = {
   start?: string;
   canonicalStart?: string;
@@ -20,15 +25,16 @@ function readJson(name: string): string {
   return fs.readFileSync(path.join(REL, name), 'utf8');
 }
 
-function pickRelationshipsFixture(body: RelationshipsBody): string {
+function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): string {
   const locale = (body.locale ?? 'en').toLowerCase();
   const start = (body.start ?? '').trim();
   const canonical = (body.canonicalStart ?? '').trim();
   const startKey = start.toLowerCase();
   const canonicalKey = canonical.toLowerCase();
 
-  if (startKey === '__empty__' || canonicalKey === '__empty__') {
-    return readJson('empty-batch.json');
+  if (canonicalKey === 'loading-deck' || startKey === 'loading-deck' || startKey === 'horizon') {
+    // First call: single card. Later calls: load-more payload (may be delayed by caller).
+    return readJson(callIndex <= 1 ? 'loading-deck-en.json' : 'loading-more-en.json');
   }
 
   if (
@@ -39,8 +45,24 @@ function pickRelationshipsFixture(body: RelationshipsBody): string {
     return readJson(locale === 'es' ? 'psychedelics-photo-es.json' : 'psychedelics-photo-en.json');
   }
 
+  if (
+    canonicalKey === 'diagram' ||
+    startKey === 'diagram' ||
+    startKey === 'schematic lattice'
+  ) {
+    return readJson('diagram-en.json');
+  }
+
+  if (
+    canonicalKey === 'transparent' ||
+    startKey === 'transparent' ||
+    startKey === 'amber cutout'
+  ) {
+    return readJson('transparent-en.json');
+  }
+
   if (canonicalKey === 'long-label' || startKey === 'long-label') {
-    return readJson('long-label-en.json');
+    return readJson(locale === 'es' ? 'long-label-es.json' : 'long-label-en.json');
   }
 
   if (
@@ -51,7 +73,6 @@ function pickRelationshipsFixture(body: RelationshipsBody): string {
     return readJson(locale === 'es' ? 'mushroom-es.json' : 'mushroom-en.json');
   }
 
-  // Cold-start / unknown: still return a deterministic short-label deck.
   return readJson(locale === 'es' ? 'mushroom-es.json' : 'mushroom-en.json');
 }
 
@@ -64,32 +85,6 @@ function imageForMediaUrl(target: string | null): Buffer {
     return fs.readFileSync(path.join(IMAGES, 'transparent.png'));
   }
   return fs.readFileSync(path.join(IMAGES, 'photo.png'));
-}
-
-async function fulfillRelationships(route: Route): Promise<void> {
-  let body: RelationshipsBody = {};
-  try {
-    body = (route.request().postDataJSON() as RelationshipsBody) ?? {};
-  } catch {
-    body = {};
-  }
-  const payload = pickRelationshipsFixture(body);
-  await route.fulfill({
-    status: 200,
-    contentType: 'application/json',
-    body: payload,
-  });
-}
-
-async function fulfillMedia(route: Route): Promise<void> {
-  const url = new URL(route.request().url());
-  const target = url.searchParams.get('url');
-  const bytes = imageForMediaUrl(target);
-  await route.fulfill({
-    status: 200,
-    contentType: 'image/png',
-    body: bytes,
-  });
 }
 
 function isLocalAsset(url: string): boolean {
@@ -105,7 +100,10 @@ function isLocalAsset(url: string): boolean {
  * Mock concept API + media proxy. Abort stray third-party calls so captures stay offline.
  * Specific API routes are registered last so Playwright checks them first.
  */
-export async function installApiMocks(page: Page): Promise<void> {
+export async function installApiMocks(page: Page, options: MockOptions = {}): Promise<void> {
+  let relationshipsCalls = 0;
+  const delayLoadMoreMs = options.delayLoadMoreMs ?? 0;
+
   await page.route('**/*', async (route) => {
     const url = route.request().url();
     if (url.includes('/api/concepts/relationships') || url.includes('/api/media')) {
@@ -119,6 +117,43 @@ export async function installApiMocks(page: Page): Promise<void> {
     await route.abort();
   });
 
-  await page.route('**/api/concepts/relationships', fulfillRelationships);
-  await page.route('**/api/media**', fulfillMedia);
+  await page.route('**/api/concepts/relationships', async (route: Route) => {
+    relationshipsCalls += 1;
+    let body: RelationshipsBody = {};
+    try {
+      body = (route.request().postDataJSON() as RelationshipsBody) ?? {};
+    } catch {
+      body = {};
+    }
+
+    const startKey = (body.start ?? '').trim().toLowerCase();
+    const canonicalKey = (body.canonicalStart ?? '').trim().toLowerCase();
+    const isLoadingDeck =
+      canonicalKey === 'loading-deck' ||
+      startKey === 'loading-deck' ||
+      startKey === 'horizon';
+
+    // Delay 2nd+ calls for the loading-deck journey (prefetch / swipe load-more).
+    if (isLoadingDeck && relationshipsCalls > 1 && delayLoadMoreMs > 0) {
+      await new Promise((r) => setTimeout(r, delayLoadMoreMs));
+    }
+
+    const payload = pickRelationshipsFixture(body, relationshipsCalls);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: payload,
+    });
+  });
+
+  await page.route('**/api/media**', async (route: Route) => {
+    const url = new URL(route.request().url());
+    const target = url.searchParams.get('url');
+    const bytes = imageForMediaUrl(target);
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: bytes,
+    });
+  });
 }

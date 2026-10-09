@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 /**
- * Post or update a single sticky PR comment with primary 390×844 screenshots.
- * Pushes images to the orphan `e2e-screenshots` branch so they embed inline.
- * Fork PRs: artifact link only (no orphan push / no embeds).
+ * Privileged Client E2E publisher — runs ONLY in the write-scoped CI job.
+ * Expects SCREENSHOTS_DIR to point at the downloaded artifact screenshots folder.
+ * Does not install deps or execute the Expo app.
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SCREENSHOTS = path.join(HERE, '..', 'screenshots');
 const MARKER = '<!-- lateralzr-client-e2e-screenshots -->';
 const ORPHAN_BRANCH = 'e2e-screenshots';
 
@@ -22,32 +19,42 @@ const {
   GITHUB_RUN_ID,
   GITHUB_SERVER_URL = 'https://github.com',
   GITHUB_EVENT_PATH,
+  SCREENSHOTS_DIR,
 } = process.env;
 
-if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !GITHUB_EVENT_PATH) {
-  console.log('Missing GitHub env; skip PR comment.');
+if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !GITHUB_EVENT_PATH || !SCREENSHOTS_DIR) {
+  console.log('Missing env (TOKEN/REPO/EVENT/SCREENSHOTS_DIR); skip publish.');
   process.exit(0);
 }
 
+const SCREENSHOTS = path.resolve(SCREENSHOTS_DIR);
 const event = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8'));
 const pr = event.pull_request;
 if (!pr) {
-  console.log('Not a pull_request event; skip PR comment.');
+  console.log('Not a pull_request event; skip.');
   process.exit(0);
 }
 
 const isFork = Boolean(pr.head?.repo?.full_name && pr.head.repo.full_name !== GITHUB_REPOSITORY);
 const [owner, repo] = GITHUB_REPOSITORY.split('/');
 const artifactUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
-const primaryDir = path.join(SCREENSHOTS, '390x844');
 const shortSha = GITHUB_SHA.slice(0, 12);
 
-function listPngs(dir) {
+function listPngs(dir, recursive = false) {
   if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.png'))
-    .sort();
+  if (!recursive) {
+    return fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.png'))
+      .sort();
+  }
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...listPngs(full, true).map((f) => path.join(entry.name, f)));
+    else if (entry.name.endsWith('.png')) out.push(entry.name);
+  }
+  return out.sort();
 }
 
 async function gh(pathname, init = {}) {
@@ -61,8 +68,7 @@ async function gh(pathname, init = {}) {
     },
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${pathname} → ${res.status}: ${text}`);
+    throw new Error(`GitHub API ${pathname} → ${res.status}: ${await res.text()}`);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -72,7 +78,7 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
-function pushOrphanScreenshots(files) {
+function pushOrphan(primaryFiles) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-shots-'));
   const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
 
@@ -93,16 +99,9 @@ function pushOrphanScreenshots(files) {
   fs.rmSync(destRoot, { recursive: true, force: true });
   fs.mkdirSync(destRoot, { recursive: true });
 
-  for (const vp of ['390x844', '320x568', '1280x800']) {
-    const src = path.join(SCREENSHOTS, vp);
-    if (!fs.existsSync(src)) continue;
-    const dest = path.join(destRoot, vp);
-    fs.mkdirSync(dest, { recursive: true });
-    for (const file of listPngs(src)) {
-      fs.copyFileSync(path.join(src, file), path.join(dest, file));
-    }
+  for (const file of listPngs(SCREENSHOTS)) {
+    fs.copyFileSync(path.join(SCREENSHOTS, file), path.join(destRoot, file));
   }
-
   const diffs = path.join(SCREENSHOTS, 'diffs');
   if (fs.existsSync(diffs)) {
     fs.cpSync(diffs, path.join(destRoot, 'diffs'), { recursive: true });
@@ -110,26 +109,19 @@ function pushOrphanScreenshots(files) {
 
   sh('git add .', work);
   try {
-    sh(
-      `git commit -m "e2e screenshots PR #${pr.number} ${shortSha}"`,
-      work,
-    );
+    sh(`git commit -m "e2e screenshots PR #${pr.number} ${shortSha}"`, work);
   } catch {
     console.log('No screenshot changes to commit on orphan branch.');
   }
 
-  // Orphan branch is screenshot hosting only (not a product branch).
-  if (hasRemoteBranch) {
-    sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
-  } else {
-    sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
-  }
+  if (hasRemoteBranch) sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+  else sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
 
-  const base = `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}/390x844`;
-  return files.map((f) => ({ name: f, url: `${base}/${f}` }));
+  const base = `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}`;
+  return primaryFiles.map((f) => ({ name: f, url: `${base}/${f}` }));
 }
 
-function buildBody(embeds) {
+function buildBody(embeds, diffPngs) {
   const lines = [
     MARKER,
     '### Agent: GasNet Implementer',
@@ -138,8 +130,8 @@ function buildBody(embeds) {
     '',
     `- Run: [actions #${GITHUB_RUN_ID}](${artifactUrl})`,
     `- SHA: \`${shortSha}\``,
-    '- Artifact: download **client-e2e-screenshots** from the run (all viewports + HTML report)',
-    '- Baseline diffs: **report-only** until Critiquito approves baselines (`E2E_STRICT_BASELINES=1` to fail)',
+    '- Artifact: **client-e2e-screenshots** (captures + `diffs/` + HTML report)',
+    '- Baseline diffs: **report-only** (1% threshold) until Critiquito approves; `E2E_STRICT_BASELINES=1` to fail',
     '',
   ];
 
@@ -152,14 +144,28 @@ function buildBody(embeds) {
     }
   }
 
-  const diffNotes = path.join(SCREENSHOTS, 'diffs');
-  if (fs.existsSync(diffNotes)) {
-    const notes = fs.readdirSync(diffNotes).filter((f) => f.endsWith('.txt'));
+  const diffDir = path.join(SCREENSHOTS, 'diffs');
+  const diffImages = fs.existsSync(diffDir)
+    ? fs.readdirSync(diffDir).filter((f) => f.endsWith('.png')).sort()
+    : [];
+  if (diffImages.length || diffPngs.length) {
+    lines.push('#### Baseline diffs (report-only)', '');
+    const diffBase = !isFork
+      ? `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}/diffs`
+      : null;
+    for (const name of diffImages) {
+      lines.push(`- \`${name}\``);
+      if (diffBase) lines.push('', `![${name}](${diffBase}/${name})`, '');
+    }
+    lines.push('');
+  }
+
+  const notesDir = path.join(SCREENSHOTS, 'diffs');
+  if (fs.existsSync(notesDir)) {
+    const notes = fs.readdirSync(notesDir).filter((f) => f.endsWith('.txt'));
     if (notes.length) {
-      lines.push('#### Baseline diff notes (report-only)', '');
-      for (const n of notes.slice(0, 20)) {
-        lines.push(`- \`${n}\``);
-      }
+      lines.push('#### Diff notes', '');
+      for (const n of notes.slice(0, 30)) lines.push(`- \`${n}\``);
       lines.push('');
     }
   }
@@ -167,17 +173,20 @@ function buildBody(embeds) {
   return lines.join('\n');
 }
 
-const primary = listPngs(primaryDir);
+const allPngs = listPngs(SCREENSHOTS);
+const primary = allPngs.filter((f) => f.includes('_390x844_')).sort();
+const diffPngs = listPngs(path.join(SCREENSHOTS, 'diffs')).filter((f) => f.endsWith('.diff.png'));
+
 let embeds = [];
 if (!isFork && primary.length) {
   try {
-    embeds = pushOrphanScreenshots(primary);
+    embeds = pushOrphan(primary);
   } catch (err) {
-    console.warn('Orphan branch push failed; falling back to artifact link only.', err);
+    console.warn('Orphan branch push failed; artifact link only.', err);
   }
 }
 
-const body = buildBody(embeds);
+const body = buildBody(embeds, diffPngs);
 const comments = await gh(`/repos/${owner}/${repo}/issues/${pr.number}/comments?per_page=100`);
 const existing = Array.isArray(comments)
   ? comments.find((c) => typeof c.body === 'string' && c.body.includes(MARKER))

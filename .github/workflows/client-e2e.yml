@@ -1,5 +1,6 @@
 # Deterministic Playwright screenshots for the Expo web client.
-# Runs on PRs / main pushes that touch apps/client (or this workflow).
+# Security: the test job is contents:read + persist-credentials:false and never
+# receives a write token. Privileged jobs only download artifacts (no pnpm/expo).
 
 name: Client E2E
 
@@ -8,11 +9,13 @@ on:
     paths:
       - 'apps/client/**'
       - '.github/workflows/client-e2e.yml'
+      - '.github/scripts/client-e2e-*.mjs'
   push:
     branches: [main, master]
     paths:
       - 'apps/client/**'
       - '.github/workflows/client-e2e.yml'
+      - '.github/scripts/client-e2e-*.mjs'
   workflow_dispatch:
     inputs:
       strict_baselines:
@@ -32,13 +35,24 @@ jobs:
     name: Client E2E screenshots
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     defaults:
       run:
         working-directory: apps/client
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Assert no GitHub write credentials in git config
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if git config --get http.https://github.com/.extraheader; then
+            echo "::error::git http.https://github.com/.extraheader must be empty in the test job"
+            exit 1
+          fi
+          echo "OK: no http.https://github.com/.extraheader"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -80,7 +94,13 @@ jobs:
           E2E_STRICT_BASELINES: ${{ github.event.inputs.strict_baselines == 'true' && '1' || '0' }}
         run: pnpm e2e
 
-      - name: Upload screenshots and report
+      - name: Smoke stability (--repeat-each=2)
+        env:
+          CI: 'true'
+          E2E_PORT: '4173'
+        run: pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
+
+      - name: Upload screenshots, diffs, and report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -91,9 +111,60 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Post or update PR screenshot comment
-        if: github.event_name == 'pull_request' && always()
-        working-directory: .
+  # Write token: artifact only. No actions/checkout of the PR tree; no pnpm/expo.
+  client-e2e-publish:
+    name: Client E2E PR comment
+    needs: client-e2e
+    if: github.event_name == 'pull_request' && always() && needs.client-e2e.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Download screenshots artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: artifact
+
+      - name: Fetch publish script via API (no repo checkout)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-publish.mjs?ref=${GITHUB_SHA}" \
+            -o /tmp/client-e2e-publish.mjs
+
+      - name: Orphan-branch push + sticky PR comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node apps/client/e2e/scripts/post-pr-comment.mjs
+          # upload-artifact preserves workspace-relative paths
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/apps/client/e2e/screenshots
+        run: node /tmp/client-e2e-publish.mjs
+
+  # On main only: publish captures as committed baselines (write job; no install/build).
+  client-e2e-baselines:
+    name: Client E2E baselines
+    needs: client-e2e
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download screenshots artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: artifact
+
+      - name: Publish baselines from artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/apps/client/e2e/screenshots
+          BASELINES_DIR: apps/client/e2e/baselines
+        run: node .github/scripts/client-e2e-publish-baselines.mjs

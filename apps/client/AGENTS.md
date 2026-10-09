@@ -70,7 +70,7 @@ Deterministic captures of the static web export live in [`e2e/`](./e2e/). Full l
 - Fixtures only (no live API): `e2e/fixtures/relationships/*.json` + `e2e/fixtures/images/*`
 - Viewports: 390×844 (primary), 320×568, 1280×800
 - CI: `.github/workflows/client-e2e.yml` → artifact + sticky PR comment
-- Skipped specs are placeholders for screens not on `main` yet (sheet, menu, pickers, offline, …)
+- Pending screens (sheet, menu, pickers, offline, …) are listed in [`e2e/README.md`](./e2e/README.md) — add specs when UI ships, no always-skipped placeholders
 
 ## Navigation & Routing
 

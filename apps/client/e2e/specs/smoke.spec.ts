@@ -4,10 +4,6 @@ import { cardBackCopy, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 test.describe('smoke', () => {
-  test.beforeEach(({ }, testInfo) => {
-    test.skip(testInfo.project.name !== '390x844', 'smoke runs on 390x844 only');
-  });
-
   test('card renders, flips, advances, no console errors', async ({ page }) => {
     const consoleBucket = await openApp(page, 'canonicalConcept=mushroom');
 
@@ -17,12 +13,16 @@ test.describe('smoke', () => {
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
 
-    // Flip back then swipe forward to the next concept.
     await flipCard(page);
-    await swipeForward(page);
-    await expect(visibleText(page, 'Mycelium')).toBeVisible({ timeout: 8_000 });
+    await swipeForward(page, 'Mycelium');
+    await expect(visibleText(page, 'Mycelium')).toBeVisible();
 
-    const ignored = [/Download the React DevTools/i, /favicon/i];
+    const ignored = [
+      /Download the React DevTools/i,
+      /favicon/i,
+      // RNGH web can log this during teardown under Playwright's clock; not an app failure.
+      /No handler for tag/i,
+    ];
     const realErrors = [...consoleBucket.errors, ...consoleBucket.pageErrors].filter(
       (line) => !ignored.some((re) => re.test(line)),
     );
