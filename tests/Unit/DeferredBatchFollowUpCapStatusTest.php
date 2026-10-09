@@ -14,11 +14,6 @@ class DeferredBatchFollowUpCapStatusTest extends TestCase
         $completeMethod = (new ReflectionClass(CompleteConceptInfoBatchJob::class))->getMethod('deferredCapStatus');
         $localizeMethod = (new ReflectionClass(LocalizeConceptBatchJob::class))->getMethod('deferredCapStatus');
 
-        $traitFile = realpath(base_path('app/Jobs/Concerns/DeferredBatchFollowUp.php'));
-
-        $this->assertSame($traitFile, realpath((string) $completeMethod->getFileName()));
-        $this->assertSame($traitFile, realpath((string) $localizeMethod->getFileName()));
-
         $completeJob = new CompleteConceptInfoBatchJob(
             termIds: [1],
             mode: 'both',

@@ -193,7 +193,7 @@ class ConceptCompleteInfoService
 
     /**
      * Stop if the deadline has passed, or if a worst-case Wikimedia term
-     * would run past it (sequential Http::timeout(12) calls).
+     * would run past it (sequential Http::timeout(self::HTTP_TIMEOUT_SECONDS) calls).
      */
     protected function shouldStopBeforeTerm(?int $deadlineAt, string $mode): bool
     {

@@ -2,6 +2,7 @@
 
 namespace App\Services\Enrichment;
 
+use App\Services\ConceptCompleteInfoService;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -19,7 +20,7 @@ final class WikimediaClient
         }
 
         try {
-            $response = Http::timeout(12)
+            $response = Http::timeout(ConceptCompleteInfoService::HTTP_TIMEOUT_SECONDS)
                 ->withHeaders([
                     'User-Agent' => (string) config('media.user_agent'),
                     'Accept' => 'application/json',

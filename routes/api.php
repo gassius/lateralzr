@@ -11,7 +11,7 @@ Route::get('/hello', function () {
     ]);
 });
 
-Route::post('/concepts/relationships', [ConceptRelationshipController::class, 'generate']);
+Route::post('/concepts/relationships', [ConceptRelationshipController::class, 'show']);
 
 Route::get('/media', [RemoteMediaController::class, 'show'])
     ->middleware('throttle:180,1')

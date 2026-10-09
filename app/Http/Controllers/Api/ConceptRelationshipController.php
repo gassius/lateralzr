@@ -22,7 +22,7 @@ class ConceptRelationshipController
      *
      * @throws ValidationException
      */
-    public function generate(Request $request): JsonResponse
+    public function show(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'start' => ['sometimes', 'nullable', 'string', 'min:1', 'max:255'],

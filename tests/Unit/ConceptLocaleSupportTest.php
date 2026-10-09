@@ -38,8 +38,8 @@ class ConceptLocaleSupportTest extends TestCase
     {
         $canonicalizer = app(ConceptCanonicalizer::class);
 
-        $this->assertSame('creativity', $canonicalizer->canonicalKeyFor('Creativity', 'en'));
-        $this->assertSame('creativity', $canonicalizer->canonicalKeyFor('Creativity', 'es'));
+        $this->assertSame('creativity', $canonicalizer->canonicalKeyFor('Creativity'));
+        $this->assertSame('creativity', $canonicalizer->canonicalKeyFor('CREATIVITY'));
     }
 
     public function test_resolve_or_create_attaches_second_locale_to_same_concept(): void

@@ -65,7 +65,7 @@ class PrefetchConceptGraph extends Command
             return self::FAILURE;
         }
 
-        $this->info("Enqueued {$run->seed_count} start(s). run_uuid={$run->run_uuid} provider={$run->provider} model={$run->model} target={$run->related_count} batch_size={$batchSize} complexity={$run->complexity} queue={$run->queue}");
+        $this->info("Enqueued {$run->seed_count} start(s). run_uuid={$run->run_uuid} provider={$run->provider} model={$run->model} target={$run->target_count} batch_size={$batchSize} complexity={$run->complexity} queue={$run->queue}");
 
         return self::SUCCESS;
     }
