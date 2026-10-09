@@ -7,6 +7,7 @@ use App\Models\ConceptMedia;
 use App\Models\ConceptTerm;
 use App\Services\Enrichment\QualifiedMedia;
 use App\Services\Enrichment\QualifiedMediaFinder;
+use App\Services\Enrichment\WikimediaClient;
 use App\Services\Enrichment\WikipediaArticle;
 use App\Services\Enrichment\WikipediaArticleResolver;
 use App\Support\ConceptLocale;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 
 class ConceptCompleteInfoService
 {
-    public const HTTP_TIMEOUT_SECONDS = 12;
+    public const HTTP_TIMEOUT_SECONDS = WikimediaClient::HTTP_TIMEOUT_SECONDS;
 
     /** Locale search + keyword retry + English langlink + English search + keyword + locale langlink. */
     public const WORST_WIKI_HTTP_CALLS = 6;
@@ -193,7 +194,7 @@ class ConceptCompleteInfoService
 
     /**
      * Stop if the deadline has passed, or if a worst-case Wikimedia term
-     * would run past it (sequential Http::timeout(self::HTTP_TIMEOUT_SECONDS) calls).
+     * would run past it (sequential WikimediaClient timeouts × worst-case call counts).
      */
     protected function shouldStopBeforeTerm(?int $deadlineAt, string $mode): bool
     {
