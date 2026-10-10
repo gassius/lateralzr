@@ -1,4 +1,4 @@
 Baseline diff for card-back_no-media_320x568_es.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/card-back_no-media_320x568_es.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/card-back_no-media_320x568_es.png
-diff ratio 0.3892 > 0.01 (282950 px)
+diff ratio 0.3915 > 0.01 (284630 px)
