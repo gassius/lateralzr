@@ -13,7 +13,6 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -62,12 +61,12 @@ import {
 import type { PatternRect } from '@/lib/patternPlacement';
 import { CoachHint } from './CoachHint';
 import { PatternLayer } from './brand/PatternLayer';
+import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
 
-const FLIP_MS = 420;
 const LINK_HIT = layout.recommendedTouchTarget;
 
 function capitalizeFirstLetter(text: string) {
@@ -78,6 +77,8 @@ function capitalizeFirstLetter(text: string) {
 type ConceptCardProps = {
   item: ConceptItem;
   flipped: boolean;
+  /** OS / shared Reduce Motion gate — opacity cross-fade, no 3D. */
+  reduceMotion?: boolean;
   /** True when this URL was successfully prefetched (smoother reveal, shorter transition). */
   isMediaPrefetched: boolean;
   /** Momentary coaching copy on the front face; omit after the gesture is discovered. */
@@ -92,16 +93,20 @@ type ConceptCardProps = {
    * duplicates must not, or Playwright strict mode fails.
    */
   exposeFrontTitleTestId?: boolean;
+  /** Wiki / credit press — parent suppresses the stack tap→flip. */
+  onBackInteractivePress?: () => void;
 };
 
 export function ConceptCard({
   item,
   flipped,
+  reduceMotion = false,
   isMediaPrefetched,
   coachHint,
   animateCoachAppear = true,
   flipPeek,
   exposeFrontTitleTestId = false,
+  onBackInteractivePress,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -137,6 +142,11 @@ export function ConceptCard({
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
+  const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    reduceMotionSV.value = reduceMotion ? 1 : 0;
+  }, [reduceMotion, reduceMotionSV]);
 
   const frontTitleBaseStyle = textStyle('concept');
   /**
@@ -243,10 +253,10 @@ export function ConceptCard({
 
   useEffect(() => {
     flipProgress.value = withTiming(flipped ? 1 : 0, {
-      duration: FLIP_MS,
+      duration: flipDurationMs(reduceMotion),
       easing: Easing.out(Easing.cubic),
     });
-  }, [flipped, flipProgress]);
+  }, [flipped, flipProgress, reduceMotion]);
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
@@ -269,22 +279,14 @@ export function ConceptCard({
     const peek =
       flipProgress.value > 0.01 ? 0 : flipPeekSV.value * FLIP_COACH_PEEK_AMOUNT;
     const progress = Math.min(1, flipProgress.value + peek);
-    const rot = interpolate(progress, [0, 1], [0, -90]);
-    return {
-      opacity: interpolate(progress, [0, 0.48, 0.52, 1], [1, 1, 0, 0]),
-      transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
-    };
+    return cardFlipFaceStyle(progress, 'front', reduceMotionSV.value > 0.5);
   });
 
   const backFaceStyle = useAnimatedStyle(() => {
     const peek =
       flipProgress.value > 0.01 ? 0 : flipPeekSV.value * FLIP_COACH_PEEK_AMOUNT;
     const progress = Math.min(1, flipProgress.value + peek);
-    const rot = interpolate(progress, [0, 1], [90, 0]);
-    return {
-      opacity: interpolate(progress, [0, 0.48, 0.52, 1], [0, 0, 1, 1]),
-      transform: [{ perspective: 1200 }, { rotateY: `${rot}deg` }],
-    };
+    return cardFlipFaceStyle(progress, 'back', reduceMotionSV.value > 0.5);
   });
 
   const onUntransformedFaceLayout = (event: {
@@ -489,14 +491,19 @@ export function ConceptCard({
   // 48 px target via hitSlop only — minHeight would pad the visible underline past the
   // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
   const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - backLinkFontSize) / 2));
+  const openWiki = () => {
+    onBackInteractivePress?.();
+    void Linking.openURL(item.wikiUrl!);
+  };
   const backWiki = item.wikiUrl ? (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={t('wikipedia')}
-      onPress={() => Linking.openURL(item.wikiUrl!)}
+      onPressIn={onBackInteractivePress}
+      onPress={openWiki}
       hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
       style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
-      testID="card-back-wiki"
+      testID="card-back-wikipedia"
     >
       <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
     </Pressable>
