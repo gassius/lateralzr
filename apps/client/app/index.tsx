@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralitySubmenu } from '@/components/LateralitySubmenu';
@@ -38,6 +39,11 @@ import {
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
+import {
+  APP_MENU_TRIGGER_ENABLED,
+  PRACTICE_COLUMN_MAX_WIDTH,
+  practiceScreenGutter,
+} from '@/lib/practiceLayout';
 import {
   applyJourneyTestDeck,
   journeyStartOptions,
@@ -705,7 +711,21 @@ export default function HomeScreen() {
       ]}
     >
       <StatusBar style="light" />
-      <View style={[styles.stackShell, { minHeight: usableHeight, flex: 1 }]}>
+      {/* Slot for Lz-32: trigger mounts only when APP_MENU_TRIGGER_ENABLED (§4.5). */}
+      {APP_MENU_TRIGGER_ENABLED ? (
+        <AppMenuTrigger
+          style={{
+            position: 'absolute',
+            top: insets.top,
+            right: practiceScreenGutter(),
+            zIndex: 30,
+          }}
+        />
+      ) : null}
+      <View
+        style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
+        testID="practice-column"
+      >
         <View style={styles.cardLateralityGroup} testID="card-laterality-group">
           <ConceptCardStack
             concepts={concepts}
@@ -768,8 +788,11 @@ const styles = StyleSheet.create({
     backgroundColor: color.shell,
     width: '100%',
   },
-  stackShell: {
+  /** Centred practice column for tablets / wide native; web phone frame already ≤430. */
+  practiceColumn: {
     width: '100%',
+    maxWidth: PRACTICE_COLUMN_MAX_WIDTH,
+    alignSelf: 'center',
     justifyContent: 'flex-start',
     position: 'relative',
   },
@@ -781,8 +804,8 @@ const styles = StyleSheet.create({
   /** Above − / wordmark / +, never on that row. */
   complexityCueSlot: {
     position: 'absolute',
-    left: 16,
-    right: 16,
+    left: practiceScreenGutter(),
+    right: practiceScreenGutter(),
     bottom: LATERALITY_SUBMENU_HEIGHT + 4,
     alignItems: 'center',
     zIndex: 20,

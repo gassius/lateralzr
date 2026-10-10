@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { color, spacing } from '../theme/tokens.ts';
 import {
   CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
@@ -8,10 +9,15 @@ import {
   LATERALITY_NODES_WIDTH,
   LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
+  LATERALITY_WORDMARK_SURFACE,
+  LATERALITY_WORDMARK_TILE_PAD_X,
+  LATERALITY_WORDMARK_TILE_PAD_Y,
+  LATERALITY_WORDMARK_TILE_RADIUS,
   lateralityBarFit,
   lateralityBarPreferredWordmarkWidth,
   lateralityBarReservedWidth,
   lateralityChromeReserve,
+  lateralityWordmarkTileExtraWidth,
   MIN_CARD_AREA_HEIGHT,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
@@ -83,7 +89,7 @@ describe('laterality bar chrome fit', () => {
 
   it('keeps −/+ at 48px and scales the middle to the remaining width', () => {
     const reserved = lateralityBarReservedWidth();
-    assert.equal(reserved, 12 * 2 + 48 * 2 + 6 * 4);
+    assert.equal(reserved, 16 * 2 + 48 * 2 + 6 * 4);
     assert.ok(reserved + lateralityBarPreferredWordmarkWidth() + LATERALITY_NODES_WIDTH * 2 > WEB_PHONE_MIN_WIDTH);
 
     for (const width of typicalPhoneWidths) {
@@ -93,9 +99,28 @@ describe('laterality bar chrome fit', () => {
       assert.ok(fit.wordmarkWidth > 0, `wordmark must remain visible at ${width}`);
       assert.equal(
         fit.totalWidth,
-        fit.paddingHorizontal * 2 + fit.stepSize * 2 + fit.gap * 4 + fit.nodesWidth * 2 + fit.wordmarkWidth,
+        fit.paddingHorizontal * 2 +
+          fit.stepSize * 2 +
+          fit.gap * 4 +
+          fit.nodesWidth * 2 +
+          fit.wordmarkWidth +
+          (fit.wordmarkWidth > 0 ? lateralityWordmarkTileExtraWidth() : 0),
       );
     }
+  });
+
+  it('keeps the wordmark on an orange tile, never on the shell (§5.2)', () => {
+    assert.equal(LATERALITY_WORDMARK_SURFACE, 'front');
+    assert.equal(color[LATERALITY_WORDMARK_SURFACE], color.front);
+    assert.notEqual(color[LATERALITY_WORDMARK_SURFACE], color.shell);
+    assert.ok(lateralityWordmarkTileExtraWidth() > 0);
+  });
+
+  it('names wordmark tile pad/radius from the spacing scale (§5.3 clear space)', () => {
+    assert.equal(LATERALITY_WORDMARK_TILE_PAD_X, spacing[2]);
+    assert.equal(LATERALITY_WORDMARK_TILE_PAD_Y, spacing[1]);
+    assert.equal(LATERALITY_WORDMARK_TILE_RADIUS, spacing[1]);
+    assert.ok(LATERALITY_WORDMARK_TILE_PAD_Y >= 8);
   });
 
   it('fits WEB_PHONE_MIN_WIDTH / 360 / 375 without clipping −/+', () => {
