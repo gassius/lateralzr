@@ -36,10 +36,7 @@ import {
   swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
 import { clampComplexity } from '@/lib/complexityStorage';
-import {
-  returnOverlayIndexForEndLoading,
-  settleIntentAfterLoadingClear,
-} from '@/lib/deckSlotState';
+import { settleIntentAfterLoadingClear } from '@/lib/deckSlotState';
 import {
   coachMessageKey,
   SWIPE_COACH_PEEK_PX,
@@ -401,8 +398,9 @@ export function ConceptCardStack({
     noteSwiped();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('right', ctx);
-    // Gesture already animated the previous card into place; do not replay backward enter on index change.
-    navIntentRef.current = 'backwardGesture';
+    // Lz-36: back from end-of-deck loading has no return-overlay peer — settle the revealed card.
+    // Normal backtrack: gesture already animated the previous card; skip enter replay.
+    navIntentRef.current = showDeckStatusRef.current ? 'backward' : 'backwardGesture';
     onSwipeRight();
   }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
@@ -435,11 +433,6 @@ export function ConceptCardStack({
   }, [flushDwell, noteFlipped]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
-    // Lz-36: back from loading reveals the same last card under the silhouette.
-    if (showDeckStatusRef.current) {
-      setReturnOverlayLockedIndex(returnOverlayIndexForEndLoading(currentIndexRef.current));
-      return;
-    }
     const i = currentIndexRef.current - 1;
     if (i >= 0) setReturnOverlayLockedIndex(i);
   }, []);
@@ -527,6 +520,25 @@ export function ConceptCardStack({
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
               easing: SWIPE_EASING,
+            });
+            return;
+          }
+          // Lz-36: back from loading — slide/fade the silhouette away; no return-overlay mount
+          // (mounting a peer ConceptCard under LoadingCard raced peerCommitOpacity and flaked
+          // deck-status-line vs laterality-rail bbox asserts in Client E2E).
+          if (showDeckStatusSV.value === 1) {
+            swipeAnimating.value = true;
+            if (!swipeShouldSlideOutOnCommit(rm)) {
+              translateX.value = 0;
+              frontCommitOpacity.value = 1;
+              peerCommitOpacity.value = 0;
+              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+                if (finished) runOnJS(commitSwipeRight)();
+              });
+              return;
+            }
+            translateX.value = withTiming(w, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              if (finished) runOnJS(commitSwipeRight)();
             });
             return;
           }
@@ -697,19 +709,13 @@ export function ConceptCardStack({
   const showBehindNext =
     !showDeckStatus && behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
   const prevIndex = currentIndex - 1;
-  // Lz-36: while the loading face is up, the return overlay is the last concept (under the silhouette).
   const returnOverlayIndex =
-    returnOverlayLockedIndex !== null
-      ? returnOverlayLockedIndex
-      : showDeckStatus
-        ? returnOverlayIndexForEndLoading(currentIndex)
-        : prevIndex >= 0
-          ? prevIndex
-          : -1;
+    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : prevIndex >= 0 ? prevIndex : -1;
+  // Never mount return-overlay under the loading face at rest (Lz-36 back uses slide/fade + settle).
   const showReturnOverlay =
+    !showDeckStatus &&
     returnOverlayIndex >= 0 &&
-    returnOverlayIndex < concepts.length &&
-    (showDeckStatus || currentIndex > 0 || returnOverlayLockedIndex !== null);
+    (currentIndex > 0 || returnOverlayLockedIndex !== null);
 
   return (
     <View
