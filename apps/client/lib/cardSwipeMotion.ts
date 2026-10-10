@@ -1,3 +1,6 @@
+import { hexToRgba } from '../theme/contrast';
+import { color } from '../theme/tokens';
+
 /**
  * Deck swipe motion tokens (ClickUp 869f640bd).
  *
@@ -30,7 +33,7 @@ export const CARD_SWIPE_MAX_YAW_DEG = 4.5;
  */
 export const CARD_STACK_BEHIND_TINT_ALPHA = 0.22;
 
-export const CARD_STACK_BEHIND_TINT = `rgba(19,91,119,${CARD_STACK_BEHIND_TINT_ALPHA})`;
+export const CARD_STACK_BEHIND_TINT = hexToRgba(color.concept, CARD_STACK_BEHIND_TINT_ALPHA);
 
 export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
   'worklet';

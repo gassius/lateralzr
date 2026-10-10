@@ -1,4 +1,8 @@
-import { Palette } from '../constants/Colors';
+import {
+  lateralityGradientExtras,
+  lateralityGradientFront,
+  lateralityGradientPaper,
+} from '../theme/lateralityGradients';
 import { conceptKey, type DeckConcept } from './conceptDeck';
 
 /** Default laterality grade — middle of the 1–5 edge-distance scale. */
@@ -74,23 +78,31 @@ export function lateralityControlDisabled(canStep: boolean, swapping: boolean): 
 }
 
 /**
- * Calm 2–3 stop wordmark gradient on the dark-blue deck.
+ * Calm 2–3 stop wordmark gradient on the shell deck.
  * Low laterality stays cool/contained; high laterality opens toward orange.
- * Stops stay light enough to read on Palette.darkBlue.
+ * Stops stay light enough to read on color.shell. Extra hexes restyle in Lz-30.
  */
 export function lateralityGradientStops(grade: number): LateralityGradientStops {
   const laterality = clampLaterality(grade);
   switch (laterality) {
     case 1:
-      return { start: Palette.lightGray, end: '#9bb8c2' };
+      return { start: lateralityGradientExtras.coolGray, end: lateralityGradientExtras.coolMid };
     case 2:
-      return { start: Palette.lightGray, mid: '#c5d4d8', end: '#d4c4a8' };
+      return {
+        start: lateralityGradientExtras.coolGray,
+        mid: lateralityGradientExtras.coolBlend,
+        end: lateralityGradientExtras.warmBlend,
+      };
     case 3:
-      return { start: Palette.offWhite, end: Palette.orange };
+      return { start: lateralityGradientPaper, end: lateralityGradientFront };
     case 4:
-      return { start: '#f3a24a', mid: Palette.orange, end: '#f7c27a' };
+      return {
+        start: lateralityGradientExtras.orangeSoft,
+        mid: lateralityGradientFront,
+        end: lateralityGradientExtras.orangeLight,
+      };
     case 5:
-      return { start: Palette.orange, end: Palette.offWhite };
+      return { start: lateralityGradientFront, end: lateralityGradientPaper };
   }
 }
 

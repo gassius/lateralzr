@@ -1,6 +1,6 @@
-import { Palette } from '../constants/Colors';
+import { contrastRatio } from '../theme/contrast';
+import { color } from '../theme/tokens';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
-import { contrastRatio } from './coachHintPresentation';
 import { t } from './i18n';
 
 /**
@@ -98,9 +98,9 @@ export function complexityCueHoldMs(reason: ComplexityAnnounceEvent['reason']): 
 
 export function complexityCuePalette(): ComplexityCuePalette {
   return {
-    text: Palette.darkBlue,
-    chip: Palette.offWhite,
-    backdrop: Palette.darkBlue,
+    text: color.concept,
+    chip: color.paper,
+    backdrop: color.shell,
   };
 }
 

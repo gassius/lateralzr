@@ -1,7 +1,8 @@
 import { MARK_ASPECT } from '../assets/images/lateralzrMark';
-import { Palette } from '../constants/Colors';
+import { CARD_BRAND_FILL as CARD_BRAND_FILL_TOKEN } from '../theme/cardBrand';
+import { blendHexOver, contrastRatio } from '../theme/contrast';
+import { color } from '../theme/tokens';
 import { CONCEPT_FRONT_LABEL_COLOR, CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
-import { blendHexOver, contrastRatio } from './coachHintPresentation';
 
 /**
  * Quiet Lateralzr mark texture on concept cards (ClickUp 869f64061).
@@ -17,12 +18,12 @@ import { blendHexOver, contrastRatio } from './coachHintPresentation';
 
 export type CardBrandFace = 'front' | 'back';
 
-export const CARD_BRAND_INK = Palette.ink;
+export const CARD_BRAND_INK = color.ink;
 
 /** Watermark fill — white so the orange slab lightens, never darkens. */
-export const CARD_BRAND_FILL = '#ffffff';
+export const CARD_BRAND_FILL = CARD_BRAND_FILL_TOKEN;
 
-export const CARD_BRAND_FACE_COLOR = Palette.orange;
+export const CARD_BRAND_FACE_COLOR = color.front;
 
 /** Front title color from #51 — logo ink, not teal chrome. */
 export const CARD_BRAND_TITLE_COLOR = CONCEPT_FRONT_LABEL_COLOR;

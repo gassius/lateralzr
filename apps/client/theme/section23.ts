@@ -1,0 +1,76 @@
+/**
+ * Independent pin of Art Direction guide §23 (v3.3).
+ * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
+ */
+export const GUIDE_SECTION_23 = {
+  version: '3.3',
+  status: 'Approved v3.3',
+  color: {
+    shell: '#082D3D',
+    front: '#F78D1E',
+    paper: '#F5F1E8',
+    ink: '#172126',
+    concept: '#135B77',
+    mutedOnPaper: '#5C6266',
+    mutedOnShell: '#A9C2CD',
+    rail: '#7298A9',
+    controlBorder: '#777C7D',
+    divider: '#D8D2C8',
+    selectedSoft: '#FBE2C5',
+    error: '#9F3530',
+  },
+  logoOnly: { logoNearBlack: '#231F20' },
+  laterality: {
+    '1': 'Same domain',
+    '2': 'Shared context',
+    '3': 'Abstract bridge',
+    '4': 'Provocation',
+    '5': 'Random entry',
+    allSelectable: true,
+  },
+  spacing: [4, 8, 12, 16, 20, 24, 32],
+  layout: {
+    screenGutter: 16,
+    cardPadding: 24,
+    cardPaddingNarrow: 20,
+    cardRadius: 22,
+    sheetTopRadius: 24,
+    cardToControlGap: 12,
+    cardToControlGapTall: 16,
+    recommendedTouchTarget: 48,
+    minImageBandRatio: 0.28,
+  },
+  type: {
+    family: 'system-sans',
+    concept: 32,
+    conceptMinOnOrange: 24,
+    sheetTitle: 24,
+    body: 18,
+    row: 17,
+    label: 14,
+    meta: 13,
+  },
+  motion: {
+    controlMs: 150,
+    sheetMs: 280,
+    flipMs: 360,
+    swipeSettleMs: 260,
+    swipeReturnMs: 200,
+    swipeCommitRatio: 0.3,
+    swipeFlingPxPerMs: 0.5,
+    reducedMotionCrossfadeMs: 150,
+    pulseCycleMs: [2000, 3000],
+    pulsePauseMs: [8000, 15000],
+    concurrentPulses: 1,
+    pulseUnderReducedMotion: false,
+  },
+  pattern: {
+    authority: 'assets/pattern-master-approved.png',
+    variants: ['descending-current', 'ascending-current', 'edge-current'],
+    stablePerEncounter: true,
+    titleClearingRequired: true,
+    numericReliefNotApproved: true,
+  },
+} as const;
+
+export type DesignTokens = typeof GUIDE_SECTION_23;

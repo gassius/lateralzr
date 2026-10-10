@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { Palette } from '../constants/Colors.ts';
+import { color } from '../theme/tokens.ts';
 import { contrastRatio } from './coachHintPresentation.ts';
 import type { DeckConcept } from './conceptDeck.ts';
 import {
@@ -94,35 +94,35 @@ describe('clampLaterality / stepLaterality', () => {
 });
 
 describe('lateralityGradientStops', () => {
-  it('uses a cool, contained pair at laterality 1 (not deck teal)', () => {
+  it('uses a cool, contained pair at laterality 1 (not deck shell)', () => {
     const stops = lateralityGradientStops(1);
-    assert.notEqual(stops.start, Palette.darkBlue);
-    assert.notEqual(stops.end, Palette.darkBlue);
+    assert.notEqual(stops.start, color.shell);
+    assert.notEqual(stops.end, color.shell);
     assert.notEqual(stops.start, stops.end);
   });
 
   it('bridges a light cool stop to brand orange at the default grade', () => {
     assert.deepEqual(lateralityGradientStops(3), {
-      start: Palette.offWhite,
-      end: Palette.orange,
+      start: color.paper,
+      end: color.front,
     });
   });
 
-  it('opens toward orange / off-white at laterality 5', () => {
+  it('opens toward orange / paper at laterality 5', () => {
     assert.deepEqual(lateralityGradientStops(5), {
-      start: Palette.orange,
-      end: Palette.offWhite,
+      start: color.front,
+      end: color.paper,
     });
   });
 
-  it('keeps every grade readable on the dark-blue deck', () => {
+  it('keeps every grade readable on the shell deck', () => {
     for (const grade of [1, 2, 3, 4, 5] as const) {
       const stops = lateralityGradientStops(grade);
-      for (const color of [stops.start, stops.mid, stops.end]) {
-        if (!color) continue;
+      for (const stop of [stops.start, stops.mid, stops.end]) {
+        if (!stop) continue;
         assert.ok(
-          contrastRatio(color, Palette.darkBlue) >= 3,
-          `grade ${grade} ${color} contrast vs deck`,
+          contrastRatio(stop, color.shell) >= 3,
+          `grade ${grade} ${stop} contrast vs deck`,
         );
       }
     }

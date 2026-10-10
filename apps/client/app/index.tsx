@@ -11,7 +11,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
-import { Palette } from '@/constants/Colors';
+import { color } from '@/theme/tokens';
 import {
   complexityCueHoldMs,
   resolveSessionComplexityToAnnounce,
@@ -760,11 +760,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Palette.orange,
+    backgroundColor: color.front,
     paddingHorizontal: 24,
   },
   mainRoot: {
-    backgroundColor: Palette.darkBlue,
+    backgroundColor: color.shell,
     width: '100%',
   },
   stackShell: {
@@ -788,7 +788,7 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   error: {
-    color: Palette.black,
+    color: color.ink,
     textAlign: 'center',
     fontSize: 16,
     marginTop: 20,
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   retryText: {
-    color: Palette.black,
+    color: color.ink,
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',
