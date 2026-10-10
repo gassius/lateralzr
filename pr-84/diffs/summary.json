@@ -202,29 +202,29 @@
   },
   {
     "file": "card-front_long-label_1280x800_es.png",
-    "ratio": 0.021603759765625,
-    "percent": 2.1603759765625,
+    "ratio": 0.024296142578125,
+    "percent": 2.4296142578124997,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 88489,
+    "mismatchedPixels": 99517,
     "diffImage": "card-front_long-label_1280x800_es.diff.png"
   },
   {
     "file": "card-front_long-label_320x568_en.png",
-    "ratio": 0.08939398107394367,
-    "percent": 8.939398107394366,
+    "ratio": 0.09533725792253521,
+    "percent": 9.53372579225352,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 64993,
+    "mismatchedPixels": 69314,
     "diffImage": "card-front_long-label_320x568_en.diff.png"
   },
   {
     "file": "card-front_long-label_320x568_es.png",
-    "ratio": 0.094140625,
-    "percent": 9.4140625,
+    "ratio": 0.09878136003521126,
+    "percent": 9.878136003521126,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 68444,
+    "mismatchedPixels": 71818,
     "diffImage": "card-front_long-label_320x568_es.diff.png"
   },
   {
@@ -238,11 +238,11 @@
   },
   {
     "file": "card-front_long-label_390x844_es.png",
-    "ratio": 0.07016116782112043,
-    "percent": 7.016116782112043,
+    "ratio": 0.07724207072548304,
+    "percent": 7.724207072548304,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 92377,
+    "mismatchedPixels": 101700,
     "diffImage": "card-front_long-label_390x844_es.diff.png"
   },
   {
@@ -424,28 +424,28 @@
   },
   {
     "file": "typography_large-text-200_1280x800_en.png",
-    "ratio": 0.0064345703125,
-    "percent": 0.6434570312500001,
+    "ratio": 0.00764990234375,
+    "percent": 0.764990234375,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 26356
+    "mismatchedPixels": 31334
   },
   {
     "file": "typography_large-text-200_320x568_en.png",
-    "ratio": 0.030415107834507044,
-    "percent": 3.0415107834507045,
+    "ratio": 0.03521264304577465,
+    "percent": 3.521264304577465,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 22113,
+    "mismatchedPixels": 25601,
     "diffImage": "typography_large-text-200_320x568_en.diff.png"
   },
   {
     "file": "typography_large-text-200_390x844_en.png",
-    "ratio": 0.021864746627779805,
-    "percent": 2.1864746627779805,
+    "ratio": 0.026074705310487303,
+    "percent": 2.60747053104873,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 28788,
+    "mismatchedPixels": 34331,
     "diffImage": "typography_large-text-200_390x844_en.diff.png"
   },
   {
