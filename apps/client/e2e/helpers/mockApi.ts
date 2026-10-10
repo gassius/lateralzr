@@ -109,15 +109,25 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
   return readJson(locale === 'es' ? 'mushroom-es.json' : 'mushroom-en.json');
 }
 
-function imageForMediaUrl(target: string | null): Buffer {
+function imageForMediaUrl(target: string | null): { body: Buffer; contentType: string } {
   const value = (target ?? '').toLowerCase();
   if (value.includes('diagram')) {
-    return fs.readFileSync(path.join(IMAGES, 'diagram.png'));
+    return {
+      body: fs.readFileSync(path.join(IMAGES, 'diagram.png')),
+      contentType: 'image/png',
+    };
   }
   if (value.includes('transparent')) {
-    return fs.readFileSync(path.join(IMAGES, 'transparent.png'));
+    return {
+      body: fs.readFileSync(path.join(IMAGES, 'transparent.png')),
+      contentType: 'image/png',
+    };
   }
-  return fs.readFileSync(path.join(IMAGES, 'photo.png'));
+  // Adequate-resolution JPEG so the Lz-28 cover path is exercised (≤1.5× upscale).
+  return {
+    body: fs.readFileSync(path.join(IMAGES, 'photo.jpg')),
+    contentType: 'image/jpeg',
+  };
 }
 
 function isLocalAsset(url: string): boolean {
@@ -187,11 +197,11 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
   await page.route('**/api/media**', async (route: Route) => {
     const url = new URL(route.request().url());
     const target = url.searchParams.get('url');
-    const bytes = imageForMediaUrl(target);
+    const image = imageForMediaUrl(target);
     await route.fulfill({
       status: 200,
-      contentType: 'image/png',
-      body: bytes,
+      contentType: image.contentType,
+      body: image.body,
     });
   });
 }
