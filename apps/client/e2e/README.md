@@ -52,14 +52,14 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 Smoke runs on **all three** viewports (390×844, 320×568, 1280×800).
 
-## Design review (Critiquito)
+## Design review (UI/UX and Art Supervisor (gasnet-art-director))
 
-Screenshots for review live on the orphan Git branch **`e2e-screenshots`** (not embedded in the PR comment):
+Screenshots for review live on the orphan Git branch **`e2e-screenshots`** (not embedded in the PR comment). Vercel previews are disabled for that branch (`apps/client/vercel.json`).
 
 | Path | Meaning |
 | --- | --- |
 | `e2e-screenshots:pr-<n>/` | Latest captures for open PR `#n` (overwritten each CI run) + `diffs/` |
-| `e2e-screenshots:baselines/` | Critiquito-approved references published from `main` |
+| `e2e-screenshots:baselines/` | UI/UX and Art Supervisor (gasnet-art-director)-approved references published from `main` |
 
 **Review flow:** open `pr-<n>/`, compare against `baselines/`, use the sticky PR comment’s **diff summary table** (screen, % changed, pass / over-threshold, link to diff image). The sticky comment is text-only (run link, SHA, tree link, table) — no inline images.
 

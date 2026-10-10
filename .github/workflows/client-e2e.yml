@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       strict_baselines:
-        description: 'Fail on baseline diffs (Critiquito-approved mode)'
+        description: 'Fail on baseline diffs (UI/UX and Art Supervisor (gasnet-art-director)-approved mode)'
         required: false
         default: 'false'
         type: choice
@@ -93,7 +93,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Prefer Critiquito-approved baselines on the orphan branch. If that folder
+          # Prefer UI/UX and Art Supervisor (gasnet-art-director)-approved baselines on the orphan branch. If that folder
           # is missing/empty, keep in-repo demo seeds under e2e/baselines/.
           TMP=$(mktemp -d)
           CLONE="${TMP}/orphan"

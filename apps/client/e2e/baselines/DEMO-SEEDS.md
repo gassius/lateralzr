@@ -2,12 +2,12 @@
 
 These in-repo PNGs are **intentional demo baselines** used only when orphan
 `e2e-screenshots:baselines/` is missing or empty (see CI “Sync orphan … baselines”
-step). They are **not** Critiquito-approved product baselines.
+step). They are **not** UI/UX and Art Supervisor (gasnet-art-director)-approved product baselines.
 
 | File | Intent |
 | --- | --- |
-| `card-front_short-label_390x844_en.png` | Full-size (780×1688) with a red block (~1.71% > 1% threshold) → over-threshold + diff image |
-| `laterality-bar_grade-3_390x844_en.png` | Full-size with a tiny green block (~0.07% < 1%) → pass |
+| `card-front_short-label_390x844_en.png` | Full-size (780×1688) with a red block (~2.36% > 1% threshold) → over-threshold + diff image |
+| `laterality-bar_grade-3_390x844_en.png` | Full-size with a tiny green block (~0.71% < 1%) → pass |
 
 ## Real compare flow
 

@@ -221,8 +221,9 @@ Every agent comment starts with `### Agent: <name>` as the first line.
 
 - **GasNet Implementer**: Cursor cloud agents launched by Engineer Supervisor. Commits are authored by Cursor's `cursoragent` account (`Cursor Agent <cursoragent@cursor.com>`) and identified by `Agent: GasNet Implementer` trailers.
 - **Nightly Audit Engineer**: also uses Cursor cloud agents; identified by `Agent: Nightly Audit Engineer`.
-- **Engineer Supervisor**: writes as GitHub App `gasnet-supervisor-gassius[bot]` (since 2026-09-30).
-- **Pull Request Reviewer**: writes as GitHub App `gasnet-reviewer-gassius[bot]` (since 2026-09-30).
+- **Engineer Supervisor**: writes as GitHub App `gasnet-supervisor[bot]` (since 2026-09-30).
+- **Pull Request Reviewer**: writes as GitHub App `gasnet-pr-reviewer[bot]` (since 2026-09-30).
+- **UI/UX and Art Supervisor**: writes as GitHub App `gasnet-art-director[bot]`. Visual reviewer for PRs that touch `apps/client` (reviews captures on the `e2e-screenshots` orphan branch and posts PR reviews). Client PR ready gate: Pull Request Reviewer Approve **and** art-director Approve on the current head, plus green CI.
 
 Before 2026-09-30, Engineer Supervisor and Pull Request Reviewer actions appear as `gassius`. The `### Agent:` header is then the only attribution.
 
