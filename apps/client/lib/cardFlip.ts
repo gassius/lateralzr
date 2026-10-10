@@ -50,10 +50,12 @@ export function cardFlipFaceStyle(
   'worklet';
   const p = Math.min(1, Math.max(0, progress));
   if (reduceMotion) {
-    return {
-      opacity: face === 'front' ? 1 - p : p,
-      transform: [],
-    };
+    // Front (zIndex 2) fades; back stays fully opaque once progress > 0 so the
+    // navy shell never shows through (AD: no mid-crossfade dim).
+    if (face === 'front') {
+      return { opacity: 1 - p, transform: [] };
+    }
+    return { opacity: p > 0 ? 1 : 0, transform: [] };
   }
   if (face === 'front') {
     const rot = -90 * p;
