@@ -1,24 +1,24 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
-import { blendHexOver, contrastRatio } from './contrast.ts';
+import { blendHexOver, contrastRatio, hexToRgba } from './contrast.ts';
 import { logoNearBlack } from './logo.ts';
-import { color, tokens } from './tokens.ts';
-
-const here = dirname(fileURLToPath(import.meta.url));
-const section23 = JSON.parse(readFileSync(join(here, 'tokens.json'), 'utf8'));
+import { GUIDE_SECTION_23 } from './section23.ts';
+import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
 describe('v3.3 design tokens', () => {
-  it('matches guide §23 tokens.json exactly', () => {
-    assert.deepEqual(tokens, section23);
+  it('matches guide §23 exactly', () => {
+    // Independent pin copied from v3.3 §23 values — not loaded from tokens.json.
+    assert.deepEqual(tokens, GUIDE_SECTION_23);
+  });
+
+  it('pins tallScreenMinHeight for cardToControlGapTall selection', () => {
+    assert.equal(tallScreenMinHeight, 800);
   });
 
   it('keeps logoNearBlack outside the UI color map', () => {
     assert.equal(logoNearBlack, '#231F20');
-    assert.equal(section23.logoOnly.logoNearBlack, logoNearBlack);
+    assert.equal(GUIDE_SECTION_23.logoOnly.logoNearBlack, logoNearBlack);
     assert.equal(
       Object.prototype.hasOwnProperty.call(color, 'logoNearBlack'),
       false,
@@ -49,8 +49,12 @@ describe('v3.3 design tokens', () => {
     }
   });
 
-  it('exposes blend helper for legacy contrast checks', () => {
+  it('exposes blend and rgba helpers derived from color tokens', () => {
     const washed = blendHexOver(color.concept, 0.75, color.front);
     assert.match(washed, /^#[0-9a-f]{6}$/i);
+    assert.equal(hexToRgba(color.concept, 0.35), 'rgba(19,91,119,0.35)');
+    assert.equal(hexToRgba(color.concept, 0.1), 'rgba(19,91,119,0.1)');
+    assert.equal(hexToRgba(color.paper, 0.08), 'rgba(245,241,232,0.08)');
+    assert.equal(hexToRgba(color.paper, 0.42), 'rgba(245,241,232,0.42)');
   });
 });
