@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { color } from '../theme/tokens.ts';
 import {
   CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
@@ -8,10 +9,12 @@ import {
   LATERALITY_NODES_WIDTH,
   LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
+  LATERALITY_WORDMARK_SURFACE,
   lateralityBarFit,
   lateralityBarPreferredWordmarkWidth,
   lateralityBarReservedWidth,
   lateralityChromeReserve,
+  lateralityWordmarkTileExtraWidth,
   MIN_CARD_AREA_HEIGHT,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
@@ -93,9 +96,21 @@ describe('laterality bar chrome fit', () => {
       assert.ok(fit.wordmarkWidth > 0, `wordmark must remain visible at ${width}`);
       assert.equal(
         fit.totalWidth,
-        fit.paddingHorizontal * 2 + fit.stepSize * 2 + fit.gap * 4 + fit.nodesWidth * 2 + fit.wordmarkWidth,
+        fit.paddingHorizontal * 2 +
+          fit.stepSize * 2 +
+          fit.gap * 4 +
+          fit.nodesWidth * 2 +
+          fit.wordmarkWidth +
+          (fit.wordmarkWidth > 0 ? lateralityWordmarkTileExtraWidth() : 0),
       );
     }
+  });
+
+  it('keeps the wordmark on an orange tile, never on the shell (§5.2)', () => {
+    assert.equal(LATERALITY_WORDMARK_SURFACE, 'front');
+    assert.equal(color[LATERALITY_WORDMARK_SURFACE], color.front);
+    assert.notEqual(color[LATERALITY_WORDMARK_SURFACE], color.shell);
+    assert.ok(lateralityWordmarkTileExtraWidth() > 0);
   });
 
   it('fits WEB_PHONE_MIN_WIDTH / 360 / 375 without clipping −/+', () => {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Stop } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path } from 'react-native-svg';
 import {
   WORDMARK_GROUP_TRANSFORM,
   WORDMARK_LETTERS,
@@ -15,6 +15,10 @@ import {
   LATERALITY_ROW_PADDING_HORIZONTAL,
   LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
+  LATERALITY_WORDMARK_SURFACE,
+  LATERALITY_WORDMARK_TILE_PAD_X,
+  LATERALITY_WORDMARK_TILE_PAD_Y,
+  LATERALITY_WORDMARK_TILE_RADIUS,
 } from '@/lib/lateralityChrome';
 import {
   lateralityControlDisabled,
@@ -74,33 +78,29 @@ function LateralityWordmark({
   width: number;
   height: number;
 }) {
-  const stops = lateralityGradientStops(laterality);
-  const gradientId = `laterality-wordmark-${laterality}`;
   if (width <= 0 || height <= 0) return null;
 
+  // §5.2: never place the logo/wordmark on shell — orange tile + ink strokes.
   return (
     <View
       accessible
       accessibilityRole="text"
       accessibilityLabel={t('lateralityGrade', { grade: String(laterality) })}
-      style={[styles.wordWrap, { width, height }, swapping ? styles.wordSwapping : null]}
+      style={[
+        styles.wordWrap,
+        styles.wordSurface,
+        { backgroundColor: color[LATERALITY_WORDMARK_SURFACE] },
+        swapping ? styles.wordSwapping : null,
+      ]}
       testID="laterality-wordmark"
     >
       <Svg
         width={width}
         height={height}
         viewBox={wordmarkViewBoxAttr()}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        accessible={false}
       >
-        <Defs>
-          <LinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={stops.start} />
-            <Stop offset={stops.mid ? '0.5' : '1'} stopColor={stops.mid ?? stops.end} />
-            <Stop offset="1" stopColor={stops.end} />
-          </LinearGradient>
-        </Defs>
-        <G transform={WORDMARK_GROUP_TRANSFORM} fill={`url(#${gradientId})`}>
+        <G transform={WORDMARK_GROUP_TRANSFORM} fill={color.ink}>
           {WORDMARK_LETTERS.map((letter) => (
             <Path key={letter.id} d={letter.d} transform={letter.transform} />
           ))}
@@ -250,6 +250,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 1,
+  },
+  wordSurface: {
+    borderRadius: LATERALITY_WORDMARK_TILE_RADIUS,
+    paddingHorizontal: LATERALITY_WORDMARK_TILE_PAD_X,
+    paddingVertical: LATERALITY_WORDMARK_TILE_PAD_Y,
   },
   wordSwapping: {
     opacity: 0.72,

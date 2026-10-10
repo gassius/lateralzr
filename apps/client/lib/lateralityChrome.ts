@@ -21,6 +21,17 @@ export const LATERALITY_NODES_WIDTH = 32;
 /** Horizontal inset on the − / wordmark / + row — matches practice screen gutter (Lz-21). */
 export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
 
+/**
+ * §5.2 — logo/wordmark never sits directly on shell (#082D3D).
+ * Until Lz-30 removes the wordmark from the bar, it rides an orange tile (`front`).
+ */
+export const LATERALITY_WORDMARK_SURFACE: 'front' = 'front';
+
+/** Inset around the wordmark paths inside the orange tile. */
+export const LATERALITY_WORDMARK_TILE_PAD_X = 10;
+export const LATERALITY_WORDMARK_TILE_PAD_Y = 6;
+export const LATERALITY_WORDMARK_TILE_RADIUS = 8;
+
 /** Gap between the five row slots (step, nodes, word, nodes, step). */
 export const LATERALITY_ROW_GAP = 6;
 
@@ -72,31 +83,42 @@ export function lateralityBarPreferredWordmarkWidth(): number {
   return Math.round(LATERALITY_WORDMARK_HEIGHT * WORDMARK_ASPECT);
 }
 
+/** Extra horizontal space the §5.2 orange wordmark tile needs beyond the paths. */
+export function lateralityWordmarkTileExtraWidth(): number {
+  return LATERALITY_WORDMARK_TILE_PAD_X * 2;
+}
+
 /**
  * Size the wordmark + nodes from the width left after −/+ and padding.
  * Steps stay 48px so tap targets do not shrink on SE-class frames.
+ * Wordmark path width excludes the orange tile pad (counted separately so the row still fits).
  */
 export function lateralityBarFit(rowWidth: number): LateralityBarFit {
   const width = Number.isFinite(rowWidth) ? Math.max(0, Math.floor(rowWidth)) : 0;
   const reserved = lateralityBarReservedWidth();
+  const tileExtra = lateralityWordmarkTileExtraWidth();
   const remaining = Math.max(0, width - reserved);
   const preferredWordmark = lateralityBarPreferredWordmarkWidth();
   const preferredNodes = LATERALITY_NODES_WIDTH;
-  const preferredMiddle = preferredWordmark + preferredNodes * 2;
+  const preferredMiddle = preferredWordmark + preferredNodes * 2 + tileExtra;
 
   let nodesWidth: number;
   let wordmarkWidth: number;
   if (preferredMiddle <= remaining) {
     nodesWidth = preferredNodes;
     wordmarkWidth = preferredWordmark;
-  } else if (remaining <= 0) {
+  } else if (remaining <= tileExtra) {
     nodesWidth = 0;
     wordmarkWidth = 0;
   } else {
-    const scale = remaining / preferredMiddle;
+    const pathBudget = remaining - tileExtra;
+    const pathPreferred = preferredWordmark + preferredNodes * 2;
+    const scale = pathBudget / pathPreferred;
     nodesWidth = Math.floor(preferredNodes * scale);
-    wordmarkWidth = remaining - nodesWidth * 2;
+    wordmarkWidth = Math.max(0, pathBudget - nodesWidth * 2);
   }
+
+  const wordmarkTileWidth = wordmarkWidth > 0 ? wordmarkWidth + tileExtra : 0;
 
   return {
     rowWidth: width,
@@ -106,6 +128,6 @@ export function lateralityBarFit(rowWidth: number): LateralityBarFit {
     nodesWidth,
     wordmarkWidth,
     wordmarkHeight: wordmarkWidth > 0 ? wordmarkWidth / WORDMARK_ASPECT : 0,
-    totalWidth: reserved + nodesWidth * 2 + wordmarkWidth,
+    totalWidth: reserved + nodesWidth * 2 + wordmarkTileWidth,
   };
 }
