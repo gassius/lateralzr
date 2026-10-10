@@ -51,35 +51,21 @@ export function initialPrefersReducedMotion(): boolean {
 }
 
 /**
- * Commit when travel reaches the ratio of card extent, or fling speed hits the token.
- * `velocityPxPerS` is React Native Gesture Handler’s px/s unit.
- */
-export function shouldCommitSwipe(
-  translation: number,
-  velocityPxPerS: number,
-  cardExtent: number,
-  commitRatio: number = SWIPE_COMMIT_RATIO,
-  flingPxPerMs: number = SWIPE_FLING_PX_PER_MS,
-): boolean {
-  'worklet';
-  return swipeCommitDirection(translation, velocityPxPerS, cardExtent, commitRatio, flingPxPerMs) !== 0;
-}
-
-/**
  * Commit direction on the pan axis: `-1` / `1`, or `0` when the gesture should return.
  * Distance commit wins when both distance and fling qualify; otherwise fling sign is used.
+ *
+ * Defined before `shouldCommitSwipe` so the worklet babel transform never closes over
+ * a temporal-dead-zone binding (web: "Cannot access 'f' before initialization").
  */
 export function swipeCommitDirection(
   translation: number,
   velocityPxPerS: number,
   cardExtent: number,
-  commitRatio: number = SWIPE_COMMIT_RATIO,
-  flingPxPerMs: number = SWIPE_FLING_PX_PER_MS,
 ): -1 | 0 | 1 {
   'worklet';
   const extent = Math.max(1, cardExtent);
-  const distanceCommit = Math.abs(translation) >= commitRatio * extent;
-  const flingCommit = Math.abs(velocityPxPerS) / 1000 >= flingPxPerMs;
+  const distanceCommit = Math.abs(translation) >= SWIPE_COMMIT_RATIO * extent;
+  const flingCommit = Math.abs(velocityPxPerS) / 1000 >= SWIPE_FLING_PX_PER_MS;
   if (!distanceCommit && !flingCommit) return 0;
   if (distanceCommit) {
     if (translation < 0) return -1;
@@ -88,6 +74,19 @@ export function swipeCommitDirection(
   if (velocityPxPerS < 0) return -1;
   if (velocityPxPerS > 0) return 1;
   return 0;
+}
+
+/**
+ * Commit when travel reaches the ratio of card extent, or fling speed hits the token.
+ * `velocityPxPerS` is React Native Gesture Handler’s px/s unit.
+ * JS-only helper for unit tests — not a worklet (avoids mutual worklet closure TDZ).
+ */
+export function shouldCommitSwipe(
+  translation: number,
+  velocityPxPerS: number,
+  cardExtent: number,
+): boolean {
+  return swipeCommitDirection(translation, velocityPxPerS, cardExtent) !== 0;
 }
 
 /** Exclusive translate-only steps — no perspective / rotate keys. */

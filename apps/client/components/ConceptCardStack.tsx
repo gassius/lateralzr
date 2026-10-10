@@ -62,7 +62,6 @@ const PAN_ACTIVE_OFFSET = 18;
 /** Move behind peek off-screen instead of opacity:0 — opacity toggles caused a sibling alpha compositor flash on handoff. */
 const BEHIND_PEEK_OFFSCREEN_X = -4096;
 const CARD_ASPECT = 1.4;
-const settleEasing = Easing.out(Easing.cubic);
 
 export function ConceptCardStack({
   concepts,
@@ -291,14 +290,26 @@ export function ConceptCardStack({
       // Next card fades in and shifts from +8 → 0 (outgoing exited left).
       enterX.value = SWIPE_ENTER_SHIFT_PX;
       enterOpacity.value = 0;
-      enterX.value = withTiming(0, { duration: SWIPE_SETTLE_MS, easing: settleEasing });
-      enterOpacity.value = withTiming(1, { duration: SWIPE_SETTLE_MS, easing: settleEasing });
+      enterX.value = withTiming(0, {
+        duration: SWIPE_SETTLE_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      enterOpacity.value = withTiming(1, {
+        duration: SWIPE_SETTLE_MS,
+        easing: Easing.out(Easing.cubic),
+      });
     } else if (intent === 'backward' || intent === 'backwardGesture') {
       // Backtrack mirrors: shift from −8 → 0.
       enterX.value = -SWIPE_ENTER_SHIFT_PX;
       enterOpacity.value = 0;
-      enterX.value = withTiming(0, { duration: SWIPE_SETTLE_MS, easing: settleEasing });
-      enterOpacity.value = withTiming(1, { duration: SWIPE_SETTLE_MS, easing: settleEasing });
+      enterX.value = withTiming(0, {
+        duration: SWIPE_SETTLE_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      enterOpacity.value = withTiming(1, {
+        duration: SWIPE_SETTLE_MS,
+        easing: Easing.out(Easing.cubic),
+      });
     } else {
       enterX.value = 0;
       enterOpacity.value = 1;
@@ -432,40 +443,48 @@ export function ConceptCardStack({
           if (showDeckStatusSV.value === 1) {
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
-              easing: settleEasing,
+              easing: Easing.out(Easing.cubic),
             });
             return;
           }
           swipeAnimating.value = true;
           runOnJS(lockBehindIndexForLeftCommit)();
           const target = -(w + 120);
-          translateX.value = withTiming(target, { duration: SWIPE_SETTLE_MS, easing: settleEasing }, (finished) => {
-            if (finished) {
-              runOnJS(commitSwipeLeft)();
-            }
-          });
+          translateX.value = withTiming(
+            target,
+            { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
+            (finished) => {
+              if (finished) {
+                runOnJS(commitSwipeLeft)();
+              }
+            },
+          );
           return;
         }
         if (direction > 0) {
           if (canSwipeRightSV.value === 0) {
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
-              easing: settleEasing,
+              easing: Easing.out(Easing.cubic),
             });
             return;
           }
           swipeAnimating.value = true;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
-          translateX.value = withTiming(w, { duration: SWIPE_SETTLE_MS, easing: settleEasing }, (finished) => {
-            if (finished) {
-              runOnJS(commitSwipeRight)();
-            }
-          });
+          translateX.value = withTiming(
+            w,
+            { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
+            (finished) => {
+              if (finished) {
+                runOnJS(commitSwipeRight)();
+              }
+            },
+          );
           return;
         }
         translateX.value = withTiming(0, {
           duration: SWIPE_RETURN_MS,
-          easing: settleEasing,
+          easing: Easing.out(Easing.cubic),
         });
       },
     );
@@ -499,7 +518,7 @@ export function ConceptCardStack({
         if (direction === 0) {
           translateY.value = withTiming(0, {
             duration: SWIPE_RETURN_MS,
-            easing: settleEasing,
+            easing: Easing.out(Easing.cubic),
           });
           return;
         }
@@ -508,18 +527,22 @@ export function ConceptCardStack({
         if (showDeckStatusSV.value === 1) {
           translateY.value = withTiming(0, {
             duration: SWIPE_RETURN_MS,
-            easing: settleEasing,
+            easing: Easing.out(Easing.cubic),
           });
           return;
         }
         swipeAnimating.value = true;
         runOnJS(lockBehindIndexForLeftCommit)();
         const target = vertical === 'up' ? -(h + 140) : h + 140;
-        translateY.value = withTiming(target, { duration: SWIPE_SETTLE_MS, easing: settleEasing }, (finished) => {
-          if (finished) {
-            runOnJS(commitSwipeVertical)(vertical);
-          }
-        });
+        translateY.value = withTiming(
+          target,
+          { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
+          (finished) => {
+            if (finished) {
+              runOnJS(commitSwipeVertical)(vertical);
+            }
+          },
+        );
       },
     );
 
