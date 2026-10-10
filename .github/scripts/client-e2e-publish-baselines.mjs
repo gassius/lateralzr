@@ -21,6 +21,11 @@ if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !SCREENSHOTS_DIR) {
 }
 
 const src = path.resolve(SCREENSHOTS_DIR);
+if (!fs.existsSync(src)) {
+  console.log('SCREENSHOTS_DIR missing; skip baseline publish:', src);
+  process.exit(0);
+}
+
 const dest = path.resolve(BASELINES_DIR);
 fs.mkdirSync(dest, { recursive: true });
 
