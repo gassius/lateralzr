@@ -427,8 +427,10 @@ export function ConceptCardStack({
     flipPeek.value = 0;
   };
 
+  // maxDeltaY so a vertical ScrollView drag on the back fails the tap (no accidental flip).
   const tap = Gesture.Tap()
     .maxDistance(14)
+    .maxDeltaY(10)
     .onEnd(() => {
       if (swipeAnimating.value) return;
       cancelCoachPeek();

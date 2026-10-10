@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  CARD_BACK_LINK_MARGIN_TOP,
   CARD_BACK_MEDIA_CONTENT_FIT,
   CARD_BACK_MEDIA_CONTENT_POSITION,
   CARD_BACK_WITHOUT_MEDIA_RHYTHM,
   CARD_BACK_WITH_MEDIA_RHYTHM,
-  cardBackBalancedColumnStyle,
+  cardBackScrollContentStyle,
   cardBackScrollMinHeight,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
@@ -60,15 +61,22 @@ test('Tide-style copy is balanced instead of stretched over an empty media hole'
   assert.equal(layout.expandMediaZone, false);
 });
 
-test('no-media copy is a centered group with more open type than the media-forward stack', () => {
+test('no-media rhythm centers body copy with guide type and link offset', () => {
   const layout = composeCardBackLayout('absent');
   assert.equal(layout.rhythm.scrollJustify, 'center');
-  assert.equal(layout.rhythm.titleFontSize, 40);
-  assert.equal(layout.rhythm.descriptionFontSize, 20);
-  assert.ok(layout.rhythm.titleFontSize > CARD_BACK_WITH_MEDIA_RHYTHM.titleFontSize);
-  assert.ok(layout.rhythm.titleMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.titleMarginBottom);
-  assert.ok(layout.rhythm.descriptionMarginBottom > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionMarginBottom);
-  assert.ok(layout.rhythm.descriptionLineHeight > CARD_BACK_WITH_MEDIA_RHYTHM.descriptionLineHeight);
+  assert.equal(layout.rhythm.descriptionFontSize, 18);
+  assert.equal(layout.rhythm.descriptionLineHeight, 27);
+  assert.equal(layout.rhythm.descriptionMarginBottom, 0);
+  assert.equal(layout.rhythm.linkMarginTop, CARD_BACK_LINK_MARGIN_TOP);
+  assert.ok(layout.rhythm.linkMarginTop >= 20 && layout.rhythm.linkMarginTop <= 24);
+});
+
+test('rhythm has no title fields — back starts with description', () => {
+  for (const rhythm of [CARD_BACK_WITHOUT_MEDIA_RHYTHM, CARD_BACK_WITH_MEDIA_RHYTHM]) {
+    assert.equal('titleFontSize' in rhythm, false);
+    assert.equal('titleLineHeight' in rhythm, false);
+    assert.equal('titleMarginBottom' in rhythm, false);
+  }
 });
 
 test('ready media uses a prominent media zone with copy stacked, not balanced as if empty', () => {
@@ -122,37 +130,43 @@ test('scroll minHeight subtracts face padding (no border) so leftover space is r
   assert.equal(cardBackScrollMinHeight(Number.NaN), undefined);
 });
 
-test('no-media column uses a pixel height so justifyContent can actually center the copy group', () => {
-  assert.deepEqual(cardBackBalancedColumnStyle(480), {
-    height: 440,
+test('scroll content style uses measured minHeight so short copy can center under flip', () => {
+  assert.deepEqual(cardBackScrollContentStyle(480), {
+    flexGrow: 1,
+    minHeight: 440,
     justifyContent: 'center',
   });
-  assert.deepEqual(cardBackBalancedColumnStyle(480, 24), {
-    height: 432,
+  assert.deepEqual(cardBackScrollContentStyle(480, 24, 'flex-start'), {
+    flexGrow: 1,
+    minHeight: 432,
+    justifyContent: 'flex-start',
+  });
+  assert.deepEqual(cardBackScrollContentStyle(0), {
+    flexGrow: 1,
     justifyContent: 'center',
   });
-  assert.deepEqual(cardBackBalancedColumnStyle(0), {
-    justifyContent: 'center',
-  });
-  assert.deepEqual(cardBackBalancedColumnStyle(Number.NaN), {
+  assert.deepEqual(cardBackScrollContentStyle(Number.NaN), {
+    flexGrow: 1,
     justifyContent: 'center',
   });
 });
 
-test('with-media rhythm stays compact and top-stacked so the image keeps leftover height', () => {
+test('with-media rhythm is top-stacked body + link so the image keeps leftover height', () => {
   assert.deepEqual(CARD_BACK_WITH_MEDIA_RHYTHM, {
     scrollJustify: 'flex-start',
-    titleFontSize: 26,
-    titleLineHeight: 32,
-    titleMarginBottom: 8,
-    descriptionFontSize: 16,
-    descriptionLineHeight: 24,
-    descriptionMarginBottom: 12,
-    linkMarginTop: 0,
+    descriptionFontSize: 18,
+    descriptionLineHeight: 27,
+    descriptionMarginBottom: 0,
+    linkMarginTop: CARD_BACK_LINK_MARGIN_TOP,
   });
 });
 
-test('ready media cover-fills the expanding well so landscape and portrait do not letterbox on orange', () => {
+test('missing wikiUrl leaves no reserved link gap in the rhythm', () => {
+  assert.equal(CARD_BACK_WITHOUT_MEDIA_RHYTHM.descriptionMarginBottom, 0);
+  assert.equal(CARD_BACK_WITH_MEDIA_RHYTHM.descriptionMarginBottom, 0);
+});
+
+test('ready media cover-fills the expanding well so landscape and portrait do not letterbox on paper', () => {
   const layout = composeCardBackLayout('ready');
   assert.equal(layout.expandMediaZone, true);
   assert.equal(layout.mediaContentFit, 'cover');

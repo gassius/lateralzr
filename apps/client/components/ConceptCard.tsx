@@ -4,12 +4,13 @@ import {
   Linking,
   PixelRatio,
   Platform,
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   interpolate,
@@ -20,14 +21,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { ConceptItem } from '@/lib/api';
 import { hexToRgba } from '@/theme/contrast';
-import { color } from '@/theme/tokens';
+import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_MEDIA_CONTENT_FIT,
   CARD_BACK_MEDIA_CONTENT_POSITION,
-  cardBackBalancedColumnStyle,
-  cardBackScrollMinHeight,
+  cardBackScrollContentStyle,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
@@ -62,6 +62,7 @@ import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 
 const FLIP_MS = 420;
+const LINK_HIT = layout.recommendedTouchTarget;
 
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
@@ -281,7 +282,7 @@ export function ConceptCard({
     const nextH = event.nativeEvent.layout.height;
     const nextW = event.nativeEvent.layout.width;
     // Flip rotateY can report a collapsed box; keep the last real face size
-    // so no-media backs stay vertically centered.
+    // so no-media backs keep a measured ScrollView minHeight.
     if (nextH > 1) {
       setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
       setFrontFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
@@ -300,13 +301,11 @@ export function ConceptCard({
       ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
       : undefined;
 
-  const faceInnerStyle = [
-    styles.faceInner,
-    { padding: facePad, borderRadius: radius },
-  ];
-
   const front = (
-    <View style={faceInnerStyle} onLayout={onUntransformedFaceLayout}>
+    <View
+      style={[styles.faceInner, styles.faceFrontInner, { padding: facePad, borderRadius: radius }]}
+      onLayout={onUntransformedFaceLayout}
+    >
       <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
       <ScrollView
         style={styles.frontScroll}
@@ -412,47 +411,51 @@ export function ConceptCard({
   });
   const backLayout = composeCardBackLayout(mediaPhase);
   const { rhythm } = backLayout;
-  const backScrollMinHeight = cardBackScrollMinHeight(backFaceH, facePad);
-  const noMediaColumnStyle = cardBackBalancedColumnStyle(backFaceH, facePad);
-
-  const backTitle = (
-    <Text
-      style={[
-        styles.conceptName,
-        {
-          fontSize: rhythm.titleFontSize,
-          lineHeight: rhythm.titleLineHeight,
-          marginBottom: rhythm.titleMarginBottom,
-        },
-      ]}
-      testID="card-back-title"
-    >
-      {title}
-    </Text>
+  const scrollContentStyle = cardBackScrollContentStyle(
+    backFaceH,
+    facePad,
+    rhythm.scrollJustify,
   );
+
+  // Apply via textStyle so ?e2eTextScale=2 reaches the back (rhythm constants are unscaled).
+  const backBodyType = textStyle('body');
+  const e2eTextScaleFactor = Math.max(
+    1,
+    ((backBodyType.fontSize as number) ?? rhythm.descriptionFontSize) /
+      rhythm.descriptionFontSize,
+  );
+  const backLinkFontSize = Math.round(16 * e2eTextScaleFactor);
 
   const backDescription = (
     <Text
       style={[
         styles.description,
         {
-          fontSize: rhythm.descriptionFontSize,
-          lineHeight: rhythm.descriptionLineHeight,
+          fontSize: backBodyType.fontSize,
+          lineHeight: backBodyType.lineHeight,
           marginBottom: rhythm.descriptionMarginBottom,
         },
       ]}
+      testID="card-back-description"
     >
       {item.shortDescription || t('noDescription')}
     </Text>
   );
 
+  // 48 px target via hitSlop only — minHeight would pad the visible underline past the
+  // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
+  const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - backLinkFontSize) / 2));
   const backWiki = item.wikiUrl ? (
-    <Text
-      style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={t('wikipedia')}
       onPress={() => Linking.openURL(item.wikiUrl!)}
+      hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
+      style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
+      testID="card-back-wiki"
     >
-      {t('wikipedia')}
-    </Text>
+      <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
+    </Pressable>
   ) : null;
 
   const backCopy = (
@@ -506,49 +509,36 @@ export function ConceptCard({
     ) : null;
 
   /**
-   * No-media: measured pixel height on an absolutely positioned column, then
-   * center title + description + Wikipedia as one group. flex leftover and
-   * bottom:0 do not stretch under the flip transform on RN Web, which is why
-   * #36 stayed top-heavy. With-media: unchanged expanding well.
+   * One ScrollView for both branches (Lz-27). Measured minHeight from the
+   * untransformed front keeps center/flex-start real under the flip on RN Web.
+   * No back title, no brand stamp — full paper reading surface.
    */
   const back = (
-    <View style={faceInnerStyle}>
-      <ConceptCardBrandTexture face="back" faceWidth={brandFaceWidth} />
-      {backLayout.balanceCopy ? (
+    <View
+      style={[styles.faceInner, styles.faceBackInner, { padding: facePad, borderRadius: radius }]}
+      accessibilityLabel={t('aboutConcept', { concept: title })}
+      testID={`card-back-${backLayout.mode}`}
+    >
+      <ScrollView
+        style={styles.backScroll}
+        contentContainerStyle={scrollContentStyle}
+        showsVerticalScrollIndicator={false}
+        bounces
+        nestedScrollEnabled
+        testID="card-back-scroll"
+      >
         <View
-          style={[
-            styles.backInnerBalanced,
-            { top: facePad, left: facePad, right: facePad },
-            noMediaColumnStyle,
-          ]}
-          testID={`card-back-${backLayout.mode}`}
+          style={[styles.backInner, backLayout.expandMediaZone ? styles.backInnerExpand : null]}
         >
-          <View style={styles.noMediaCopyGroup} testID="card-back-copy">
-            {backTitle}
-            {backDescription}
-            {backWiki}
-          </View>
+          {backMedia}
+          {backCopy}
         </View>
-      ) : (
-        <ScrollView
-          style={styles.backScroll}
-          contentContainerStyle={[
-            styles.backScrollContent,
-            backScrollMinHeight != null ? { minHeight: backScrollMinHeight } : null,
-          ]}
-          showsVerticalScrollIndicator={false}
-          bounces
-          testID={`card-back-${backLayout.mode}`}
-        >
-          <View style={styles.backInnerWithMedia}>
-            {backTitle}
-            {backMedia}
-            {backCopy}
-          </View>
-        </ScrollView>
-      )}
+      </ScrollView>
     </View>
   );
+
+  const frontA11yHidden = flipped;
+  const backA11yHidden = !flipped;
 
   return (
     <View style={styles.card}>
@@ -568,10 +558,22 @@ export function ConceptCard({
       ) : null}
       <View style={[styles.face, { borderRadius: radius }, CARD_SHADOW]}>
         <View style={styles.flipRoot}>
-          <Animated.View style={[styles.faceSide, styles.faceFront, frontFaceStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
+          <Animated.View
+            style={[styles.faceSide, styles.faceFront, frontFaceStyle]}
+            pointerEvents={flipped ? 'none' : 'auto'}
+            accessibilityElementsHidden={frontA11yHidden}
+            importantForAccessibility={frontA11yHidden ? 'no-hide-descendants' : 'auto'}
+            {...(Platform.OS === 'web' ? { 'aria-hidden': frontA11yHidden } : null)}
+          >
             {front}
           </Animated.View>
-          <Animated.View style={[styles.faceSide, styles.faceBack, backFaceStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
+          <Animated.View
+            style={[styles.faceSide, styles.faceBack, backFaceStyle]}
+            pointerEvents={flipped ? 'auto' : 'none'}
+            accessibilityElementsHidden={backA11yHidden}
+            importantForAccessibility={backA11yHidden ? 'no-hide-descendants' : 'auto'}
+            {...(Platform.OS === 'web' ? { 'aria-hidden': backA11yHidden } : null)}
+          >
             {back}
           </Animated.View>
         </View>
@@ -616,34 +618,27 @@ const styles = StyleSheet.create({
   },
   faceInner: {
     flex: 1,
-    backgroundColor: color.front,
     minHeight: 0,
     position: 'relative',
+  },
+  faceFrontInner: {
+    backgroundColor: color.front,
+  },
+  faceBackInner: {
+    backgroundColor: color.paper,
   },
   backScroll: {
     flex: 1,
     minHeight: 0,
     zIndex: 1,
   },
-  backScrollContent: {
-    flexGrow: 1,
-  },
-  backInnerWithMedia: {
-    flexGrow: 1,
+  backInner: {
     width: '100%',
     zIndex: 1,
   },
-  /**
-   * Pin to the face box with a measured pixel height. flex leftover and
-   * `bottom: 0` do not stretch this column under the flip transform on RN Web.
-   * Insets (top/left/right) are applied inline from `cardPadding(width)`.
-   */
-  backInnerBalanced: {
-    position: 'absolute',
-    zIndex: 1,
-  },
-  noMediaCopyGroup: {
-    width: '100%',
+  /** With-media only: let the photo well claim leftover height inside the ScrollView. */
+  backInnerExpand: {
+    flexGrow: 1,
   },
   mediaSlot: {
     width: '100%',
@@ -720,18 +715,15 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  conceptName: {
-    fontWeight: '700',
+  description: {
     color: color.ink,
   },
-  description: {
-    opacity: 0.92,
-    color: color.ink,
+  linkHit: {
+    alignSelf: 'flex-start',
   },
   link: {
     fontSize: 16,
     color: color.ink,
-    marginBottom: 8,
     fontWeight: '700',
     textDecorationLine: 'underline',
   },
