@@ -3,6 +3,20 @@ import { capture, flipCard } from '../helpers/capture';
 import { cardBackCopy, cardBackMedia, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
+/** Fail if `word` appears split across a line/name break without a preceding `-`. */
+function assertNoBareMidWordBreak(rendered: string, word: string): void {
+  const compact = rendered.replace(/\n/g, '');
+  if (compact.toLowerCase().includes(word.toLowerCase())) return;
+  const lower = rendered.toLowerCase();
+  const target = word.toLowerCase();
+  // Allow visible-hyphen wraps: "multi-\ndisciplinario" → joined with hyphen kept.
+  const dehyphenated = lower.replace(/-\n/g, '').replace(/-/g, '');
+  if (dehyphenated.includes(target)) return;
+  throw new Error(
+    `Expected "${word}" intact or hyphen-wrapped; got rendered title:\n${rendered}`,
+  );
+}
+
 test.describe('locale es', () => {
   test('front short label', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
@@ -12,9 +26,13 @@ test.describe('locale es', () => {
 
   test('front long label', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=long-label&locale=es');
-    await expect(
-      visibleText(page, /marco conceptual multidisciplinario extraordinariamente elaborado/i),
-    ).toBeVisible();
+    const title = page.getByTestId('card-front-title');
+    await expect(title).toBeVisible();
+    // Lz-26: no mid-word break without a visible hyphen (320 ES is the art-director check).
+    const text = (await title.innerText()).replace(/\s+/g, ' ').trim();
+    assertNoBareMidWordBreak(text, 'multidisciplinario');
+    await expect(title).toContainText(/marco conceptual/i);
+    await expect(title).toContainText(/extraordinariamente elaborado/i);
     await capture(page, testInfo, { screen: 'card-front', state: 'long-label', locale: 'es' });
   });
 

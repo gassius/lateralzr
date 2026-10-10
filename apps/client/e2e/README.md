@@ -48,8 +48,9 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 ### Card front title (Lz-26)
 
 - `card-front_short-label_*` — left-aligned concept title at default 32 (`?canonicalConcept=mushroom`)
-- `card-front_long-label_*` — wrap-before-shrink multi-line front (`?canonicalConcept=long-label`)
-- Review at 320×568 and 390×844; ink colour fallback is covered by `lib/conceptFrontTitle.test.ts`
+- `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
+- Art-director check: `card-front_long-label_320x568_es` must not show bare mid-word breaks (e.g. `multidisciplinario`)
+- Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
 ### Pending screens (add when UI ships)
 

@@ -24,9 +24,12 @@ import {
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
 import {
+  CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
   conceptFrontTitleRenderedSize,
+  layoutConceptFrontTitle,
+  measureConceptFrontTitleWidth,
   titleColor,
   type ConceptFrontTitleRect,
 } from '@/lib/conceptFrontTitle';
@@ -82,10 +85,21 @@ export function ConceptCard({
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
 
-  const frontTitleTextStyle = textStyle('concept');
-  const frontTitleFontSize = (frontTitleTextStyle.fontSize as number) ?? 32;
+  const frontTitleBaseStyle = textStyle('concept');
+  const frontTitleMaxSize = (frontTitleBaseStyle.fontSize as number) ?? CONCEPT_FRONT_TITLE_FONT_SIZE;
+  /** Content width inside face padding (onLayout width includes padding). */
+  const titleMaxWidth = Math.max(
+    0,
+    (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - CARD_BACK_FACE_PADDING * 2,
+  );
+  const frontTitleLayout = layoutConceptFrontTitle(
+    title,
+    titleMaxWidth,
+    measureConceptFrontTitleWidth,
+    frontTitleMaxSize,
+  );
   const frontTitleColor = titleColor(
-    conceptFrontTitleRenderedSize(frontTitleFontSize, PixelRatio.getFontScale()),
+    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, PixelRatio.getFontScale()),
   );
   const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
 
@@ -185,8 +199,12 @@ export function ConceptCard({
           <Text
             style={[
               styles.conceptNameFront,
-              frontTitleTextStyle,
-              { color: frontTitleColor },
+              {
+                fontSize: frontTitleLayout.fontSize,
+                lineHeight: frontTitleLayout.lineHeight,
+                fontWeight: frontTitleBaseStyle.fontWeight,
+                color: frontTitleColor,
+              },
             ]}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
@@ -194,8 +212,9 @@ export function ConceptCard({
             }}
             testID="card-front-title"
             accessibilityRole="header"
+            accessibilityLabel={title}
           >
-            {title}
+            {frontTitleLayout.displayText}
           </Text>
           <View style={styles.frontTitleBottomSpacer} />
         </View>
@@ -505,6 +524,16 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
     flexShrink: 0,
+    // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle; do not let
+    // the engine invent mid-word breaks without a visible hyphen.
+    ...Platform.select({
+      web: {
+        whiteSpace: 'pre-line' as const,
+        wordBreak: 'keep-all' as const,
+        overflowWrap: 'normal' as const,
+      },
+      default: {},
+    }),
   },
   conceptName: {
     fontWeight: '700',

@@ -6,14 +6,23 @@ import { color, type } from '../theme/tokens.ts';
 import {
   CONCEPT_FRONT_TITLE_COLOR,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
+  CONCEPT_FRONT_TITLE_HYPHEN,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
   TITLE_CLEAR_AREA,
   conceptFrontTitleRenderedSize,
+  hyphenateWord,
+  layoutConceptFrontTitle,
   titleColor,
+  wrapTitleAtSpaces,
 } from './conceptFrontTitle.ts';
+
+/** Deterministic measure: 1px per character × fontSize / 10 (so size matters). */
+function measure(text: string, fontSize: number): number {
+  return text.length * (fontSize / 10);
+}
 
 test('front titles are left-aligned (v3.3; supersedes Lz-04/Lz-14 centre)', () => {
   assert.equal(CONCEPT_FRONT_TITLE_TEXT_ALIGN, 'left');
@@ -65,4 +74,50 @@ test('title clear area and top ratio match pattern-master / Critiquito anchor', 
   assert.equal(TITLE_CLEAR_AREA.height, 168);
   assert.ok(CONCEPT_FRONT_TITLE_TOP_RATIO > 0.4);
   assert.ok(CONCEPT_FRONT_TITLE_TOP_RATIO < 0.52);
+});
+
+test('wraps at spaces and never mid-word without measuring overflow', () => {
+  const wrapped = wrapTitleAtSpaces('Tide Collective', 10 * 3.2, 32, measure);
+  assert.equal(wrapped, 'Tide\nCollective');
+  assert.equal(wrapTitleAtSpaces('multidisciplinario', 10 * 3.2, 32, measure), null);
+});
+
+test('shrinks 32→24 before hyphenating a long Spanish word', () => {
+  // "multidisciplinario" = 18 chars. measure: len * size/10.
+  // At 32: 57.6; at 24: 43.2 — so width 44 fits only after shrink, no hyphen.
+  const fitsAfterShrink = layoutConceptFrontTitle('multidisciplinario', 44, measure);
+  assert.equal(fitsAfterShrink.fontSize, 24);
+  assert.equal(fitsAfterShrink.displayText, 'multidisciplinario');
+  assert.ok(!fitsAfterShrink.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
+
+  const needsHyphen = layoutConceptFrontTitle('multidisciplinario', 30, measure);
+  assert.equal(needsHyphen.fontSize, 24);
+  assert.ok(needsHyphen.displayText.includes(`${CONCEPT_FRONT_TITLE_HYPHEN}\n`));
+  assert.match(needsHyphen.displayText, /-/);
+  // No bare mid-word break: every continued line break must end with a visible hyphen.
+  for (const line of needsHyphen.displayText.split('\n').slice(0, -1)) {
+    assert.ok(line.endsWith(CONCEPT_FRONT_TITLE_HYPHEN), `expected hyphen on "${line}"`);
+  }
+});
+
+test('hyphenateWord inserts a visible hyphen before the break', () => {
+  const broken = hyphenateWord('multidisciplinario', 20, 24, measure);
+  assert.ok(broken.includes(`${CONCEPT_FRONT_TITLE_HYPHEN}\n`));
+  assert.equal(broken.includes('multidiscip\nlinario'), false);
+});
+
+test('phrase prefers space wraps; long token can hyphenate at 24', () => {
+  const phrase = 'marco conceptual multidisciplinario elaborado';
+  const layout = layoutConceptFrontTitle(phrase, 36, measure);
+  assert.equal(layout.fontSize, 24);
+  assert.ok(layout.displayText.includes('marco'));
+  assert.ok(layout.displayText.includes('conceptual'));
+  // "multidisciplinario" (17*2.4=40.8) overflows 36 → must hyphenate
+  assert.ok(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
+});
+
+test('titleColor uses layout fontSize after shrink (ink only below 24)', () => {
+  const atFloor = layoutConceptFrontTitle('multidisciplinario', 41, measure);
+  assert.equal(titleColor(conceptFrontTitleRenderedSize(atFloor.fontSize, 1)), color.concept);
+  assert.equal(titleColor(conceptFrontTitleRenderedSize(23, 1)), color.ink);
 });
