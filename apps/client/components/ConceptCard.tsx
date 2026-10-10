@@ -321,7 +321,6 @@ export function ConceptCard({
   const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
   const titleBlockH = conceptFrontTitleBlockHeight(frontTitleLayout, e2eScale);
-  const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
   const titleViewportH = conceptFrontTitleViewportBlockHeight(frontTitleLayout, e2eScale);
   /**
    * AD #95: when overflowFallback exceeds max lines, size the top spacer so the
