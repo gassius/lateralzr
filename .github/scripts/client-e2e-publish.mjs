@@ -166,12 +166,26 @@ async function pushOrphan() {
 
   // Re-check immediately before push so a tip move during staging does not write.
   // Do not cancel an in-flight git push; skip only when we have not pushed yet.
+  // Residual race accepted: the PR tip can still move after this check and before
+  // the push lands; we do not cancel an in-flight orphan push to close that window.
   if (!(await assertArtifactMatchesCurrentHead('pre-push'))) {
     return false;
   }
 
-  if (hasRemoteBranch) sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
-  else sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+  if (!hasRemoteBranch) {
+    sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+    return true;
+  }
+
+  try {
+    sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+  } catch {
+    // Concurrent orphan update (another PR's pr-M/) → non-fast-forward. Rebase once and retry
+    // so this run still gets a tree link; nothing is clobbered on failure of the first push.
+    console.warn('Orphan push non-fast-forward; git pull --rebase + one retry.');
+    sh(`git pull --rebase ${remote} ${ORPHAN_BRANCH}`, work);
+    sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+  }
 
   return true;
 }
