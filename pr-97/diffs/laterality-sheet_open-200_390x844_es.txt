@@ -1,0 +1,4 @@
+Baseline diff for laterality-sheet_open-200_390x844_es.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/laterality-sheet_open-200_390x844_es.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/laterality-sheet_open-200_390x844_es.png
+diff ratio 0.0173 > 0.01 (22779 px)
