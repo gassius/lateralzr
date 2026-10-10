@@ -1,20 +1,24 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { color } from '../theme/tokens.ts';
-import { contrastRatio } from './coachHintPresentation.ts';
 import type { DeckConcept } from './conceptDeck.ts';
+import { setActiveLocale, t } from './i18n.ts';
 import {
   applyLateralityTreeSwap,
   clampLaterality,
   DEFAULT_LATERALITY,
-  lateralityGradientStops,
+  LATERALITY_LABEL_KEYS,
+  lateralityA11yText,
+  lateralityControlDisabled,
+  lateralityGradeLabelKey,
+  lateralityStepFromX,
   parseLateralityParam,
   resolveInitialLaterality,
-  lateralityControlDisabled,
   shouldPersistLaterality,
   shouldPersistLateralityAfterSwap,
   stepLaterality,
+  type LateralityGrade,
 } from './laterality.ts';
+import { buildRelationshipsRequestBody } from './testQueryParams.ts';
 
 function item(concept: string): DeckConcept {
   return {
@@ -57,7 +61,7 @@ describe('session-only URL laterality', () => {
     assert.equal(resolveInitialLaterality(undefined, 2), 2);
   });
 
-  it('persists only after an intentional submenu control', () => {
+  it('persists only after an intentional control change', () => {
     assert.equal(shouldPersistLaterality('control'), true);
     assert.equal(shouldPersistLaterality('hydrate'), false);
   });
@@ -68,7 +72,7 @@ describe('session-only URL laterality', () => {
     assert.equal(shouldPersistLateralityAfterSwap('hydrate', 'success'), false);
   });
 
-  it('disables laterality ± while a neighborhood swap is in flight', () => {
+  it('disables laterality control while a neighborhood swap is in flight', () => {
     assert.equal(lateralityControlDisabled(true, true), true);
     assert.equal(lateralityControlDisabled(true, false), false);
     assert.equal(lateralityControlDisabled(false, false), true);
@@ -93,38 +97,67 @@ describe('clampLaterality / stepLaterality', () => {
   });
 });
 
-describe('lateralityGradientStops', () => {
-  it('uses a cool, contained pair at laterality 1 (not deck shell)', () => {
-    const stops = lateralityGradientStops(1);
-    assert.notEqual(stops.start, color.shell);
-    assert.notEqual(stops.end, color.shell);
-    assert.notEqual(stops.start, stops.end);
-  });
-
-  it('bridges a light cool stop to brand orange at the default grade', () => {
-    assert.deepEqual(lateralityGradientStops(3), {
-      start: color.paper,
-      end: color.front,
+describe('grade labels and a11y value', () => {
+  it('maps grades 1–5 onto lateralityGrade keys (all selectable)', () => {
+    assert.deepEqual(LATERALITY_LABEL_KEYS, {
+      1: 'lateralityGrade1',
+      2: 'lateralityGrade2',
+      3: 'lateralityGrade3',
+      4: 'lateralityGrade4',
+      5: 'lateralityGrade5',
     });
-  });
-
-  it('opens toward orange / paper at laterality 5', () => {
-    assert.deepEqual(lateralityGradientStops(5), {
-      start: color.front,
-      end: color.paper,
-    });
-  });
-
-  it('keeps every grade readable on the shell deck', () => {
     for (const grade of [1, 2, 3, 4, 5] as const) {
-      const stops = lateralityGradientStops(grade);
-      for (const stop of [stops.start, stops.mid, stops.end]) {
-        if (!stop) continue;
-        assert.ok(
-          contrastRatio(stop, color.shell) >= 3,
-          `grade ${grade} ${stop} contrast vs deck`,
-        );
-      }
+      assert.equal(lateralityGradeLabelKey(grade), `lateralityGrade${grade}`);
+      assert.equal(clampLaterality(grade), grade);
+    }
+  });
+
+  it('builds a11y text as "<label>, n of 5" in en and es', () => {
+    setActiveLocale('en');
+    assert.equal(lateralityA11yText(4), 'Provocation, 4 of 5');
+    assert.equal(t(lateralityGradeLabelKey(1)), 'Same domain');
+    assert.equal(t(lateralityGradeLabelKey(5)), 'Random entry');
+
+    setActiveLocale('es');
+    assert.equal(lateralityA11yText(4), 'Provocación, 4 de 5');
+    assert.equal(t(lateralityGradeLabelKey(2)), 'Contexto compartido');
+    setActiveLocale('en');
+  });
+
+  it('fits the Spanish label composition at 320-wide character budget', () => {
+    setActiveLocale('es');
+    const label = `${t('laterality')} · ${t('lateralityGrade2')}`;
+    assert.equal(label, 'Lateralidad · Contexto compartido');
+    // 14px label on 320 − 32 gutter ≈ 288px; ~8px/glyph → ~36 glyphs.
+    assert.ok(label.length <= 36, `label too long for 320: ${label.length}`);
+    setActiveLocale('en');
+  });
+});
+
+describe('lateralityStepFromX', () => {
+  it('maps x across a rail width onto grades 1–5', () => {
+    const width = 200;
+    assert.equal(lateralityStepFromX(0, width), 1);
+    assert.equal(lateralityStepFromX(39, width), 1);
+    assert.equal(lateralityStepFromX(40, width), 2);
+    assert.equal(lateralityStepFromX(100, width), 3);
+    assert.equal(lateralityStepFromX(159, width), 4);
+    assert.equal(lateralityStepFromX(160, width), 5);
+    assert.equal(lateralityStepFromX(199, width), 5);
+    assert.equal(lateralityStepFromX(200, width), 5);
+  });
+
+  it('falls back safely for empty width or non-finite x', () => {
+    assert.equal(lateralityStepFromX(10, 0), DEFAULT_LATERALITY);
+    assert.equal(lateralityStepFromX(Number.NaN, 100), DEFAULT_LATERALITY);
+  });
+});
+
+describe('selecting each grade sends 1..5 to the API body', () => {
+  it('includes laterality 1–5 in buildRelationshipsRequestBody', () => {
+    for (const grade of [1, 2, 3, 4, 5] as LateralityGrade[]) {
+      const body = buildRelationshipsRequestBody({ laterality: grade, locale: 'en' });
+      assert.equal(body.laterality, grade);
     }
   });
 });

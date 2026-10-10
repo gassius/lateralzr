@@ -87,7 +87,7 @@ export async function settleAfterNavigation(
     await page.waitForLoadState('networkidle').catch(() => undefined);
   }
   // Deck chrome visible = settled enough for captures (avoid clock.fastForward — it breaks RNGH).
-  await page.getByTestId('laterality-submenu').waitFor({ state: 'visible', timeout: 5_000 });
+  await page.getByTestId('laterality-control').waitFor({ state: 'visible', timeout: 5_000 });
 }
 
 export async function openApp(
