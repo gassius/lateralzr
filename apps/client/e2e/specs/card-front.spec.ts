@@ -24,11 +24,12 @@ test.describe('card front', () => {
     expect(text.replace(/\n/g, '')).toMatch(/multidisciplinary/i);
     expect(text).not.toMatch(/multidisciplinar[iy]-/i);
 
-    // Art director §7.3 / Lz-26: prefer ≤4 lines by shrinking toward 24; long titles
-    // rise from the lower-middle anchor so "framework" is never clipped at 100% text.
-    // 320 EN still needs 5 lines at the 24 floor (words won't pair); 390 fits in 4.
+    // Art director §7.3 / Lz-26: ≤4 lines by shrinking toward 24; long titles rise
+    // from the lower-middle anchor so "framework" is never clipped at 100% text.
+    // 320 EN lands at ~24 px / 4 lines; 390 ~29 px / 4 lines.
     const lines = text.split('\n').filter((line) => line.trim().length > 0);
     expect(text.replace(/\n/g, '')).toMatch(/framework/i);
+    expect(lines.length).toBeLessThanOrEqual(4);
 
     const visibility = await title.evaluate((el) => {
       const titleBox = el.getBoundingClientRect();
@@ -39,24 +40,14 @@ test.describe('card front', () => {
         titleBottom: titleBox.bottom,
         faceBottom: faceBox?.bottom ?? 0,
         fontSize: parseFloat(getComputedStyle(el).fontSize),
-        lineCount: el.innerText.split('\n').filter((l) => l.trim().length > 0).length,
       };
     });
     expect(visibility.titleBottom).toBeLessThanOrEqual(visibility.faceBottom + 1);
-    if (lines.length > 4) {
-      // Only acceptable when already at the 24 floor after the max-lines shrink loop.
-      expect(visibility.fontSize).toBe(24);
-    } else {
-      expect(lines.length).toBeLessThanOrEqual(4);
-    }
     if (testInfo.project.name === '320x568') {
-      // 320 EN: was 32 px / 5 lines / clipped — must shrink and stay fully visible.
+      // 320 EN: was 32 px / 5 lines / clipped — now ≤4 lines, shrunk, fully visible.
+      expect(lines.length).toBeLessThanOrEqual(4);
       expect(visibility.fontSize).toBeLessThan(32);
       expect(visibility.fontSize).toBeGreaterThanOrEqual(24);
-      expect(visibility.titleBottom).toBeLessThanOrEqual(visibility.faceBottom + 1);
-    }
-    if (testInfo.project.name === '390x844') {
-      expect(lines.length).toBeLessThanOrEqual(4);
     }
 
     await capture(page, testInfo, { screen: 'card-front', state: 'long-label', locale: 'en' });
