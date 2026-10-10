@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { PixelRatio, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { color } from '@/theme/tokens';
+import { textStyle } from '@/theme/typography';
 import { t } from '@/lib/i18n';
 
 type DeckStatusCardProps = {
@@ -13,6 +14,9 @@ type DeckStatusCardProps = {
  */
 export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
   const animate = variant === 'loading';
+  const fontScale = PixelRatio.getFontScale();
+  const captionType = textStyle('body', { fontScale });
+  const retryType = textStyle('row', { fontScale });
 
   return (
     <View style={styles.root}>
@@ -20,18 +24,18 @@ export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
         <View style={styles.center}>
         <LateralzrLogo animate={animate} />
         {variant === 'loading' ? (
-          <Text style={styles.caption}>
+          <Text style={[styles.caption, captionType]}>
             {t('loadingMoreIdeas')}
           </Text>
         ) : null}
         {variant === 'error' ? (
           <>
-            <Text style={styles.caption}>
+            <Text style={[styles.caption, captionType]}>
               {t('couldNotLoadMore')}
             </Text>
             {onRetry ? (
               <Pressable onPress={onRetry} style={styles.retry}>
-                <Text style={styles.retryText}>
+                <Text style={[styles.retryText, retryType]}>
                   {t('tapToRetry')}
                 </Text>
               </Pressable>
@@ -67,9 +71,7 @@ const styles = StyleSheet.create({
     minHeight: 280,
   },
   caption: {
-    fontSize: 16,
     textAlign: 'center',
-    lineHeight: 24,
     paddingHorizontal: 12,
     opacity: 0.92,
     color: color.concept,
@@ -80,8 +82,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   retryText: {
-    fontSize: 16,
-    fontWeight: '600',
     textDecorationLine: 'underline',
     color: color.concept,
   },

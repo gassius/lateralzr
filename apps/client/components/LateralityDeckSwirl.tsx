@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, PixelRatio, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -11,6 +11,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { color } from '@/theme/tokens';
+import { textStyle } from '@/theme/typography';
 import { t } from '@/lib/i18n';
 import { lateralityGradientStops } from '@/lib/laterality';
 import {
@@ -179,7 +180,14 @@ export function LateralityDeckSwirl({
           ))
         : null}
       <Animated.View style={[styles.captionWrap, washStyle]} pointerEvents="none">
-        <Text style={styles.caption}>{caption}</Text>
+        <Text
+          style={[
+            styles.caption,
+            textStyle('label', { fontScale: PixelRatio.getFontScale() }),
+          ]}
+        >
+          {caption}
+        </Text>
       </Animated.View>
     </View>
   );
@@ -309,9 +317,6 @@ const styles = StyleSheet.create({
     color: color.concept,
     backgroundColor: color.paper,
     overflow: 'hidden',
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: '500',
     textAlign: 'center',
     paddingVertical: 7,
     paddingHorizontal: 12,

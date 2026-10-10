@@ -40,6 +40,11 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 4. Create `e2e/specs/<screen>.spec.ts`. Use `openApp(page, query)` then `capture(page, testInfo, { screen, state, locale })`.
 5. Add the spec only when the UI exists — do not leave always-skipped placeholders.
 
+### Typography (Lz-22)
+
+- `typography_status-body_*` — DeckStatusCard loading caption at body scale
+- `typography_web-zoom-200_*` — practice chrome with `documentElement.style.zoom = 2` (200% web zoom for art director / large-text layout)
+
 ### Pending screens (add when UI ships)
 
 - Laterality sheet open
