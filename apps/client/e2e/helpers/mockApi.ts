@@ -67,6 +67,23 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
     return readJson(locale === 'es' ? 'long-label-es.json' : 'long-label-en.json');
   }
 
+  // Lz-26 art-director test strings (guide §7.3).
+  if (canonicalKey === 'tide' || startKey === 'tide') {
+    return readJson('tide-en.json');
+  }
+  if (
+    canonicalKey === 'collective-intelligence' ||
+    startKey === 'collective intelligence'
+  ) {
+    return readJson('collective-intelligence-en.json');
+  }
+  if (
+    canonicalKey === 'intergenerational' ||
+    startKey === 'intergenerational transmission of knowledge'
+  ) {
+    return readJson('intergenerational-en.json');
+  }
+
   if (
     canonicalKey === 'no-description' ||
     startKey === 'no-description' ||

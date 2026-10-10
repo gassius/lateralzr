@@ -31,6 +31,10 @@ test.describe('locale es', () => {
     // Lz-26: no mid-word break without a visible hyphen (320 ES is the art-director check).
     const text = await title.innerText();
     assertNoBareMidWordBreak(text, 'multidisciplinario');
+    assertNoBareMidWordBreak(text, 'extraordinariamente');
+    // Words that fit at 24 px must stay whole (art-director blocker on 1e6ac7a).
+    expect(text).not.toMatch(/extraordinariame-/i);
+    expect(text.replace(/\n/g, '')).toMatch(/extraordinariamente/i);
     await expect(title).toHaveAttribute(
       'aria-label',
       /marco conceptual multidisciplinario extraordinariamente elaborado/i,

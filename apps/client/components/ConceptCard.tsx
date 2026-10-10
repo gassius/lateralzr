@@ -25,8 +25,10 @@ import {
 } from '@/lib/cardBackLayout';
 import {
   CONCEPT_FRONT_TITLE_FONT_SIZE,
+  CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
+  conceptFrontTitleLayoutWidth,
   conceptFrontTitleRenderedSize,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
@@ -92,20 +94,30 @@ export function ConceptCard({
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
 
   const frontTitleBaseStyle = textStyle('concept');
-  const frontTitleMaxSize = (frontTitleBaseStyle.fontSize as number) ?? CONCEPT_FRONT_TITLE_FONT_SIZE;
+  /** e2eTextScale (and any future scale) already baked into textStyle fontSize. */
+  const e2eOrStyleScale = Math.max(
+    1,
+    ((frontTitleBaseStyle.fontSize as number) ?? CONCEPT_FRONT_TITLE_FONT_SIZE) /
+      CONCEPT_FRONT_TITLE_FONT_SIZE,
+  );
+  const osFontScale = PixelRatio.getFontScale();
+  const layoutMaxSize = Math.round(CONCEPT_FRONT_TITLE_FONT_SIZE * e2eOrStyleScale);
+  const layoutMinSize = Math.round(CONCEPT_FRONT_TITLE_MIN_ON_ORANGE * e2eOrStyleScale);
   /** Content width inside face padding (onLayout width includes padding). */
-  const titleMaxWidth = Math.max(
+  const titleContentWidth = Math.max(
     0,
     (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - CARD_BACK_FACE_PADDING * 2,
   );
+  const titleLayoutWidth = conceptFrontTitleLayoutWidth(titleContentWidth, osFontScale);
   const frontTitleLayout = layoutConceptFrontTitle(
     title,
-    titleMaxWidth,
+    titleLayoutWidth,
     measureConceptFrontTitleWidth,
-    frontTitleMaxSize,
+    layoutMaxSize,
+    layoutMinSize,
   );
   const frontTitleColor = titleColor(
-    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, PixelRatio.getFontScale()),
+    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, osFontScale),
   );
   const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
 

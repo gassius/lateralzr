@@ -24,8 +24,18 @@ export const CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO = 1.15;
 /** Visible hyphen used when a word still overflows at the 24 px floor. */
 export const CONCEPT_FRONT_TITLE_HYPHEN = '-';
 
-/** Approx bold system-sans advance when canvas measure is unavailable. */
-export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.62;
+/**
+ * RN Web `Text` default (`font: '14px System'` → createReactDOMStyle SYSTEM_FONT_STACK).
+ * Must match the rendered title face — not bare `system-ui`, which over-measures on CI.
+ */
+export const CONCEPT_FRONT_TITLE_FONT_STACK =
+  '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+
+/**
+ * Fallback advance when DOM/canvas measure is unavailable.
+ * Calibrated to Liberation Sans Bold (~231 px for "extraordinariamente" at 24).
+ */
+export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.51;
 
 /**
  * Pattern-master `#title-clear-area` in card design units (358×560).
@@ -88,19 +98,47 @@ export type ConceptFrontTitleLayout = {
 };
 
 let measureCanvas: HTMLCanvasElement | null = null;
+let measureHost: HTMLSpanElement | null = null;
 
 /**
- * Width of `text` at `fontSize` / weight 700.
- * Web: canvas `measureText`. Native/SSR: character-count approx.
+ * Width of `text` at `fontSize` / weight 700 using the RN Web System stack.
+ * Prefers a DOM span (same metrics as rendered Text); canvas fallback uses the
+ * same family string. Native/SSR: Liberation-calibrated approx.
  */
 export function measureConceptFrontTitleWidth(text: string, fontSize: number): number {
   if (text.length === 0) return 0;
-  if (typeof document !== 'undefined') {
+  if (typeof document !== 'undefined' && document.body) {
+    try {
+      measureHost ??= document.createElement('span');
+      const el = measureHost;
+      el.style.cssText = [
+        'position:absolute',
+        'left:-9999px',
+        'top:0',
+        'visibility:hidden',
+        'pointer-events:none',
+        'white-space:pre',
+        `font-family:${CONCEPT_FRONT_TITLE_FONT_STACK}`,
+        'font-weight:700',
+        `font-size:${fontSize}px`,
+        'font-style:normal',
+        'letter-spacing:normal',
+        'padding:0',
+        'margin:0',
+        'border:0',
+      ].join(';');
+      el.textContent = text;
+      if (!el.isConnected) document.body.appendChild(el);
+      const width = el.getBoundingClientRect().width;
+      if (width > 0) return width;
+    } catch {
+      // fall through
+    }
     try {
       measureCanvas ??= document.createElement('canvas');
       const ctx = measureCanvas.getContext('2d');
       if (ctx) {
-        ctx.font = `700 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+        ctx.font = `700 ${fontSize}px ${CONCEPT_FRONT_TITLE_FONT_STACK}`;
         return ctx.measureText(text).width;
       }
     } catch {
@@ -108,6 +146,18 @@ export function measureConceptFrontTitleWidth(text: string, fontSize: number): n
     }
   }
   return text.length * fontSize * CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO;
+}
+
+/**
+ * Layout width in the same coordinate space as unscaled (or e2e-scaled) fontSize.
+ * OS font scaling multiplies glyph advances — divide the face content width by it.
+ */
+export function conceptFrontTitleLayoutWidth(
+  contentWidth: number,
+  fontScale: number = 1,
+): number {
+  const scale = fontScale > 0 ? fontScale : 1;
+  return Math.max(0, contentWidth / scale);
 }
 
 function tokenizeTitle(text: string): string[] {

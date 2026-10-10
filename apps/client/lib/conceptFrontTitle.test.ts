@@ -6,12 +6,14 @@ import { color, type } from '../theme/tokens.ts';
 import {
   CONCEPT_FRONT_TITLE_COLOR,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
+  CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_HYPHEN,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
   TITLE_CLEAR_AREA,
+  conceptFrontTitleLayoutWidth,
   conceptFrontTitleRenderedSize,
   hyphenateWord,
   layoutConceptFrontTitle,
@@ -120,4 +122,29 @@ test('titleColor uses layout fontSize after shrink (ink only below 24)', () => {
   const atFloor = layoutConceptFrontTitle('multidisciplinario', 41, measure);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(atFloor.fontSize, 1)), color.concept);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(23, 1)), color.ink);
+});
+
+test('measure font stack matches RN Web System (not bare system-ui)', () => {
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Segoe UI/);
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Arial/);
+  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('system-ui'), false);
+});
+
+test('layout width divides content width by OS font scale', () => {
+  assert.equal(conceptFrontTitleLayoutWidth(253, 1), 253);
+  assert.equal(conceptFrontTitleLayoutWidth(253, 2), 126.5);
+  assert.equal(conceptFrontTitleLayoutWidth(100, 0), 100);
+});
+
+test('word that fits at 24 is not hyphenated (art-director extraordinariamente case)', () => {
+  // Art director: ~231 px at 24 vs ~253 content. Scales linearly with fontSize.
+  const fits = (text: string, fontSize: number) => {
+    if (text === 'extraordinariamente') return 231 * (fontSize / 24);
+    return text.length * fontSize * 0.51;
+  };
+  // At 32: 308 > 253 → shrink; at 24: 231 ≤ 253 → whole word, no hyphen.
+  const layout = layoutConceptFrontTitle('extraordinariamente', 253, fits);
+  assert.equal(layout.fontSize, 24);
+  assert.equal(layout.displayText, 'extraordinariamente');
+  assert.equal(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN), false);
 });

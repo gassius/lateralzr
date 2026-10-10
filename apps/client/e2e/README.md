@@ -49,7 +49,9 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 - `card-front_short-label_*` — left-aligned concept title at default 32 (`?canonicalConcept=mushroom`)
 - `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
-- Art-director check: `card-front_long-label_320x568_es` must not show bare mid-word breaks (e.g. `multidisciplinario`)
+- Spec strings: `card-front_tide_*`, `card-front_collective-intelligence_*`, `card-front_intergenerational_*`
+- `typography_long-label-200_*` — long front at `?e2eTextScale=2`
+- Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
 ### Pending screens (add when UI ships)
