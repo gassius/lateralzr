@@ -20,7 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import type { ConceptItem } from '@/lib/api';
 import { hexToRgba } from '@/theme/contrast';
-import { color } from '@/theme/tokens';
+import { color, type as typeTokens } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
@@ -431,16 +431,29 @@ export function ConceptCard({
     </Text>
   );
 
+  // Apply via textStyle so ?e2eTextScale=2 reaches the back (rhythm constants are unscaled).
+  const backBodyType = textStyle('body');
+  const e2eTextScaleFactor = Math.max(
+    1,
+    ((backBodyType.fontSize as number) ?? typeTokens.body) / typeTokens.body,
+  );
+  const backDescriptionFontSize = Math.round(rhythm.descriptionFontSize * e2eTextScaleFactor);
+  const backDescriptionLineHeight = Math.round(
+    rhythm.descriptionLineHeight * e2eTextScaleFactor,
+  );
+  const backLinkFontSize = Math.round(16 * e2eTextScaleFactor);
+
   const backDescription = (
     <Text
       style={[
         styles.description,
         {
-          fontSize: rhythm.descriptionFontSize,
-          lineHeight: rhythm.descriptionLineHeight,
+          fontSize: backDescriptionFontSize,
+          lineHeight: backDescriptionLineHeight,
           marginBottom: rhythm.descriptionMarginBottom,
         },
       ]}
+      testID="card-back-description"
     >
       {item.shortDescription || t('noDescription')}
     </Text>
@@ -448,8 +461,9 @@ export function ConceptCard({
 
   const backWiki = item.wikiUrl ? (
     <Text
-      style={[styles.link, { marginTop: rhythm.linkMarginTop }]}
+      style={[styles.link, { marginTop: rhythm.linkMarginTop, fontSize: backLinkFontSize }]}
       onPress={() => Linking.openURL(item.wikiUrl!)}
+      testID="card-back-wiki"
     >
       {t('wikipedia')}
     </Text>

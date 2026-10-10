@@ -12,6 +12,21 @@ test.describe('card back', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
 
+  // Art-director: link spacing / body at large text — one viewport is enough.
+  test('no media at 200% e2e text scale', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% back capture');
+    await openApp(page, 'canonicalConcept=mushroom&e2eTextScale=2');
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+    await expect(page.getByTestId('card-back-media')).toHaveCount(0);
+    await expect(page.getByTestId('card-back-wiki')).toBeVisible();
+    // Guard against a byte-identical 100% capture: body must actually scale.
+    const description = page.locator('[data-testid="card-back-description"]:visible').first();
+    const fontSize = await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(34);
+    await capture(page, testInfo, { screen: 'card-back', state: 'no-media-200', locale: 'en' });
+  });
+
   test('no description fallback copy', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=no-description');
     await flipCard(page);
