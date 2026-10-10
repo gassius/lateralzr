@@ -3,7 +3,8 @@
  * this module does not encode the lateral bridge to the previous/next card.
  *
  * Lz-27 (no-media / failed): paper reading region, no title, ScrollView with
- * centered short copy. Lz-28 owns the media well chrome.
+ * centered short copy. Lz-28 owns the full-bleed media layer + fade
+ * (`lib/cardBackMedia.ts`); this module only toggles the with-media branch.
  */
 
 import { type as typeTokens } from '@/theme/tokens';
@@ -30,9 +31,8 @@ export type CardBackCopyRhythm = {
 };
 
 /**
- * How the photo paints inside the expanding well.
- * `contain` letterboxes on the face (landscape: tall gutters; portrait: side bars).
- * `cover` centered fills the well; crop is the trade for a finished, media-forward back.
+ * Default paint mode for adequate photos (Lz-28). Runtime fit may switch to
+ * `contain` via `resolveCardBackMediaFit` (png/svg or >1.5× upscale).
  */
 export type CardBackMediaContentFit = 'cover' | 'contain';
 
@@ -63,18 +63,25 @@ export const CARD_BACK_WITHOUT_MEDIA_RHYTHM: CardBackCopyRhythm = {
 
 export type CardBackLayout = {
   mode: CardBackLayoutMode;
-  /** Mount the media well only while loading or ready. Collapse it when empty or failed. */
+  /** Mount the media layer while loading or ready. Collapse it when empty or failed. */
   showMediaZone: boolean;
+  /**
+   * Legacy flag — always false. Lz-28 has no tinted placeholder; the band is paper
+   * until the image decodes.
+   */
   showMediaPlaceholder: boolean;
   showMediaImage: boolean;
-  /** Let the media well take leftover height so the back is not an unused void. */
+  /** With-media reading rhythm is top-stacked (image band claims leftover height). */
   expandMediaZone: boolean;
   /**
-   * Center the reading region in the ScrollView when there is no media well
+   * Center the reading region in the ScrollView when there is no media layer
    * (short copy sits mid-face; long copy grows upward and scrolls).
    */
   balanceCopy: boolean;
-  /** Cover-fill the well when media is shown; null when the zone is collapsed. */
+  /**
+   * Default fit hint (`cover`) when the media layer is shown; null when collapsed.
+   * Actual fit comes from `resolveCardBackMediaFit`.
+   */
   mediaContentFit: CardBackMediaContentFit | null;
   rhythm: CardBackCopyRhythm;
 };
@@ -107,8 +114,8 @@ export function composeCardBackLayout(phase: CardBackMediaPhase): CardBackLayout
   return {
     mode: 'with-media',
     showMediaZone: true,
-    showMediaPlaceholder: phase === 'loading',
-    showMediaImage: true,
+    showMediaPlaceholder: false,
+    showMediaImage: phase === 'ready',
     expandMediaZone: true,
     balanceCopy: false,
     mediaContentFit: CARD_BACK_MEDIA_CONTENT_FIT,
