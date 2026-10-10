@@ -67,7 +67,8 @@ export const MESSAGE_KEYS = [
 
 export type MessageKey = (typeof MESSAGE_KEYS)[number];
 
-const messages: Record<AppLocale, Record<MessageKey, string>> = {
+/** Raw locale catalogs (no fallback). Exported for parity tests. */
+export const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
     swipeCoach: 'Swipe for another idea',
     flipCoach: 'Tap the card to learn more',

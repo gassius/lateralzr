@@ -4,11 +4,16 @@ import {
   DEFAULT_LOCALE,
   getActiveLocale,
   MESSAGE_KEYS,
+  messages,
   normalizeLocaleTag,
   resolveLocalePreference,
   setActiveLocale,
   t,
 } from '../lib/i18n.ts';
+
+function placeholderNames(text: string): string[] {
+  return [...text.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((match) => match[1]!).sort();
+}
 
 afterEach(() => {
   setActiveLocale(DEFAULT_LOCALE);
@@ -25,17 +30,23 @@ describe('i18n locale catalogs', () => {
     assert.equal(t('illustrationFor', { concept: 'silencio' }), 'Ilustración de silencio');
   });
 
-  it('has a non-empty string for every key in en and es', () => {
+  it('keeps en and es catalogs aligned with MESSAGE_KEYS (no t() fallback)', () => {
+    const expected = [...MESSAGE_KEYS].sort();
+    assert.deepEqual(Object.keys(messages.en).sort(), expected);
+    assert.deepEqual(Object.keys(messages.es).sort(), expected);
+
     for (const key of MESSAGE_KEYS) {
-      for (const locale of ['en', 'es'] as const) {
-        setActiveLocale(locale);
-        const value = t(key);
-        assert.ok(
-          value.trim().length > 0,
-          `expected non-empty ${locale} for ${key}`,
-        );
-        assert.notEqual(value, key, `expected translated ${locale} for ${key}`);
-      }
+      const en = messages.en[key];
+      const es = messages.es[key];
+      assert.equal(typeof en, 'string', `en.${key} should be a string`);
+      assert.equal(typeof es, 'string', `es.${key} should be a string`);
+      assert.ok(en.trim().length > 0, `expected non-empty en for ${key}`);
+      assert.ok(es.trim().length > 0, `expected non-empty es for ${key}`);
+      assert.deepEqual(
+        placeholderNames(en),
+        placeholderNames(es),
+        `placeholder set mismatch for ${key}`,
+      );
     }
   });
 
