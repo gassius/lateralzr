@@ -413,3 +413,5 @@ Quick specs:
 - [Ollama Documentation](https://docs.ollama.com)
 - [Edward de Bono - Lateral Thinking](https://www.edwarddebono.com/lateral-thinking)
 - [Oblique Strategies - Brian Eno](https://en.wikipedia.org/wiki/Oblique_Strategies)
+
+<!-- client-e2e always-report skip-path probe; safe to drop -->
