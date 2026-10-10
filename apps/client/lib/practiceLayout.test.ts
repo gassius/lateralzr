@@ -43,7 +43,7 @@ describe('practiceLayout menu trigger slot', () => {
     assert.equal(practiceMenuTriggerSize(), layout.recommendedTouchTarget);
   });
 
-  it('keeps the trigger unmounted until the menu (Lz-32) lands', () => {
-    assert.equal(APP_MENU_TRIGGER_ENABLED, false);
+  it('mounts the trigger once the app menu (Lz-32) lands', () => {
+    assert.equal(APP_MENU_TRIGGER_ENABLED, true);
   });
 });
