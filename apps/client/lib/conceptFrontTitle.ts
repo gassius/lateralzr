@@ -161,6 +161,34 @@ export function conceptFrontTitleBlockHeight(
   return lines * displayLineHeight;
 }
 
+/**
+ * Max title height that may sit in the face viewport at once (§7.3 / AD #95).
+ * `overflowFallback` may still return 5+ lines in `displayText`; the face scrolls
+ * for the rest. Never size the initial viewport from the unlimited block height.
+ */
+export function conceptFrontTitleViewportBlockHeight(
+  layout: ConceptFrontTitleLayout,
+  displayScale: number = 1,
+): number {
+  const scale = displayScale > 0 ? displayScale : 1;
+  const displayLineHeight = Math.round(layout.lineHeight * scale);
+  const maxVisible = CONCEPT_FRONT_TITLE_MAX_LINES * displayLineHeight;
+  return Math.min(conceptFrontTitleBlockHeight(layout, scale), maxVisible);
+}
+
+/**
+ * Top spacer when the title exceeds {@link CONCEPT_FRONT_TITLE_MAX_LINES}:
+ * pin so at most that many whole lines fit in the face before scrolling
+ * (no mid-glyph clip of a 5th line at the card edge).
+ */
+export function conceptFrontTitleOverflowTopSpacerHeight(
+  faceHeight: number,
+  titleViewportHeight: number,
+): number {
+  if (faceHeight <= 0) return 0;
+  return Math.max(0, Math.round(faceHeight - Math.max(0, titleViewportHeight)));
+}
+
 let measureCanvas: HTMLCanvasElement | null = null;
 let measureHost: HTMLSpanElement | null = null;
 
@@ -342,8 +370,11 @@ export function wrapTitleWithHyphens(
 /**
  * Pick font size (32→24) and display string.
  * Shrink before hyphenating; never mid-word break without a visible `-`.
- * Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines (shrink toward 24 first),
- * then let the face scroll — never shrink below the teal floor (§7.2).
+ * Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines (shrink toward 24 first).
+ * When even 24 still wraps past max lines, keep the full wrap in `displayText`
+ * (face scroll reveals the rest) — never shrink below the teal floor (§7.2).
+ * ConceptCard sizes the initial viewport from
+ * {@link conceptFrontTitleViewportBlockHeight}, not the unlimited block.
  *
  * `fontScale` is passed into measure as `size × fontScale` (OS / e2e glyph scale).
  * Returned `fontSize` / `lineHeight` stay unscaled for the Text style (#82).
