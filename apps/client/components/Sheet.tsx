@@ -16,7 +16,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { readWebPrefersReducedMotion } from '@/lib/cardSwipeMotion';
+import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
 import { focusSheetHost } from '@/lib/sheetFocus';
