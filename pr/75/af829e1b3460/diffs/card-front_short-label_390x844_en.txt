@@ -1,1 +1,0 @@
-size mismatch actual=780x1688 baseline=100x100
