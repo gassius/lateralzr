@@ -43,7 +43,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 ### Typography (Lz-22)
 
 - `typography_status-body_*` — DeckStatusCard loading caption at body scale (v3.3 `type.body`)
-- `typography_web-zoom-200_*` — practice chrome with `documentElement.style.zoom = 2` (200% web zoom for art director / large-text layout)
+- `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
 ### Pending screens (add when UI ships)
 

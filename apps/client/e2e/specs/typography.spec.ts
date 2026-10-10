@@ -5,7 +5,7 @@ import { openApp } from '../helpers/preparePage';
 
 /**
  * Lz-22: art-director captures for v3.3 type roles on non-card chrome,
- * plus a 200% web zoom pass (Engineer Supervisor: root font-size/zoom override).
+ * plus a 200% text-scale pass via test-only `e2eTextScale` (joint fontSize+lineHeight).
  */
 test.describe('typography', () => {
   test('status loading uses body-scale caption (no ellipsis)', async ({ page }, testInfo) => {
@@ -31,15 +31,12 @@ test.describe('typography', () => {
     await capture(page, testInfo, { screen: 'typography', state: 'status-body', locale: 'en' });
   });
 
-  test('practice chrome at 200% web zoom', async ({ page }, testInfo) => {
-    await openApp(page, 'canonicalConcept=mushroom');
+  test('practice chrome at 200% e2e text scale (full frame)', async ({ page }, testInfo) => {
+    // Test-only override: multiplies fontSize and lineHeight together (RN joint scale).
+    // Do not use documentElement.zoom — it crops the phone frame.
+    await openApp(page, 'canonicalConcept=mushroom&e2eTextScale=2');
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
-    await page.evaluate(() => {
-      document.documentElement.style.zoom = '2';
-    });
-    await page.waitForTimeout(100);
-
-    await capture(page, testInfo, { screen: 'typography', state: 'web-zoom-200', locale: 'en' });
+    await capture(page, testInfo, { screen: 'typography', state: 'large-text-200', locale: 'en' });
   });
 });

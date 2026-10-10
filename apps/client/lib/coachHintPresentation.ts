@@ -12,13 +12,13 @@ export { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contras
  * miss at arm's length. Coaching stays progressive (not always-on); this module
  * only makes the copy readable when it is shown.
  *
- * Type role: v3.3 menu row (Lz-22). Apply `textStyle('row', { fontScale })` at render.
+ * Type role: v3.3 menu row (Lz-22). Apply `textStyle('row')` at render.
  */
 
 /** Secondary to the concept title; v3.3 `type.row`. */
 export const COACH_HINT_FONT_SIZE = typeSize('row');
 
-export const COACH_HINT_LINE_HEIGHT = textStyle('row', { fontScale: 1 }).lineHeight as number;
+export const COACH_HINT_LINE_HEIGHT = textStyle('row').lineHeight as number;
 
 export const COACH_HINT_FONT_WEIGHT = typeWeight('row');
 

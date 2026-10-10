@@ -11,7 +11,7 @@ import { t } from './i18n';
  * dimension (label density, not edge distance) and must not join that row.
  * Deep links and vertical swipes only get a short, secondary confirmation.
  *
- * Type roles: v3.3 label / meta (Lz-22). Apply `textStyle` at render with fontScale.
+ * Type roles: v3.3 label / meta (Lz-22). Apply `textStyle` at render.
  */
 
 /** Quiet type: v3.3 compact control label. */
@@ -20,7 +20,7 @@ export const COMPLEXITY_CUE_FONT_SIZE = typeSize('label');
 /** After the chip leaves, a session deep-link keeps this quieter mark (attribution/help). */
 export const COMPLEXITY_SESSION_MARK_FONT_SIZE = typeSize('meta');
 
-export const COMPLEXITY_CUE_LINE_HEIGHT = textStyle('label', { fontScale: 1 }).lineHeight as number;
+export const COMPLEXITY_CUE_LINE_HEIGHT = textStyle('label').lineHeight as number;
 
 export const COMPLEXITY_CUE_FONT_WEIGHT = typeWeight('label');
 

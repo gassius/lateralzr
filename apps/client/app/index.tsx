@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -680,14 +680,13 @@ export default function HomeScreen() {
   }
 
   if (error && concepts.length === 0) {
-    const fontScale = PixelRatio.getFontScale();
     return (
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
         <LateralzrLogo animate={false} />
-        <Text style={[styles.error, textStyle('body', { fontScale })]}>{error}</Text>
+        <Text style={[styles.error, textStyle('body')]}>{error}</Text>
         <Pressable onPress={() => loadConcepts()} style={styles.retryBtn}>
-          <Text style={[styles.retryText, textStyle('row', { fontScale })]}>{t('tapToRetry')}</Text>
+          <Text style={[styles.retryText, textStyle('row')]}>{t('tapToRetry')}</Text>
         </Pressable>
       </View>
     );

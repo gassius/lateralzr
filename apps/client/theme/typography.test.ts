@@ -55,15 +55,17 @@ describe('v3.3 typography roles', () => {
     }
   });
 
-  it('scales absolute lineHeight with fontScale (200% OS text)', () => {
-    const at100 = textStyle('row', { fontScale: 1 });
-    const at200 = textStyle('row', { fontScale: 2 });
-    assert.equal(at100.lineHeight, Math.round(17 * 1.4));
-    assert.equal(at200.lineHeight, Math.round(17 * 1.4 * 2));
-    assert.equal(at200.fontSize, at100.fontSize);
+  it('returns unscaled lineHeight (RN scales fontSize and lineHeight together)', () => {
+    const row = textStyle('row');
+    assert.equal(row.lineHeight, Math.round(17 * 1.4));
+    assert.equal(row.fontSize, 17);
 
-    const concept200 = textStyle('concept', { fontScale: 2 });
-    assert.equal(concept200.lineHeight, Math.round(32 * 1.15 * 2));
+    const concept = textStyle('concept');
+    assert.equal(concept.lineHeight, Math.round(32 * 1.15));
+    assert.equal(concept.fontSize, 32);
+
+    const body = textStyle('body');
+    assert.equal(body.lineHeight, Math.round(18 * 1.5));
   });
 
   it('allows weight override without changing size', () => {

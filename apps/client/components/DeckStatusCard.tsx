@@ -1,4 +1,4 @@
-import { PixelRatio, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
@@ -15,9 +15,6 @@ type DeckStatusCardProps = {
  */
 export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
   const animate = variant === 'loading';
-  const fontScale = PixelRatio.getFontScale();
-  const captionType = textStyle('body', { fontScale });
-  const retryType = textStyle('row', { fontScale });
 
   return (
     <View style={styles.root}>
@@ -25,18 +22,18 @@ export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
         <View style={styles.center}>
         <LateralzrLogo animate={animate} />
         {variant === 'loading' ? (
-          <Text style={[styles.caption, captionType]}>
+          <Text style={[styles.caption, textStyle('body')]}>
             {t('loadingMoreIdeas')}
           </Text>
         ) : null}
         {variant === 'error' ? (
           <>
-            <Text style={[styles.caption, captionType]}>
+            <Text style={[styles.caption, textStyle('body')]}>
               {t('couldNotLoadMore')}
             </Text>
             {onRetry ? (
               <Pressable onPress={onRetry} style={styles.retry}>
-                <Text style={[styles.retryText, retryType]}>
+                <Text style={[styles.retryText, textStyle('row')]}>
                   {t('tapToRetry')}
                 </Text>
               </Pressable>

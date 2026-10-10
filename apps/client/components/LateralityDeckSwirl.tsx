@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, PixelRatio, Platform, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -181,14 +181,7 @@ export function LateralityDeckSwirl({
           ))
         : null}
       <Animated.View style={[styles.captionWrap, washStyle]} pointerEvents="none">
-        <Text
-          style={[
-            styles.caption,
-            textStyle('label', { fontScale: PixelRatio.getFontScale() }),
-          ]}
-        >
-          {caption}
-        </Text>
+        <Text style={[styles.caption, textStyle('label')]}>{caption}</Text>
       </Animated.View>
     </View>
   );
