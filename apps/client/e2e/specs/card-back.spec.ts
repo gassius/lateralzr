@@ -96,5 +96,68 @@ test.describe('card back', () => {
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-transparent', locale: 'en' });
   });
+
+  test('wikipedia link does not flip the card', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+
+    // Stub navigation so Linking.openURL cannot leave the SPA or open a tab.
+    await page.route('https://en.wikipedia.org/**', (route) => route.abort());
+    await page.evaluate(() => {
+      window.open = () => null;
+    });
+
+    const wiki = page.getByTestId('card-back-wikipedia');
+    await expect(wiki).toBeVisible();
+    await wiki.click();
+
+    // Suppress window is 400 ms; confirm the back face stayed up (AC: link must not flip).
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const nodes = Array.from(document.querySelectorAll('[data-testid="card-back-copy"]'));
+            return nodes.some((el) => {
+              let p: HTMLElement | null = el as HTMLElement;
+              while (p) {
+                if (getComputedStyle(p).opacity === '0') return false;
+                p = p.parentElement;
+              }
+              return true;
+            });
+          }),
+        { timeout: 1_000 },
+      )
+      .toBe(true);
+    await expect(cardBackCopy(page)).toBeVisible();
+  });
+
+  /**
+   * Playwright projects already set contextOptions.reducedMotion = 'reduce'.
+   * Assert the RM flip path: back visible, no rotate/perspective in face styles.
+   */
+  test('reduced-motion flip has no rotate or perspective', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+
+    const hasForbiddenTransform = await page.evaluate(() => {
+      const starts = [
+        ...document.querySelectorAll('[data-testid="card-back-copy"]'),
+        ...document.querySelectorAll('[data-testid="card-front-title"]'),
+      ];
+      for (const start of starts) {
+        let p: HTMLElement | null = start as HTMLElement;
+        while (p) {
+          const inline = p.getAttribute('style') ?? '';
+          if (/rotate|perspective/i.test(inline)) return true;
+          p = p.parentElement;
+        }
+      }
+      return false;
+    });
+    expect(hasForbiddenTransform).toBe(false);
+  });
 });
 

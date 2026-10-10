@@ -41,11 +41,21 @@ describe('cardFlipFaceStyle', () => {
     const front = cardFlipFaceStyle(0.4, 'front', true);
     const back = cardFlipFaceStyle(0.4, 'back', true);
     assert.equal(front.opacity, 0.6);
-    assert.equal(back.opacity, 0.4);
+    assert.equal(back.opacity, 1);
     assert.deepEqual(front.transform, []);
     assert.deepEqual(back.transform, []);
     assert.equal(cardFlipTransformHasRotateOrPerspective(front.transform), false);
     assert.equal(cardFlipTransformHasRotateOrPerspective(back.transform), false);
+  });
+
+  it('under RM: lower face stays fully opaque at mid cross-fade (no navy flash)', () => {
+    const front = cardFlipFaceStyle(0.5, 'front', true);
+    const back = cardFlipFaceStyle(0.5, 'back', true);
+    assert.equal(Math.max(front.opacity, back.opacity), 1);
+    assert.equal(front.opacity, 0.5);
+    assert.equal(back.opacity, 1);
+    assert.equal(cardFlipFaceStyle(0, 'back', true).opacity, 0);
+    assert.equal(cardFlipFaceStyle(0.01, 'back', true).opacity, 1);
   });
 
   it('full motion: rotateY + perspective at mid flip', () => {
@@ -55,6 +65,27 @@ describe('cardFlipFaceStyle', () => {
     assert.equal(cardFlipTransformHasRotateOrPerspective(back.transform), true);
     assert.ok(front.transform.some((s) => 'rotateY' in s));
     assert.ok(back.transform.some((s) => 'perspective' in s));
+  });
+
+  it('pins rotateY angles at p=0 / 0.5 / 1 (front 0/-45/-90, back 90/45/0)', () => {
+    const rotateY = (
+      progress: number,
+      face: 'front' | 'back',
+    ): string => {
+      const step = cardFlipFaceStyle(progress, face, false).transform.find(
+        (s): s is { rotateY: string } => 'rotateY' in s,
+      );
+      assert.ok(step, `expected rotateY at p=${progress} ${face}`);
+      return step.rotateY;
+    };
+
+    assert.equal(rotateY(0, 'front'), '0deg');
+    assert.equal(rotateY(0.5, 'front'), '-45deg');
+    assert.equal(rotateY(1, 'front'), '-90deg');
+
+    assert.equal(rotateY(0, 'back'), '90deg');
+    assert.equal(rotateY(0.5, 'back'), '45deg');
+    assert.equal(rotateY(1, 'back'), '0deg');
   });
 
   it('endpoints: front visible at 0, back at 1 (both modes)', () => {
