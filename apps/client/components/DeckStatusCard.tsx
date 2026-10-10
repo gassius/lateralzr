@@ -6,15 +6,16 @@ import { cardPadding, cardRadius } from '@/lib/cardLayout';
 import { t } from '@/lib/i18n';
 
 type DeckStatusCardProps = {
-  variant: 'loading' | 'error';
+  /** End-of-deck error face only — loading uses `LoadingCard` directly. */
+  variant: 'error';
   onRetry?: () => void;
 };
 
 /**
- * Full-height card shell matching ConceptCard — logo + short message for load-more / error.
+ * End-of-deck error face (static logo + retry).
+ * Loading uses `LoadingCard` from `ConceptCardStack`; status copy is on `DeckStatusLine`.
  */
-export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
-  const animate = variant === 'loading';
+export function DeckStatusCard({ onRetry }: DeckStatusCardProps) {
   const { width: windowWidth } = useWindowDimensions();
   const facePad = cardPadding(windowWidth);
   const radius = cardRadius();
@@ -23,26 +24,17 @@ export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
     <View style={styles.root}>
       <View style={[styles.faceInner, { padding: facePad, borderRadius: radius }]}>
         <View style={styles.center}>
-        <LateralzrLogo animate={animate} />
-        {variant === 'loading' ? (
+          <LateralzrLogo animate={false} />
           <Text style={[styles.caption, textStyle('body')]}>
-            {t('loadingMoreIdeas')}
+            {t('couldNotLoadMore')}
           </Text>
-        ) : null}
-        {variant === 'error' ? (
-          <>
-            <Text style={[styles.caption, textStyle('body')]}>
-              {t('couldNotLoadMore')}
-            </Text>
-            {onRetry ? (
-              <Pressable onPress={onRetry} style={styles.retry}>
-                <Text style={[styles.retryText, textStyle('row')]}>
-                  {t('tapToRetry')}
-                </Text>
-              </Pressable>
-            ) : null}
-          </>
-        ) : null}
+          {onRetry ? (
+            <Pressable onPress={onRetry} style={styles.retry}>
+              <Text style={[styles.retryText, textStyle('row')]}>
+                {t('tapToRetry')}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </View>
