@@ -1,4 +1,4 @@
 Baseline diff for logo_lockup-on-orange_390x844_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/logo_lockup-on-orange_390x844_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/logo_lockup-on-orange_390x844_en.png
-diff ratio 0.0398 > 0.01 (52435 px)
+diff ratio 0.0433 > 0.01 (56979 px)
