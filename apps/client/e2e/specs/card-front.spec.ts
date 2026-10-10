@@ -24,12 +24,12 @@ test.describe('card front', () => {
     expect(text.replace(/\n/g, '')).toMatch(/multidisciplinary/i);
     expect(text).not.toMatch(/multidisciplinar[iy]-/i);
 
-    // Art director §7.3 / Lz-26: shrink toward 24; long titles rise from the
-    // lower-middle anchor so "framework" is never clipped at 100% text.
-    // 320 EN: ~24 px / 4–5 lines depending on system font metrics; no-clip is the gate.
+    // Art director §7.3 / Lz-26: ≤4 lines by shrinking toward 24; long titles rise
+    // from the lower-middle anchor so "framework" is never clipped at 100% text.
+    // 320 EN lands at ~24 px / ≤4 lines when width allows; else face scrolls.
     const lines = text.split('\n').filter((line) => line.trim().length > 0);
     expect(text.replace(/\n/g, '')).toMatch(/framework/i);
-    expect(lines.length).toBeLessThanOrEqual(5);
+    expect(lines.length).toBeLessThanOrEqual(4);
 
     const visibility = await title.evaluate((el) => {
       const titleBox = el.getBoundingClientRect();
@@ -44,8 +44,8 @@ test.describe('card front', () => {
     });
     expect(visibility.titleBottom).toBeLessThanOrEqual(visibility.faceBottom + 1);
     if (testInfo.project.name === '320x568') {
-      // 320 EN: was 32 px / clipped — now shrunk (≥24 teal) and fully visible.
-      expect(lines.length).toBeLessThanOrEqual(5);
+      // 320 EN: was 32 px / 5 lines / clipped — now ≤4 lines, shrunk, fully visible.
+      expect(lines.length).toBeLessThanOrEqual(4);
       expect(visibility.fontSize).toBeLessThan(32);
       expect(visibility.fontSize).toBeGreaterThanOrEqual(24);
     }
