@@ -7,9 +7,16 @@ import { GUIDE_SECTION_23 } from './section23.ts';
 import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
 describe('v3.3 design tokens', () => {
-  it('matches guide §23 exactly', () => {
+  it('matches guide §23 exactly (plus shared shadow.card pin for Lz-24)', () => {
     // Independent pin copied from v3.3 §23 values — not loaded from tokens.json.
     assert.deepEqual(tokens, GUIDE_SECTION_23);
+  });
+
+  it('pins subdued card shadow tokens for ConceptCard / swirl', () => {
+    assert.equal(tokens.shadow.card.color, '#000000');
+    assert.equal(tokens.shadow.card.opacity, 0.18);
+    assert.equal(tokens.shadow.card.radius, 12);
+    assert.equal(tokens.shadow.card.elevation, 4);
   });
 
   it('pins tallScreenMinHeight for cardToControlGapTall selection', () => {

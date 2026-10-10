@@ -71,6 +71,17 @@ export const GUIDE_SECTION_23 = {
     titleClearingRequired: true,
     numericReliefNotApproved: true,
   },
+  /** Card face / swirl ghost cast — Critiquito Lz-24 (not in original §23 table; shared pin). */
+  shadow: {
+    card: {
+      color: '#000000',
+      offsetWidth: 0,
+      offsetHeight: 4,
+      opacity: 0.18,
+      radius: 12,
+      elevation: 4,
+    },
+  },
 } as const;
 
 export type DesignTokens = typeof GUIDE_SECTION_23;

@@ -110,9 +110,14 @@ export function composeCardBackLayout(phase: CardBackMediaPhase): CardBackLayout
   };
 }
 
-/** Matches `faceInner` padding so measured face height converts to content minHeight. */
+/**
+ * Default face padding when the caller has not measured viewport width yet.
+ * Prefer `cardPadding(width)` from `cardLayout` (20 ≤360 / 24 above).
+ */
 export const CARD_BACK_FACE_PADDING = 20;
-export const CARD_BACK_FACE_BORDER = 1;
+
+/** Face border removed in Lz-24 (v2 teal hairline); kept as 0 for minHeight math. */
+export const CARD_BACK_FACE_BORDER = 0;
 
 /**
  * Pixel height for the no-media column / with-media ScrollView content.
@@ -133,11 +138,14 @@ export function cardBackScrollMinHeight(
  * No-media column: explicit pixel height from the untransformed front face.
  * `bottom: 0` / flex leftover do not stretch under the flip transform on RN Web.
  */
-export function cardBackBalancedColumnStyle(faceHeight: number): {
+export function cardBackBalancedColumnStyle(
+  faceHeight: number,
+  padding: number = CARD_BACK_FACE_PADDING,
+): {
   justifyContent: CardBackScrollJustify;
   height?: number;
 } {
-  const height = cardBackScrollMinHeight(faceHeight);
+  const height = cardBackScrollMinHeight(faceHeight, padding);
   return height != null
     ? { height, justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify }
     : { justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify };

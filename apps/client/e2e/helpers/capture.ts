@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 import pixelmatch from 'pixelmatch';
 import { type Page, type TestInfo } from '@playwright/test';
-import type { ViewportId } from './viewports';
+import { VIEWPORTS, type ViewportId } from './viewports';
 import { visibleText } from './locators';
 
 const HERE = __dirname;
@@ -17,6 +17,8 @@ const SCREENSHOT_ROOT = path.join(HERE, '..', 'screenshots');
 const BASELINE_ROOT = path.join(HERE, '..', 'baselines');
 const DIFF_ROOT = path.join(SCREENSHOT_ROOT, 'diffs');
 
+const VIEWPORT_IDS = new Set<string>(VIEWPORTS.map((vp) => vp.id));
+
 function screenshotRoot(): string {
   const sub = process.env.E2E_SHOT_SUBDIR?.trim();
   return sub ? path.join(SCREENSHOT_ROOT, sub) : SCREENSHOT_ROOT;
@@ -28,8 +30,8 @@ export function strictBaselinesEnabled(): boolean {
 
 function viewportIdFromProject(testInfo: TestInfo): ViewportId {
   const name = testInfo.project.name;
-  if (name === '390x844' || name === '320x568' || name === '1280x800') {
-    return name;
+  if (VIEWPORT_IDS.has(name)) {
+    return name as ViewportId;
   }
   throw new Error(`Unknown Playwright project viewport: ${name}`);
 }

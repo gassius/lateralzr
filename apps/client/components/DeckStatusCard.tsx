@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
-import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
+import { cardPadding, cardRadius } from '@/lib/cardLayout';
 import { t } from '@/lib/i18n';
 
 type DeckStatusCardProps = {
@@ -15,10 +15,13 @@ type DeckStatusCardProps = {
  */
 export function DeckStatusCard({ variant, onRetry }: DeckStatusCardProps) {
   const animate = variant === 'loading';
+  const { width: windowWidth } = useWindowDimensions();
+  const facePad = cardPadding(windowWidth);
+  const radius = cardRadius();
 
   return (
     <View style={styles.root}>
-      <View style={styles.faceInner}>
+      <View style={[styles.faceInner, { padding: facePad, borderRadius: radius }]}>
         <View style={styles.center}>
         <LateralzrLogo animate={animate} />
         {variant === 'loading' ? (
@@ -54,11 +57,7 @@ const styles = StyleSheet.create({
   },
   faceInner: {
     flex: 1,
-    padding: 20,
-    borderRadius: 16,
     backgroundColor: color.front,
-    borderWidth: 1,
-    borderColor: hexToRgba(color.concept, 0.35),
     minHeight: 0,
   },
   center: {
