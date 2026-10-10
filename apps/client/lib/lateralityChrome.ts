@@ -3,7 +3,7 @@
  * The row is part of the card composition — not a bezel-pinned footer.
  */
 
-import { layout } from '@/theme/tokens';
+import { layout, spacing } from '@/theme/tokens';
 import { WORDMARK_ASPECT } from '../assets/images/lateralzrWordmark';
 
 /** − / wordmark / + row. Keep ≥44px targets inside this height. */
@@ -27,10 +27,13 @@ export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
  */
 export const LATERALITY_WORDMARK_SURFACE: 'front' = 'front';
 
-/** Inset around the wordmark paths inside the orange tile. */
-export const LATERALITY_WORDMARK_TILE_PAD_X = 10;
-export const LATERALITY_WORDMARK_TILE_PAD_Y = 6;
-export const LATERALITY_WORDMARK_TILE_RADIUS = 8;
+/**
+ * §5.3 clear space: ≥ one terminal-node diameter on every side of the paths.
+ * Named from the spacing scale (12 / 8 / 8).
+ */
+export const LATERALITY_WORDMARK_TILE_PAD_X = spacing[2];
+export const LATERALITY_WORDMARK_TILE_PAD_Y = spacing[1];
+export const LATERALITY_WORDMARK_TILE_RADIUS = spacing[1];
 
 /** Gap between the five row slots (step, nodes, word, nodes, step). */
 export const LATERALITY_ROW_GAP = 6;

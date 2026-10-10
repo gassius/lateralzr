@@ -7,6 +7,7 @@ import {
   wordmarkViewBoxAttr,
 } from '@/assets/images/lateralzrWordmark';
 import { hexToRgba } from '@/theme/contrast';
+import { logoNearBlack } from '@/theme/logo';
 import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 import {
@@ -81,7 +82,7 @@ function LateralityWordmark({
 }) {
   if (width <= 0 || height <= 0) return null;
 
-  // §5.2: never place the logo/wordmark on shell — orange tile + ink strokes.
+  // §5.2: never place the logo/wordmark on shell — orange tile + §5.1 logoNearBlack strokes.
   return (
     <View
       accessible
@@ -101,7 +102,7 @@ function LateralityWordmark({
         viewBox={wordmarkViewBoxAttr()}
         accessible={false}
       >
-        <G transform={WORDMARK_GROUP_TRANSFORM} fill={color.ink}>
+        <G transform={WORDMARK_GROUP_TRANSFORM} fill={logoNearBlack}>
           {WORDMARK_LETTERS.map((letter) => (
             <Path key={letter.id} d={letter.d} transform={letter.transform} />
           ))}

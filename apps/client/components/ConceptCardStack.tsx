@@ -41,7 +41,6 @@ import {
 } from '@/lib/discoveryCoaching';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
-import { practiceScreenGutter } from '@/lib/practiceLayout';
 import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
@@ -767,7 +766,9 @@ function ConceptCardForIndex({
 const styles = StyleSheet.create({
   outer: {
     width: '100%',
-    paddingHorizontal: practiceScreenGutter(),
+    // Keep 12 here (not screenGutter 16): 16 on the card narrows the front at 320
+    // and regresses long-label title fit. Screen gutter applies to the control row.
+    paddingHorizontal: 12,
     paddingTop: CARD_STACK_PADDING_TOP,
     justifyContent: 'flex-start',
     flexGrow: 0,

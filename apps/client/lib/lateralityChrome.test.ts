@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { color } from '../theme/tokens.ts';
+import { color, spacing } from '../theme/tokens.ts';
 import {
   CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
@@ -10,6 +10,9 @@ import {
   LATERALITY_STEP_SIZE,
   LATERALITY_SUBMENU_HEIGHT,
   LATERALITY_WORDMARK_SURFACE,
+  LATERALITY_WORDMARK_TILE_PAD_X,
+  LATERALITY_WORDMARK_TILE_PAD_Y,
+  LATERALITY_WORDMARK_TILE_RADIUS,
   lateralityBarFit,
   lateralityBarPreferredWordmarkWidth,
   lateralityBarReservedWidth,
@@ -22,7 +25,7 @@ import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
 /** Phone-frame investigation target from Critiquito Lz-11. */
 const PHONE_WIDTH = 390;
 const PHONE_HEIGHT = 844;
-const CARD_STACK_PADDING_HORIZONTAL = 16;
+const CARD_STACK_PADDING_HORIZONTAL = 12;
 const CARD_ASPECT = 1.4;
 const CARD_FILL = 0.78;
 
@@ -111,6 +114,13 @@ describe('laterality bar chrome fit', () => {
     assert.equal(color[LATERALITY_WORDMARK_SURFACE], color.front);
     assert.notEqual(color[LATERALITY_WORDMARK_SURFACE], color.shell);
     assert.ok(lateralityWordmarkTileExtraWidth() > 0);
+  });
+
+  it('names wordmark tile pad/radius from the spacing scale (§5.3 clear space)', () => {
+    assert.equal(LATERALITY_WORDMARK_TILE_PAD_X, spacing[2]);
+    assert.equal(LATERALITY_WORDMARK_TILE_PAD_Y, spacing[1]);
+    assert.equal(LATERALITY_WORDMARK_TILE_RADIUS, spacing[1]);
+    assert.ok(LATERALITY_WORDMARK_TILE_PAD_Y >= 8);
   });
 
   it('fits WEB_PHONE_MIN_WIDTH / 360 / 375 without clipping −/+', () => {
