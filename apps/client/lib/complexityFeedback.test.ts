@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { color } from '../theme/tokens.ts';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
+import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle.ts';
 import {
   COMPLEXITY_CUE_APPEAR_TRANSLATE_Y,
   COMPLEXITY_CUE_DURATION_MS,
@@ -141,7 +141,7 @@ describe('complexity cue placement and hierarchy', () => {
 
   it('stays secondary to the concept title and quieter than swipe/flip coaching', () => {
     assert.ok(complexityCueIsSecondaryToConceptTitle());
-    assert.ok(COMPLEXITY_CUE_FONT_SIZE < CONCEPT_FRONT_LABEL_FONT_SIZE);
+    assert.ok(COMPLEXITY_CUE_FONT_SIZE < CONCEPT_FRONT_TITLE_FONT_SIZE);
     assert.ok(COMPLEXITY_CUE_FONT_SIZE < 17);
   });
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { color } from '../theme/tokens.ts';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
+import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle.ts';
 import {
   blendHexOver,
   coachHintContrastRatio,
@@ -22,7 +22,7 @@ describe('coach hint type hierarchy', () => {
     assert.equal(COACH_HINT_FONT_WEIGHT, '500');
     assert.equal(COACH_HINT_OPACITY, 1);
     assert.ok(coachHintIsSecondaryToConceptTitle());
-    assert.ok(COACH_HINT_FONT_SIZE < CONCEPT_FRONT_LABEL_FONT_SIZE);
+    assert.ok(COACH_HINT_FONT_SIZE < CONCEPT_FRONT_TITLE_FONT_SIZE);
   });
 });
 

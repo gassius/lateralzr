@@ -45,6 +45,12 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `typography_status-body_*` — DeckStatusCard loading caption at body scale (v3.3 `type.body`)
 - `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
+### Card front title (Lz-26)
+
+- `card-front_short-label_*` — left-aligned concept title at default 32 (`?canonicalConcept=mushroom`)
+- `card-front_long-label_*` — wrap-before-shrink multi-line front (`?canonicalConcept=long-label`)
+- Review at 320×568 and 390×844; ink colour fallback is covered by `lib/conceptFrontTitle.test.ts`
+
 ### Pending screens (add when UI ships)
 
 - Laterality sheet open

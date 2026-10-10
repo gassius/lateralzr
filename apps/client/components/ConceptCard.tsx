@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, PixelRatio, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -12,6 +12,7 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
+import { textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_FACE_PADDING,
@@ -23,10 +24,12 @@ import {
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
 import {
-  CONCEPT_FRONT_LABEL_COLOR,
-  CONCEPT_FRONT_LABEL_FONT_SIZE,
-  CONCEPT_FRONT_LABEL_TEXT_ALIGN,
-} from '@/lib/conceptFrontLabelAlign';
+  CONCEPT_FRONT_TITLE_TEXT_ALIGN,
+  CONCEPT_FRONT_TITLE_TOP_RATIO,
+  conceptFrontTitleRenderedSize,
+  titleColor,
+  type ConceptFrontTitleRect,
+} from '@/lib/conceptFrontTitle';
 import { CoachHint } from './CoachHint';
 import { ConceptCardBrandTexture } from './ConceptCardBrandTexture';
 import { CARD_BRAND_FALLBACK_FACE_WIDTH } from '@/lib/conceptCardBrand';
@@ -70,10 +73,21 @@ export function ConceptCard({
   const [mediaError, setMediaError] = useState(false);
   const [backFaceH, setBackFaceH] = useState(0);
   const [faceWidth, setFaceWidth] = useState(0);
+  const [frontFaceH, setFrontFaceH] = useState(0);
+  const [frontContentH, setFrontContentH] = useState(0);
+  /** Measured title box for Lz-25 pattern clearing (column-local coords). */
+  const titleRectRef = useRef<ConceptFrontTitleRect | null>(null);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
+
+  const frontTitleTextStyle = textStyle('concept');
+  const frontTitleFontSize = (frontTitleTextStyle.fontSize as number) ?? 32;
+  const frontTitleColor = titleColor(
+    conceptFrontTitleRenderedSize(frontTitleFontSize, PixelRatio.getFontScale()),
+  );
+  const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
 
   useEffect(() => {
     flipProgress.value = withTiming(flipped ? 1 : 0, {
@@ -130,6 +144,7 @@ export function ConceptCard({
     // so no-media backs stay vertically centered.
     if (nextH > 1) {
       setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
+      setFrontFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
     }
     if (nextW > 1) {
       setFaceWidth((prev) => (Math.abs(prev - nextW) < 0.5 ? prev : nextW));
@@ -137,13 +152,54 @@ export function ConceptCard({
   };
 
   const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
+  const frontTopSpacerH =
+    frontFaceH > 0 ? Math.round(frontFaceH * CONCEPT_FRONT_TITLE_TOP_RATIO) : undefined;
 
   const front = (
     <View style={styles.faceInner} onLayout={onUntransformedFaceLayout}>
       <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
-      <View style={styles.frontCenter}>
-        <Text style={styles.conceptNameFront}>{title}</Text>
-      </View>
+      <ScrollView
+        style={styles.frontScroll}
+        contentContainerStyle={[
+          styles.frontScrollContent,
+          frontFaceH > 0 ? { minHeight: frontFaceH } : null,
+        ]}
+        scrollEnabled={frontNeedsScroll}
+        showsVerticalScrollIndicator={false}
+        bounces={frontNeedsScroll}
+        testID="card-front-scroll"
+      >
+        <View
+          style={styles.frontColumn}
+          onLayout={(event) => {
+            const next = event.nativeEvent.layout.height;
+            setFrontContentH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+          }}
+        >
+          <View
+            style={[
+              styles.frontTitleTopSpacer,
+              frontTopSpacerH != null ? { height: frontTopSpacerH, flexGrow: 0 } : null,
+            ]}
+          />
+          <Text
+            style={[
+              styles.conceptNameFront,
+              frontTitleTextStyle,
+              { color: frontTitleColor },
+            ]}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              titleRectRef.current = { x, y, width, height };
+            }}
+            testID="card-front-title"
+            accessibilityRole="header"
+          >
+            {title}
+          </Text>
+          <View style={styles.frontTitleBottomSpacer} />
+        </View>
+      </ScrollView>
       {coachHint ? (
         <CoachHint text={coachHint} animateAppear={animateCoachAppear} surface="orange" />
       ) : null}
@@ -422,21 +478,33 @@ const styles = StyleSheet.create({
   copyCluster: {
     width: '100%',
   },
-  frontCenter: {
+  frontScroll: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
     minHeight: 0,
     zIndex: 1,
   },
-  conceptNameFront: {
-    fontSize: CONCEPT_FRONT_LABEL_FONT_SIZE,
-    lineHeight: Math.round(CONCEPT_FRONT_LABEL_FONT_SIZE * 1.5),
-    fontWeight: '700',
+  frontScrollContent: {
+    flexGrow: 1,
+  },
+  frontColumn: {
     width: '100%',
-    textAlign: CONCEPT_FRONT_LABEL_TEXT_ALIGN,
-    color: CONCEPT_FRONT_LABEL_COLOR,
+    flexGrow: 1,
+  },
+  /** Pushes the title into the lower-middle clear area (~52% first baseline). */
+  frontTitleTopSpacer: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  /** Room below short titles; long titles grow into this then the face scrolls. */
+  frontTitleBottomSpacer: {
+    flexGrow: 1,
+    minHeight: 48,
+    width: '100%',
+  },
+  conceptNameFront: {
+    width: '100%',
+    textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
+    flexShrink: 0,
   },
   conceptName: {
     fontWeight: '700',
