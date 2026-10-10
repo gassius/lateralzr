@@ -65,19 +65,20 @@ Screenshots for review live on the orphan Git branch **`e2e-screenshots`** (not 
 
 When a PR closes, CI removes `pr-<n>/` from the orphan branch (see `.github/workflows/client-e2e-cleanup.yml`).
 
-Also see [baselines/README.md](./baselines/README.md) for in-repo Playwright compare seeds.
+Also see [baselines/README.md](./baselines/README.md).
 
 ## Baselines / pixel compare
 
-- PRs compare at 1% (`maxDiffPixelRatio` 0.01); diffs are **report-only** unless `E2E_STRICT_BASELINES=1`.
-- In-repo `e2e/baselines/` may hold local/demo seeds for Playwright. Approved design baselines for humans live on `e2e-screenshots:baselines/`.
+- CI **syncs** `e2e-screenshots:baselines/` into `e2e/baselines/` before Playwright runs (read-only). If that orphan folder is empty, in-repo [DEMO seeds](./baselines/DEMO-SEEDS.md) are the fallback.
+- Compares at 1%; diffs are **report-only** unless `E2E_STRICT_BASELINES=1`.
+- Smoke stability runs `--repeat-each=2` and additionally asserts ≥1 capture is pixel-identical across two passes.
 
 ## CI security split
 
 `.github/workflows/client-e2e.yml`:
 
-1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, build + test + upload artifact.
-2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script via API (**no repo checkout**); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment.
+1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact.
+2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script from **`pull_request.base.sha` only** (never head / merge SHA); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment.
 3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`.
 
-Cleanup: `.github/workflows/client-e2e-cleanup.yml` removes `pr-<n>/` when the PR closes.
+Cleanup: `.github/workflows/client-e2e-cleanup.yml` removes `pr-<n>/` when the PR closes (cleanup script also from **base** SHA only).

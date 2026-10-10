@@ -1,23 +1,19 @@
-# Screenshot baselines (Playwright seeds)
+# Screenshot baselines (Playwright compare set)
 
-In-repo PNGs named `<screen>_<state>_<viewport>_<locale>.png` used by Playwright for **report-only** pixel compares during CI (1% threshold).
+In-repo folder used by Playwright for **report-only** pixel compares (1% threshold).
 
-## Design review location
+## Source of truth
 
-Critiquito / design review does **not** use this folder as the source of truth. Reviewers read the orphan branch:
+| Source | When used |
+| --- | --- |
+| Orphan `e2e-screenshots:baselines/` | CI syncs these into this folder when the orphan folder has PNGs (Critiquito-approved). |
+| In-repo [DEMO-SEEDS.md](./DEMO-SEEDS.md) | Fallback only while the orphan `baselines/` folder is empty. |
 
-- **PR captures:** `e2e-screenshots:pr-<n>/` (plus `diffs/`)
-- **Approved baselines:** `e2e-screenshots:baselines/` (published from `main`)
-
-The sticky PR comment links that tree and includes a diff summary table (no embedded images).
+Design review still reads captures on `e2e-screenshots:pr-<n>/` and approved refs on `e2e-screenshots:baselines/` (sticky comment links the tree + diff table; no embeds).
 
 ## Approval / publish
 
 1. Critiquito reviews `e2e-screenshots:pr-<n>/` against `e2e-screenshots:baselines/`.
-2. After merge to `main`, the **Client E2E baselines** job overwrites `e2e-screenshots:baselines/` from the artifact (write-scoped; no install/build).
-3. On PRs, captures are compared at **1%**. Diffs are **report-only** until `E2E_STRICT_BASELINES=1` / workflow_dispatch.
-4. When a PR closes, `pr-<n>/` is removed from the orphan branch.
-
-## Demo seeds (this PR only)
-
-See [DEMO-SEEDS.md](./DEMO-SEEDS.md). Full-size (780×1688) intentional seeds exist so Critiquito can see an over-threshold diff and an under-threshold pass. They are **not** approved product baselines.
+2. After merge to `main`, the **Client E2E baselines** job overwrites `e2e-screenshots:baselines/` from the artifact.
+3. Subsequent PRs sync that orphan folder into this path before comparing.
+4. When a PR closes, `pr-<n>/` is removed from the orphan branch (cleanup workflow; script from **base** SHA only).

@@ -8,8 +8,19 @@ import { visibleText } from './locators';
 
 const HERE = __dirname;
 const SCREENSHOT_ROOT = path.join(HERE, '..', 'screenshots');
+/**
+ * Compare root for report-only pixel diffs.
+ * CI syncs Critiquito-approved PNGs from orphan `e2e-screenshots:baselines/` into this
+ * folder when present; otherwise in-repo DEMO seeds under `e2e/baselines/` are used
+ * (removed once main publishes real baselines to the orphan branch).
+ */
 const BASELINE_ROOT = path.join(HERE, '..', 'baselines');
 const DIFF_ROOT = path.join(SCREENSHOT_ROOT, 'diffs');
+
+function screenshotRoot(): string {
+  const sub = process.env.E2E_SHOT_SUBDIR?.trim();
+  return sub ? path.join(SCREENSHOT_ROOT, sub) : SCREENSHOT_ROOT;
+}
 
 export function strictBaselinesEnabled(): boolean {
   return process.env.E2E_STRICT_BASELINES === '1';
@@ -40,8 +51,10 @@ export type CaptureArgs = {
 };
 
 /**
- * Full-page capture into e2e/screenshots/<screen>_<state>_<viewport>_<locale>.png.
- * Compares to e2e/baselines/ when present (report-only unless E2E_STRICT_BASELINES=1).
+ * Full-page capture into e2e/screenshots/<screen>_<state>_<viewport>_<locale>.png
+ * (or e2e/screenshots/$E2E_SHOT_SUBDIR/… when set for repeat stability checks).
+ * Compares against e2e/baselines/ when a matching PNG exists (orphan sync or demo seeds).
+ * Report-only unless E2E_STRICT_BASELINES=1.
  */
 export async function capture(
   page: Page,
@@ -51,8 +64,9 @@ export async function capture(
   const viewport = viewportIdFromProject(testInfo);
   const locale = args.locale ?? 'en';
   const fileName = screenshotFileName(args.screen, args.state, viewport, locale);
-  fs.mkdirSync(SCREENSHOT_ROOT, { recursive: true });
-  const outPath = path.join(SCREENSHOT_ROOT, fileName);
+  const shotRoot = screenshotRoot();
+  fs.mkdirSync(shotRoot, { recursive: true });
+  const outPath = path.join(shotRoot, fileName);
 
   await page.screenshot({
     path: outPath,
@@ -66,9 +80,12 @@ export async function capture(
     contentType: 'image/png',
   });
 
-  const baselinePath = path.join(BASELINE_ROOT, fileName);
-  if (fs.existsSync(baselinePath)) {
-    await compareToBaseline(testInfo, fileName, outPath, baselinePath);
+  // Skip baseline compare during repeat-subdir passes (stability only).
+  if (!process.env.E2E_SHOT_SUBDIR?.trim()) {
+    const baselinePath = path.join(BASELINE_ROOT, fileName);
+    if (fs.existsSync(baselinePath)) {
+      await compareToBaseline(testInfo, fileName, outPath, baselinePath);
+    }
   }
 
   return outPath;
