@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import pixelmatch from 'pixelmatch';
 import { type Page, type TestInfo } from '@playwright/test';
 import { VIEWPORTS, type ViewportId } from './viewports';
 import { visibleText } from './locators';
+import { DIFF_RATIO_THRESHOLD, diffPngs } from './pngDiff';
 
 const HERE = __dirname;
 const SCREENSHOT_ROOT = path.join(HERE, '..', 'screenshots');
@@ -130,9 +130,10 @@ async function compareToBaseline(
   const soft = !strictBaselinesEnabled();
   const actual = PNG.sync.read(fs.readFileSync(actualPath));
   const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
-  const threshold = 0.01;
+  const threshold = DIFF_RATIO_THRESHOLD;
+  const result = diffPngs(actual, baseline);
 
-  if (actual.width !== baseline.width || actual.height !== baseline.height) {
+  if (result.sizeMismatch) {
     const stem = fileName.replace(/\.png$/, '');
     const notePath = path.join(DIFF_ROOT, `${stem}.txt`);
     const actualCopy = path.join(DIFF_ROOT, `${stem}.actual.png`);
@@ -158,17 +159,11 @@ async function compareToBaseline(
     return;
   }
 
-  const diff = new PNG({ width: actual.width, height: actual.height });
-  const mismatched = pixelmatch(actual.data, baseline.data, diff.data, actual.width, actual.height, {
-    threshold: 0.1,
-  });
-  const ratio = mismatched / (actual.width * actual.height);
-  const percent = ratio * 100;
-  const over = ratio > threshold;
+  const { ratio, percent, mismatchedPixels: mismatched, overRatioThreshold: over, diff } = result;
   const stem = fileName.replace(/\.png$/, '');
   const diffRel = over ? `${stem}.diff.png` : undefined;
 
-  if (over) {
+  if (over && diff) {
     fs.mkdirSync(DIFF_ROOT, { recursive: true });
     const diffPng = path.join(DIFF_ROOT, diffRel!);
     const notePath = path.join(DIFF_ROOT, `${stem}.txt`);

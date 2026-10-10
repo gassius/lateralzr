@@ -76,6 +76,8 @@ test.describe('locale es', () => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
+    await expect(page.getByTestId('card-back-title')).toHaveCount(0);
+    await expect(page.getByLabel('Sobre Seta')).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'es' });
   });
 
@@ -83,6 +85,7 @@ test.describe('locale es', () => {
     await openApp(page, 'canonicalConcept=no-description&locale=es');
     await flipCard(page);
     await expect(page.getByText('Este concepto aún no tiene descripción.')).toBeVisible();
+    await expect(page.getByTestId('card-back-wiki')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'es' });
   });
 

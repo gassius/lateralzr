@@ -1,7 +1,12 @@
 /**
  * Card-back composition: media is optional. Description grounds the concept;
  * this module does not encode the lateral bridge to the previous/next card.
+ *
+ * Lz-27 (no-media / failed): paper reading region, no title, ScrollView with
+ * centered short copy. Lz-28 owns the media well chrome.
  */
+
+import { type as typeTokens } from '@/theme/tokens';
 
 export type CardBackMediaPhase = 'absent' | 'loading' | 'ready' | 'failed';
 
@@ -11,24 +16,22 @@ export type CardBackLayoutMode = 'with-media' | 'without-media';
 export type CardBackScrollJustify = 'flex-start' | 'center';
 
 /**
- * Typography and placement for the title / description / link cluster.
- * No-media uses a more open rhythm so the copy group can sit as a finished block
- * instead of a tight header over unused orange.
+ * Typography and placement for the description / link cluster.
+ * No visible back title — the face starts with body copy (guide §9.4).
  */
 export type CardBackCopyRhythm = {
   scrollJustify: CardBackScrollJustify;
-  titleFontSize: number;
-  titleLineHeight: number;
-  titleMarginBottom: number;
   descriptionFontSize: number;
   descriptionLineHeight: number;
+  /** Kept at 0; link spacing is `linkMarginTop` only so a missing wikiUrl leaves no gap. */
   descriptionMarginBottom: number;
+  /** 20–24 px below the paragraph when a wiki link is shown. */
   linkMarginTop: number;
 };
 
 /**
  * How the photo paints inside the expanding well.
- * `contain` letterboxes on the orange face (landscape: tall gutters; portrait: side bars).
+ * `contain` letterboxes on the face (landscape: tall gutters; portrait: side bars).
  * `cover` centered fills the well; crop is the trade for a finished, media-forward back.
  */
 export type CardBackMediaContentFit = 'cover' | 'contain';
@@ -36,26 +39,26 @@ export type CardBackMediaContentFit = 'cover' | 'contain';
 export const CARD_BACK_MEDIA_CONTENT_FIT: CardBackMediaContentFit = 'cover';
 export const CARD_BACK_MEDIA_CONTENT_POSITION = 'center' as const;
 
+/** Midpoint of the guide’s 20–24 px link offset under the paragraph. */
+export const CARD_BACK_LINK_MARGIN_TOP = 22;
+
+const BODY_SIZE = typeTokens.body;
+const BODY_LINE_HEIGHT = Math.round(BODY_SIZE * 1.5);
+
 export const CARD_BACK_WITH_MEDIA_RHYTHM: CardBackCopyRhythm = {
   scrollJustify: 'flex-start',
-  titleFontSize: 26,
-  titleLineHeight: 32,
-  titleMarginBottom: 8,
-  descriptionFontSize: 16,
-  descriptionLineHeight: 24,
-  descriptionMarginBottom: 12,
-  linkMarginTop: 0,
+  descriptionFontSize: BODY_SIZE,
+  descriptionLineHeight: BODY_LINE_HEIGHT,
+  descriptionMarginBottom: 0,
+  linkMarginTop: CARD_BACK_LINK_MARGIN_TOP,
 };
 
 export const CARD_BACK_WITHOUT_MEDIA_RHYTHM: CardBackCopyRhythm = {
   scrollJustify: 'center',
-  titleFontSize: 40,
-  titleLineHeight: 48,
-  titleMarginBottom: 26,
-  descriptionFontSize: 20,
-  descriptionLineHeight: 32,
-  descriptionMarginBottom: 18,
-  linkMarginTop: 10,
+  descriptionFontSize: BODY_SIZE,
+  descriptionLineHeight: BODY_LINE_HEIGHT,
+  descriptionMarginBottom: 0,
+  linkMarginTop: CARD_BACK_LINK_MARGIN_TOP,
 };
 
 export type CardBackLayout = {
@@ -66,7 +69,10 @@ export type CardBackLayout = {
   showMediaImage: boolean;
   /** Let the media well take leftover height so the back is not an unused void. */
   expandMediaZone: boolean;
-  /** Vertically balance title + description + links when there is no media well. */
+  /**
+   * Center the reading region in the ScrollView when there is no media well
+   * (short copy sits mid-face; long copy grows upward and scrolls).
+   */
   balanceCopy: boolean;
   /** Cover-fill the well when media is shown; null when the zone is collapsed. */
   mediaContentFit: CardBackMediaContentFit | null;
@@ -120,9 +126,9 @@ export const CARD_BACK_FACE_PADDING = 20;
 export const CARD_BACK_FACE_BORDER = 0;
 
 /**
- * Pixel height for the no-media column / with-media ScrollView content.
- * Percentage height is a no-op inside a transformed (flip) ancestor on web.
- * Subtract padding and border so the column fits the visible orange content box.
+ * Pixel height for ScrollView content under the flip transform.
+ * Percentage height is a no-op inside a transformed ancestor on web.
+ * Subtract padding and border so the column fits the visible paper content box.
  */
 export function cardBackScrollMinHeight(
   faceHeight: number,
@@ -135,18 +141,20 @@ export function cardBackScrollMinHeight(
 }
 
 /**
- * No-media column: explicit pixel height from the untransformed front face.
- * `bottom: 0` / flex leftover do not stretch under the flip transform on RN Web.
+ * ScrollView `contentContainerStyle` for the back face.
+ * Measured minHeight comes from the untransformed front (flip collapses layout on RN Web).
  */
-export function cardBackBalancedColumnStyle(
+export function cardBackScrollContentStyle(
   faceHeight: number,
   padding: number = CARD_BACK_FACE_PADDING,
+  justify: CardBackScrollJustify = CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify,
 ): {
+  flexGrow: 1;
   justifyContent: CardBackScrollJustify;
-  height?: number;
+  minHeight?: number;
 } {
-  const height = cardBackScrollMinHeight(faceHeight, padding);
-  return height != null
-    ? { height, justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify }
-    : { justifyContent: CARD_BACK_WITHOUT_MEDIA_RHYTHM.scrollJustify };
+  const minHeight = cardBackScrollMinHeight(faceHeight, padding);
+  return minHeight != null
+    ? { flexGrow: 1, minHeight, justifyContent: justify }
+    : { flexGrow: 1, justifyContent: justify };
 }

@@ -65,9 +65,12 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
   - `card-front_pattern-clear-200_320x568_en` — long-label @ `e2eTextScale=2`; asserts no motif in title+16
 - Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
+### Laterality sheet (Lz-31)
+
+- `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es
+
 ### Pending screens (add when UI ships)
 
-- Laterality sheet open
 - App menu open
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps
@@ -95,7 +98,9 @@ Also see [baselines/README.md](./baselines/README.md).
 ## Baselines / pixel compare
 
 - CI **syncs** `e2e-screenshots:baselines/` into `e2e/baselines/` before Playwright runs (read-only). If that orphan folder is empty, in-repo [DEMO seeds](./baselines/DEMO-SEEDS.md) are the fallback.
-- Compares at 1%; diffs are **report-only** unless `E2E_STRICT_BASELINES=1`.
+- Compares at 1% pixel ratio; diffs are **report-only** unless `E2E_STRICT_BASELINES=1`.
+- Color sensitivity is `PIXELMATCH_COLOR_THRESHOLD` (`0.01` in `e2e/helpers/pngDiff.ts`) — not the library default `0.1`, which hid low-contrast motif / watermark changes as `0.00%` changed.
+- Before pixelmatch, `CHANNEL_NOISE_FLOOR` (`3`) equalizes per-channel deltas ≤ 3/255 so encoder noise does not inflate `% changed`.
 - Smoke stability runs `--repeat-each=2` and additionally asserts ≥1 capture is pixel-identical across two passes.
 
 ## CI security split
