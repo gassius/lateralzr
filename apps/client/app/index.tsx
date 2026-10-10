@@ -31,7 +31,6 @@ import {
   shouldPersistLateralityAfterSwap,
   type LateralityGrade,
 } from '@/lib/laterality';
-import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import {
   cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
@@ -95,10 +94,8 @@ export default function HomeScreen() {
   } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
-  const [lateralitySwap, setLateralitySwap] = useState<{
-    token: number;
-    outcome: LateralitySwirlOutcome;
-  } | null>(null);
+  /** Gates laterality controls while the neighborhood tree prefetches — no swirl overlay (Lz-33). */
+  const [lateralitySwap, setLateralitySwap] = useState<{ token: number } | null>(null);
   /** Measured laterality control height (grows when the label wraps at large text). */
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [localeReady, setLocaleReady] = useState(false);
@@ -521,7 +518,7 @@ export default function HomeScreen() {
     fetchGenRef.current += 1;
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
     const token = ++lateralitySwapTokenRef.current;
-    setLateralitySwap({ token, outcome: 'pending' });
+    setLateralitySwap({ token });
 
     const current = conceptsRef.current[currentIndexRef.current];
     const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
@@ -565,22 +562,16 @@ export default function HomeScreen() {
         void persistLaterality(lateralityRef.current);
       }
       committedLateralityRef.current = lateralityRef.current;
-      setLateralitySwap({ token, outcome: 'success' });
+      lateralitySwapActiveRef.current = false;
+      setLateralitySwap(null);
     } catch {
       if (!stillCurrent()) return;
       lateralityRef.current = committedLateralityRef.current;
       setLaterality(committedLateralityRef.current);
-      setLateralitySwap({ token, outcome: 'failure' });
+      lateralitySwapActiveRef.current = false;
+      setLateralitySwap(null);
     }
   }, [fetchBatch]);
-
-  const onLateralitySwirlExit = useCallback((token: number) => {
-    setLateralitySwap((current) => {
-      if (current == null || current.token !== token) return current;
-      lateralitySwapActiveRef.current = false;
-      return null;
-    });
-  }, []);
 
   const onSelectLaterality = useCallback((grade: LateralityGrade) => {
     if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
@@ -744,16 +735,6 @@ export default function HomeScreen() {
             showDeckLoading={showDeckLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
-            lateralitySwirl={
-              lateralitySwap
-                ? {
-                    laterality,
-                    token: lateralitySwap.token,
-                    outcome: lateralitySwap.outcome,
-                    onExitComplete: () => onLateralitySwirlExit(lateralitySwap.token),
-                  }
-                : null
-            }
           />
           <LateralityControl
             laterality={laterality}
