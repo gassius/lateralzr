@@ -1,4 +1,4 @@
 Baseline diff for card-front_intergenerational_320x568_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/card-front_intergenerational_320x568_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/card-front_intergenerational_320x568_en.png
-diff ratio 0.0517 > 0.01 (37597 px)
+diff ratio 0.0988 > 0.01 (71841 px)

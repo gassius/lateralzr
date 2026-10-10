@@ -128,6 +128,14 @@
     "mismatchedPixels": 0
   },
   {
+    "file": "card-back_no-media-200_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
     "file": "card-back_with-diagram_1280x800_en.png",
     "ratio": 0,
     "percent": 0,
@@ -257,471 +265,595 @@
   },
   {
     "file": "card-front_collective-intelligence_1280x800_en.png",
-    "ratio": 0.0050380859375,
-    "percent": 0.50380859375,
+    "ratio": 0.02122705078125,
+    "percent": 2.122705078125,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 20636
+    "status": "over-threshold",
+    "mismatchedPixels": 86946,
+    "diffImage": "card-front_collective-intelligence_1280x800_en.diff.png"
   },
   {
     "file": "card-front_collective-intelligence_320x568_en.png",
-    "ratio": 0.026979258362676055,
-    "percent": 2.6979258362676055,
+    "ratio": 0.08568579445422535,
+    "percent": 8.568579445422534,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 19615,
+    "mismatchedPixels": 62297,
     "diffImage": "card-front_collective-intelligence_320x568_en.diff.png"
   },
   {
     "file": "card-front_collective-intelligence_390x844_en.png",
-    "ratio": 0.015813737999756956,
-    "percent": 1.5813737999756956,
+    "ratio": 0.07315439300036457,
+    "percent": 7.315439300036457,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 20821,
+    "mismatchedPixels": 96318,
     "diffImage": "card-front_collective-intelligence_390x844_en.diff.png"
   },
   {
     "file": "card-front_collective-intelligence_430x932_en.png",
-    "ratio": 0.014013374588282263,
-    "percent": 1.4013374588282264,
+    "ratio": 0.07210737099510929,
+    "percent": 7.210737099510929,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 22464,
+    "mismatchedPixels": 115591,
     "diffImage": "card-front_collective-intelligence_430x932_en.diff.png"
   },
   {
     "file": "card-front_intergenerational_1280x800_en.png",
-    "ratio": 0.00964111328125,
-    "percent": 0.964111328125,
+    "ratio": 0.025033935546875,
+    "percent": 2.5033935546875,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 39490
+    "status": "over-threshold",
+    "mismatchedPixels": 102539,
+    "diffImage": "card-front_intergenerational_1280x800_en.diff.png"
   },
   {
     "file": "card-front_intergenerational_320x568_en.png",
-    "ratio": 0.05171242297535211,
-    "percent": 5.171242297535211,
+    "ratio": 0.0988129951584507,
+    "percent": 9.88129951584507,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 37597,
+    "mismatchedPixels": 71841,
     "diffImage": "card-front_intergenerational_320x568_en.diff.png"
   },
   {
     "file": "card-front_intergenerational_390x844_en.png",
-    "ratio": 0.03013807874589865,
-    "percent": 3.013807874589865,
+    "ratio": 0.08592477822335642,
+    "percent": 8.592477822335642,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 39681,
+    "mismatchedPixels": 113132,
     "diffImage": "card-front_intergenerational_390x844_en.diff.png"
   },
   {
     "file": "card-front_intergenerational_430x932_en.png",
-    "ratio": 0.024939489969058787,
-    "percent": 2.493948996905879,
+    "ratio": 0.08243337658448947,
+    "percent": 8.243337658448947,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 39979,
+    "mismatchedPixels": 132144,
     "diffImage": "card-front_intergenerational_430x932_en.diff.png"
   },
   {
     "file": "card-front_long-label_1280x800_en.png",
-    "ratio": 0.009033203125,
-    "percent": 0.9033203125,
+    "ratio": 0.022666259765625,
+    "percent": 2.2666259765624996,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 37000
+    "status": "over-threshold",
+    "mismatchedPixels": 92841,
+    "diffImage": "card-front_long-label_1280x800_en.diff.png"
   },
   {
     "file": "card-front_long-label_1280x800_es.png",
-    "ratio": 0.011720947265625,
-    "percent": 1.1720947265625,
+    "ratio": 0.02835302734375,
+    "percent": 2.835302734375,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 48009,
+    "mismatchedPixels": 116134,
     "diffImage": "card-front_long-label_1280x800_es.diff.png"
   },
   {
     "file": "card-front_long-label_320x568_en.png",
-    "ratio": 0.038614106514084506,
-    "percent": 3.8614106514084505,
+    "ratio": 0.08372854313380282,
+    "percent": 8.372854313380282,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 28074,
+    "mismatchedPixels": 60874,
     "diffImage": "card-front_long-label_320x568_en.diff.png"
   },
   {
     "file": "card-front_long-label_320x568_es.png",
-    "ratio": 0.04871396346830986,
-    "percent": 4.871396346830986,
+    "ratio": 0.1069886113556338,
+    "percent": 10.69886113556338,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 35417,
+    "mismatchedPixels": 77785,
     "diffImage": "card-front_long-label_320x568_es.diff.png"
   },
   {
     "file": "card-front_long-label_390x844_en.png",
-    "ratio": 0.03348447563494957,
-    "percent": 3.348447563494957,
+    "ratio": 0.0832535848827318,
+    "percent": 8.32535848827318,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 44087,
+    "mismatchedPixels": 109615,
     "diffImage": "card-front_long-label_390x844_en.diff.png"
   },
   {
     "file": "card-front_long-label_390x844_es.png",
-    "ratio": 0.04368012516709199,
-    "percent": 4.368012516709199,
+    "ratio": 0.10295600923563009,
+    "percent": 10.295600923563008,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 57511,
+    "mismatchedPixels": 135556,
     "diffImage": "card-front_long-label_390x844_es.diff.png"
   },
   {
     "file": "card-front_long-label_430x932_en.png",
-    "ratio": 0.03569093721928336,
-    "percent": 3.5690937219283363,
+    "ratio": 0.08618375087334065,
+    "percent": 8.618375087334066,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 57214,
+    "mismatchedPixels": 138156,
     "diffImage": "card-front_long-label_430x932_en.diff.png"
   },
   {
     "file": "card-front_long-label_430x932_es.png",
-    "ratio": 0.036070840403233856,
-    "percent": 3.6070840403233855,
+    "ratio": 0.09876235153208904,
+    "percent": 9.876235153208905,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 57823,
+    "mismatchedPixels": 158320,
     "diffImage": "card-front_long-label_430x932_es.diff.png"
   },
   {
     "file": "card-front_short-label_1280x800_en.png",
-    "ratio": 0.002792724609375,
-    "percent": 0.2792724609375,
+    "ratio": 0.01817529296875,
+    "percent": 1.8175292968749999,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11439
+    "status": "over-threshold",
+    "mismatchedPixels": 74446,
+    "diffImage": "card-front_short-label_1280x800_en.diff.png"
   },
   {
     "file": "card-front_short-label_1280x800_es.png",
-    "ratio": 0.001279052734375,
-    "percent": 0.1279052734375,
+    "ratio": 0.019501220703125,
+    "percent": 1.9501220703125,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5239
+    "status": "over-threshold",
+    "mismatchedPixels": 79877,
+    "diffImage": "card-front_short-label_1280x800_es.diff.png"
   },
   {
     "file": "card-front_short-label_320x568_en.png",
-    "ratio": 0.014373349471830986,
-    "percent": 1.4373349471830987,
+    "ratio": 0.07476479973591549,
+    "percent": 7.476479973591549,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 10450,
+    "mismatchedPixels": 54357,
     "diffImage": "card-front_short-label_320x568_en.diff.png"
   },
   {
     "file": "card-front_short-label_320x568_es.png",
-    "ratio": 0.006318772007042253,
-    "percent": 0.6318772007042254,
+    "ratio": 0.07919371698943661,
+    "percent": 7.919371698943661,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 4594
+    "status": "over-threshold",
+    "mismatchedPixels": 57577,
+    "diffImage": "card-front_short-label_320x568_es.diff.png"
   },
   {
     "file": "card-front_short-label_390x844_en.png",
-    "ratio": 0.008825495199902783,
-    "percent": 0.8825495199902783,
+    "ratio": 0.06341824644549764,
+    "percent": 6.341824644549764,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11620
+    "status": "over-threshold",
+    "mismatchedPixels": 83499,
+    "diffImage": "card-front_short-label_390x844_en.diff.png"
   },
   {
     "file": "card-front_short-label_390x844_es.png",
-    "ratio": 0.0041119820148256166,
-    "percent": 0.41119820148256164,
+    "ratio": 0.068784937416454,
+    "percent": 6.8784937416454,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5414
+    "status": "over-threshold",
+    "mismatchedPixels": 90565,
+    "diffImage": "card-front_short-label_390x844_es.diff.png"
   },
   {
     "file": "card-front_short-label_430x932_en.png",
-    "ratio": 0.007437119473001298,
-    "percent": 0.7437119473001298,
+    "ratio": 0.0645748078650564,
+    "percent": 6.45748078650564,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11922
+    "status": "over-threshold",
+    "mismatchedPixels": 103516,
+    "diffImage": "card-front_short-label_430x932_en.diff.png"
   },
   {
     "file": "card-front_short-label_430x932_es.png",
-    "ratio": 0.0035763299730512026,
-    "percent": 0.35763299730512027,
+    "ratio": 0.06898704960574907,
+    "percent": 6.898704960574907,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5733
+    "status": "over-threshold",
+    "mismatchedPixels": 110589,
+    "diffImage": "card-front_short-label_430x932_es.diff.png"
   },
   {
     "file": "card-front_tide_1280x800_en.png",
-    "ratio": 0.001319091796875,
-    "percent": 0.1319091796875,
+    "ratio": 0.017507080078125,
+    "percent": 1.7507080078125001,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5403
+    "status": "over-threshold",
+    "mismatchedPixels": 71709,
+    "diffImage": "card-front_tide_1280x800_en.diff.png"
   },
   {
     "file": "card-front_tide_320x568_en.png",
-    "ratio": 0.006193606954225352,
-    "percent": 0.6193606954225352,
+    "ratio": 0.0704803036971831,
+    "percent": 7.04803036971831,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 4503
+    "status": "over-threshold",
+    "mismatchedPixels": 51242,
+    "diffImage": "card-front_tide_320x568_en.diff.png"
   },
   {
     "file": "card-front_tide_390x844_en.png",
-    "ratio": 0.004244136590108154,
-    "percent": 0.4244136590108154,
+    "ratio": 0.06158175355450237,
+    "percent": 6.158175355450237,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5588
+    "status": "over-threshold",
+    "mismatchedPixels": 81081,
+    "diffImage": "card-front_tide_390x844_en.diff.png"
   },
   {
     "file": "card-front_tide_430x932_en.png",
-    "ratio": 0.0036617925940712645,
-    "percent": 0.3661792594071264,
+    "ratio": 0.061755789000898294,
+    "percent": 6.175578900089829,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5870
+    "status": "over-threshold",
+    "mismatchedPixels": 98997,
+    "diffImage": "card-front_tide_430x932_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_1280x800_en.png",
-    "ratio": 0.002792724609375,
-    "percent": 0.2792724609375,
+    "ratio": 0.01817529296875,
+    "percent": 1.8175292968749999,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11439
+    "status": "over-threshold",
+    "mismatchedPixels": 74446,
+    "diffImage": "laterality-bar_grade-1_1280x800_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_1280x800_es.png",
-    "ratio": 0.001279052734375,
-    "percent": 0.1279052734375,
+    "ratio": 0.019501220703125,
+    "percent": 1.9501220703125,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5239
+    "status": "over-threshold",
+    "mismatchedPixels": 79877,
+    "diffImage": "laterality-bar_grade-1_1280x800_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_320x568_en.png",
-    "ratio": 0.014373349471830986,
-    "percent": 1.4373349471830987,
+    "ratio": 0.07476479973591549,
+    "percent": 7.476479973591549,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 10450,
+    "mismatchedPixels": 54357,
     "diffImage": "laterality-bar_grade-1_320x568_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_320x568_es.png",
-    "ratio": 0.006318772007042253,
-    "percent": 0.6318772007042254,
+    "ratio": 0.07919371698943661,
+    "percent": 7.919371698943661,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 4594
+    "status": "over-threshold",
+    "mismatchedPixels": 57577,
+    "diffImage": "laterality-bar_grade-1_320x568_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_390x844_en.png",
-    "ratio": 0.008825495199902783,
-    "percent": 0.8825495199902783,
+    "ratio": 0.06341824644549764,
+    "percent": 6.341824644549764,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11620
+    "status": "over-threshold",
+    "mismatchedPixels": 83499,
+    "diffImage": "laterality-bar_grade-1_390x844_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_390x844_es.png",
-    "ratio": 0.0041119820148256166,
-    "percent": 0.41119820148256164,
+    "ratio": 0.068784937416454,
+    "percent": 6.8784937416454,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5414
+    "status": "over-threshold",
+    "mismatchedPixels": 90565,
+    "diffImage": "laterality-bar_grade-1_390x844_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_430x932_en.png",
-    "ratio": 0.007437119473001298,
-    "percent": 0.7437119473001298,
+    "ratio": 0.0645748078650564,
+    "percent": 6.45748078650564,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11922
+    "status": "over-threshold",
+    "mismatchedPixels": 103516,
+    "diffImage": "laterality-bar_grade-1_430x932_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-1_430x932_es.png",
-    "ratio": 0.0035763299730512026,
-    "percent": 0.35763299730512027,
+    "ratio": 0.06898704960574907,
+    "percent": 6.898704960574907,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5733
+    "status": "over-threshold",
+    "mismatchedPixels": 110589,
+    "diffImage": "laterality-bar_grade-1_430x932_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_1280x800_en.png",
-    "ratio": 0.002792724609375,
-    "percent": 0.2792724609375,
+    "ratio": 0.01817529296875,
+    "percent": 1.8175292968749999,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11439
+    "status": "over-threshold",
+    "mismatchedPixels": 74446,
+    "diffImage": "laterality-bar_grade-3_1280x800_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_1280x800_es.png",
-    "ratio": 0.001279052734375,
-    "percent": 0.1279052734375,
+    "ratio": 0.019501220703125,
+    "percent": 1.9501220703125,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5239
+    "status": "over-threshold",
+    "mismatchedPixels": 79877,
+    "diffImage": "laterality-bar_grade-3_1280x800_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_320x568_en.png",
-    "ratio": 0.014373349471830986,
-    "percent": 1.4373349471830987,
+    "ratio": 0.07476479973591549,
+    "percent": 7.476479973591549,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 10450,
+    "mismatchedPixels": 54357,
     "diffImage": "laterality-bar_grade-3_320x568_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_320x568_es.png",
-    "ratio": 0.006318772007042253,
-    "percent": 0.6318772007042254,
+    "ratio": 0.07919371698943661,
+    "percent": 7.919371698943661,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 4594
+    "status": "over-threshold",
+    "mismatchedPixels": 57577,
+    "diffImage": "laterality-bar_grade-3_320x568_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_390x844_en.png",
-    "ratio": 0.008825495199902783,
-    "percent": 0.8825495199902783,
+    "ratio": 0.06341824644549764,
+    "percent": 6.341824644549764,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11620
+    "status": "over-threshold",
+    "mismatchedPixels": 83499,
+    "diffImage": "laterality-bar_grade-3_390x844_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_390x844_es.png",
-    "ratio": 0.0041119820148256166,
-    "percent": 0.41119820148256164,
+    "ratio": 0.068784937416454,
+    "percent": 6.8784937416454,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5414
+    "status": "over-threshold",
+    "mismatchedPixels": 90565,
+    "diffImage": "laterality-bar_grade-3_390x844_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_430x932_en.png",
-    "ratio": 0.007437119473001298,
-    "percent": 0.7437119473001298,
+    "ratio": 0.0645748078650564,
+    "percent": 6.45748078650564,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11922
+    "status": "over-threshold",
+    "mismatchedPixels": 103516,
+    "diffImage": "laterality-bar_grade-3_430x932_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-3_430x932_es.png",
-    "ratio": 0.0035763299730512026,
-    "percent": 0.35763299730512027,
+    "ratio": 0.06898704960574907,
+    "percent": 6.898704960574907,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5733
+    "status": "over-threshold",
+    "mismatchedPixels": 110589,
+    "diffImage": "laterality-bar_grade-3_430x932_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_1280x800_en.png",
-    "ratio": 0.002792724609375,
-    "percent": 0.2792724609375,
+    "ratio": 0.01817529296875,
+    "percent": 1.8175292968749999,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11439
+    "status": "over-threshold",
+    "mismatchedPixels": 74446,
+    "diffImage": "laterality-bar_grade-5_1280x800_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_1280x800_es.png",
-    "ratio": 0.001279052734375,
-    "percent": 0.1279052734375,
+    "ratio": 0.019501220703125,
+    "percent": 1.9501220703125,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5239
+    "status": "over-threshold",
+    "mismatchedPixels": 79877,
+    "diffImage": "laterality-bar_grade-5_1280x800_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_320x568_en.png",
-    "ratio": 0.014373349471830986,
-    "percent": 1.4373349471830987,
+    "ratio": 0.07476479973591549,
+    "percent": 7.476479973591549,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 10450,
+    "mismatchedPixels": 54357,
     "diffImage": "laterality-bar_grade-5_320x568_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_320x568_es.png",
-    "ratio": 0.006318772007042253,
-    "percent": 0.6318772007042254,
+    "ratio": 0.07919371698943661,
+    "percent": 7.919371698943661,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 4594
+    "status": "over-threshold",
+    "mismatchedPixels": 57577,
+    "diffImage": "laterality-bar_grade-5_320x568_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_390x844_en.png",
-    "ratio": 0.008825495199902783,
-    "percent": 0.8825495199902783,
+    "ratio": 0.06341824644549764,
+    "percent": 6.341824644549764,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11620
+    "status": "over-threshold",
+    "mismatchedPixels": 83499,
+    "diffImage": "laterality-bar_grade-5_390x844_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_390x844_es.png",
-    "ratio": 0.0041119820148256166,
-    "percent": 0.41119820148256164,
+    "ratio": 0.068784937416454,
+    "percent": 6.8784937416454,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5414
+    "status": "over-threshold",
+    "mismatchedPixels": 90565,
+    "diffImage": "laterality-bar_grade-5_390x844_es.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_430x932_en.png",
-    "ratio": 0.007437119473001298,
-    "percent": 0.7437119473001298,
+    "ratio": 0.0645748078650564,
+    "percent": 6.45748078650564,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 11922
+    "status": "over-threshold",
+    "mismatchedPixels": 103516,
+    "diffImage": "laterality-bar_grade-5_430x932_en.diff.png"
   },
   {
     "file": "laterality-bar_grade-5_430x932_es.png",
-    "ratio": 0.0035763299730512026,
-    "percent": 0.35763299730512027,
+    "ratio": 0.06898704960574907,
+    "percent": 6.898704960574907,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 5733
+    "status": "over-threshold",
+    "mismatchedPixels": 110589,
+    "diffImage": "laterality-bar_grade-5_430x932_es.diff.png"
   },
   {
     "file": "laterality-bar_wrap-200_1280x800_en.png",
-    "ratio": 0.0066484375,
-    "percent": 0.66484375,
+    "ratio": 0.022017333984375,
+    "percent": 2.2017333984375003,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 27232
+    "status": "over-threshold",
+    "mismatchedPixels": 90183,
+    "diffImage": "laterality-bar_wrap-200_1280x800_en.diff.png"
   },
   {
     "file": "laterality-bar_wrap-200_320x568_en.png",
-    "ratio": 0.02743040272887324,
-    "percent": 2.743040272887324,
+    "ratio": 0.07876457966549295,
+    "percent": 7.876457966549295,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 19943,
+    "mismatchedPixels": 57265,
     "diffImage": "laterality-bar_wrap-200_320x568_en.diff.png"
   },
   {
     "file": "laterality-bar_wrap-200_390x844_en.png",
-    "ratio": 0.025099495685988578,
-    "percent": 2.509949568598858,
+    "ratio": 0.07969604447685016,
+    "percent": 7.9696044476850165,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 33047,
+    "mismatchedPixels": 104931,
     "diffImage": "laterality-bar_wrap-200_390x844_en.diff.png"
   },
   {
     "file": "laterality-bar_wrap-200_430x932_en.png",
-    "ratio": 0.021848487873041222,
-    "percent": 2.184848787304122,
+    "ratio": 0.07754142129953089,
+    "percent": 7.754142129953088,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 35024,
+    "mismatchedPixels": 124302,
     "diffImage": "laterality-bar_wrap-200_430x932_en.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_1280x800_en.png",
+    "ratio": 0.01016259765625,
+    "percent": 1.0162597656249999,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 41626,
+    "diffImage": "laterality-sheet_open_1280x800_en.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_1280x800_es.png",
+    "ratio": 0.01137841796875,
+    "percent": 1.137841796875,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 46606,
+    "diffImage": "laterality-sheet_open_1280x800_es.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_320x568_en.png",
+    "ratio": 0.005031360035211267,
+    "percent": 0.5031360035211268,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 3658
+  },
+  {
+    "file": "laterality-sheet_open_320x568_es.png",
+    "ratio": 0.017448833626760564,
+    "percent": 1.7448833626760565,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 12686,
+    "diffImage": "laterality-sheet_open_320x568_es.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_390x844_en.png",
+    "ratio": 0.04195831814315227,
+    "percent": 4.195831814315227,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 55244,
+    "diffImage": "laterality-sheet_open_390x844_en.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_390x844_es.png",
+    "ratio": 0.047272602989427634,
+    "percent": 4.727260298942763,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 62241,
+    "diffImage": "laterality-sheet_open_390x844_es.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_430x932_en.png",
+    "ratio": 0.05572661942309612,
+    "percent": 5.572661942309612,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 89332,
+    "diffImage": "laterality-sheet_open_430x932_en.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_430x932_es.png",
+    "ratio": 0.06018689489969059,
+    "percent": 6.018689489969059,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 96482,
+    "diffImage": "laterality-sheet_open_430x932_es.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open-200_320x568_es.png",
+    "ratio": 0.005393100792253521,
+    "percent": 0.5393100792253521,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 3921
+  },
+  {
+    "file": "laterality-sheet_open-200_390x844_es.png",
+    "ratio": 0.01728794507230526,
+    "percent": 1.7287945072305262,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 22762,
+    "diffImage": "laterality-sheet_open-200_390x844_es.diff.png"
   },
   {
     "file": "logo_lockup-on-orange_1280x800_en.png",
@@ -789,71 +921,75 @@
   },
   {
     "file": "typography_large-text-200_1280x800_en.png",
-    "ratio": 0.0066484375,
-    "percent": 0.66484375,
+    "ratio": 0.022017333984375,
+    "percent": 2.2017333984375003,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 27232
+    "status": "over-threshold",
+    "mismatchedPixels": 90183,
+    "diffImage": "typography_large-text-200_1280x800_en.diff.png"
   },
   {
     "file": "typography_large-text-200_320x568_en.png",
-    "ratio": 0.02743040272887324,
-    "percent": 2.743040272887324,
+    "ratio": 0.07876457966549295,
+    "percent": 7.876457966549295,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 19943,
+    "mismatchedPixels": 57265,
     "diffImage": "typography_large-text-200_320x568_en.diff.png"
   },
   {
     "file": "typography_large-text-200_390x844_en.png",
-    "ratio": 0.025099495685988578,
-    "percent": 2.509949568598858,
+    "ratio": 0.07969604447685016,
+    "percent": 7.9696044476850165,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 33047,
+    "mismatchedPixels": 104931,
     "diffImage": "typography_large-text-200_390x844_en.diff.png"
   },
   {
     "file": "typography_large-text-200_430x932_en.png",
-    "ratio": 0.021848487873041222,
-    "percent": 2.184848787304122,
+    "ratio": 0.07754142129953089,
+    "percent": 7.754142129953088,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 35024,
+    "mismatchedPixels": 124302,
     "diffImage": "typography_large-text-200_430x932_en.diff.png"
   },
   {
     "file": "typography_long-label-200_1280x800_en.png",
-    "ratio": 0.000055908203125,
-    "percent": 0.0055908203125000005,
+    "ratio": 0.0112119140625,
+    "percent": 1.12119140625,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 229
+    "status": "over-threshold",
+    "mismatchedPixels": 45924,
+    "diffImage": "typography_long-label-200_1280x800_en.diff.png"
   },
   {
     "file": "typography_long-label-200_320x568_en.png",
-    "ratio": 0.11166648327464788,
-    "percent": 11.166648327464788,
+    "ratio": 0.13896897007042253,
+    "percent": 13.896897007042252,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 81186,
+    "mismatchedPixels": 101036,
     "diffImage": "typography_long-label-200_320x568_en.diff.png"
   },
   {
     "file": "typography_long-label-200_390x844_en.png",
-    "ratio": 0.0002157005711508081,
-    "percent": 0.02157005711508081,
+    "ratio": 0.041531474055170735,
+    "percent": 4.153147405517074,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 284
+    "status": "over-threshold",
+    "mismatchedPixels": 54682,
+    "diffImage": "typography_long-label-200_390x844_en.diff.png"
   },
   {
     "file": "typography_long-label-200_430x932_en.png",
-    "ratio": 0.00029755963669028847,
-    "percent": 0.029755963669028846,
+    "ratio": 0.041920975147220284,
+    "percent": 4.192097514722028,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 477
+    "status": "over-threshold",
+    "mismatchedPixels": 67201,
+    "diffImage": "typography_long-label-200_430x932_en.diff.png"
   },
   {
     "file": "typography_status-body_1280x800_en.png",
