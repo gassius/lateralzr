@@ -41,6 +41,7 @@ import {
   SWIPE_COACH_PEEK_PX,
   type CoachKind,
 } from '@/lib/discoveryCoaching';
+import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
 import { displayMediaUrl } from '@/lib/remoteImage';
@@ -375,11 +376,11 @@ export function ConceptCardStack({
   }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
   const noteBackInteractivePress = useCallback(() => {
-    suppressFlipUntilRef.current = Date.now() + 400;
+    suppressFlipUntilRef.current = suppressUntil(Date.now());
   }, []);
 
   const toggleFlip = useCallback(() => {
-    if (Date.now() < suppressFlipUntilRef.current) return;
+    if (isFlipSuppressed(Date.now(), suppressFlipUntilRef.current)) return;
     const wasFlipped = flippedRef.current;
     const next = !wasFlipped;
     const item = conceptsRef.current[currentIndexRef.current];
