@@ -1,4 +1,4 @@
 Baseline diff for typography_large-text-200_430x932_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/typography_large-text-200_430x932_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/typography_large-text-200_430x932_en.png
-diff ratio 0.0199 > 0.01 (31921 px)
+diff ratio 0.0199 > 0.01 (31915 px)
