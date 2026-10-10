@@ -1,3 +1,4 @@
+import type { PatternVariantIndex } from './patternPlacement';
 import { parseLateralityParam, type LateralityGrade } from './laterality';
 
 export type JourneyTestParams = {
@@ -8,6 +9,11 @@ export type JourneyTestParams = {
   complexity?: number;
   /** Expo-web `?laterality=4`. Absent when blank/invalid. */
   laterality?: LateralityGrade;
+  /**
+   * Test-only pattern placement override from `?patternVariant=1|2|3`
+   * (1 = descending, 2 = ascending, 3 = edge). Maps to index 0–2.
+   */
+  patternVariant?: PatternVariantIndex;
 };
 
 export type JourneyFetchOptions = {
@@ -50,6 +56,23 @@ export function parseComplexityParam(value: string | null | undefined): number |
   return n;
 }
 
+/**
+ * Critiquito / E2E: `?patternVariant=1|2|3` → index 0|1|2.
+ * Blank, floats, and out-of-range values are ignored.
+ */
+export function parsePatternVariantParam(
+  value: string | null | undefined,
+): PatternVariantIndex | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim();
+  if (trimmed === '' || !/^-?\d+$/.test(trimmed)) return undefined;
+  const n = Number(trimmed);
+  if (!Number.isInteger(n) || n < 1 || n > 3) {
+    return undefined;
+  }
+  return (n - 1) as PatternVariantIndex;
+}
+
 /** URL `?complexity=N` wins for this session/load only. */
 export function resolveInitialComplexity(params: JourneyTestParams, stored: number): number {
   return params.complexity ?? stored;
@@ -78,12 +101,14 @@ export function parseJourneyTestParams(
           : '';
     const params = new URLSearchParams(raw);
     const complexity = parseComplexityParam(params.get('complexity'));
+    const patternVariant = parsePatternVariantParam(params.get('patternVariant'));
     return {
       localizedConcept: trimOrUndefined(params.get('localizedConcept')),
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
       onlyWithMedia: parseBooleanFlag(params.get('onlyWithMedia')),
       ...(complexity != null ? { complexity } : {}),
       laterality: parseLateralityParam(params.get('laterality')),
+      ...(patternVariant != null ? { patternVariant } : {}),
     };
   } catch {
     return { onlyWithMedia: false };

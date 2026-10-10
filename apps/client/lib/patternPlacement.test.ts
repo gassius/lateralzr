@@ -24,6 +24,7 @@ import {
   patternVariantName,
   resolvePatternClearArea,
   variantFor,
+  type PatternRect,
 } from './patternPlacement.ts';
 import { PATTERN_VARIANT_PLACEMENTS } from './patternVariantPlacements.ts';
 
@@ -38,6 +39,29 @@ const EXPECTED_SHA256 = {
   'lateralzr-pattern-03-edge-current.svg':
     '2f5c34364c3c0002b3ad8de338c80517f10825f638ce96ca3d0a78d59ba938b6',
 } as const;
+
+function assertRectClose(actual: PatternRect, expected: PatternRect, tol = 0.5) {
+  assert.ok(Math.abs(actual.x - expected.x) <= tol, `x ${actual.x} vs ${expected.x}`);
+  assert.ok(Math.abs(actual.y - expected.y) <= tol, `y ${actual.y} vs ${expected.y}`);
+  assert.ok(Math.abs(actual.width - expected.width) <= tol, `w ${actual.width} vs ${expected.width}`);
+  assert.ok(
+    Math.abs(actual.height - expected.height) <= tol,
+    `h ${actual.height} vs ${expected.height}`,
+  );
+}
+
+function motifElementsById(xml: string): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  const re = /<(?:use|g)\b[^>]*\sdata-motif="(m\d+)"[^>]*>/g;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml)) != null) {
+    const id = match[1]!;
+    const list = map.get(id) ?? [];
+    list.push(match[0]!);
+    map.set(id, list);
+  }
+  return map;
+}
 
 describe('pattern SVG assets (byte-identical to Critiquito v3.3.1)', () => {
   it('ships the three production files with locked checksums', () => {
@@ -78,14 +102,18 @@ describe('variantFor', () => {
     assert.equal(variantFor('mushroom'), variantFor('mushroom'));
   });
 
-  it('spreads fixture keys across all three variants', () => {
-    // djb2 % 3 — locked so Critiquito e2e screenshots stay on known variants.
-    assert.equal(variantFor('long-label'), 0);
-    assert.equal(patternVariantName(0), 'descending-current');
+  it('locks fixture labels to placement indices (product keys, not URL aliases)', () => {
+    // E2E long-label fixture uses the full phrase — that hashes to edge (2), not 0.
+    assert.equal(
+      variantFor('extraordinarily elaborate multidisciplinary conceptual framework'),
+      2,
+    );
     assert.equal(variantFor('tide'), 1);
     assert.equal(patternVariantName(1), 'ascending-current');
     assert.equal(variantFor('mushroom'), 2);
     assert.equal(patternVariantName(2), 'edge-current');
+    assert.equal(variantFor('creativity'), 0);
+    assert.equal(patternVariantName(0), 'descending-current');
   });
 
   it('covers all three buckets over a sample of keys', () => {
@@ -107,6 +135,53 @@ describe('variantFor', () => {
   });
 });
 
+describe('motifBoundingBox (exact ±0.5)', () => {
+  it('matches rotated+mirrored v0 m02 (rotate 8, sx −0.3571)', () => {
+    const m02 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm02')!;
+    assert.equal(m02.rotate, 8);
+    assert.equal(m02.sx, -0.3571);
+    // Locked against drop-rotation / ignore-mirroring / collapse-right-edge mutations.
+    assertRectClose(motifBoundingBox(m02), {
+      x: 76.76734524472573,
+      y: 24.093330207035052,
+      width: 79.44898428811172,
+      height: 81.88039239206992,
+    });
+  });
+
+  it('matches unmirrored v0 m01', () => {
+    const m01 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm01')!;
+    assert.ok(m01.sx > 0);
+    assertRectClose(motifBoundingBox(m01), {
+      x: 4.492222313424108,
+      y: 4.584898743203063,
+      width: 74.05560831032624,
+      height: 76.00461325677779,
+    });
+  });
+
+  it('hides only the motif that crosses a tight clear boundary (~2 units)', () => {
+    // v0 m10 bottom ≈ 224.7; neighbour m05 bottom ≈ 211.7. Clear clips m10 by ~2 only.
+    const m10 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm10')!;
+    const m05 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm05')!;
+    const bb10 = motifBoundingBox(m10);
+    const bb05 = motifBoundingBox(m05);
+    const clearTop = bb10.y + bb10.height - 2;
+    const clear: PatternRect = {
+      x: 20,
+      y: clearTop,
+      width: 318,
+      height: 168,
+    };
+    assert.ok(bb10.y + bb10.height > clear.y, 'm10 must cross into clear');
+    assert.ok(bb10.y + bb10.height - clear.y < 2.5, 'crossing depth ~2');
+    assert.ok(bb05.y + bb05.height <= clear.y + 0.5, 'm05 stays above clear');
+    const hidden = motifsIntersectingClearArea(0, clear);
+    assert.ok(hidden.includes('m10'));
+    assert.equal(hidden.includes('m05'), false);
+  });
+});
+
 describe('title clearing', () => {
   it('keeps every motif outside the SVG default clear area', () => {
     for (const variant of [0, 1, 2] as const) {
@@ -120,18 +195,10 @@ describe('title clearing', () => {
   });
 
   it('hides motifs that intersect a tall measured title box + 16 px', () => {
-    // 4-line / 200% style box that grows past the default clear into upper motifs.
     const tallTitle = { x: 20, y: 180, width: 318, height: 220 };
     const clear = expandRect(tallTitle, PATTERN_TITLE_CLEAR_MARGIN_PX);
     const hidden = motifsIntersectingClearArea(0, clear);
     assert.ok(hidden.length > 0, 'expected at least one motif under a tall title');
-    for (const id of hidden) {
-      const motif = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === id);
-      assert.ok(motif);
-      // Sanity: hidden motifs sit near/above the expanded clear.
-      assert.ok(motif.cy < clear.y + clear.height);
-    }
-    // Bottom motifs stay visible.
     assert.equal(hidden.includes('m11'), false);
     assert.equal(hidden.includes('m12'), false);
   });
@@ -154,7 +221,6 @@ describe('title clearing', () => {
   });
 
   it('does not hide edge motifs for a short ink-hugging title on variant 03', () => {
-    // Full-column width would wrongly clear beside "Mushroom" on edge-current.
     const shortInk = { x: 24, y: 280, width: 160, height: 37 };
     const clear = resolvePatternClearArea({
       variant: 2,
@@ -165,22 +231,79 @@ describe('title clearing', () => {
     assert.deepEqual(motifsIntersectingClearArea(2, clear), []);
   });
 
-  it('strips intersecting motifs from the SVG without rewriting path data', () => {
+  it('sets display="none" on every data-motif element for hidden ids (incl. pulse <g>)', () => {
     const { xml, hiddenMotifs, variant } = buildPatternSvgXml({
-      conceptKey: 'long-label',
+      conceptKey: 'creativity',
       titleFaceRect: { x: 20, y: 160, width: 318, height: 240 },
       faceWidth: 358,
       faceHeight: 560,
+      variantOverride: 0,
     });
     assert.equal(variant, 0);
     assert.ok(hiddenMotifs.length > 0);
-    for (const id of hiddenMotifs) {
-      assert.match(xml, new RegExp(`data-motif="${id}"[^>]*display="none"`));
+    const byId = motifElementsById(xml);
+    const hiddenSet = new Set(hiddenMotifs);
+    for (const [id, els] of byId) {
+      assert.ok(els.length >= 19, `${id} should appear in relief uses + pulse groups`);
+      if (hiddenSet.has(id)) {
+        for (const el of els) {
+          assert.match(el, /display="none"/, `hidden ${id}: ${el.slice(0, 120)}`);
+        }
+      } else {
+        for (const el of els) {
+          assert.doesNotMatch(el, /display="none"/, `visible ${id} must not be hidden`);
+        }
+      }
     }
-    // Path geometry in defs stays intact (byte-stable motif artwork).
+    // Pulse groups specifically (mutation: skip <g> tags).
+    for (const id of hiddenMotifs) {
+      const groups = [...xml.matchAll(new RegExp(`<g\\b[^>]*data-motif="${id}"[^>]*>`, 'g'))];
+      assert.ok(groups.length > 0, `expected pulse <g> for ${id}`);
+      for (const g of groups) {
+        assert.match(g[0]!, /display="none"/);
+      }
+    }
     assert.match(xml, /id="motif-bulb"/);
-    assert.match(xml, /id="motif-arm-a"/);
-    const untouched = hideMotifsInPatternSvg(PATTERN_SVG_01_DESCENDING, []);
-    assert.equal(untouched, PATTERN_SVG_01_DESCENDING);
+    assert.equal(hideMotifsInPatternSvg(PATTERN_SVG_01_DESCENDING, []), PATTERN_SVG_01_DESCENDING);
+  });
+});
+
+describe('patternVariantPlacements ↔ SVG (M1)', () => {
+  it('matches every use.bulb transform and #title-clear-area from the v3.3.1 files', () => {
+    for (let v = 0; v < 3; v += 1) {
+      const svg = PATTERN_SVG_BY_VARIANT[v]!;
+      const table = PATTERN_VARIANT_PLACEMENTS[v]!;
+      const clear = svg.match(
+        /id="title-clear-area"\s+x="([^"]+)"\s+y="([^"]+)"\s+width="([^"]+)"\s+height="([^"]+)"/,
+      );
+      assert.ok(clear, `variant ${v} title-clear-area`);
+      assert.equal(Number(clear[1]), table.titleClear.x);
+      assert.equal(Number(clear[2]), table.titleClear.y);
+      assert.equal(Number(clear[3]), table.titleClear.width);
+      assert.equal(Number(clear[4]), table.titleClear.height);
+
+      const core = svg.match(
+        /<g id="relief-core"[^>]*>([\s\S]*?)<\/g>\s*<g id="connectors"/,
+      );
+      assert.ok(core, `variant ${v} relief-core`);
+      const bulbs = [
+        ...core[1]!.matchAll(
+          /<use class="bulb" data-motif="(m\d+)" href="#motif-bulb" transform="translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\) scale\(([-\d.]+) ([-\d.]+)\) translate\(([-\d.]+) ([-\d.]+)\)"\/>/g,
+        ),
+      ];
+      assert.equal(bulbs.length, table.motifs.length, `variant ${v} motif count`);
+      for (const row of bulbs) {
+        const id = row[1]!;
+        const placed = table.motifs.find((m) => m.id === id);
+        assert.ok(placed, `table missing ${id}`);
+        assert.equal(placed.cx, Number(row[2]));
+        assert.equal(placed.cy, Number(row[3]));
+        assert.equal(placed.rotate, Number(row[4]));
+        assert.equal(placed.sx, Number(row[5]));
+        assert.equal(placed.sy, Number(row[6]));
+        assert.equal(placed.ox, Number(row[7]));
+        assert.equal(placed.oy, Number(row[8]));
+      }
+    }
   });
 });

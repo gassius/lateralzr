@@ -57,12 +57,13 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 ### Card front pattern (Lz-25)
 
 - Production SVGs in `assets/images/pattern/` (Critiquito v3.3.1, byte-locked in `lib/patternPlacement.test.ts`)
-- Variant = `hash(conceptKey) % 3` — stable across flip / backtrack
-- E2E captures (compare 390-wide to ticket preview PNGs):
-  - `card-front_pattern-01-descending_*` — `?canonicalConcept=long-label` → variant 0
-  - `card-front_pattern-02-ascending_*` — `?canonicalConcept=tide` → variant 1
-  - `card-front_pattern-03-edge_*` — `?canonicalConcept=mushroom` → variant 2
-- Title clear = measured title box + 16 px; intersecting motifs are hidden (never moved)
+- Product variant = `hash(conceptKey) % 3` — stable across flip / backtrack
+- E2E captures use short titles + `?patternVariant=1|2|3` so clearing does not strip the placement (compare 390-wide to ticket preview PNGs):
+  - `card-front_pattern-01-descending_*` — `mushroom&patternVariant=1`
+  - `card-front_pattern-02-ascending_*` — `tide&patternVariant=2`
+  - `card-front_pattern-03-edge_*` — `mushroom&patternVariant=3`
+  - `card-front_pattern-clear-200_320x568_en` — long-label @ `e2eTextScale=2`; asserts no motif in title+16
+- Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
 ### Pending screens (add when UI ships)
 
