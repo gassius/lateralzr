@@ -16,6 +16,7 @@ export const type = tokens.type;
 export const motion = tokens.motion;
 export const laterality = tokens.laterality;
 export const pattern = tokens.pattern;
+export const shadow = tokens.shadow;
 
 export type { DesignTokens };
 export type ColorToken = keyof typeof color;

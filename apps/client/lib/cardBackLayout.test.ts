@@ -111,8 +111,11 @@ test('failure wins over a decoded flag so a broken-image box cannot linger', () 
   assert.equal(layout.rhythm.scrollJustify, 'center');
 });
 
-test('scroll minHeight subtracts face padding and border so leftover space is real, not a percent no-op', () => {
-  assert.equal(cardBackScrollMinHeight(480), 438);
+test('scroll minHeight subtracts face padding (no border) so leftover space is real, not a percent no-op', () => {
+  // Default padding 20, border 0 → 480 − 40 = 440 (Lz-24 removed the 1 px teal hairline).
+  assert.equal(cardBackScrollMinHeight(480), 440);
+  assert.equal(cardBackScrollMinHeight(480, 24), 432);
+  assert.equal(cardBackScrollMinHeight(480, 20, 0), 440);
   assert.equal(cardBackScrollMinHeight(40), undefined);
   assert.equal(cardBackScrollMinHeight(0), undefined);
   assert.equal(cardBackScrollMinHeight(-12), undefined);
@@ -121,7 +124,11 @@ test('scroll minHeight subtracts face padding and border so leftover space is re
 
 test('no-media column uses a pixel height so justifyContent can actually center the copy group', () => {
   assert.deepEqual(cardBackBalancedColumnStyle(480), {
-    height: 438,
+    height: 440,
+    justifyContent: 'center',
+  });
+  assert.deepEqual(cardBackBalancedColumnStyle(480, 24), {
+    height: 432,
     justifyContent: 'center',
   });
   assert.deepEqual(cardBackBalancedColumnStyle(0), {

@@ -64,7 +64,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - “No next idea” empty state
 - End-of-deck (non-loading) if distinct from `status_loading`
 
-Smoke runs on **all three** viewports (390×844, 320×568, 1280×800).
+Smoke runs on **all four** viewports (390×844, 320×568, 430×932, 1280×800).
 
 ## Design review (UI/UX and Art Supervisor (gasnet-art-director))
 
