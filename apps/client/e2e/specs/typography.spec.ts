@@ -50,6 +50,28 @@ test.describe('typography', () => {
     );
     const text = await title.innerText();
     expect(text).not.toMatch(/\.\.\.|…/);
+    expect(text.replace(/\n/g, '')).toMatch(/framework/i);
+
+    // AD follow-up (#91 note / Lz-26): at 320×200% the last line must not clip
+    // at the card bottom — shrink into the ink band + collapse bottom reserve.
+    const lines = text.split('\n').filter((line) => line.trim().length > 0);
+    expect(lines.length).toBeLessThanOrEqual(4);
+
+    const visibility = await title.evaluate((el) => {
+      const titleBox = el.getBoundingClientRect();
+      const face =
+        el.closest('[data-testid="card-front-scroll"]')?.parentElement ?? el.parentElement;
+      const faceBox = face?.getBoundingClientRect();
+      return {
+        titleBottom: titleBox.bottom,
+        titleTop: titleBox.top,
+        faceBottom: faceBox?.bottom ?? 0,
+        faceTop: faceBox?.top ?? 0,
+      };
+    });
+    expect(visibility.titleBottom).toBeLessThanOrEqual(visibility.faceBottom + 1);
+    expect(visibility.titleTop).toBeGreaterThanOrEqual(visibility.faceTop - 1);
+
     await capture(page, testInfo, {
       screen: 'typography',
       state: 'long-label-200',

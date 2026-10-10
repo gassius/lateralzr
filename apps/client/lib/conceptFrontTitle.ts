@@ -10,13 +10,21 @@ import { color, type } from '../theme/tokens';
  * Wrap policy (art director / §7.3): never split a word without a visible hyphen.
  * Prefer space wraps; if a word overflows at 32, step size down to 24; only
  * then insert `-\n`. Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines —
- * shrink toward 24 before falling back to face scroll. Pattern clearing (Lz-25)
- * consumes the title rect.
+ * shrink toward 24 (teal), then toward {@link CONCEPT_FRONT_TITLE_MIN_ABSOLUTE}
+ * (ink) before falling back to face scroll. Pattern clearing (Lz-25) consumes
+ * the title rect.
  */
 
 export const CONCEPT_FRONT_TITLE_FONT_SIZE = type.concept;
 
 export const CONCEPT_FRONT_TITLE_MIN_ON_ORANGE = type.conceptMinOnOrange;
+
+/**
+ * Absolute floor below the 24 px teal minimum. Used when 200% text / narrow
+ * widths still exceed {@link CONCEPT_FRONT_TITLE_MAX_LINES} at 24 — ink colour
+ * applies via {@link titleColor} / rendered size.
+ */
+export const CONCEPT_FRONT_TITLE_MIN_ABSOLUTE = 12;
 
 export const CONCEPT_FRONT_TITLE_TEXT_ALIGN = 'left' as const;
 
@@ -25,14 +33,14 @@ export const CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO = 1.15;
 
 /**
  * §7.3 / Lz-26: 3–4 lines allowed. When a space wrap exceeds this, shrink
- * toward 24 before relying on scroll.
+ * toward 24 (then absolute floor) before relying on scroll.
  */
 export const CONCEPT_FRONT_TITLE_MAX_LINES = 4;
 
-/** Visible hyphen used when a word still overflows at the 24 px floor. */
+/** Visible hyphen used when a word still overflows at the absolute floor. */
 export const CONCEPT_FRONT_TITLE_HYPHEN = '-';
 
-/** Minimum breathing room below the title block inside the face (px). */
+/** Preferred breathing room below the title block inside the face (px). */
 export const CONCEPT_FRONT_TITLE_BOTTOM_RESERVE = 48;
 
 /**
@@ -100,6 +108,25 @@ export function conceptFrontTitleTopSpacerHeight(
 }
 
 /**
+ * Bottom spacer min height: keep the preferred reserve when the title is short;
+ * collapse toward 0 so a tall title (e.g. 200% text) is not clipped by the
+ * fixed 48 px band after the top spacer has already shrunk to 0.
+ */
+export function conceptFrontTitleBottomSpacerMinHeight(
+  faceHeight: number,
+  titleBlockHeight: number,
+  topSpacerHeight: number,
+  preferredReserve: number = CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
+): number {
+  if (faceHeight <= 0) return 0;
+  const available = Math.max(
+    0,
+    Math.round(faceHeight - titleBlockHeight - Math.max(0, topSpacerHeight)),
+  );
+  return Math.min(Math.max(0, preferredReserve), available);
+}
+
+/**
  * Title colour for a given rendered px size (after any shrink × font scale).
  * Concept teal at ≥24; ink below.
  */
@@ -129,6 +156,17 @@ export type ConceptFrontTitleLayout = {
   fontSize: number;
   lineHeight: number;
 };
+
+/** Painted title block height for a layout at the given display font scale. */
+export function conceptFrontTitleBlockHeight(
+  layout: ConceptFrontTitleLayout,
+  displayScale: number = 1,
+): number {
+  const scale = displayScale > 0 ? displayScale : 1;
+  const lines = conceptFrontTitleLineCount(layout.displayText);
+  const displayLineHeight = Math.round(layout.lineHeight * scale);
+  return lines * displayLineHeight;
+}
 
 let measureCanvas: HTMLCanvasElement | null = null;
 let measureHost: HTMLSpanElement | null = null;
@@ -309,12 +347,17 @@ export function wrapTitleWithHyphens(
 }
 
 /**
- * Pick font size (32→24) and display string.
+ * Pick font size (32→24→absolute floor) and display string.
  * Shrink before hyphenating; never mid-word break without a visible `-`.
- * Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines (shrink toward 24 first).
+ * Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines: teal band first (32→24),
+ * then ink band down to {@link CONCEPT_FRONT_TITLE_MIN_ABSOLUTE} so 200% text
+ * on a 320-wide face does not clip the last line.
  *
  * `fontScale` is passed into measure as `size × fontScale` (OS / e2e glyph scale).
  * Returned `fontSize` / `lineHeight` stay unscaled for the Text style (#82).
+ *
+ * `minFontSize` is the teal-band floor (default 24). Shrinking continues below it
+ * toward `absoluteMinFontSize` only when ≤ max lines was not achieved in-band.
  */
 export function layoutConceptFrontTitle(
   text: string,
@@ -323,10 +366,17 @@ export function layoutConceptFrontTitle(
   maxFontSize: number = CONCEPT_FRONT_TITLE_FONT_SIZE,
   minFontSize: number = CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   fontScale: number = 1,
+  absoluteMinFontSize: number = CONCEPT_FRONT_TITLE_MIN_ABSOLUTE,
 ): ConceptFrontTitleLayout {
   const width = Math.max(0, maxWidth);
   const scale = fontScale > 0 ? fontScale : 1;
   const scaledMeasure: MeasureTitleWidth = (t, size) => measure(t, size * scale);
+  /**
+   * At 100% text keep the teal floor (24). At enlarged text (OS / e2e scale > 1)
+   * continue into the ink band so ≤ max lines still fits the face (320 × 200%).
+   */
+  const floor =
+    scale > 1 ? Math.min(minFontSize, absoluteMinFontSize) : minFontSize;
 
   if (width <= 0 || text.length === 0) {
     return {
@@ -339,7 +389,7 @@ export function layoutConceptFrontTitle(
   /** Last space-wrap that worked (may exceed max lines); prefers smaller size. */
   let overflowFallback: ConceptFrontTitleLayout | null = null;
 
-  for (let size = maxFontSize; size >= minFontSize; size -= 1) {
+  for (let size = maxFontSize; size >= floor; size -= 1) {
     const wrapped = wrapTitleAtSpaces(text, width, size, scaledMeasure);
     if (wrapped == null) continue;
     const layout: ConceptFrontTitleLayout = {
@@ -353,15 +403,35 @@ export function layoutConceptFrontTitle(
     overflowFallback = layout;
   }
 
-  if (overflowFallback != null) {
+  // Space wrap existed but stayed over max lines at every size in range.
+  if (overflowFallback != null && scale <= 1) {
     return overflowFallback;
   }
 
-  const fontSize = minFontSize;
-  return {
-    displayText: wrapTitleWithHyphens(text, width, fontSize, scaledMeasure),
-    fontSize,
-    lineHeight: Math.round(fontSize * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
+  // Hyphenate from the teal floor down to `floor` (ink band only when scale > 1).
+  let hyphenFallback: ConceptFrontTitleLayout | null = null;
+  for (let size = minFontSize; size >= floor; size -= 1) {
+    const layout: ConceptFrontTitleLayout = {
+      displayText: wrapTitleWithHyphens(text, width, size, scaledMeasure),
+      fontSize: size,
+      lineHeight: Math.round(size * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
+    };
+    if (conceptFrontTitleLineCount(layout.displayText) <= CONCEPT_FRONT_TITLE_MAX_LINES) {
+      return layout;
+    }
+    if (
+      hyphenFallback == null ||
+      conceptFrontTitleLineCount(layout.displayText) <
+        conceptFrontTitleLineCount(hyphenFallback.displayText)
+    ) {
+      hyphenFallback = layout;
+    }
+  }
+
+  return hyphenFallback ?? overflowFallback ?? {
+    displayText: text,
+    fontSize: floor,
+    lineHeight: Math.round(floor * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
   };
 }
 

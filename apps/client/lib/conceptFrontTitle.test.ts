@@ -4,12 +4,14 @@ import { test } from 'node:test';
 import { contrastRatio } from '../theme/contrast.ts';
 import { color, type } from '../theme/tokens.ts';
 import {
+  CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
   CONCEPT_FRONT_TITLE_COLOR,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_HYPHEN,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
   CONCEPT_FRONT_TITLE_MAX_LINES,
+  CONCEPT_FRONT_TITLE_MIN_ABSOLUTE,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
@@ -17,6 +19,8 @@ import {
   TITLE_CLEAR_AREA,
   applyNativeTitleTextLayoutOnce,
   clearNativeTitleMeasureCache,
+  conceptFrontTitleBlockHeight,
+  conceptFrontTitleBottomSpacerMinHeight,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
   conceptFrontTitleRenderedSize,
@@ -24,6 +28,7 @@ import {
   getCachedNativeTitleLayout,
   hyphenateWord,
   layoutConceptFrontTitle,
+  measureConceptFrontTitleWidth,
   nativeTitleFallbackLayout,
   nativeTitleMeasureCacheKey,
   resolveNativeFrontTitlePresentation,
@@ -167,10 +172,14 @@ test('B1: fontScale 2 is passed into measure (shrinks / hyphenates)', () => {
   assert.equal(atScale2.fontSize, 24);
   assert.equal(atScale2.displayText, 'abcd');
 
-  // Tighter width forces hyphen at the 24 floor under fontScale 2.
+  // Tighter width forces hyphen under fontScale 2; may drop below 24 to keep ≤4 lines.
   const hyphenated = layoutConceptFrontTitle('abcdefghij', 15, measure, 32, 24, 2);
-  assert.equal(hyphenated.fontSize, 24);
+  assert.ok(hyphenated.fontSize <= 24);
+  assert.ok(hyphenated.fontSize >= CONCEPT_FRONT_TITLE_MIN_ABSOLUTE);
   assert.ok(hyphenated.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
+  assert.ok(
+    conceptFrontTitleLineCount(hyphenated.displayText) <= CONCEPT_FRONT_TITLE_MAX_LINES,
+  );
 });
 
 test('titleColor uses layout fontSize after shrink (ink only below 24)', () => {
@@ -201,7 +210,53 @@ test('top spacer shrinks so a tall title block fits in the face', () => {
   const tallTitleH = 200;
   const risen = conceptFrontTitleTopSpacerHeight(faceH, tallTitleH);
   assert.ok(risen < shortTop);
-  assert.ok(risen + tallTitleH + 48 <= faceH);
+  assert.ok(risen + tallTitleH + CONCEPT_FRONT_TITLE_BOTTOM_RESERVE <= faceH);
+});
+
+test('bottom spacer collapses when title fills the face (200% clip guard)', () => {
+  assert.equal(CONCEPT_FRONT_TITLE_MIN_ABSOLUTE, 12);
+  assert.ok(CONCEPT_FRONT_TITLE_MIN_ABSOLUTE < CONCEPT_FRONT_TITLE_MIN_ON_ORANGE);
+
+  const faceH = 340;
+  const titleBlockH = 300;
+  const top = conceptFrontTitleTopSpacerHeight(faceH, titleBlockH);
+  assert.equal(top, 0);
+  const bottom = conceptFrontTitleBottomSpacerMinHeight(faceH, titleBlockH, top);
+  assert.equal(bottom, faceH - titleBlockH);
+  assert.ok(bottom < CONCEPT_FRONT_TITLE_BOTTOM_RESERVE);
+  assert.ok(top + titleBlockH + bottom <= faceH);
+});
+
+test('320-wide long label at fontScale 2 stays ≤4 lines and fits the face', () => {
+  // 320 viewport → card ~296 wide, pad 20 → ~256 content (Lz-26 / AD note on #91).
+  const title =
+    'Extraordinarily elaborate multidisciplinary conceptual framework';
+  const contentWidth = 256;
+  const faceContentH = 340;
+  const layout = layoutConceptFrontTitle(
+    title,
+    contentWidth,
+    measureConceptFrontTitleWidth,
+    32,
+    24,
+    2,
+  );
+  const lines = conceptFrontTitleLineCount(layout.displayText);
+  assert.ok(lines <= CONCEPT_FRONT_TITLE_MAX_LINES, `lines=${lines}`);
+  assert.ok(layout.fontSize <= CONCEPT_FRONT_TITLE_MIN_ON_ORANGE);
+  assert.ok(layout.fontSize >= CONCEPT_FRONT_TITLE_MIN_ABSOLUTE);
+  const blockH = conceptFrontTitleBlockHeight(layout, 2);
+  const top = conceptFrontTitleTopSpacerHeight(faceContentH, blockH);
+  const bottom = conceptFrontTitleBottomSpacerMinHeight(faceContentH, blockH, top);
+  assert.ok(
+    top + blockH + bottom <= faceContentH + 1,
+    `top=${top} block=${blockH} bottom=${bottom} face=${faceContentH}`,
+  );
+  // Rendered size at 200% stays teal (≥24) even when layout fontSize is 12.
+  assert.equal(
+    titleColor(conceptFrontTitleRenderedSize(layout.fontSize, 2)),
+    color.concept,
+  );
 });
 
 test('native onTextLayout applies once per title+width+scale; no remeasure after size apply', () => {
@@ -281,7 +336,8 @@ test('B1: unscaled probe widths + fontScale 2 (200%) scale once — not double',
   assert.equal(atScale1.layout.fontSize, 32);
 
   clearNativeTitleMeasureCache();
-  // Same unscaled probe widths with fontScale 2 (200%): measure sees 2× advance → shrink.
+  // Same unscaled probe widths with fontScale 2 (200%): measure sees 2× advance → shrink
+  // (may enter the ink band below 24 to keep ≤4 lines).
   const atScale2 = applyNativeTitleTextLayoutOnce({
     title,
     maxWidth: 200,
@@ -290,9 +346,12 @@ test('B1: unscaled probe widths + fontScale 2 (200%) scale once — not double',
     fontScale: 2,
   });
   assert.ok(atScale2.layout.fontSize < 32);
-  assert.ok(atScale2.layout.fontSize >= 24);
+  assert.ok(atScale2.layout.fontSize >= CONCEPT_FRONT_TITLE_MIN_ABSOLUTE);
+  assert.ok(
+    conceptFrontTitleLineCount(atScale2.layout.displayText) <= CONCEPT_FRONT_TITLE_MAX_LINES,
+  );
 
-  // Double-scaling mutant: pretreat widths as already ×2 then pass fontScale 2 → over-shrink/hyphen.
+  // Double-scaling mutant: pretreat widths as already ×2 then pass fontScale 2 → over-shrink.
   clearNativeTitleMeasureCache();
   const doubleScaled = applyNativeTitleTextLayoutOnce({
     title,
@@ -303,7 +362,9 @@ test('B1: unscaled probe widths + fontScale 2 (200%) scale once — not double',
   });
   assert.ok(
     doubleScaled.layout.fontSize < atScale2.layout.fontSize ||
-      doubleScaled.layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN),
+      doubleScaled.layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN) ||
+      conceptFrontTitleLineCount(doubleScaled.layout.displayText) >
+        conceptFrontTitleLineCount(atScale2.layout.displayText),
     'double-scaled probe would over-shrink vs allowFontScaling={false}',
   );
 });
