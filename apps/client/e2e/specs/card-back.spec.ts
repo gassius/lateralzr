@@ -12,6 +12,15 @@ test.describe('card back', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
 
+  test('no description fallback copy', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=no-description');
+    await flipCard(page);
+    await expect(
+      page.getByText("There isn't a description for this concept yet."),
+    ).toBeVisible();
+    await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'en' });
+  });
+
   test('with photo', async ({ page }, testInfo) => {
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true');
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();

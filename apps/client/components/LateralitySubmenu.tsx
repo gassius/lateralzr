@@ -6,6 +6,7 @@ import {
   WORDMARK_LETTERS,
   wordmarkViewBoxAttr,
 } from '@/assets/images/lateralzrWordmark';
+import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 import {
@@ -119,8 +120,8 @@ function StepGlyph({ kind }: { kind: 'minus' | 'plus' }) {
         cx={mid}
         cy={mid}
         r={mid - 1.25}
-        fill="rgba(245,245,242,0.08)"
-        stroke="rgba(245,245,242,0.42)"
+        fill={hexToRgba(color.paper, 0.08)}
+        stroke={hexToRgba(color.paper, 0.42)}
         strokeWidth={1.75}
       />
       <Line

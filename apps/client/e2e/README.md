@@ -30,7 +30,7 @@ Determinism helpers (always on): mocked API, fixed clock, `reducedMotion: reduce
 
 `<screen>_<state>_<viewport>_<locale>.png`
 
-Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x800_en.png`, `status_loading_390x844_en.png`, `logo_lockup-on-orange_390x844_en.png`.
+Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x800_en.png`, `card-back_no-description_390x844_en.png`, `status_loading_390x844_en.png`, `logo_lockup-on-orange_390x844_en.png`.
 
 ## Add a screen
 
