@@ -42,3 +42,10 @@ export function blendHexOver(foregroundHex: string, alpha: number, backgroundHex
     b: fg.b * a + bg.b * (1 - a),
   });
 }
+
+/** CSS / RN `rgba()` string from an opaque hex token + alpha. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  const a = Math.min(1, Math.max(0, alpha));
+  return `rgba(${r},${g},${b},${a})`;
+}

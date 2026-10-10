@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
+import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: color.front,
     borderWidth: 1,
-    borderColor: 'rgba(19,91,119,0.35)',
+    borderColor: hexToRgba(color.concept, 0.35),
     minHeight: 0,
   },
   center: {

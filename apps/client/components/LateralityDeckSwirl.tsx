@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 import { lateralityGradientStops } from '@/lib/laterality';
@@ -267,7 +268,7 @@ const styles = StyleSheet.create({
   },
   wash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,91,119,0.78)',
+    backgroundColor: hexToRgba(color.concept, 0.78),
   },
   ghost: {
     position: 'absolute',
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: color.front,
     borderWidth: 1,
-    borderColor: 'rgba(19,91,119,0.35)',
+    borderColor: hexToRgba(color.concept, 0.35),
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },

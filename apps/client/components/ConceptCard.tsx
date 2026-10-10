@@ -10,6 +10,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import type { ConceptItem } from '@/lib/api';
+import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
@@ -366,7 +367,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: color.front,
     borderWidth: 1,
-    borderColor: 'rgba(19,91,119,0.35)',
+    borderColor: hexToRgba(color.concept, 0.35),
     minHeight: 0,
     position: 'relative',
   },
@@ -402,7 +403,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'rgba(19,91,119,0.10)',
+    backgroundColor: hexToRgba(color.concept, 0.1),
   },
   mediaSlotExpand: {
     flexGrow: 1,
@@ -416,7 +417,7 @@ const styles = StyleSheet.create({
   },
   mediaPlaceholder: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(19,91,119,0.10)',
+    backgroundColor: hexToRgba(color.concept, 0.1),
   },
   copyCluster: {
     width: '100%',
