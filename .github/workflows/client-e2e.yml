@@ -39,6 +39,11 @@ jobs:
   client-e2e:
     name: Client E2E screenshots
     runs-on: ubuntu-latest
+    # Cancel superseded *test* runs for the same PR/ref. Never put concurrency on
+    # the publish job — an in-flight push to e2e-screenshots must not be cut off.
+    concurrency:
+      group: client-e2e-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+      cancel-in-progress: true
     permissions:
       contents: read
     outputs:
@@ -194,11 +199,22 @@ jobs:
       - name: Stage flat artifact tree
         if: always() && steps.filter.outputs.should_run == 'true'
         working-directory: apps/client
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          # Capture tip baked into the artifact — publish compares this file to the
+          # live PR head from the API (do not trust workflow-run SHA at publish time).
+          ARTIFACT_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/e2e-artifact/screenshots /tmp/e2e-artifact/playwright-report
           if [ -d e2e/screenshots ]; then cp -a e2e/screenshots/. /tmp/e2e-artifact/screenshots/; fi
           if [ -d e2e/playwright-report ]; then cp -a e2e/playwright-report/. /tmp/e2e-artifact/playwright-report/; fi
+          if [ -z "${ARTIFACT_HEAD_SHA}" ]; then
+            echo "::error::ARTIFACT_HEAD_SHA empty; cannot stamp artifact"
+            exit 1
+          fi
+          printf '%s' "${ARTIFACT_HEAD_SHA}" > /tmp/e2e-artifact/artifact-head-sha.txt
+          echo "Stamped artifact-head-sha.txt=${ARTIFACT_HEAD_SHA} (event=${EVENT_NAME})"
           find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
 
       - name: Upload screenshots, diffs, and report
@@ -231,8 +247,48 @@ jobs:
           name: client-e2e-screenshots
           path: artifact
 
+      # Read tip from the artifact file; compare to live PR head from the API.
+      # Do not use github.sha / event head from this workflow run as the artifact identity.
+      - name: Guard — publish only if artifact SHA is current PR tip
+        id: head_guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          SHA_FILE="${GITHUB_WORKSPACE}/artifact/artifact-head-sha.txt"
+          if [ ! -f "${SHA_FILE}" ]; then
+            echo "::error::artifact-head-sha.txt missing from artifact; refuse publish"
+            exit 1
+          fi
+          ARTIFACT_HEAD_SHA="$(tr -d '[:space:]' < "${SHA_FILE}")"
+          CURRENT="$(curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" \
+            | jq -r .head.sha)"
+          echo "artifact_head=${ARTIFACT_HEAD_SHA}"
+          echo "current_head=${CURRENT}"
+          if [ -z "${ARTIFACT_HEAD_SHA}" ]; then
+            echo "::error::artifact-head-sha.txt empty; refuse publish"
+            exit 1
+          fi
+          if [ -z "${CURRENT}" ] || [ "${CURRENT}" = "null" ]; then
+            echo "::error::Could not resolve current PR head SHA from API"
+            exit 1
+          fi
+          echo "artifact_head_sha=${ARTIFACT_HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          if [ "${ARTIFACT_HEAD_SHA}" != "${CURRENT}" ]; then
+            echo "Stale run: artifact SHA is not current PR head; skip orphan publish (no-op)."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Fetch publish script via API (base only; no repo checkout)
         id: fetch_script
+        if: steps.head_guard.outputs.stale != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -250,10 +306,13 @@ jobs:
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Orphan-branch push + sticky PR comment
-        if: steps.fetch_script.outputs.skip != 'true'
+        if: steps.head_guard.outputs.stale != 'true' && steps.fetch_script.outputs.skip != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
+          # Tip stamped into the artifact (not workflow-run github.sha).
+          ARTIFACT_HEAD_SHA: ${{ steps.head_guard.outputs.artifact_head_sha }}
+          GITHUB_SHA: ${{ steps.head_guard.outputs.artifact_head_sha }}
         run: |
           set -euo pipefail
           echo "SCREENSHOTS_DIR=${SCREENSHOTS_DIR}"
