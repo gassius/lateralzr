@@ -21,7 +21,7 @@ test.describe('card back', () => {
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
     await expect(cardBackTitle(page)).toHaveCount(0);
-    await expect(page.getByTestId('card-back-wiki')).toBeVisible();
+    await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
     await expect(page.getByLabel('About Mushroom')).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
@@ -33,7 +33,7 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
-    await expect(page.getByTestId('card-back-wiki')).toBeVisible();
+    await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
     // Guard against a byte-identical 100% capture: body must actually scale.
     const description = page.locator('[data-testid="card-back-description"]:visible').first();
     const fontSize = await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
@@ -47,7 +47,7 @@ test.describe('card back', () => {
     await expect(
       page.getByText("There isn't a description for this concept yet."),
     ).toBeVisible();
-    await expect(page.getByTestId('card-back-wiki')).toHaveCount(0);
+    await expect(page.getByTestId('card-back-wikipedia')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'en' });
   });
 

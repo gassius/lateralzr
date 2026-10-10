@@ -35,7 +35,9 @@ export function flipUses3d(reduceMotion: boolean): boolean {
 
 export type CardFlipFaceStyle = {
   opacity: number;
-  transform: Array<{ perspective: number } | { rotateY: string }>;
+  transform: Array<
+    { perspective: number } | { rotateY: string } | { scale: number }
+  >;
 };
 
 /**
@@ -52,10 +54,15 @@ export function cardFlipFaceStyle(
   if (reduceMotion) {
     // Front (zIndex 2) fades; back stays fully opaque once progress > 0 so the
     // navy shell never shows through (AD: no mid-crossfade dim).
+    // At rest, scale(0) collapses the hidden face's box — without rotateY the
+    // faded face otherwise keeps a full layout box that Playwright still treats
+    // as visible despite opacity 0 (Lz-27 scroll / no-flip asserts).
     if (face === 'front') {
-      return { opacity: 1 - p, transform: [] };
+      const opacity = 1 - p;
+      return { opacity, transform: opacity <= 0 ? [{ scale: 0 }] : [] };
     }
-    return { opacity: p > 0 ? 1 : 0, transform: [] };
+    const opacity = p > 0 ? 1 : 0;
+    return { opacity, transform: opacity <= 0 ? [{ scale: 0 }] : [] };
   }
   if (face === 'front') {
     const rot = -90 * p;
