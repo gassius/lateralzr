@@ -823,12 +823,39 @@
     "diffImage": "typography_large-text-200_430x932_en.diff.png"
   },
   {
+    "file": "typography_long-label-200_1280x800_en.png",
+    "ratio": 0.0267197265625,
+    "percent": 2.67197265625,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 109444,
+    "diffImage": "typography_long-label-200_1280x800_en.diff.png"
+  },
+  {
     "file": "typography_long-label-200_320x568_en.png",
     "ratio": 0,
     "percent": 0,
     "threshold": 0.01,
     "status": "pass",
     "mismatchedPixels": 0
+  },
+  {
+    "file": "typography_long-label-200_390x844_en.png",
+    "ratio": 0.07957072548304776,
+    "percent": 7.957072548304776,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 104766,
+    "diffImage": "typography_long-label-200_390x844_en.diff.png"
+  },
+  {
+    "file": "typography_long-label-200_430x932_en.png",
+    "ratio": 0.06684299830322388,
+    "percent": 6.684299830322388,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 107152,
+    "diffImage": "typography_long-label-200_430x932_en.diff.png"
   },
   {
     "file": "typography_status-body_1280x800_en.png",
