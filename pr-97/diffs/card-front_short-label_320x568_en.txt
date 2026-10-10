@@ -1,4 +1,4 @@
 Baseline diff for card-front_short-label_320x568_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/card-front_short-label_320x568_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/card-front_short-label_320x568_en.png
-diff ratio 0.0621 > 0.01 (45132 px)
+diff ratio 0.0606 > 0.01 (44082 px)

@@ -1,4 +1,4 @@
 Baseline diff for laterality-bar_grade-3_1280x800_es.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/laterality-bar_grade-3_1280x800_es.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/laterality-bar_grade-3_1280x800_es.png
-diff ratio 0.0186 > 0.01 (76383 px)
+diff ratio 0.0184 > 0.01 (75291 px)

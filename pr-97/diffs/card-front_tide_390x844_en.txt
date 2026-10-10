@@ -1,4 +1,4 @@
 Baseline diff for card-front_tide_390x844_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/card-front_tide_390x844_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/card-front_tide_390x844_en.png
-diff ratio 0.0591 > 0.01 (77757 px)
+diff ratio 0.0582 > 0.01 (76638 px)
