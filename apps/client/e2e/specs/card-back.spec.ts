@@ -38,12 +38,30 @@ test.describe('card back', () => {
     const copy = cardBackCopy(page);
     const box = await copy.boundingBox();
     if (!box) throw new Error('card-back-copy has no box');
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.wheel(0, 400);
-    await page.waitForTimeout(300);
+    // Real pointer drag so RNGH Tap sees maxDeltaY and fails (wheel would never arm Tap).
+    const x = box.x + box.width / 2;
+    const y = box.y + Math.min(box.height * 0.55, box.height - 8);
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y - 120, { steps: 14 });
+    await page.mouse.up();
+    await page.waitForTimeout(200);
+
     // Still on the back — scroll must not fire the flip tap.
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(visibleText(page, 'Long-description')).toHaveCount(0);
+
+    const scroll = page.locator('[data-testid="card-back-scroll"]:visible').first();
+    const scrollTop = await scroll.evaluate((el) => {
+      const nodes = [el, ...Array.from(el.querySelectorAll('*'))] as HTMLElement[];
+      for (const node of nodes) {
+        if (node.scrollHeight > node.clientHeight + 1) {
+          return node.scrollTop;
+        }
+      }
+      return (el as HTMLElement).scrollTop;
+    });
+    expect(scrollTop).toBeGreaterThan(0);
   });
 
   test('with photo', async ({ page }, testInfo) => {

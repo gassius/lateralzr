@@ -433,13 +433,16 @@ export function ConceptCard({
     </Text>
   );
 
+  // 48 px target via hitSlop only — minHeight would pad the visible underline past the
+  // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
+  const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - 16) / 2));
   const backWiki = item.wikiUrl ? (
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={t('wikipedia')}
       onPress={() => Linking.openURL(item.wikiUrl!)}
-      hitSlop={Math.max(0, Math.ceil((LINK_HIT - 24) / 2))}
-      style={[styles.linkHit, { marginTop: rhythm.linkMarginTop, minHeight: LINK_HIT }]}
+      hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
+      style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
       testID="card-back-wiki"
     >
       <Text style={styles.link}>{t('wikipedia')}</Text>
@@ -513,6 +516,7 @@ export function ConceptCard({
         showsVerticalScrollIndicator={false}
         bounces
         nestedScrollEnabled
+        testID="card-back-scroll"
       >
         <View
           style={[styles.backInner, backLayout.expandMediaZone ? styles.backInnerExpand : null]}
@@ -707,7 +711,6 @@ const styles = StyleSheet.create({
   },
   linkHit: {
     alignSelf: 'flex-start',
-    justifyContent: 'center',
   },
   link: {
     fontSize: 16,
