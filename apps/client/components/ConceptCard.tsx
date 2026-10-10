@@ -43,15 +43,19 @@ import {
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+  CONCEPT_FRONT_TITLE_MAX_LINES,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   NATIVE_TITLE_MEASURE_FALLBACK_MS,
   applyNativeTitleTextLayoutOnce,
   conceptFrontTitleBlockHeight,
   conceptFrontTitleBottomSpacerMinHeight,
+  conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
+  conceptFrontTitleOverflowTopSpacerHeight,
   conceptFrontTitleRenderedSize,
   conceptFrontTitleTopSpacerHeight,
+  conceptFrontTitleViewportBlockHeight,
   getCachedNativeTitleLayout,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
@@ -240,7 +244,15 @@ export function ConceptCard({
   const frontTitleColor = titleColor(
     conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, measureFontScale),
   );
-  const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
+  /**
+   * Scroll viewport ≈ face box minus padding. Spacer math and scroll-enable
+   * must use this (not outer face height) so a band of ~2·facePad does not
+   * leave overflow clipped with scrolling disabled (B2 / #95).
+   */
+  const frontContentFaceH =
+    frontFaceH > 0 ? Math.max(0, frontFaceH - facePad * 2) : 0;
+  const frontNeedsScroll =
+    frontContentFaceH > 0 && frontContentH > frontContentFaceH + 0.5;
   const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
@@ -309,17 +321,18 @@ export function ConceptCard({
   const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
   const titleBlockH = conceptFrontTitleBlockHeight(frontTitleLayout, e2eScale);
+  const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
+  const titleViewportH = conceptFrontTitleViewportBlockHeight(frontTitleLayout, e2eScale);
   /**
-   * Scroll viewport ≈ face box minus horizontal/vertical padding. Spacer math
-   * must use this (not the outer face height) so 200% titles are not planned
-   * against space that padding already consumed.
+   * AD #95: when overflowFallback exceeds max lines, size the top spacer so the
+   * initial viewport shows at most 4 whole title lines; face scrolls for the rest.
+   * ≤4 lines keep the lower-middle anchor against the full block height.
    */
-  const frontContentFaceH =
-    frontFaceH > 0 ? Math.max(0, frontFaceH - facePad * 2) : 0;
-  /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
   const frontTopSpacerH =
     frontContentFaceH > 0
-      ? conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
+      ? titleLineCount > CONCEPT_FRONT_TITLE_MAX_LINES
+        ? conceptFrontTitleOverflowTopSpacerHeight(frontContentFaceH, titleViewportH)
+        : conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
    * Pattern clear box in face pixels — recompute from spacer + line metrics whenever

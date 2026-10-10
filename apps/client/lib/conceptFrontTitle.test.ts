@@ -22,8 +22,10 @@ import {
   conceptFrontTitleBottomSpacerMinHeight,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
+  conceptFrontTitleOverflowTopSpacerHeight,
   conceptFrontTitleRenderedSize,
   conceptFrontTitleTopSpacerHeight,
+  conceptFrontTitleViewportBlockHeight,
   getCachedNativeTitleLayout,
   hyphenateWord,
   layoutConceptFrontTitle,
@@ -235,15 +237,45 @@ test('320-wide long label at fontScale 2 stays at teal floor (scroll, never <24)
   );
   assert.equal(layout.fontSize, CONCEPT_FRONT_TITLE_MIN_ON_ORANGE);
   const blockH = conceptFrontTitleBlockHeight(layout, 2);
-  const top = conceptFrontTitleTopSpacerHeight(faceContentH, blockH);
+  const viewportH = conceptFrontTitleViewportBlockHeight(layout, 2);
+  const lines = conceptFrontTitleLineCount(layout.displayText);
+  const top =
+    lines > CONCEPT_FRONT_TITLE_MAX_LINES
+      ? conceptFrontTitleOverflowTopSpacerHeight(faceContentH, viewportH)
+      : conceptFrontTitleTopSpacerHeight(faceContentH, blockH);
   const bottom = conceptFrontTitleBottomSpacerMinHeight(faceContentH, blockH, top);
-  // Tall 200% block may exceed the face — spacers collapse; face scroll handles overflow.
-  assert.equal(top, 0);
+  // Tall 200% block may exceed the face — spacers collapse / pin; face scroll handles overflow.
+  assert.ok(top + viewportH <= faceContentH + 0.5);
   assert.ok(bottom <= CONCEPT_FRONT_TITLE_BOTTOM_RESERVE);
   assert.equal(
     titleColor(conceptFrontTitleRenderedSize(layout.fontSize, 2)),
     color.concept,
   );
+});
+
+test('AD #95: overflowFallback may exceed 4 lines at 24; viewport stays ≤4', () => {
+  // Five 8-letter words at width 26 → 5 lines at every size 32→24 (no shrink helps).
+  const fiveWords = 'aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee';
+  const at24 = wrapTitleAtSpaces(fiveWords, 26, 24, measure);
+  assert.ok(at24 != null);
+  assert.ok(conceptFrontTitleLineCount(at24!) >= 5);
+
+  const layout = layoutConceptFrontTitle(fiveWords, 26, measure);
+  assert.equal(layout.fontSize, CONCEPT_FRONT_TITLE_MIN_ON_ORANGE);
+  assert.ok(conceptFrontTitleLineCount(layout.displayText) >= 5);
+
+  const scale = 2;
+  const blockH = conceptFrontTitleBlockHeight(layout, scale);
+  const viewportH = conceptFrontTitleViewportBlockHeight(layout, scale);
+  const lineH = Math.round(layout.lineHeight * scale);
+  assert.equal(viewportH, CONCEPT_FRONT_TITLE_MAX_LINES * lineH);
+  assert.ok(viewportH < blockH);
+
+  const faceH = 340;
+  const top = conceptFrontTitleOverflowTopSpacerHeight(faceH, viewportH);
+  assert.equal(top, faceH - viewportH);
+  // Initial viewport: exactly 4 whole lines — no room for a clipped 5th glyph row.
+  assert.equal(faceH - top, viewportH);
 });
 
 test('native onTextLayout applies once per title+width+scale; no remeasure after size apply', () => {
