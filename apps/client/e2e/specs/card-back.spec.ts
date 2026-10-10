@@ -26,6 +26,17 @@ test.describe('card back', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
 
+  // Art-director minor: link spacing / scroll at large text — one viewport is enough.
+  test('no media at 200% e2e text scale', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% back capture');
+    await openApp(page, 'canonicalConcept=mushroom&e2eTextScale=2');
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+    await expect(page.getByTestId('card-back-media')).toHaveCount(0);
+    await expect(page.getByTestId('card-back-wiki')).toBeVisible();
+    await capture(page, testInfo, { screen: 'card-back', state: 'no-media-200', locale: 'en' });
+  });
+
   test('no description fallback copy', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=no-description');
     await flipCard(page);
@@ -42,11 +53,16 @@ test.describe('card back', () => {
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(cardBackScroll(page)).toBeVisible();
 
-    // Real vertical touch drag on the visible portion of card-back-copy.
-    // Chromium mouse-drag does not move overflow:auto scrollTop; CDP touch does.
-    // Drag distance exceeds Tap.maxDeltaY(10) so the flip tap must not fire.
-    await dragCardBackCopyUp(page, 160);
+    // 12px vertical: above Tap.maxDeltaY(10) but under maxDistance(14), so this
+    // specifically fails the flip tap via maxDeltaY (not maxDistance alone).
+    // A 12px drag does not scroll — only assert still on the back.
+    await dragCardBackCopyUp(page, 12);
+    await expect(cardBackCopy(page)).toBeVisible();
+    await expect(visibleText(page, 'Long-description')).toHaveCount(0);
 
+    // 160px vertical CDP touch: scrolls overflow (mouse-drag does not) and also
+    // exceeds maxDistance. Assert scrollTop > 0 while remaining on the back.
+    await dragCardBackCopyUp(page, 160);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(visibleText(page, 'Long-description')).toHaveCount(0);
     expect(await readBackScrollTop(page)).toBeGreaterThan(0);

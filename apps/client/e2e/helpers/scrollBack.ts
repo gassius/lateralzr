@@ -9,18 +9,10 @@ export async function readBackScrollTop(page: Page): Promise<number> {
   return cardBackScroll(page).evaluate((el) => (el as HTMLElement).scrollTop);
 }
 
-/**
- * Vertical touch drag starting on the visible portion of `card-back-copy`.
- *
- * Chromium does not apply mouse-drag to `overflow:auto`, so Playwright mouse
- * paths leave scrollTop at 0. CDP touch is a real pointer drag that:
- * - exceeds Tap.maxDeltaY(10) (and maxDistance on a long drag) so the card stays flipped
- * - scrolls the RNGH/RN-web ScrollView (scrollTop > 0)
- *
- * The copy's full bounding box can extend below the ScrollView clip on long
- * descriptions — clamp the start point into the visible scroll viewport.
- */
-export async function dragCardBackCopyUp(page: Page, distance = 160): Promise<void> {
+type DragPoint = { x: number; y: number };
+
+/** Start point on the visible portion of card-back-copy (clamped into ScrollView clip). */
+async function cardBackCopyDragOrigin(page: Page): Promise<DragPoint> {
   const copy = page.locator('[data-testid="card-back-copy"]:visible').first();
   const scroll = cardBackScroll(page);
   const copyBox = await copy.boundingBox();
@@ -34,13 +26,27 @@ export async function dragCardBackCopyUp(page: Page, distance = 160): Promise<vo
     scrollBox.y + 12,
     Math.min(unclampedY, scrollBox.y + scrollBox.height - 24),
   );
+  return { x, y };
+}
 
+/**
+ * Vertical CDP touch drag starting on the visible portion of `card-back-copy`.
+ *
+ * Chromium mouse-drag does not move overflow:auto scrollTop; touch does.
+ * The copy's full bounding box can extend below the ScrollView clip on long
+ * descriptions — start Y is clamped into the visible scroll viewport.
+ *
+ * Use ~12px to exercise Tap.maxDeltaY(10) while staying under maxDistance(14).
+ * Use ~160px to scroll (scrollTop > 0); that path also exceeds maxDistance.
+ */
+export async function dragCardBackCopyUp(page: Page, distance: number): Promise<void> {
+  const { x, y } = await cardBackCopyDragOrigin(page);
   const client = await page.context().newCDPSession(page);
   await client.send('Input.dispatchTouchEvent', {
     type: 'touchStart',
     touchPoints: [{ x, y, id: 1 }],
   });
-  const steps = 16;
+  const steps = distance <= 14 ? 4 : 16;
   for (let i = 1; i <= steps; i++) {
     await client.send('Input.dispatchTouchEvent', {
       type: 'touchMove',
