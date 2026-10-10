@@ -42,7 +42,9 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 ### Typography (Lz-22)
 
-- `typography_status-body_*` — DeckStatusCard loading caption at body scale (v3.3 `type.body`)
+- `typography_status-meta_*` — deck status line at meta scale (v3.3 `type.meta`, Lz-35)
+- `status_loading-initial_*` — quiet silhouette + `findingStart` on first fetch
+- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
 - `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
 ### Card front title (Lz-26)

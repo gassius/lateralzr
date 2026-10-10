@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 501,
+      "label": "horizonte"
+    },
+    "nodes": [
+      {
+        "id": 501,
+        "label": "horizonte",
+        "shortDescription": "La línea donde la tierra y el cielo parecen encontrarse.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 0
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": true,
+      "locale": "es",
+      "laterality": 3
+    }
+  }
+}

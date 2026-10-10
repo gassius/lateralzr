@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   Platform,
   Pressable,
@@ -46,6 +46,11 @@ type LateralityControlProps = {
   onHeightChange?: (height: number) => void;
   /** Host for focus restore when the sheet closes. */
   labelRef?: RefObject<ViewType | null>;
+  /**
+   * In-flow left slot on the label row (Lz-35 status line).
+   * Sits beside the laterality label — never an absolute overlay over the rail.
+   */
+  statusSlot?: ReactNode;
 };
 
 const DOT_COUNT = 5;
@@ -135,6 +140,7 @@ export function LateralityControl({
   onPressLabel,
   onHeightChange,
   labelRef,
+  statusSlot,
 }: LateralityControlProps) {
   const grade = clampLaterality(laterality);
   const disabled = lateralityControlDisabled(true, swapping);
@@ -248,39 +254,42 @@ export function LateralityControl({
       accessibilityState={{ busy: swapping, disabled }}
       onLayout={onRootLayout}
     >
-      <Pressable
-        ref={labelRef}
-        onPress={onPressLabel ?? (() => {})}
-        disabled={disabled}
-        hitSlop={LABEL_HIT_SLOP}
-        accessibilityRole="button"
-        accessibilityLabel={labelText}
-        accessibilityState={{ disabled }}
-        testID="laterality-label"
-        style={({ pressed }) => [
-          styles.labelRow,
-          pressed && !disabled ? styles.labelPressed : null,
-          disabled ? styles.disabled : null,
-        ]}
-        {...(Platform.OS === 'web'
-          ? ({ tabIndex: disabled ? -1 : 0 } as Record<string, unknown>)
-          : {})}
-      >
-        {/*
-          Nest the chevron in the Text so it wraps with the last line
-          (AD #91 review 5480774657: 320×200% must not leave ⌄ alone mid-stack).
-        */}
-        <Text style={[styles.labelText, textStyle('label')]}>
-          {labelText}
-          {'\u00A0'}
-          <View
-            style={[styles.chevronInline, chevronInlineWebStyle]}
-            accessibilityElementsHidden
-          >
-            <ChevronDown stroke={color.paper} />
-          </View>
-        </Text>
-      </Pressable>
+      <View style={[styles.labelRow, statusSlot != null ? styles.labelRowWithStatus : null]}>
+        {statusSlot != null ? <View style={styles.statusSlot}>{statusSlot}</View> : null}
+        <Pressable
+          ref={labelRef}
+          onPress={onPressLabel ?? (() => {})}
+          disabled={disabled}
+          hitSlop={LABEL_HIT_SLOP}
+          accessibilityRole="button"
+          accessibilityLabel={labelText}
+          accessibilityState={{ disabled }}
+          testID="laterality-label"
+          style={({ pressed }) => [
+            styles.labelCluster,
+            pressed && !disabled ? styles.labelPressed : null,
+            disabled ? styles.disabled : null,
+          ]}
+          {...(Platform.OS === 'web'
+            ? ({ tabIndex: disabled ? -1 : 0 } as Record<string, unknown>)
+            : {})}
+        >
+          {/*
+            Nest the chevron in the Text so it wraps with the last line
+            (AD #91 review 5480774657: 320×200% must not leave ⌄ alone mid-stack).
+          */}
+          <Text style={[styles.labelText, textStyle('label')]}>
+            {labelText}
+            {'\u00A0'}
+            <View
+              style={[styles.chevronInline, chevronInlineWebStyle]}
+              accessibilityElementsHidden
+            >
+              <ChevronDown stroke={color.paper} />
+            </View>
+          </Text>
+        </Pressable>
+      </View>
 
       <GestureDetector gesture={composed}>
         <View
@@ -327,6 +336,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'stretch',
+  },
+  labelRowWithStatus: {
+    justifyContent: 'flex-start',
+    gap: 8,
+  },
+  statusSlot: {
+    flex: 1,
+    minWidth: 0,
+    justifyContent: 'center',
+  },
+  labelCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    flexShrink: 1,
+    marginLeft: 'auto',
   },
   labelText: {
     color: color.paper,

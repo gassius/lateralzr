@@ -34,9 +34,22 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
   const startKey = start.toLowerCase();
   const canonicalKey = canonical.toLowerCase();
 
-  if (canonicalKey === 'loading-deck' || startKey === 'loading-deck' || startKey === 'horizon') {
+  if (
+    canonicalKey === 'loading-deck' ||
+    startKey === 'loading-deck' ||
+    startKey === 'horizon' ||
+    startKey === 'horizonte'
+  ) {
     // First call: single card. Later calls: load-more payload (may be delayed by caller).
-    return readJson(callIndex <= 1 ? 'loading-deck-en.json' : 'loading-more-en.json');
+    const deck =
+      locale === 'es'
+        ? callIndex <= 1
+          ? 'loading-deck-es.json'
+          : 'loading-more-es.json'
+        : callIndex <= 1
+          ? 'loading-deck-en.json'
+          : 'loading-more-en.json';
+    return readJson(deck);
   }
 
   if (
@@ -165,7 +178,8 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
     const isLoadingDeck =
       canonicalKey === 'loading-deck' ||
       startKey === 'loading-deck' ||
-      startKey === 'horizon';
+      startKey === 'horizon' ||
+      startKey === 'horizonte';
 
     if (relationshipsCalls === 1 && delayFirstMs > 0) {
       await new Promise((r) => setTimeout(r, delayFirstMs));

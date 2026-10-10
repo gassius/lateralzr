@@ -2,33 +2,33 @@ import { expect, test } from '@playwright/test';
 import { capture, swipeForward } from '../helpers/capture';
 import { cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
+import { expectStatusLineClearOfLaterality } from '../helpers/statusLayout';
 
 /**
  * Lz-22: art-director captures for v3.3 type roles on non-card chrome,
  * plus a 200% text-scale pass via test-only `e2eTextScale` (joint fontSize+lineHeight).
  */
 test.describe('typography', () => {
-  test('status loading uses body-scale caption (no ellipsis)', async ({ page }, testInfo) => {
+  test('status loading uses meta-scale status line (no ellipsis)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=loading-deck', {
       mock: { delayLoadMoreMs: 120_000 },
       skipNetworkIdle: true,
     });
     await expect(visibleText(page, 'Horizon')).toBeVisible();
     await swipeForward(page);
-    const caption = page.getByText(/Loading more ideas/i);
-    await expect(caption).toBeVisible({ timeout: 8_000 });
+    const status = page.getByTestId('deck-status-line');
+    await expect(status).toBeVisible({ timeout: 8_000 });
+    await expect(status).toContainText(/Loading more ideas/i);
 
-    const truncated = await caption.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return (
-        style.textOverflow === 'ellipsis' ||
-        el.scrollWidth > el.clientWidth + 1 ||
-        el.scrollHeight > el.clientHeight + 1
-      );
+    // Meta status line must not ellipsize (wrap is fine on the label row).
+    const ellipsized = await status.evaluate((el) => {
+      const text = (el.querySelector('[dir], span, div, p') as HTMLElement | null) ?? el;
+      return getComputedStyle(text).textOverflow === 'ellipsis';
     });
-    expect(truncated).toBe(false);
+    expect(ellipsized).toBe(false);
+    await expectStatusLineClearOfLaterality(page);
 
-    await capture(page, testInfo, { screen: 'typography', state: 'status-body', locale: 'en' });
+    await capture(page, testInfo, { screen: 'typography', state: 'status-meta', locale: 'en' });
   });
 
   test('practice chrome at 200% e2e text scale (full frame)', async ({ page }, testInfo) => {
