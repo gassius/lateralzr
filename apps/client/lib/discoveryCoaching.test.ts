@@ -315,4 +315,19 @@ describe('discovery coaching session', () => {
     resetDiscoveryCoachingSession();
     assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
   });
+
+  it('replay reset clears offered + discovered flags for a new coaching sequence', () => {
+    setDiscoveryCoachingSession({
+      swipeDiscovered: true,
+      flipDiscovered: true,
+      swipeCoachOffered: true,
+      flipCoachOffered: true,
+    });
+    resetDiscoveryCoachingSession();
+    assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
+    assert.equal(
+      swipeCoachContextReady(getDiscoveryCoachingSession(), view({ cardIndex: 0 })),
+      true,
+    );
+  });
 });

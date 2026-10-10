@@ -31,7 +31,6 @@ export function practiceColumnWidth(viewportWidth: number): number {
 }
 
 /**
- * §4.5 — only show controls that work. Flip when Lz-32 (app menu) lands.
- * Slot + component ship in Lz-21; the Practice screen does not mount the trigger yet.
+ * §4.5 — only show controls that work. Enabled with Lz-32 (app menu + Replay row).
  */
-export const APP_MENU_TRIGGER_ENABLED = false;
+export const APP_MENU_TRIGGER_ENABLED = true;
