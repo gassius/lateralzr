@@ -19,7 +19,7 @@ import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
 /** Phone-frame investigation target from Critiquito Lz-11. */
 const PHONE_WIDTH = 390;
 const PHONE_HEIGHT = 844;
-const CARD_STACK_PADDING_HORIZONTAL = 12;
+const CARD_STACK_PADDING_HORIZONTAL = 16;
 const CARD_ASPECT = 1.4;
 const CARD_FILL = 0.78;
 
@@ -83,7 +83,7 @@ describe('laterality bar chrome fit', () => {
 
   it('keeps −/+ at 48px and scales the middle to the remaining width', () => {
     const reserved = lateralityBarReservedWidth();
-    assert.equal(reserved, 12 * 2 + 48 * 2 + 6 * 4);
+    assert.equal(reserved, 16 * 2 + 48 * 2 + 6 * 4);
     assert.ok(reserved + lateralityBarPreferredWordmarkWidth() + LATERALITY_NODES_WIDTH * 2 > WEB_PHONE_MIN_WIDTH);
 
     for (const width of typicalPhoneWidths) {

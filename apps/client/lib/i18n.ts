@@ -20,7 +20,11 @@ type MessageKey =
   | 'increaseLaterality'
   | 'lateralityGrade'
   | 'complexityGrade'
-  | 'loadingLateralNeighborhood';
+  | 'loadingLateralNeighborhood'
+  /** Lz-21 shell / Lz-43 catalog — menu trigger a11y name. */
+  | 'openMenu'
+  /** Lz-21 shell / Lz-43 catalog — browser / web document title. */
+  | 'webTitle';
 
 const messages: Record<AppLocale, Record<MessageKey, string>> = {
   en: {
@@ -40,6 +44,8 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     lateralityGrade: 'Laterality {grade}',
     complexityGrade: 'Complexity {grade}',
     loadingLateralNeighborhood: 'Loading a new neighborhood',
+    openMenu: 'Open menu',
+    webTitle: 'Lateralzr',
   },
   es: {
     swipeCoach: 'Desliza para otra idea',
@@ -58,6 +64,8 @@ const messages: Record<AppLocale, Record<MessageKey, string>> = {
     lateralityGrade: 'Lateralidad {grade}',
     complexityGrade: 'Complejidad {grade}',
     loadingLateralNeighborhood: 'Cargando un vecindario nuevo',
+    openMenu: 'Abrir menú',
+    webTitle: 'Lateralzr',
   },
 };
 

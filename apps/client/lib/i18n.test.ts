@@ -57,6 +57,17 @@ describe('getActiveLocale default', () => {
   });
 });
 
+describe('shell / menu labels (Lz-21)', () => {
+  it('provides openMenu and webTitle in en and es', () => {
+    setActiveLocale('en');
+    assert.equal(t('openMenu'), 'Open menu');
+    assert.equal(t('webTitle'), 'Lateralzr');
+    setActiveLocale('es');
+    assert.equal(t('openMenu'), 'Abrir menú');
+    assert.equal(t('webTitle'), 'Lateralzr');
+  });
+});
+
 describe('laterality accessible names', () => {
   it('keeps English laterality names in en', () => {
     setActiveLocale('en');

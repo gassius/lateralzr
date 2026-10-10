@@ -41,6 +41,7 @@ import {
 } from '@/lib/discoveryCoaching';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
+import { practiceScreenGutter } from '@/lib/practiceLayout';
 import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
@@ -766,7 +767,7 @@ function ConceptCardForIndex({
 const styles = StyleSheet.create({
   outer: {
     width: '100%',
-    paddingHorizontal: 12,
+    paddingHorizontal: practiceScreenGutter(),
     paddingTop: CARD_STACK_PADDING_TOP,
     justifyContent: 'flex-start',
     flexGrow: 0,

@@ -3,6 +3,7 @@
  * The row is part of the card composition — not a bezel-pinned footer.
  */
 
+import { layout } from '@/theme/tokens';
 import { WORDMARK_ASPECT } from '../assets/images/lateralzrWordmark';
 
 /** − / wordmark / + row. Keep ≥44px targets inside this height. */
@@ -17,8 +18,8 @@ export const LATERALITY_WORDMARK_HEIGHT = 28;
 /** Preferred connected-nodes motif width (not the reserved lightbulb). Scales with the wordmark. */
 export const LATERALITY_NODES_WIDTH = 32;
 
-/** Horizontal inset on the − / wordmark / + row. */
-export const LATERALITY_ROW_PADDING_HORIZONTAL = 12;
+/** Horizontal inset on the − / wordmark / + row — matches practice screen gutter (Lz-21). */
+export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
 
 /** Gap between the five row slots (step, nodes, word, nodes, step). */
 export const LATERALITY_ROW_GAP = 6;
