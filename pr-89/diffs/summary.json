@@ -73,65 +73,65 @@
   },
   {
     "file": "card-back_no-media_1280x800_en.png",
-    "ratio": 0.168463134765625,
-    "percent": 16.8463134765625,
+    "ratio": 0.168482421875,
+    "percent": 16.848242187500002,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 690025,
+    "mismatchedPixels": 690104,
     "diffImage": "card-back_no-media_1280x800_en.diff.png"
   },
   {
     "file": "card-back_no-media_1280x800_es.png",
-    "ratio": 0.169170654296875,
-    "percent": 16.9170654296875,
+    "ratio": 0.1691884765625,
+    "percent": 16.918847656249998,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 692923,
+    "mismatchedPixels": 692996,
     "diffImage": "card-back_no-media_1280x800_es.diff.png"
   },
   {
     "file": "card-back_no-media_320x568_en.png",
-    "ratio": 0.6062747579225352,
-    "percent": 60.62747579225351,
+    "ratio": 0.606507207306338,
+    "percent": 60.6507207306338,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 440786,
+    "mismatchedPixels": 440955,
     "diffImage": "card-back_no-media_320x568_en.diff.png"
   },
   {
     "file": "card-back_no-media_320x568_es.png",
-    "ratio": 0.6102167693661972,
-    "percent": 61.02167693661972,
+    "ratio": 0.6103171764964789,
+    "percent": 61.03171764964789,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 443652,
+    "mismatchedPixels": 443725,
     "diffImage": "card-back_no-media_320x568_es.diff.png"
   },
   {
     "file": "card-back_no-media_390x844_en.png",
-    "ratio": 0.5955211751124073,
-    "percent": 59.55211751124073,
+    "ratio": 0.5955994045449021,
+    "percent": 59.55994045449021,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 784087,
+    "mismatchedPixels": 784190,
     "diffImage": "card-back_no-media_390x844_en.diff.png"
   },
   {
     "file": "card-back_no-media_390x844_es.png",
-    "ratio": 0.5975984323733139,
-    "percent": 59.75984323733139,
+    "ratio": 0.5976136225543809,
+    "percent": 59.76136225543809,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 786822,
+    "mismatchedPixels": 786842,
     "diffImage": "card-back_no-media_390x844_es.diff.png"
   },
   {
     "file": "card-back_no-media_430x932_en.png",
-    "ratio": 0.6002906976744186,
-    "percent": 60.029069767441854,
+    "ratio": 0.6003437219283362,
+    "percent": 60.034372192833615,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 962290,
+    "mismatchedPixels": 962375,
     "diffImage": "card-back_no-media_430x932_en.diff.png"
   },
   {
@@ -181,11 +181,11 @@
   },
   {
     "file": "card-back_with-photo_1280x800_en.png",
-    "ratio": 0.106938720703125,
-    "percent": 10.6938720703125,
+    "ratio": 0.08943701171875,
+    "percent": 8.943701171875,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 438021,
+    "mismatchedPixels": 366334,
     "diffImage": "card-back_with-photo_1280x800_en.diff.png"
   },
   {
@@ -199,11 +199,11 @@
   },
   {
     "file": "card-back_with-photo_320x568_en.png",
-    "ratio": 0.4872592979753521,
-    "percent": 48.72592979753521,
+    "ratio": 0.44190140845070425,
+    "percent": 44.190140845070424,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 354257,
+    "mismatchedPixels": 321280,
     "diffImage": "card-back_with-photo_320x568_en.diff.png"
   },
   {
@@ -217,11 +217,11 @@
   },
   {
     "file": "card-back_with-photo_390x844_en.png",
-    "ratio": 0.3612384554623891,
-    "percent": 36.12384554623891,
+    "ratio": 0.29918124924049094,
+    "percent": 29.918124924049096,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 475621,
+    "mismatchedPixels": 393914,
     "diffImage": "card-back_with-photo_390x844_en.diff.png"
   },
   {
@@ -235,11 +235,11 @@
   },
   {
     "file": "card-back_with-photo_430x932_en.png",
-    "ratio": 0.3354520161692784,
-    "percent": 33.54520161692784,
+    "ratio": 0.27775975646272083,
+    "percent": 27.775975646272084,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 537743,
+    "mismatchedPixels": 445260,
     "diffImage": "card-back_with-photo_430x932_en.diff.png"
   },
   {
