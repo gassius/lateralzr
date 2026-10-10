@@ -39,6 +39,7 @@ import {
 } from '@/lib/cardLayout';
 import { conceptKey } from '@/lib/conceptDeck';
 import {
+  CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
@@ -46,7 +47,8 @@ import {
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   NATIVE_TITLE_MEASURE_FALLBACK_MS,
   applyNativeTitleTextLayoutOnce,
-  conceptFrontTitleLineCount,
+  conceptFrontTitleBlockHeight,
+  conceptFrontTitleBottomSpacerMinHeight,
   conceptFrontTitleNativeProbeText,
   conceptFrontTitleRenderedSize,
   conceptFrontTitleTopSpacerHeight,
@@ -306,11 +308,18 @@ export function ConceptCard({
   const patternFaceWidth = faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH;
   const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
-  const titleBlockH = titleLineCount * displayLineHeight;
+  const titleBlockH = conceptFrontTitleBlockHeight(frontTitleLayout, e2eScale);
+  /**
+   * Scroll viewport ≈ face box minus horizontal/vertical padding. Spacer math
+   * must use this (not the outer face height) so 200% titles are not planned
+   * against space that padding already consumed.
+   */
+  const frontContentFaceH =
+    frontFaceH > 0 ? Math.max(0, frontFaceH - facePad * 2) : 0;
   /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
   const frontTopSpacerH =
-    frontFaceH > 0
-      ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
+    frontContentFaceH > 0
+      ? conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
    * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
@@ -327,6 +336,14 @@ export function ConceptCard({
         }
       : null;
   const patternVariantOverride = readJourneyTestParams().patternVariant ?? null;
+  const frontBottomSpacerMinH =
+    frontContentFaceH > 0 && frontTopSpacerH != null
+      ? conceptFrontTitleBottomSpacerMinHeight(
+          frontContentFaceH,
+          titleBlockH,
+          frontTopSpacerH,
+        )
+      : CONCEPT_FRONT_TITLE_BOTTOM_RESERVE;
 
   const front = (
     <View
@@ -346,7 +363,7 @@ export function ConceptCard({
         style={styles.frontScroll}
         contentContainerStyle={[
           styles.frontScrollContent,
-          frontFaceH > 0 ? { minHeight: frontFaceH } : null,
+          frontContentFaceH > 0 ? { minHeight: frontContentFaceH } : null,
         ]}
         scrollEnabled={frontNeedsScroll}
         showsVerticalScrollIndicator={false}
@@ -439,7 +456,12 @@ export function ConceptCard({
           >
             {frontTitleLayout.displayText}
           </Text>
-          <View style={styles.frontTitleBottomSpacer} />
+          <View
+            style={[
+              styles.frontTitleBottomSpacer,
+              { minHeight: frontBottomSpacerMinH },
+            ]}
+          />
         </View>
       </ScrollView>
       {coachHint ? (
@@ -734,10 +756,9 @@ const styles = StyleSheet.create({
     width: 4096,
     zIndex: -1,
   },
-  /** Room below short titles; long titles grow into this then the face scrolls. */
+  /** Room below short titles; long titles collapse minHeight then the face scrolls. */
   frontTitleBottomSpacer: {
     flexGrow: 1,
-    minHeight: 48,
     width: '100%',
   },
   conceptNameFront: {
