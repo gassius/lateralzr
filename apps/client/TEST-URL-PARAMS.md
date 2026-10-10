@@ -61,6 +61,23 @@ http://localhost:8081/?canonicalConcept=mushroom&laterality=5
 
 URL-encode spaces and punctuation in concept strings (`localizedConcept=lateral%20thinking`).
 
+## Playwright E2E
+
+The Client E2E suite (`pnpm e2e` in `apps/client`) opens these same params against a static `dist/` export with **mocked** `/api/concepts/relationships` fixtures (see `e2e/fixtures/` and `e2e/README.md`). Useful fixture keys:
+
+| Param combo | Fixture intent |
+| --- | --- |
+| `canonicalConcept=mushroom` | Short front label; back without media |
+| `canonicalConcept=long-label` | Long multi-line front label (`locale=es` → Spanish long label) |
+| `localizedConcept=Psychedelics&onlyWithMedia=true` | Back with photo (focal-point fixture PNG via `/api/media` mock) |
+| `canonicalConcept=diagram&onlyWithMedia=true` | Back with diagram (edges/labels); opens diagram card directly |
+| `canonicalConcept=transparent&onlyWithMedia=true` | Back with transparent PNG |
+| `canonicalConcept=loading-deck` | Single-card deck for delayed load-more → loading status capture |
+| `laterality=1\|3\|5` | Laterality bar grades |
+| `locale=es` (+ mushroom / Psicodélicos / long-label) | Spanish front/back |
+
+GTM is left unset for the E2E build. Screenshots land in `e2e/screenshots/` (gitignored); CI uploads them and comments on the PR.
+
 ## API fields (same names)
 
 `POST /api/concepts/relationships` accepts the same filters so the client does not have to guess:

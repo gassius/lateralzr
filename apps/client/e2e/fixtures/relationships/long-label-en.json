@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 101,
+      "label": "extraordinarily elaborate multidisciplinary conceptual framework"
+    },
+    "nodes": [
+      {
+        "id": 101,
+        "label": "extraordinarily elaborate multidisciplinary conceptual framework",
+        "shortDescription": "A deliberately long multi-line front label for layout screenshots.",
+        "complexity": 5,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 102,
+        "label": "abstraction",
+        "shortDescription": "A related idea used only to keep the deck non-empty.",
+        "complexity": 3,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 110,
+        "from": 101,
+        "to": 102,
+        "strength": 0.6,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

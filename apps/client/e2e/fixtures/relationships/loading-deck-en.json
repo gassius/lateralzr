@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 501,
+      "label": "horizon"
+    },
+    "nodes": [
+      {
+        "id": 501,
+        "label": "horizon",
+        "shortDescription": "The line where earth and sky appear to meet.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": true,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

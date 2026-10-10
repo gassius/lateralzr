@@ -1,0 +1,68 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 1,
+      "label": "mushroom"
+    },
+    "nodes": [
+      {
+        "id": 1,
+        "label": "mushroom",
+        "shortDescription": "A fleshy, spore-bearing fruiting body of a fungus.",
+        "complexity": 2,
+        "wikiUrl": "https://en.wikipedia.org/wiki/Mushroom",
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 2,
+        "label": "mycelium",
+        "shortDescription": "The vegetative network of a fungus.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      },
+      {
+        "id": 3,
+        "label": "spore",
+        "shortDescription": "A reproductive unit adapted for dispersal.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 10,
+        "from": 1,
+        "to": 2,
+        "strength": 0.8,
+        "laterality": 3
+      },
+      {
+        "id": 11,
+        "from": 1,
+        "to": 3,
+        "strength": 0.7,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

@@ -34,13 +34,15 @@ pnpm exec expo install <package>  # ALWAYS use instead of pnpm add — resolves 
 pnpm start                        # start the dev server
 pnpm web                          # Expo web
 pnpm start:mcp                    # dev server with Expo MCP local capabilities
-pnpm test                         # unit tests
+pnpm test                         # unit tests (lib/*.test.ts only — not Playwright)
 pnpm typecheck                    # tsc --noEmit
+pnpm e2e:build                    # expo export web with E2E API base URL
+pnpm e2e                          # Playwright screenshots against dist/ (see e2e/README.md)
 pnpm exec expo-doctor             # diagnose dependency and config issues
 pnpm exec expo install --fix      # fix incompatible package versions
 ```
 
-Run `pnpm test` and `pnpm typecheck` before declaring any client task done.
+Run `pnpm test` and `pnpm typecheck` before declaring any client task done. For UI / layout PRs, also run `pnpm e2e:build && pnpm e2e` (or rely on the **Client E2E** GitHub Actions workflow).
 
 API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) — see root agent context in `.cursorrules/AGENTS.md`.
 
@@ -60,6 +62,15 @@ Testers can deep-link the web preview with query params. **Do not treat this as 
 | `laterality=1-5` | Force laterality for this load/session only (does not persist) |
 
 Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true&complexity=5`
+
+## Playwright E2E + Critiquito screenshots
+
+Deterministic captures of the static web export live in [`e2e/`](./e2e/). Full local / CI / “add a screen” notes: [`e2e/README.md`](./e2e/README.md). Baseline approval: [`e2e/baselines/README.md`](./e2e/baselines/README.md).
+
+- Fixtures only (no live API): `e2e/fixtures/relationships/*.json` + `e2e/fixtures/images/*`
+- Viewports: 390×844 (primary), 320×568, 1280×800
+- CI: `.github/workflows/client-e2e.yml` → artifact + sticky PR comment
+- Pending screens (sheet, menu, pickers, offline, …) are listed in [`e2e/README.md`](./e2e/README.md) — add specs when UI ships, no always-skipped placeholders
 
 ## Navigation & Routing
 

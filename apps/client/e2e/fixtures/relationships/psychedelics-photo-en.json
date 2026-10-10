@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 201,
+      "label": "Psychedelics"
+    },
+    "nodes": [
+      {
+        "id": 201,
+        "label": "Psychedelics",
+        "shortDescription": "Compounds that alter perception, mood, and cognition.",
+        "complexity": 3,
+        "wikiUrl": "https://en.wikipedia.org/wiki/Psychedelic_drug",
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-photo.png",
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 202,
+        "label": "perception",
+        "shortDescription": "The organization and interpretation of sensory information.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-diagram.png",
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 210,
+        "from": 201,
+        "to": 202,
+        "strength": 0.75,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

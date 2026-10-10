@@ -1,0 +1,245 @@
+# Deterministic Playwright screenshots for the Expo web client.
+# Security: the test job is contents:read + persist-credentials:false and never
+# receives a write token. Privileged jobs only download artifacts (no pnpm/expo).
+
+name: Client E2E
+
+on:
+  pull_request:
+    paths:
+      - 'apps/client/**'
+      - '.github/workflows/client-e2e.yml'
+      - '.github/scripts/client-e2e-*.mjs'
+  push:
+    branches: [main, master]
+    paths:
+      - 'apps/client/**'
+      - '.github/workflows/client-e2e.yml'
+      - '.github/scripts/client-e2e-*.mjs'
+  workflow_dispatch:
+    inputs:
+      strict_baselines:
+        description: 'Fail on baseline diffs (Critiquito-approved mode)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  client-e2e:
+    name: Client E2E screenshots
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Assert no GitHub write credentials in git config
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if git config --get http.https://github.com/.extraheader; then
+            echo "::error::git http.https://github.com/.extraheader must be empty in the test job"
+            exit 1
+          fi
+          echo "OK: no http.https://github.com/.extraheader"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json', 'pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Build Expo web export (no GTM)
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
+        run: pnpm build
+
+      - name: Sync orphan e2e-screenshots:baselines/ (read-only)
+        working-directory: apps/client
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Prefer Critiquito-approved baselines on the orphan branch. If that folder
+          # is missing/empty, keep in-repo demo seeds under e2e/baselines/.
+          TMP=$(mktemp -d)
+          CLONE="${TMP}/orphan"
+          if git clone --depth=1 --branch e2e-screenshots --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${CLONE}"; then
+            if [ -d "${CLONE}/baselines" ] && find "${CLONE}/baselines" -maxdepth 1 -name '*.png' | grep -q .; then
+              mkdir -p e2e/baselines
+              # Replace compare set with orphan baselines (demo seeds only used as fallback).
+              find e2e/baselines -maxdepth 1 -name '*.png' -delete
+              cp -a "${CLONE}/baselines/." e2e/baselines/
+              echo "Using orphan baselines:"
+              find e2e/baselines -maxdepth 1 -name '*.png' | wc -l
+            else
+              echo "Orphan baselines/ empty; keeping in-repo demo seeds."
+            fi
+          else
+            echo "Orphan branch e2e-screenshots missing; keeping in-repo demo seeds."
+          fi
+          rm -rf "${TMP}"
+
+      - name: Run Playwright E2E
+        env:
+          CI: 'true'
+          E2E_PORT: '4173'
+          E2E_STRICT_BASELINES: ${{ github.event.inputs.strict_baselines == 'true' && '1' || '0' }}
+        run: pnpm e2e
+
+      - name: Smoke stability (--repeat-each=2) + pixel-identical captures
+        env:
+          CI: 'true'
+          E2E_PORT: '4173'
+        run: |
+          set -euo pipefail
+          pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
+          # Two independent capture passes; assert ≥1 PNG is byte/pixel-identical across runs.
+          for pass in 1 2; do
+            rm -rf "e2e/screenshots/repeat-${pass}"
+            E2E_SHOT_SUBDIR="repeat-${pass}" \
+              pnpm exec playwright test -c e2e/playwright.config.ts \
+                e2e/specs/card-front.spec.ts e2e/specs/laterality-bar.spec.ts \
+                --project=390x844 -g "short label|grade 3"
+          done
+          node e2e/scripts/assert-repeat-identical.mjs \
+            e2e/screenshots/repeat-1 \
+            e2e/screenshots/repeat-2
+
+      - name: Stage flat artifact tree
+        if: always()
+        working-directory: apps/client
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/e2e-artifact/screenshots /tmp/e2e-artifact/playwright-report
+          if [ -d e2e/screenshots ]; then cp -a e2e/screenshots/. /tmp/e2e-artifact/screenshots/; fi
+          if [ -d e2e/playwright-report ]; then cp -a e2e/playwright-report/. /tmp/e2e-artifact/playwright-report/; fi
+          find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
+
+      - name: Upload screenshots, diffs, and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: /tmp/e2e-artifact
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Write token: artifact only. No actions/checkout of the PR tree; no pnpm/expo.
+  # Scripts are fetched from the PR base SHA only (trusted), never from head / merge SHA.
+  client-e2e-publish:
+    name: Client E2E PR comment
+    needs: client-e2e
+    if: github.event_name == 'pull_request' && always() && needs.client-e2e.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Download screenshots artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: artifact
+
+      - name: Fetch publish script via API (base only; no repo checkout)
+        id: fetch_script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if ! curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-publish.mjs?ref=${BASE_SHA}" \
+            -o /tmp/client-e2e-publish.mjs; then
+            echo "Publish script not on base ${BASE_SHA}; skip write publish until scripts land on the base branch."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Orphan-branch push + sticky PR comment
+        if: steps.fetch_script.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
+        run: |
+          set -euo pipefail
+          echo "SCREENSHOTS_DIR=${SCREENSHOTS_DIR}"
+          find "${SCREENSHOTS_DIR}" -name '*.png' | head -20 || true
+          node /tmp/client-e2e-publish.mjs
+
+  # On main only: publish captures to orphan e2e-screenshots:baselines/ (write job; no install/build).
+  # Push events use github.sha of the trusted main commit (not a pull_request write path).
+  client-e2e-baselines:
+    name: Client E2E baselines
+    needs: client-e2e
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download screenshots artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: artifact
+
+      - name: Fetch baselines publish script via API (no repo checkout)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCRIPT_REF: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-publish-baselines.mjs?ref=${SCRIPT_REF}" \
+            -o /tmp/client-e2e-publish-baselines.mjs
+
+      - name: Publish baselines to orphan e2e-screenshots:baselines/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
+        run: |
+          set -euo pipefail
+          echo "SCREENSHOTS_DIR=${SCREENSHOTS_DIR}"
+          find "${SCREENSHOTS_DIR}" -name '*.png' | head -20 || true
+          node /tmp/client-e2e-publish-baselines.mjs

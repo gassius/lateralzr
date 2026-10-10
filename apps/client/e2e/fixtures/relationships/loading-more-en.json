@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 501,
+      "label": "horizon"
+    },
+    "nodes": [
+      {
+        "id": 501,
+        "label": "horizon",
+        "shortDescription": "The line where earth and sky appear to meet.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 502,
+        "label": "dawn",
+        "shortDescription": "The first appearance of light.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 510,
+        "from": 501,
+        "to": 502,
+        "strength": 0.7,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

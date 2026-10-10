@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 201,
+      "label": "Psicod\u00e9licos"
+    },
+    "nodes": [
+      {
+        "id": 201,
+        "label": "Psicod\u00e9licos",
+        "shortDescription": "Compuestos que alteran la percepci\u00f3n, el \u00e1nimo y la cognici\u00f3n.",
+        "complexity": 3,
+        "wikiUrl": null,
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-photo.png",
+        "media": [],
+        "locale": "es",
+        "degree": 0
+      },
+      {
+        "id": 202,
+        "label": "percepci\u00f3n",
+        "shortDescription": "Organizaci\u00f3n e interpretaci\u00f3n de la informaci\u00f3n sensorial.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 210,
+        "from": 201,
+        "to": 202,
+        "strength": 0.75,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "es",
+      "laterality": 3
+    }
+  }
+}

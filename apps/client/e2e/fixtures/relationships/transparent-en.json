@@ -1,0 +1,31 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 401,
+      "label": "amber cutout"
+    },
+    "nodes": [
+      {
+        "id": 401,
+        "label": "amber cutout",
+        "shortDescription": "A subject with transparent surroundings for alpha layout.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-transparent.png",
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      }
+    ],
+    "edges": [],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}
