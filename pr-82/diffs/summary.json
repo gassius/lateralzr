@@ -449,11 +449,11 @@
   },
   {
     "file": "status_loading_390x844_en.png",
-    "ratio": 0.3897906793048973,
-    "percent": 38.979067930489734,
+    "ratio": 0.38975346336128325,
+    "percent": 38.975346336128325,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 513214,
+    "mismatchedPixels": 513165,
     "diffImage": "status_loading_390x844_en.diff.png"
   }
 ]
