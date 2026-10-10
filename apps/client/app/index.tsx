@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
+import { DeckStatusLine } from '@/components/DeckStatusLine';
 import { LateralityControl } from '@/components/LateralityControl';
 import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
@@ -23,7 +24,6 @@ import {
 } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
-import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
   clampLaterality,
@@ -82,9 +82,6 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  /** False until the intro logo has been on screen for at least one animation cycle (~3s). */
-  const [introGateOpen, setIntroGateOpen] = useState(false);
-  const introStartedAtRef = useRef(Date.now());
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
@@ -195,13 +192,6 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // Hold the brand logo for one full pulse cycle even when the API is fast.
-  useEffect(() => {
-    const remaining = remainingIntroMs(introStartedAtRef.current, Date.now());
-    const timer = setTimeout(() => setIntroGateOpen(true), remaining);
-    return () => clearTimeout(timer);
   }, []);
 
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
@@ -649,19 +639,18 @@ export default function HomeScreen() {
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
+  const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
+  /** Lz-35: empty deck → quiet silhouette (no animated intro logo). */
+  const showInitialLoading = prefsReady && concepts.length === 0 && !error;
+  const showMainDeck = prefsReady && !(error && concepts.length === 0);
+  const deckStatusMessage =
+    showInitialLoading
+      ? t('findingStart')
+      : isLastCard && pendingEndDeckLoad && !loadMoreError
+        ? t('loadingMoreIdeas')
+        : null;
 
   const usableHeight = layoutHeight - insets.top - insets.bottom;
-
-  // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
-  // Errors skip the intro gate so failures are not delayed.
-  const showIntroLogo =
-    !complexityHydrated ||
-    !lateralityHydrated ||
-    !localeReady ||
-    (loading && concepts.length === 0) ||
-    (!error && concepts.length > 0 && !introGateOpen);
-
-  const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
 
   useEffect(() => {
     if (!showMainDeck) return;
@@ -681,11 +670,20 @@ export default function HomeScreen() {
     announceComplexity(pending, 'session-url');
   }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
 
-  if (showIntroLogo) {
+  if (!prefsReady) {
     return (
-      <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View
+        style={[
+          styles.mainRoot,
+          {
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+            minHeight: layoutHeight,
+            height: layoutHeight,
+          },
+        ]}
+      >
         <StatusBar style="light" />
-        <LateralzrLogo animate />
       </View>
     );
   }
@@ -746,6 +744,7 @@ export default function HomeScreen() {
             availableHeight={cardStackAvailableHeight(usableHeight, lateralityControlHeight)}
             preloadedMediaUrls={preloadedMediaUrls}
             showDeckLoading={showDeckLoading}
+            showInitialLoading={showInitialLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
           />
@@ -756,6 +755,11 @@ export default function HomeScreen() {
             onHeightChange={setLateralityControlHeight}
             onPressLabel={openLateralitySheet}
             labelRef={lateralityLabelRef}
+            statusSlot={
+              deckStatusMessage != null ? (
+                <DeckStatusLine message={deckStatusMessage} />
+              ) : undefined
+            }
           />
           {complexityCue ? (
             <View

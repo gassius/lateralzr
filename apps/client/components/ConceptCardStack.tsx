@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
+import { LoadingCard } from './LoadingCard';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import {
   trackCardBackView,
@@ -57,6 +58,8 @@ type ConceptCardStackProps = {
   preloadedMediaUrls: ReadonlySet<string>;
   /** Loading / error deck card — only when user is at the true end and waiting (see HomeScreen). */
   showDeckLoading: boolean;
+  /** Initial empty-deck quiet silhouette (Lz-35) — shell + control stay up. */
+  showInitialLoading?: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
 };
@@ -76,6 +79,7 @@ export function ConceptCardStack({
   availableHeight,
   preloadedMediaUrls,
   showDeckLoading,
+  showInitialLoading = false,
   loadMoreError,
   onRetryLoadMore,
 }: ConceptCardStackProps) {
@@ -639,7 +643,25 @@ export function ConceptCardStack({
     };
   });
 
-  if (concepts.length === 0) return null;
+  if (concepts.length === 0) {
+    if (!showInitialLoading) return null;
+    return (
+      <View
+        style={styles.outer}
+        onLayout={(e) => {
+          setContainerW(e.nativeEvent.layout.width);
+        }}
+      >
+        <View style={[styles.cardWrap, { height: cardAreaHeight }]}>
+          <View style={styles.gestureFill}>
+            <View style={styles.frontWrap}>
+              <LoadingCard />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   const nextIndex = Math.min(currentIndex + 1, concepts.length - 1);
   const behindDisplayIndex =
@@ -687,10 +709,11 @@ export function ConceptCardStack({
             style={[styles.frontWrap, frontAnimatedStyle]}
           >
             {showDeckStatus ? (
-              <DeckStatusCard
-                variant={deckStatusVariant}
-                onRetry={loadMoreError ? onRetryLoadMore : undefined}
-              />
+              deckStatusVariant === 'loading' ? (
+                <LoadingCard />
+              ) : (
+                <DeckStatusCard variant="error" onRetry={onRetryLoadMore} />
+              )
             ) : (
               <ConceptCardForIndex
                 concepts={concepts}

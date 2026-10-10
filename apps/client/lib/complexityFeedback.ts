@@ -27,7 +27,7 @@ export const COMPLEXITY_CUE_FONT_WEIGHT = typeWeight('label');
 /** How long a swipe cue stays readable before it leaves. */
 export const COMPLEXITY_CUE_DURATION_MS = 1800;
 
-/** Deep-link cue stays up longer so it is still there after the intro logo. */
+/** Deep-link cue stays up longer so the rung is readable after first paint. */
 export const COMPLEXITY_CUE_SESSION_DURATION_MS = 4000;
 
 /** Brief fade/slide; skipped under reduced motion. */
