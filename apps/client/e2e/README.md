@@ -44,7 +44,9 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 - `typography_status-meta_*` — deck status line at meta scale (v3.3 `type.meta`, Lz-35)
 - `status_loading-initial_*` — quiet silhouette + `findingStart` on first fetch
-- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
+- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck (Lz-36)
+- Back from that loading face returns to the last concept (no route change; history untouched)
+- Next card replaces loading via settle (`motion.swipeSettleMs` 260 / RM 150)
 - `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
 ### Card front title (Lz-26)

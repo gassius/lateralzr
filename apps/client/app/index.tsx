@@ -14,6 +14,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
+import { planBackFromEndLoading } from '@/lib/deckSlotState';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import {
@@ -434,8 +435,18 @@ export default function HomeScreen() {
   }, []);
 
   const onSwipeRight = useCallback(() => {
-    pendingEndDeckLoadRef.current = false;
-    setPendingEndDeckLoad(false);
+    // Lz-36: back from end-of-deck loading returns to the same last card — do not
+    // pop history / walk index.
+    if (pendingEndDeckLoadRef.current) {
+      const plan = planBackFromEndLoading(currentIndexRef.current);
+      pendingEndDeckLoadRef.current = false;
+      setPendingEndDeckLoad(false);
+      if (plan.nextIndex !== currentIndexRef.current) {
+        currentIndexRef.current = plan.nextIndex;
+        setCurrentIndex(plan.nextIndex);
+      }
+      return;
+    }
     setCurrentIndex((i) => Math.max(i - 1, 0));
   }, []);
 
@@ -637,7 +648,7 @@ export default function HomeScreen() {
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
-  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
+  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
   /** Lz-35: empty deck → quiet silhouette (no animated intro logo). */
