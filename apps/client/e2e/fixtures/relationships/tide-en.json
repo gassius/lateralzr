@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 201,
+      "label": "Tide"
+    },
+    "nodes": [
+      {
+        "id": 201,
+        "label": "Tide",
+        "shortDescription": "Short Lz-26 title string for left-align checks.",
+        "complexity": 1,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 202,
+        "label": "current",
+        "shortDescription": "Related idea.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 210,
+        "from": 201,
+        "to": 202,
+        "strength": 0.6,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

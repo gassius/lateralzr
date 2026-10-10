@@ -1,7 +1,8 @@
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   Linking,
+  PixelRatio,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import Animated, {
 import type { ConceptItem } from '@/lib/api';
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
+import { textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_MEDIA_CONTENT_FIT,
@@ -31,10 +33,27 @@ import {
 } from '@/lib/cardBackLayout';
 import { CARD_SHADOW, cardPadding, cardRadius } from '@/lib/cardLayout';
 import {
-  CONCEPT_FRONT_LABEL_COLOR,
-  CONCEPT_FRONT_LABEL_FONT_SIZE,
-  CONCEPT_FRONT_LABEL_TEXT_ALIGN,
-} from '@/lib/conceptFrontLabelAlign';
+  CONCEPT_FRONT_TITLE_FONT_SIZE,
+  CONCEPT_FRONT_TITLE_FONT_STACK,
+  CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+  CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+  CONCEPT_FRONT_TITLE_TEXT_ALIGN,
+  NATIVE_TITLE_MEASURE_FALLBACK_MS,
+  applyNativeTitleTextLayoutOnce,
+  conceptFrontTitleLineCount,
+  conceptFrontTitleNativeProbeText,
+  conceptFrontTitleRenderedSize,
+  conceptFrontTitleTopSpacerHeight,
+  getCachedNativeTitleLayout,
+  layoutConceptFrontTitle,
+  measureConceptFrontTitleWidth,
+  nativeTitleFallbackLayout,
+  nativeTitleMeasureCacheKey,
+  shouldCommitNativeTitleLayoutToView,
+  titleColor,
+  type ConceptFrontTitleLayout,
+  type ConceptFrontTitleRect,
+} from '@/lib/conceptFrontTitle';
 import { CoachHint } from './CoachHint';
 import { ConceptCardBrandTexture } from './ConceptCardBrandTexture';
 import { CARD_BRAND_FALLBACK_FACE_WIDTH } from '@/lib/conceptCardBrand';
@@ -60,6 +79,11 @@ type ConceptCardProps = {
   animateCoachAppear?: boolean;
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
+  /**
+   * Only the interactive front-of-stack card should expose `card-front-title`
+   * (behind / return-overlay duplicates must not, or Playwright strict mode fails).
+   */
+  exposeFrontTitleTestId?: boolean;
 };
 
 export function ConceptCard({
@@ -69,6 +93,7 @@ export function ConceptCard({
   coachHint,
   animateCoachAppear = true,
   flipPeek,
+  exposeFrontTitleTestId = false,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -81,10 +106,128 @@ export function ConceptCard({
   const [mediaError, setMediaError] = useState(false);
   const [backFaceH, setBackFaceH] = useState(0);
   const [faceWidth, setFaceWidth] = useState(0);
+  const [frontFaceH, setFrontFaceH] = useState(0);
+  const [frontContentH, setFrontContentH] = useState(0);
+  /**
+   * Native: committed visible layout (onTextLayout or B2 fallback).
+   * Web uses sync DOM measure and never touches this.
+   */
+  const [nativeTitleLayout, setNativeTitleLayout] = useState<ConceptFrontTitleLayout | null>(
+    null,
+  );
+  /** Bumps when late onTextLayout fills the cache without resizing (unmount probe). */
+  const [nativeCacheEpoch, setNativeCacheEpoch] = useState(0);
+  /** Measured title box for Lz-25 pattern clearing (column-local coords). */
+  const titleRectRef = useRef<ConceptFrontTitleRect | null>(null);
+  /** Cache key already written from onTextLayout (ignore further probe events). */
+  const nativeMeasureAcceptedRef = useRef<string | null>(null);
+  /** True once B2 fallback is painted — late onTextLayout must not resize. */
+  const nativeFallbackVisibleRef = useRef(false);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
+
+  const frontTitleBaseStyle = textStyle('concept');
+  /**
+   * e2eTextScale multiplies textStyle fontSize for display only (#82: keep layout
+   * sizes unscaled). OS fontScale + e2eScale are passed into measure as size×scale.
+   */
+  const e2eScale = Math.max(
+    1,
+    ((frontTitleBaseStyle.fontSize as number) ?? CONCEPT_FRONT_TITLE_FONT_SIZE) /
+      CONCEPT_FRONT_TITLE_FONT_SIZE,
+  );
+  const osFontScale = PixelRatio.getFontScale();
+  const measureFontScale = osFontScale * e2eScale;
+  /** Wait for real face width on native so we measure once at the final box. */
+  const titleWidthReady = Platform.OS === 'web' || faceWidth > 0;
+  /** Content width inside face padding (onLayout width includes padding). */
+  const titleContentWidth = Math.max(
+    0,
+    (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - facePad * 2,
+  );
+  const nativeCacheKey = nativeTitleMeasureCacheKey(
+    title,
+    titleContentWidth,
+    measureFontScale,
+  );
+
+  // Reset / hydrate when title, width, or OS text scale changes (M1).
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (!titleWidthReady) {
+      setNativeTitleLayout(null);
+      nativeFallbackVisibleRef.current = false;
+      nativeMeasureAcceptedRef.current = null;
+      return;
+    }
+    const cached = getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale);
+    setNativeTitleLayout(cached);
+    nativeFallbackVisibleRef.current = false;
+    nativeMeasureAcceptedRef.current = cached != null ? nativeCacheKey : null;
+  }, [title, titleContentWidth, titleWidthReady, measureFontScale, nativeCacheKey]);
+
+  // B2: if onTextLayout never fires, show approx layout after a short wait.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !titleWidthReady || title.length === 0) return;
+    if (getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale) != null) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale) != null) {
+        return;
+      }
+      if (nativeMeasureAcceptedRef.current === nativeCacheKey) return;
+      setNativeTitleLayout((prev) => {
+        if (prev != null) return prev;
+        nativeFallbackVisibleRef.current = true;
+        return nativeTitleFallbackLayout(title, titleContentWidth, measureFontScale);
+      });
+    }, NATIVE_TITLE_MEASURE_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [title, titleContentWidth, titleWidthReady, measureFontScale, nativeCacheKey]);
+
+  const frontTitleLayout: ConceptFrontTitleLayout =
+    Platform.OS === 'web'
+      ? layoutConceptFrontTitle(
+          title,
+          titleContentWidth,
+          measureConceptFrontTitleWidth,
+          CONCEPT_FRONT_TITLE_FONT_SIZE,
+          CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+          measureFontScale,
+        )
+      : (nativeTitleLayout ?? {
+          displayText: title,
+          fontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
+          lineHeight: Math.round(
+            CONCEPT_FRONT_TITLE_FONT_SIZE * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+          ),
+        });
+
+  const titleOpacity: 0 | 1 =
+    Platform.OS === 'web' ? 1 : nativeTitleLayout != null ? 1 : 0;
+  /** Keep probing until the onTextLayout cache has this key (even after B2 fallback). */
+  const cachedNativeLayout = getCachedNativeTitleLayout(
+    title,
+    titleContentWidth,
+    measureFontScale,
+  );
+  const shouldProbeNative =
+    Platform.OS !== 'web' &&
+    titleWidthReady &&
+    title.length > 0 &&
+    cachedNativeLayout == null;
+  void nativeCacheEpoch; // epoch bump re-renders so shouldProbe sees a filled cache
+
+  const displayFontSize = Math.round(frontTitleLayout.fontSize * e2eScale);
+  const displayLineHeight = Math.round(frontTitleLayout.lineHeight * e2eScale);
+  const frontTitleColor = titleColor(
+    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, measureFontScale),
+  );
+  const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
+  const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
     flipProgress.value = withTiming(flipped ? 1 : 0, {
@@ -141,6 +284,7 @@ export function ConceptCard({
     // so no-media backs stay vertically centered.
     if (nextH > 1) {
       setBackFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
+      setFrontFaceH((prev) => (Math.abs(prev - nextH) < 0.5 ? prev : nextH));
     }
     if (nextW > 1) {
       setFaceWidth((prev) => (Math.abs(prev - nextW) < 0.5 ? prev : nextW));
@@ -148,6 +292,13 @@ export function ConceptCard({
   };
 
   const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
+  const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
+  const titleBlockH = titleLineCount * displayLineHeight;
+  /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
+  const frontTopSpacerH =
+    frontFaceH > 0
+      ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
+      : undefined;
 
   const faceInnerStyle = [
     styles.faceInner,
@@ -157,9 +308,97 @@ export function ConceptCard({
   const front = (
     <View style={faceInnerStyle} onLayout={onUntransformedFaceLayout}>
       <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
-      <View style={styles.frontCenter}>
-        <Text style={styles.conceptNameFront}>{title}</Text>
-      </View>
+      <ScrollView
+        style={styles.frontScroll}
+        contentContainerStyle={[
+          styles.frontScrollContent,
+          frontFaceH > 0 ? { minHeight: frontFaceH } : null,
+        ]}
+        scrollEnabled={frontNeedsScroll}
+        showsVerticalScrollIndicator={false}
+        bounces={frontNeedsScroll}
+        testID="card-front-scroll"
+      >
+        <View
+          style={styles.frontColumn}
+          onLayout={(event) => {
+            const next = event.nativeEvent.layout.height;
+            setFrontContentH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+          }}
+        >
+          <View
+            style={[
+              styles.frontTitleTopSpacer,
+              frontTopSpacerH != null ? { height: frontTopSpacerH, flexGrow: 0 } : null,
+            ]}
+          />
+          {shouldProbeNative ? (
+            <Text
+              // B1: unscaled probe widths — OS scale is applied once via measureFontScale.
+              allowFontScaling={false}
+              style={[
+                styles.nativeTitleProbe,
+                {
+                  fontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
+                  fontWeight: frontTitleBaseStyle.fontWeight,
+                },
+              ]}
+              onTextLayout={(event) => {
+                const key = nativeCacheKey;
+                if (nativeMeasureAcceptedRef.current === key) return;
+                const result = applyNativeTitleTextLayoutOnce({
+                  title,
+                  maxWidth: titleContentWidth,
+                  lines: event.nativeEvent.lines.map((line) => ({
+                    text: line.text,
+                    width: line.width,
+                  })),
+                  probeFontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
+                  fontScale: measureFontScale,
+                });
+                if (!result.applied) return;
+                nativeMeasureAcceptedRef.current = key;
+                // Fallback already on screen: cache only — do not resize (clarification).
+                if (!shouldCommitNativeTitleLayoutToView(nativeFallbackVisibleRef.current)) {
+                  setNativeCacheEpoch((epoch) => epoch + 1);
+                  return;
+                }
+                setNativeTitleLayout(result.layout);
+              }}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            >
+              {nativeProbeText}
+            </Text>
+          ) : null}
+          <Text
+            style={[
+              styles.conceptNameFront,
+              {
+                // Web: pin the same stack measureConceptFrontTitleWidth uses (RN Web System).
+                // Native: leave unset so the platform system sans applies.
+                ...(Platform.OS === 'web' ? { fontFamily: CONCEPT_FRONT_TITLE_FONT_STACK } : null),
+                fontSize: displayFontSize,
+                lineHeight: displayLineHeight,
+                fontWeight: frontTitleBaseStyle.fontWeight,
+                color: frontTitleColor,
+                // Native: opacity 0 until measured — first visible frame is final size (no jump).
+                opacity: titleOpacity,
+              },
+            ]}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              titleRectRef.current = { x, y, width, height };
+            }}
+            testID={exposeFrontTitleTestId ? 'card-front-title' : undefined}
+            accessibilityRole="header"
+            accessibilityLabel={title}
+          >
+            {frontTitleLayout.displayText}
+          </Text>
+          <View style={styles.frontTitleBottomSpacer} />
+        </View>
+      </ScrollView>
       {coachHint ? (
         <CoachHint text={coachHint} animateAppear={animateCoachAppear} surface="orange" />
       ) : null}
@@ -430,21 +669,56 @@ const styles = StyleSheet.create({
   copyCluster: {
     width: '100%',
   },
-  frontCenter: {
+  frontScroll: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
     minHeight: 0,
     zIndex: 1,
   },
-  conceptNameFront: {
-    fontSize: CONCEPT_FRONT_LABEL_FONT_SIZE,
-    lineHeight: Math.round(CONCEPT_FRONT_LABEL_FONT_SIZE * 1.5),
-    fontWeight: '700',
+  frontScrollContent: {
+    flexGrow: 1,
+  },
+  frontColumn: {
     width: '100%',
-    textAlign: CONCEPT_FRONT_LABEL_TEXT_ALIGN,
-    color: CONCEPT_FRONT_LABEL_COLOR,
+    flexGrow: 1,
+  },
+  /** Pushes the title into the lower-middle clear area (~52% first baseline). */
+  frontTitleTopSpacer: {
+    flexGrow: 1,
+    width: '100%',
+  },
+  /** Off-screen probe for one native onTextLayout; never visible. */
+  nativeTitleProbe: {
+    position: 'absolute',
+    opacity: 0,
+    left: 0,
+    top: 0,
+    width: 4096,
+    zIndex: -1,
+  },
+  /** Room below short titles; long titles grow into this then the face scrolls. */
+  frontTitleBottomSpacer: {
+    flexGrow: 1,
+    minHeight: 48,
+    width: '100%',
+  },
+  conceptNameFront: {
+    width: '100%',
+    textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
+    flexShrink: 0,
+    // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle.
+    // pre-wrap keeps the trailing space on soft wraps (pre-line collapses it,
+    // which made M1 see `conceptual\nmulti…` as a bare mid-word break).
+    // Override RN Web Text's default wordWrap:'break-word' so the engine
+    // never splits a word unless we inserted a visible hyphen.
+    ...Platform.select({
+      web: {
+        whiteSpace: 'pre-wrap' as const,
+        wordBreak: 'normal' as const,
+        wordWrap: 'normal' as const,
+        overflowWrap: 'normal' as const,
+      },
+      default: {},
+    }),
   },
   conceptName: {
     fontWeight: '700',

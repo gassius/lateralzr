@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { capture, swipeForward } from '../helpers/capture';
-import { visibleText } from '../helpers/locators';
+import { cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 /**
@@ -38,5 +38,22 @@ test.describe('typography', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
     await capture(page, testInfo, { screen: 'typography', state: 'large-text-200', locale: 'en' });
+  });
+
+  test('long-label front at 200% e2e text scale', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=long-label&e2eTextScale=2');
+    const title = cardFrontTitle(page);
+    await expect(title).toBeVisible();
+    await expect(title).toHaveAttribute(
+      'aria-label',
+      /extraordinarily elaborate multidisciplinary conceptual framework/i,
+    );
+    const text = await title.innerText();
+    expect(text).not.toMatch(/\.\.\.|…/);
+    await capture(page, testInfo, {
+      screen: 'typography',
+      state: 'long-label-200',
+      locale: 'en',
+    });
   });
 });

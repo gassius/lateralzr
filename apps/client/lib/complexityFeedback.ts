@@ -1,7 +1,7 @@
 import { contrastRatio } from '../theme/contrast';
 import { color } from '../theme/tokens';
 import { textStyle, typeSize, typeWeight } from '../theme/typography';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
+import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle';
 import { t } from './i18n';
 
 /**
@@ -90,7 +90,7 @@ export function shouldKeepSessionComplexityMark(
 
 export function complexityCueIsSecondaryToConceptTitle(
   cueSize: number = COMPLEXITY_CUE_FONT_SIZE,
-  titleSize: number = CONCEPT_FRONT_LABEL_FONT_SIZE,
+  titleSize: number = CONCEPT_FRONT_TITLE_FONT_SIZE,
 ): boolean {
   return cueSize < titleSize;
 }

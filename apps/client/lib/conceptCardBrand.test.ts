@@ -14,7 +14,7 @@ import {
   markViewBoxAttr,
 } from '../assets/images/lateralzrMark.ts';
 import { color } from '../theme/tokens.ts';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
+import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle.ts';
 import { contrastRatio } from './coachHintPresentation.ts';
 import {
   CARD_BRAND_BACK_OPACITY,
@@ -90,14 +90,14 @@ describe('concept card brand mark identity', () => {
 });
 
 describe('concept card brand hierarchy', () => {
-  it('stays secondary to the 48px concept title', () => {
+  it('stays secondary to the 32px concept title', () => {
     assert.ok(cardBrandIsSecondaryToTitle());
     assert.ok(CARD_BRAND_FRONT_OPACITY <= 0.18);
     assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO <= 0.58);
     assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO >= 0.4);
     assert.ok(CARD_BRAND_FRONT_WIDTH_RATIO > CARD_BRAND_BACK_WIDTH_RATIO);
     assert.ok(CARD_BRAND_BACK_OPACITY <= CARD_BRAND_FRONT_OPACITY);
-    assert.equal(CONCEPT_FRONT_LABEL_FONT_SIZE, 48);
+    assert.equal(CONCEPT_FRONT_TITLE_FONT_SIZE, 32);
   });
 
   it('sizes the front mark from the orange face, not the laterality bar', () => {
@@ -112,9 +112,10 @@ describe('concept card brand hierarchy', () => {
 describe('concept card brand contrast', () => {
   it('uses a light watermark so title contrast does not regress', () => {
     assert.equal(CARD_BRAND_FACE_COLOR, color.front);
-    assert.equal(CARD_BRAND_TITLE_COLOR, color.ink);
+    assert.equal(CARD_BRAND_TITLE_COLOR, color.concept);
     assert.equal(CARD_BRAND_INK, color.ink);
     assert.equal(CARD_BRAND_FILL, '#ffffff');
+    assert.equal(CARD_BRAND_TITLE_MIN_CONTRAST, 3);
 
     const plain = cardBrandPlainTitleContrast();
     const overFront = cardBrandTitleContrast('front');
@@ -126,7 +127,7 @@ describe('concept card brand contrast', () => {
     assert.ok(cardBrandInkTitleContrast('front') >= 4.5);
 
     const blended = cardBrandBlendedFace('front');
-    assert.ok(contrastRatio(color.ink, blended) >= plain);
+    assert.ok(contrastRatio(color.concept, blended) >= plain);
     assert.ok(contrastRatio(color.ink, blended) > contrastRatio(color.concept, blended));
   });
 });

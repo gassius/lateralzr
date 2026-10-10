@@ -2,7 +2,10 @@ import { MARK_ASPECT } from '../assets/images/lateralzrMark';
 import { CARD_BRAND_FILL as CARD_BRAND_FILL_TOKEN } from '../theme/cardBrand';
 import { blendHexOver, contrastRatio } from '../theme/contrast';
 import { color } from '../theme/tokens';
-import { CONCEPT_FRONT_LABEL_COLOR, CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
+import {
+  CONCEPT_FRONT_TITLE_COLOR,
+  CONCEPT_FRONT_TITLE_FONT_SIZE,
+} from './conceptFrontTitle';
 
 /**
  * Quiet Lateralzr mark texture on concept cards (ClickUp 869f64061).
@@ -11,9 +14,8 @@ import { CONCEPT_FRONT_LABEL_COLOR, CONCEPT_FRONT_LABEL_FONT_SIZE } from './conc
  * Wordmark belongs on the laterality bar (separate ticket). The bulb here is
  * decorative texture, not a tappable feedback control.
  *
- * Light (white) mark on orange so the 48px ink title stays AA+ even when a
- * multiline wrap overlaps the watermark. A dark stamp would darken the slab
- * for no gain — #51 already set the title to logo ink.
+ * Light (white) mark on orange so the v3.3 concept title (teal at ≥24 px,
+ * ink below) stays readable when a multiline wrap overlaps the watermark.
  */
 
 export type CardBrandFace = 'front' | 'back';
@@ -25,8 +27,8 @@ export const CARD_BRAND_FILL = CARD_BRAND_FILL_TOKEN;
 
 export const CARD_BRAND_FACE_COLOR = color.front;
 
-/** Front title color from #51 — logo ink, not teal chrome. */
-export const CARD_BRAND_TITLE_COLOR = CONCEPT_FRONT_LABEL_COLOR;
+/** Default front title colour (Lz-26): concept teal at the 32 px token size. */
+export const CARD_BRAND_TITLE_COLOR = CONCEPT_FRONT_TITLE_COLOR;
 
 /** Fallback face width: letterboxed preview content (~301) + 20px padding each side. */
 export const CARD_BRAND_FALLBACK_FACE_WIDTH = 341;
@@ -45,7 +47,7 @@ export const CARD_BRAND_FRONT_OPACITY = 0.16;
 
 export const CARD_BRAND_BACK_OPACITY = 0.12;
 
-/** Sit the mark on the lower slab so the 48px title keeps the optical center. */
+/** Sit the mark on the lower slab so the title keeps the lower-middle stage. */
 export const CARD_BRAND_FRONT_BOTTOM = 6;
 
 export const CARD_BRAND_BACK_BOTTOM = 10;
@@ -83,14 +85,14 @@ export function cardBrandSize(
   return { width, height: width / MARK_ASPECT };
 }
 
-/** Texture is always under the 48px title — never a competing type size. */
+/** Texture is always under the concept title — never a competing type size. */
 export function cardBrandIsSecondaryToTitle(
-  titleSize: number = CONCEPT_FRONT_LABEL_FONT_SIZE,
+  titleSize: number = CONCEPT_FRONT_TITLE_FONT_SIZE,
 ): boolean {
   return (
     CARD_BRAND_FRONT_OPACITY < 1 &&
     CARD_BRAND_FRONT_WIDTH_RATIO < 1 &&
-    titleSize >= CONCEPT_FRONT_LABEL_FONT_SIZE
+    titleSize >= CONCEPT_FRONT_TITLE_FONT_SIZE
   );
 }
 
@@ -107,10 +109,13 @@ export function cardBrandPlainTitleContrast(): number {
   return contrastRatio(CARD_BRAND_TITLE_COLOR, CARD_BRAND_FACE_COLOR);
 }
 
-/** Ink title (PR #51) must also stay AA+ if it lands on this watermark. */
+/** Ink fallback (Lz-26 when rendered size < 24) must stay AA+ on the watermark. */
 export function cardBrandInkTitleContrast(face: CardBrandFace = 'front'): number {
   return contrastRatio(CARD_BRAND_INK, cardBrandBlendedFace(face));
 }
 
-/** Normal-text WCAG AA. Ink-on-orange clears this; large-text AA is 3. */
-export const CARD_BRAND_TITLE_MIN_CONTRAST = 4.5;
+/**
+ * Large-text WCAG AA for the default concept-teal title on orange (≈3.15:1).
+ * Ink fallback still clears normal-text AA (4.5) via {@link cardBrandInkTitleContrast}.
+ */
+export const CARD_BRAND_TITLE_MIN_CONTRAST = 3;

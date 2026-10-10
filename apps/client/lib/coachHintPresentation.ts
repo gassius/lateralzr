@@ -1,7 +1,7 @@
 import { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contrast';
 import { color } from '../theme/tokens';
 import { textStyle, typeSize, typeWeight } from '../theme/typography';
-import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
+import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle';
 
 export { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contrast';
 
@@ -59,7 +59,7 @@ export function coachHintPalette(surface: CoachHintSurface): CoachHintPalette {
 
 export function coachHintIsSecondaryToConceptTitle(
   coachSize: number = COACH_HINT_FONT_SIZE,
-  titleSize: number = CONCEPT_FRONT_LABEL_FONT_SIZE,
+  titleSize: number = CONCEPT_FRONT_TITLE_FONT_SIZE,
 ): boolean {
   return coachSize < titleSize;
 }

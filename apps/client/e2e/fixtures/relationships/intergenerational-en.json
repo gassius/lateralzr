@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 221,
+      "label": "Intergenerational transmission of knowledge"
+    },
+    "nodes": [
+      {
+        "id": 221,
+        "label": "Intergenerational transmission of knowledge",
+        "shortDescription": "Long Lz-26 title string for wrap / no-truncation checks.",
+        "complexity": 5,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 222,
+        "label": "heritage",
+        "shortDescription": "Related idea.",
+        "complexity": 3,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 230,
+        "from": 221,
+        "to": 222,
+        "strength": 0.6,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}
