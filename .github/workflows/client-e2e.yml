@@ -156,7 +156,7 @@ jobs:
           find "${SCREENSHOTS_DIR}" -name '*.png' | head -20 || true
           node /tmp/client-e2e-publish.mjs
 
-  # On main only: publish captures as committed baselines (write job; no install/build).
+  # On main only: publish captures to orphan e2e-screenshots:baselines/ (write job; no install/build).
   client-e2e-baselines:
     name: Client E2E baselines
     needs: client-e2e
@@ -165,17 +165,29 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download screenshots artifact
         uses: actions/download-artifact@v4
         with:
           name: client-e2e-screenshots
           path: artifact
 
-      - name: Publish baselines from artifact
+      - name: Fetch baselines publish script via API (no repo checkout)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-publish-baselines.mjs?ref=${GITHUB_SHA}" \
+            -o /tmp/client-e2e-publish-baselines.mjs
+
+      - name: Publish baselines to orphan e2e-screenshots:baselines/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
-          BASELINES_DIR: apps/client/e2e/baselines
-        run: node .github/scripts/client-e2e-publish-baselines.mjs
+        run: |
+          set -euo pipefail
+          echo "SCREENSHOTS_DIR=${SCREENSHOTS_DIR}"
+          find "${SCREENSHOTS_DIR}" -name '*.png' | head -20 || true
+          node /tmp/client-e2e-publish-baselines.mjs

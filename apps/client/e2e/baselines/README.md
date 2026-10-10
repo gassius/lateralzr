@@ -1,19 +1,23 @@
-# Screenshot baselines
+# Screenshot baselines (Playwright seeds)
 
-Baselines are PNG files named `<screen>_<state>_<viewport>_<locale>.png`.
+In-repo PNGs named `<screen>_<state>_<viewport>_<locale>.png` used by Playwright for **report-only** pixel compares during CI (1% threshold).
+
+## Design review location
+
+Critiquito / design review does **not** use this folder as the source of truth. Reviewers read the orphan branch:
+
+- **PR captures:** `e2e-screenshots:pr-<n>/` (plus `diffs/`)
+- **Approved baselines:** `e2e-screenshots:baselines/` (published from `main`)
+
+The sticky PR comment links that tree and includes a diff summary table (no embedded images).
 
 ## Approval / publish
 
-1. Critiquito reviews PR screenshots (sticky comment + artifact).
-2. After merge to `main`, the **Client E2E baselines** job copies the latest captures into this folder and commits them (write-scoped job; never runs install/build with write tokens).
-3. On PRs, captures are compared at **1%** (`maxDiffPixelRatio` / pixel ratio `0.01`). Diffs are **report-only** (CI stays green) until `E2E_STRICT_BASELINES=1` / workflow_dispatch.
-4. Diff images + `diffs/summary.json` land in the artifact; the sticky PR comment includes a summary table.
+1. Critiquito reviews `e2e-screenshots:pr-<n>/` against `e2e-screenshots:baselines/`.
+2. After merge to `main`, the **Client E2E baselines** job overwrites `e2e-screenshots:baselines/` from the artifact (write-scoped; no install/build).
+3. On PRs, captures are compared at **1%**. Diffs are **report-only** until `E2E_STRICT_BASELINES=1` / workflow_dispatch.
+4. When a PR closes, `pr-<n>/` is removed from the orphan branch.
 
 ## Demo seeds (this PR only)
 
-See [DEMO-SEEDS.md](./DEMO-SEEDS.md). Full-size (780×1688) intentional baselines exist so Critiquito can see:
-
-- one **over-threshold** diff with a `.diff.png`
-- one **under-threshold** pass
-
-They are **not** Critiquito-approved product baselines. The main publish job overwrites them with real captures after merge.
+See [DEMO-SEEDS.md](./DEMO-SEEDS.md). Full-size (780×1688) intentional seeds exist so Critiquito can see an over-threshold diff and an under-threshold pass. They are **not** approved product baselines.

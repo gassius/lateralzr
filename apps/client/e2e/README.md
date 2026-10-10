@@ -52,17 +52,32 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 Smoke runs on **all three** viewports (390×844, 320×568, 1280×800).
 
-## Baselines / Critiquito
+## Design review (Critiquito)
 
-See [baselines/README.md](./baselines/README.md).
+Screenshots for review live on the orphan Git branch **`e2e-screenshots`** (not embedded in the PR comment):
+
+| Path | Meaning |
+| --- | --- |
+| `e2e-screenshots:pr-<n>/` | Latest captures for open PR `#n` (overwritten each CI run) + `diffs/` |
+| `e2e-screenshots:baselines/` | Critiquito-approved references published from `main` |
+
+**Review flow:** open `pr-<n>/`, compare against `baselines/`, use the sticky PR comment’s **diff summary table** (screen, % changed, pass / over-threshold, link to diff image). The sticky comment is text-only (run link, SHA, tree link, table) — no inline images.
+
+When a PR closes, CI removes `pr-<n>/` from the orphan branch (see `.github/workflows/client-e2e-cleanup.yml`).
+
+Also see [baselines/README.md](./baselines/README.md) for in-repo Playwright compare seeds.
+
+## Baselines / pixel compare
 
 - PRs compare at 1% (`maxDiffPixelRatio` 0.01); diffs are **report-only** unless `E2E_STRICT_BASELINES=1`.
-- Pushes to `main` publish captures into `e2e/baselines/` via a write-scoped job that only downloads the artifact (never runs `pnpm` / Expo with write tokens).
+- In-repo `e2e/baselines/` may hold local/demo seeds for Playwright. Approved design baselines for humans live on `e2e-screenshots:baselines/`.
 
 ## CI security split
 
 `.github/workflows/client-e2e.yml`:
 
 1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, build + test + upload artifact.
-2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script via API (**no repo checkout**); orphan branch + sticky comment.
-3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; commits baselines.
+2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script via API (**no repo checkout**); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment.
+3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`.
+
+Cleanup: `.github/workflows/client-e2e-cleanup.yml` removes `pr-<n>/` when the PR closes.

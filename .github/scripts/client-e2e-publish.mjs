@@ -2,7 +2,11 @@
 /**
  * Privileged Client E2E publisher — runs ONLY in the write-scoped CI job.
  * Expects SCREENSHOTS_DIR to point at the downloaded artifact screenshots folder.
- * Does not install deps or execute the Expo app.
+ * Does not install deps or execute the Expo app / PR tree.
+ *
+ * Layout on orphan branch `e2e-screenshots` (overwrite each run):
+ *   pr-<number>/<screen>_<state>_<viewport>_<locale>.png
+ *   pr-<number>/diffs/...
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -35,6 +39,7 @@ if (fs.existsSync(SCREENSHOTS)) {
     fs.readdirSync(SCREENSHOTS).filter((f) => f.endsWith('.png')).length,
   );
 }
+
 const event = JSON.parse(fs.readFileSync(GITHUB_EVENT_PATH, 'utf8'));
 const pr = event.pull_request;
 if (!pr) {
@@ -46,22 +51,16 @@ const isFork = Boolean(pr.head?.repo?.full_name && pr.head.repo.full_name !== GI
 const [owner, repo] = GITHUB_REPOSITORY.split('/');
 const artifactUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
 const shortSha = GITHUB_SHA.slice(0, 12);
+const prDirName = `pr-${pr.number}`;
+const treeUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${ORPHAN_BRANCH}/${prDirName}`;
+const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/${prDirName}`;
 
-function listPngs(dir, recursive = false) {
+function listPngs(dir) {
   if (!fs.existsSync(dir)) return [];
-  if (!recursive) {
-    return fs
-      .readdirSync(dir)
-      .filter((f) => f.endsWith('.png'))
-      .sort();
-  }
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...listPngs(full, true).map((f) => path.join(entry.name, f)));
-    else if (entry.name.endsWith('.png')) out.push(entry.name);
-  }
-  return out.sort();
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.png'))
+    .sort();
 }
 
 async function gh(pathname, init = {}) {
@@ -85,7 +84,7 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
-function pushOrphan(primaryFiles) {
+function pushOrphan() {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-shots-'));
   const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
 
@@ -102,8 +101,13 @@ function pushOrphan(primaryFiles) {
     sh(`git checkout --orphan ${ORPHAN_BRANCH}`, work);
   }
 
-  const destRoot = path.join(work, 'pr', String(pr.number), shortSha);
+  // Fixed path: pr-<number>/ (overwrite). Drop legacy pr/<number>/<sha>/ if present.
+  const destRoot = path.join(work, prDirName);
   fs.rmSync(destRoot, { recursive: true, force: true });
+  const legacyNested = path.join(work, 'pr', String(pr.number));
+  if (fs.existsSync(legacyNested)) {
+    fs.rmSync(legacyNested, { recursive: true, force: true });
+  }
   fs.mkdirSync(destRoot, { recursive: true });
 
   for (const file of listPngs(SCREENSHOTS)) {
@@ -114,9 +118,9 @@ function pushOrphan(primaryFiles) {
     fs.cpSync(diffs, path.join(destRoot, 'diffs'), { recursive: true });
   }
 
-  sh('git add .', work);
+  sh('git add -A', work);
   try {
-    sh(`git commit -m "e2e screenshots PR #${pr.number} ${shortSha}"`, work);
+    sh(`git commit -m "e2e screenshots ${prDirName} ${shortSha}"`, work);
   } catch {
     console.log('No screenshot changes to commit on orphan branch.');
   }
@@ -124,8 +128,7 @@ function pushOrphan(primaryFiles) {
   if (hasRemoteBranch) sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
   else sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
 
-  const base = `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}`;
-  return primaryFiles.map((f) => ({ name: f, url: `${base}/${f}` }));
+  return true;
 }
 
 function loadDiffSummary() {
@@ -138,7 +141,7 @@ function loadDiffSummary() {
   }
 }
 
-function buildBody(embeds) {
+function buildBody(published) {
   const lines = [
     MARKER,
     '### Agent: GasNet Implementer',
@@ -147,27 +150,16 @@ function buildBody(embeds) {
     '',
     `- Run: [actions #${GITHUB_RUN_ID}](${artifactUrl})`,
     `- SHA: \`${shortSha}\``,
-    '- Artifact: **client-e2e-screenshots** (captures + `diffs/` + HTML report)',
-    '- Baseline diffs: **report-only** (1% threshold) until Critiquito approves; `E2E_STRICT_BASELINES=1` to fail',
-    '- Demo seeds (not approved baselines): see `apps/client/e2e/baselines/DEMO-SEEDS.md`',
+    published
+      ? `- Screenshots: [\`${ORPHAN_BRANCH}:${prDirName}/\`](${treeUrl})`
+      : '- Screenshots: _(orphan publish skipped — use workflow artifact)_',
+    '- Baseline diffs: **report-only** (1% threshold); `E2E_STRICT_BASELINES=1` to fail',
     '',
   ];
 
-  if (isFork || embeds.length === 0) {
-    lines.push('_Fork PR or no primary screenshots — use the workflow artifact._', '');
-  } else {
-    lines.push('#### Primary viewport 390×844', '');
-    for (const { name, url } of embeds) {
-      lines.push(`**${name.replace(/\.png$/, '')}**`, '', `![${name}](${url})`, '');
-    }
-  }
-
   const summary = loadDiffSummary();
-  const diffBase = !isFork
-    ? `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}/diffs`
-    : null;
-
   if (summary.length) {
+    const diffBase = published ? `${rawBase}/diffs` : null;
     lines.push('#### Baseline diff summary (report-only)', '');
     lines.push('| Screen | % changed | Result | Diff |');
     lines.push('| --- | ---: | --- | --- |');
@@ -188,32 +180,23 @@ function buildBody(embeds) {
       lines.push(`| \`${row.file}\` | ${pct}% | ${result} | ${diffCell} |`);
     }
     lines.push('');
-
-    const overWithImages = summary.filter((r) => r.diffImage);
-    if (overWithImages.length && diffBase) {
-      lines.push('#### Diff images', '');
-      for (const row of overWithImages) {
-        lines.push(`**${row.file}** (${row.percent.toFixed(2)}%)`, '', `![${row.diffImage}](${diffBase}/${row.diffImage})`, '');
-      }
-    }
   }
 
   return lines.join('\n');
 }
 
-const allPngs = listPngs(SCREENSHOTS);
-const primary = allPngs.filter((f) => f.includes('_390x844_')).sort();
-
-let embeds = [];
-if (!isFork && primary.length) {
+let published = false;
+if (!isFork && fs.existsSync(SCREENSHOTS) && listPngs(SCREENSHOTS).length) {
   try {
-    embeds = pushOrphan(primary);
+    published = pushOrphan();
   } catch (err) {
-    console.warn('Orphan branch push failed; artifact link only.', err);
+    console.warn('Orphan branch push failed; comment without tree link.', err);
   }
+} else if (isFork) {
+  console.log('Fork PR: skip orphan publish (no write to base repo branch).');
 }
 
-const body = buildBody(embeds);
+const body = buildBody(published);
 const comments = await gh(`/repos/${owner}/${repo}/issues/${pr.number}/comments?per_page=100`);
 const existing = Array.isArray(comments)
   ? comments.find((c) => typeof c.body === 'string' && c.body.includes(MARKER))

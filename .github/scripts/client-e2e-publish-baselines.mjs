@@ -1,18 +1,22 @@
 #!/usr/bin/env node
 /**
- * On push to main: copy Client E2E captures into apps/client/e2e/baselines/ and commit.
- * Runs only in the write-scoped baselines job after the read-only test job.
+ * On push to main: publish Client E2E captures to orphan branch `e2e-screenshots`
+ * under `baselines/` (overwrite). Write-scoped job; expects SCREENSHOTS_DIR artifact
+ * only — does not run pnpm / Expo.
  */
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+
+const ORPHAN_BRANCH = 'e2e-screenshots';
+const BASELINES_PREFIX = 'baselines';
 
 const {
   GITHUB_TOKEN,
   GITHUB_REPOSITORY,
   GITHUB_SHA,
   SCREENSHOTS_DIR,
-  BASELINES_DIR = 'apps/client/e2e/baselines',
 } = process.env;
 
 if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !SCREENSHOTS_DIR) {
@@ -26,34 +30,50 @@ if (!fs.existsSync(src)) {
   process.exit(0);
 }
 
-const dest = path.resolve(BASELINES_DIR);
-fs.mkdirSync(dest, { recursive: true });
-
 const pngs = fs.readdirSync(src).filter((f) => f.endsWith('.png'));
 if (!pngs.length) {
   console.log('No screenshots to publish as baselines.');
   process.exit(0);
 }
 
+function sh(cmd, cwd) {
+  execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
+}
+
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-baselines-'));
+const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
+const shortSha = (GITHUB_SHA || 'unknown').slice(0, 12);
+
+sh('git init', work);
+sh('git config user.name "github-actions[bot]"', work);
+sh('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"', work);
+
+let hasRemoteBranch = false;
+try {
+  sh(`git fetch --depth=1 ${remote} ${ORPHAN_BRANCH}`, work);
+  sh(`git checkout -b ${ORPHAN_BRANCH} FETCH_HEAD`, work);
+  hasRemoteBranch = true;
+} catch {
+  sh(`git checkout --orphan ${ORPHAN_BRANCH}`, work);
+}
+
+const dest = path.join(work, BASELINES_PREFIX);
+fs.rmSync(dest, { recursive: true, force: true });
+fs.mkdirSync(dest, { recursive: true });
+
 for (const file of pngs) {
-  // Skip intentional non-capture files if any
   fs.copyFileSync(path.join(src, file), path.join(dest, file));
 }
 
-execSync('git config user.name "github-actions[bot]"');
-execSync('git config user.email "41898282+github-actions[bot]@users.noreply.github.com"');
-execSync(`git add ${BASELINES_DIR}`);
+sh('git add -A', work);
 try {
-  execSync(
-    `git commit -m "chore(client-e2e): publish screenshot baselines from ${GITHUB_SHA.slice(0, 12)}"`,
-  );
+  sh(`git commit -m "e2e baselines ${shortSha}"`, work);
 } catch {
-  console.log('Baselines unchanged.');
+  console.log('Baselines unchanged on orphan branch.');
   process.exit(0);
 }
 
-const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
-execSync(`git push ${remote} HEAD:${process.env.GITHUB_REF_NAME || 'main'}`, {
-  stdio: 'inherit',
-});
-console.log('Published baselines to', BASELINES_DIR);
+if (hasRemoteBranch) sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+else sh(`git push -u ${remote} HEAD:${ORPHAN_BRANCH}`, work);
+
+console.log(`Published ${pngs.length} baselines to ${ORPHAN_BRANCH}:${BASELINES_PREFIX}/`);

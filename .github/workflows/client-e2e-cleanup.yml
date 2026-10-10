@@ -1,0 +1,42 @@
+# Remove pr-<n>/ from orphan e2e-screenshots when a PR closes.
+# Write token only; never checks out or runs the PR tree.
+
+name: Client E2E cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-pr-screenshots:
+    name: Remove pr folder from e2e-screenshots
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch cleanup script via API (no repo checkout)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Prefer the merge/base SHA of the closed PR head so we get the PR's script
+          # while never checking out the tree. Fall back to default branch.
+          REF="${{ github.event.pull_request.head.sha }}"
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-cleanup-pr.mjs?ref=${REF}" \
+            -o /tmp/client-e2e-cleanup-pr.mjs \
+          || curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-cleanup-pr.mjs?ref=${{ github.event.pull_request.base.ref }}" \
+            -o /tmp/client-e2e-cleanup-pr.mjs
+
+      - name: Delete pr-<n>/ on orphan branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node /tmp/client-e2e-cleanup-pr.mjs
