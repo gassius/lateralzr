@@ -13,7 +13,6 @@ import {
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
   TITLE_CLEAR_AREA,
-  conceptFrontTitleLayoutWidth,
   conceptFrontTitleRenderedSize,
   hyphenateWord,
   layoutConceptFrontTitle,
@@ -78,15 +77,33 @@ test('title clear area and top ratio match pattern-master / Critiquito anchor', 
   assert.ok(CONCEPT_FRONT_TITLE_TOP_RATIO < 0.52);
 });
 
-test('wraps at spaces and never mid-word without measuring overflow', () => {
+test('measure font stack matches RN Web System (not bare system-ui)', () => {
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Segoe UI/);
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Roboto/);
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Arial/);
+  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('system-ui'), false);
+});
+
+test('wraps at spaces with trailing space before newline (M1)', () => {
   const wrapped = wrapTitleAtSpaces('Tide Collective', 10 * 3.2, 32, measure);
-  assert.equal(wrapped, 'Tide\nCollective');
+  assert.equal(wrapped, 'Tide \nCollective');
   assert.equal(wrapTitleAtSpaces('multidisciplinario', 10 * 3.2, 32, measure), null);
 });
 
+test('B2: short title stays 32; word fitting at 28 gets 28 (size loop)', () => {
+  const short = layoutConceptFrontTitle('Tide', 200, measure);
+  assert.equal(short.fontSize, 32);
+  assert.equal(short.displayText, 'Tide');
+
+  // 10 chars: at 32 → 32px wide, at 28 → 28px. Budget 28.5 forces shrink to 28.
+  const mid = layoutConceptFrontTitle('abcdefghij', 28.5, measure);
+  assert.equal(mid.fontSize, 28);
+  assert.equal(mid.displayText, 'abcdefghij');
+  assert.ok(!mid.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
+});
+
 test('shrinks 32→24 before hyphenating a long Spanish word', () => {
-  // "multidisciplinario" = 18 chars. measure: len * size/10.
-  // At 32: 57.6; at 24: 43.2 — so width 44 fits only after shrink, no hyphen.
+  // "multidisciplinario" = 18 chars. At 32: 57.6; at 24: 43.2 — width 44 fits after shrink.
   const fitsAfterShrink = layoutConceptFrontTitle('multidisciplinario', 44, measure);
   assert.equal(fitsAfterShrink.fontSize, 24);
   assert.equal(fitsAfterShrink.displayText, 'multidisciplinario');
@@ -95,10 +112,8 @@ test('shrinks 32→24 before hyphenating a long Spanish word', () => {
   const needsHyphen = layoutConceptFrontTitle('multidisciplinario', 30, measure);
   assert.equal(needsHyphen.fontSize, 24);
   assert.ok(needsHyphen.displayText.includes(`${CONCEPT_FRONT_TITLE_HYPHEN}\n`));
-  assert.match(needsHyphen.displayText, /-/);
-  // No bare mid-word break: every continued line break must end with a visible hyphen.
   for (const line of needsHyphen.displayText.split('\n').slice(0, -1)) {
-    assert.ok(line.endsWith(CONCEPT_FRONT_TITLE_HYPHEN), `expected hyphen on "${line}"`);
+    assert.ok(/[-\s]$/.test(line), `expected hyphen or space before break: "${line}"`);
   }
 });
 
@@ -114,37 +129,40 @@ test('phrase prefers space wraps; long token can hyphenate at 24', () => {
   assert.equal(layout.fontSize, 24);
   assert.ok(layout.displayText.includes('marco'));
   assert.ok(layout.displayText.includes('conceptual'));
-  // "multidisciplinario" (17*2.4=40.8) overflows 36 → must hyphenate
   assert.ok(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
+});
+
+test('word that fits above 24 is not forced to the floor (extraordinariamente)', () => {
+  // Art director: ~231 px at 24 vs ~253 content → largest fitting size is 26.
+  const fits = (text: string, fontSize: number) => {
+    if (text === 'extraordinariamente') return 231 * (fontSize / 24);
+    return text.length * fontSize * 0.51;
+  };
+  const layout = layoutConceptFrontTitle('extraordinariamente', 253, fits);
+  assert.equal(layout.fontSize, 26);
+  assert.ok(layout.fontSize > CONCEPT_FRONT_TITLE_MIN_ON_ORANGE);
+  assert.equal(layout.displayText, 'extraordinariamente');
+  assert.equal(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN), false);
+});
+
+test('B1: fontScale 2 is passed into measure (shrinks / hyphenates)', () => {
+  // 4 chars × size/10. Scale 1: size 32 → 12.8 fits in 20.
+  const shortAtScale1 = layoutConceptFrontTitle('abcd', 20, measure, 32, 24, 1);
+  assert.equal(shortAtScale1.fontSize, 32);
+
+  // Scale 2: measure(size) uses size×2. Width 19.2 → only size 24 fits (4*4.8=19.2).
+  const atScale2 = layoutConceptFrontTitle('abcd', 19.2, measure, 32, 24, 2);
+  assert.equal(atScale2.fontSize, 24);
+  assert.equal(atScale2.displayText, 'abcd');
+
+  // Tighter width forces hyphen at the 24 floor under fontScale 2.
+  const hyphenated = layoutConceptFrontTitle('abcdefghij', 15, measure, 32, 24, 2);
+  assert.equal(hyphenated.fontSize, 24);
+  assert.ok(hyphenated.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
 });
 
 test('titleColor uses layout fontSize after shrink (ink only below 24)', () => {
   const atFloor = layoutConceptFrontTitle('multidisciplinario', 41, measure);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(atFloor.fontSize, 1)), color.concept);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(23, 1)), color.ink);
-});
-
-test('measure font stack matches RN Web System (not bare system-ui)', () => {
-  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Segoe UI/);
-  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Arial/);
-  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('system-ui'), false);
-});
-
-test('layout width divides content width by OS font scale', () => {
-  assert.equal(conceptFrontTitleLayoutWidth(253, 1), 253);
-  assert.equal(conceptFrontTitleLayoutWidth(253, 2), 126.5);
-  assert.equal(conceptFrontTitleLayoutWidth(100, 0), 100);
-});
-
-test('word that fits at 24 is not hyphenated (art-director extraordinariamente case)', () => {
-  // Art director: ~231 px at 24 vs ~253 content. Scales linearly with fontSize.
-  const fits = (text: string, fontSize: number) => {
-    if (text === 'extraordinariamente') return 231 * (fontSize / 24);
-    return text.length * fontSize * 0.51;
-  };
-  // At 32: 308 > 253 → shrink; at 24: 231 ≤ 253 → whole word, no hyphen.
-  const layout = layoutConceptFrontTitle('extraordinariamente', 253, fits);
-  assert.equal(layout.fontSize, 24);
-  assert.equal(layout.displayText, 'extraordinariamente');
-  assert.equal(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN), false);
 });

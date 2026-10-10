@@ -25,10 +25,10 @@ import {
 } from '@/lib/cardBackLayout';
 import {
   CONCEPT_FRONT_TITLE_FONT_SIZE,
+  CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
-  conceptFrontTitleLayoutWidth,
   conceptFrontTitleRenderedSize,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
@@ -94,30 +94,34 @@ export function ConceptCard({
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
 
   const frontTitleBaseStyle = textStyle('concept');
-  /** e2eTextScale (and any future scale) already baked into textStyle fontSize. */
-  const e2eOrStyleScale = Math.max(
+  /**
+   * e2eTextScale multiplies textStyle fontSize for display only (#82: keep layout
+   * sizes unscaled). OS fontScale + e2eScale are passed into measure as size×scale.
+   */
+  const e2eScale = Math.max(
     1,
     ((frontTitleBaseStyle.fontSize as number) ?? CONCEPT_FRONT_TITLE_FONT_SIZE) /
       CONCEPT_FRONT_TITLE_FONT_SIZE,
   );
   const osFontScale = PixelRatio.getFontScale();
-  const layoutMaxSize = Math.round(CONCEPT_FRONT_TITLE_FONT_SIZE * e2eOrStyleScale);
-  const layoutMinSize = Math.round(CONCEPT_FRONT_TITLE_MIN_ON_ORANGE * e2eOrStyleScale);
+  const measureFontScale = osFontScale * e2eScale;
   /** Content width inside face padding (onLayout width includes padding). */
   const titleContentWidth = Math.max(
     0,
     (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - CARD_BACK_FACE_PADDING * 2,
   );
-  const titleLayoutWidth = conceptFrontTitleLayoutWidth(titleContentWidth, osFontScale);
   const frontTitleLayout = layoutConceptFrontTitle(
     title,
-    titleLayoutWidth,
+    titleContentWidth,
     measureConceptFrontTitleWidth,
-    layoutMaxSize,
-    layoutMinSize,
+    CONCEPT_FRONT_TITLE_FONT_SIZE,
+    CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+    measureFontScale,
   );
+  const displayFontSize = Math.round(frontTitleLayout.fontSize * e2eScale);
+  const displayLineHeight = Math.round(frontTitleLayout.lineHeight * e2eScale);
   const frontTitleColor = titleColor(
-    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, osFontScale),
+    conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, measureFontScale),
   );
   const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
 
@@ -218,8 +222,11 @@ export function ConceptCard({
             style={[
               styles.conceptNameFront,
               {
-                fontSize: frontTitleLayout.fontSize,
-                lineHeight: frontTitleLayout.lineHeight,
+                // Web: pin the same stack measureConceptFrontTitleWidth uses (RN Web System).
+                // Native: leave unset so the platform system sans applies.
+                ...(Platform.OS === 'web' ? { fontFamily: CONCEPT_FRONT_TITLE_FONT_STACK } : null),
+                fontSize: displayFontSize,
+                lineHeight: displayLineHeight,
                 fontWeight: frontTitleBaseStyle.fontWeight,
                 color: frontTitleColor,
               },

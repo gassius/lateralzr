@@ -148,18 +148,6 @@ export function measureConceptFrontTitleWidth(text: string, fontSize: number): n
   return text.length * fontSize * CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO;
 }
 
-/**
- * Layout width in the same coordinate space as unscaled (or e2e-scaled) fontSize.
- * OS font scaling multiplies glyph advances — divide the face content width by it.
- */
-export function conceptFrontTitleLayoutWidth(
-  contentWidth: number,
-  fontScale: number = 1,
-): number {
-  const scale = fontScale > 0 ? fontScale : 1;
-  return Math.max(0, contentWidth / scale);
-}
-
 function tokenizeTitle(text: string): string[] {
   return text.split(/(\s+)/).filter((part) => part.length > 0);
 }
@@ -168,7 +156,7 @@ function isWhitespace(token: string): boolean {
   return /^\s+$/.test(token);
 }
 
-/** Greedy wrap at whitespace only — never splits a token. */
+/** Greedy wrap at whitespace only — never splits a token. Soft breaks end with a space. */
 export function wrapTitleAtSpaces(
   text: string,
   maxWidth: number,
@@ -189,7 +177,8 @@ export function wrapTitleAtSpaces(
     }
     const candidate = line.length === 0 ? token : `${line}${token}`;
     if (line.length > 0 && measure(candidate.replace(/\s+$/u, ''), fontSize) > maxWidth + 0.01) {
-      lines.push(line.replace(/\s+$/u, ''));
+      // Trailing space marks a word-boundary break (M1: every \\n follows `-` or space).
+      lines.push(`${line.replace(/\s+$/u, '')} `);
       line = token;
     } else {
       line = candidate;
@@ -264,7 +253,7 @@ export function wrapTitleWithHyphens(
     if (measure(token, fontSize) <= maxWidth + 0.01) {
       const candidate = line.length === 0 ? token : `${line}${token}`;
       if (line.length > 0 && measure(candidate.replace(/\s+$/u, ''), fontSize) > maxWidth + 0.01) {
-        flush();
+        lines.push(`${line.replace(/\s+$/u, '')} `);
         line = token;
       } else {
         line = candidate;
@@ -289,6 +278,9 @@ export function wrapTitleWithHyphens(
 /**
  * Pick font size (32→24) and display string.
  * Shrink before hyphenating; never mid-word break without a visible `-`.
+ *
+ * `fontScale` is passed into measure as `size × fontScale` (OS / e2e glyph scale).
+ * Returned `fontSize` / `lineHeight` stay unscaled for the Text style (#82).
  */
 export function layoutConceptFrontTitle(
   text: string,
@@ -296,8 +288,12 @@ export function layoutConceptFrontTitle(
   measure: MeasureTitleWidth = measureConceptFrontTitleWidth,
   maxFontSize: number = CONCEPT_FRONT_TITLE_FONT_SIZE,
   minFontSize: number = CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+  fontScale: number = 1,
 ): ConceptFrontTitleLayout {
   const width = Math.max(0, maxWidth);
+  const scale = fontScale > 0 ? fontScale : 1;
+  const scaledMeasure: MeasureTitleWidth = (t, size) => measure(t, size * scale);
+
   if (width <= 0 || text.length === 0) {
     return {
       displayText: text,
@@ -307,7 +303,7 @@ export function layoutConceptFrontTitle(
   }
 
   for (let size = maxFontSize; size >= minFontSize; size -= 1) {
-    const wrapped = wrapTitleAtSpaces(text, width, size, measure);
+    const wrapped = wrapTitleAtSpaces(text, width, size, scaledMeasure);
     if (wrapped != null) {
       return {
         displayText: wrapped,
@@ -319,7 +315,7 @@ export function layoutConceptFrontTitle(
 
   const fontSize = minFontSize;
   return {
-    displayText: wrapTitleWithHyphens(text, width, fontSize, measure),
+    displayText: wrapTitleWithHyphens(text, width, fontSize, scaledMeasure),
     fontSize,
     lineHeight: Math.round(fontSize * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
   };

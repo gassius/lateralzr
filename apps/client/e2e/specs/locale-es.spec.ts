@@ -3,17 +3,34 @@ import { capture, flipCard } from '../helpers/capture';
 import { cardBackCopy, cardBackMedia, cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
-/** Fail if `word` appears split across a line break without a preceding `-`. */
+/**
+ * Every soft wrap must follow a visible hyphen or a space (word boundary).
+ * Joining lines without that rule would hide bare mid-word splits (M1).
+ */
+function assertCleanLineBreaks(rendered: string): void {
+  for (let i = 0; i < rendered.length; i += 1) {
+    if (rendered[i] !== '\n') continue;
+    const prev = rendered[i - 1];
+    if (prev !== '-' && prev !== ' ') {
+      throw new Error(
+        `Bare mid-word break before newline at …${rendered.slice(Math.max(0, i - 16), i + 16)}…`,
+      );
+    }
+  }
+}
+
+/** Fail if `word` is only recoverable by joining lines without a hyphen. */
 function assertNoBareMidWordBreak(rendered: string, word: string): void {
-  const compact = rendered.replace(/\n/g, '');
-  if (compact.toLowerCase().includes(word.toLowerCase())) return;
-  const lower = rendered.toLowerCase();
-  const target = word.toLowerCase();
-  // Allow visible-hyphen wraps: "multi-\ndisciplinario" → joined with hyphen kept.
-  const dehyphenated = lower.replace(/-\n/g, '').replace(/-/g, '');
-  if (dehyphenated.includes(target)) return;
+  assertCleanLineBreaks(rendered);
+  const lowerWord = word.toLowerCase();
+  const lines = rendered.split('\n');
+  if (lines.some((line) => line.toLowerCase().includes(lowerWord))) return;
+
+  const viaHyphen = rendered.toLowerCase().replace(/-\n/g, '');
+  if (viaHyphen.replace(/\n/g, '').includes(lowerWord)) return;
+
   throw new Error(
-    `Expected "${word}" intact or hyphen-wrapped; got rendered title:\n${rendered}`,
+    `Expected "${word}" intact on one line or hyphen-wrapped; got:\n${rendered}`,
   );
 }
 
@@ -28,13 +45,21 @@ test.describe('locale es', () => {
     await openApp(page, 'canonicalConcept=long-label&locale=es');
     const title = cardFrontTitle(page);
     await expect(title).toBeVisible();
-    // Lz-26: no mid-word break without a visible hyphen (320 ES is the art-director check).
     const text = await title.innerText();
     assertNoBareMidWordBreak(text, 'multidisciplinario');
     assertNoBareMidWordBreak(text, 'extraordinariamente');
-    // Words that fit at 24 px must stay whole (art-director blocker on 1e6ac7a).
     expect(text).not.toMatch(/extraordinariame-/i);
     expect(text.replace(/\n/g, '')).toMatch(/extraordinariamente/i);
+
+    const metrics = await title.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      fontSize: parseFloat(getComputedStyle(el).fontSize),
+    }));
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+    // Art-director: word fits above the 24 px floor once measure matches RN Web.
+    expect(metrics.fontSize).toBeGreaterThan(24);
+
     await expect(title).toHaveAttribute(
       'aria-label',
       /marco conceptual multidisciplinario extraordinariamente elaborado/i,
