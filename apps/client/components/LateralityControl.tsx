@@ -250,6 +250,9 @@ export function LateralityControl({
           pressed && !disabled ? styles.labelPressed : null,
           disabled ? styles.disabled : null,
         ]}
+        {...(Platform.OS === 'web'
+          ? ({ tabIndex: disabled ? -1 : 0 } as Record<string, unknown>)
+          : {})}
       >
         <Text style={[styles.labelText, textStyle('label')]}>{labelText}</Text>
         <ChevronDown stroke={color.paper} />

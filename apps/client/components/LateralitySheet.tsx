@@ -90,7 +90,6 @@ export function LateralitySheet({
                 textStyle('row'),
                 row.checked ? styles.rowLabelSelected : null,
               ]}
-              numberOfLines={2}
             >
               {t(row.labelKey)}
             </Text>
@@ -102,12 +101,16 @@ export function LateralitySheet({
 }
 
 const styles = StyleSheet.create({
+  /** Grow into the panel body; scroll when rows wrap (200% text). */
   list: {
-    maxHeight: 5 * LATERALITY_SHEET_ROW_MIN_HEIGHT + 24,
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   listContent: {
     paddingBottom: 8,
     gap: 4,
+    flexGrow: 1,
   },
   row: {
     minHeight: LATERALITY_SHEET_ROW_MIN_HEIGHT,

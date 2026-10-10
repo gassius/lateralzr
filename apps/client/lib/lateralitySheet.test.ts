@@ -4,7 +4,6 @@ import { setActiveLocale, t } from './i18n.ts';
 import { motion } from '../theme/tokens.ts';
 import {
   lateralitySheetCommitValue,
-  lateralitySheetDismissValue,
   lateralitySheetRows,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
   sheetMotionDurationMs,
@@ -47,14 +46,8 @@ describe('lateralitySheetRows', () => {
   });
 });
 
-describe('lateralitySheet dismiss vs commit', () => {
-  it('dismiss leaves the current value unchanged', () => {
-    assert.equal(lateralitySheetDismissValue(3), 3);
-    assert.equal(lateralitySheetDismissValue(1), 1);
-    assert.equal(lateralitySheetDismissValue(5), 5);
-  });
-
-  it('commit returns the tapped grade (clamped)', () => {
+describe('lateralitySheetCommitValue', () => {
+  it('returns the tapped grade (clamped)', () => {
     assert.equal(lateralitySheetCommitValue(5), 5);
     assert.equal(lateralitySheetCommitValue(0), 1);
     assert.equal(lateralitySheetCommitValue(99), 5);

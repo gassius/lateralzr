@@ -38,11 +38,6 @@ export function lateralitySheetRows(selected: number): LateralitySheetRow[] {
   return rows;
 }
 
-/** Close / backdrop / Escape / Back leave the committed grade unchanged. */
-export function lateralitySheetDismissValue(current: number): LateralityGrade {
-  return clampLaterality(current);
-}
-
 /** Tap a row → that grade (caller commits via onSelectLaterality, then closes). */
 export function lateralitySheetCommitValue(grade: number): LateralityGrade {
   return clampLaterality(grade);

@@ -206,7 +206,7 @@ export function Sheet({
               </Text>
             </View>
             {helper ? (
-              <Text style={[styles.helper, textStyle('body')]} testID={`${testID}-helper`}>
+              <Text style={[styles.helper, textStyle('meta')]} testID={`${testID}-helper`}>
                 {helper}
               </Text>
             ) : null}
@@ -298,6 +298,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: layout.screenGutter,
     paddingTop: 12,
     minHeight: 0,
+    flexGrow: 1,
     flexShrink: 1,
   },
 });
