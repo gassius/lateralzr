@@ -526,11 +526,11 @@
   },
   {
     "file": "laterality-bar_grade-1_1280x800_en.png",
-    "ratio": 0.00592919921875,
-    "percent": 0.5929199218750001,
+    "ratio": 0.00591015625,
+    "percent": 0.5910156249999999,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 24286
+    "mismatchedPixels": 24208
   },
   {
     "file": "laterality-bar_grade-1_320x568_en.png",
@@ -613,11 +613,11 @@
   },
   {
     "file": "laterality-bar_grade-5_390x844_en.png",
-    "ratio": 0.021096123465791712,
-    "percent": 2.1096123465791714,
+    "ratio": 0.021174352898286546,
+    "percent": 2.117435289828655,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 27776,
+    "mismatchedPixels": 27879,
     "diffImage": "laterality-bar_grade-5_390x844_en.diff.png"
   },
   {
@@ -694,11 +694,11 @@
   },
   {
     "file": "status_loading_430x932_en.png",
-    "ratio": 0.62339242938417,
-    "percent": 62.33924293841701,
+    "ratio": 0.6152834614232957,
+    "percent": 61.52834614232957,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 999323,
+    "mismatchedPixels": 986324,
     "diffImage": "status_loading_430x932_en.diff.png"
   },
   {
