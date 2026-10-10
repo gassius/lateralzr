@@ -1,17 +1,17 @@
 {
   "expo": {
-    "name": "client",
+    "name": "Lateralzr",
     "slug": "client",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/logo/lateralzr-ios-app-icon-1024.png",
     "scheme": "client",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/logo/lateralzr-logo-on-orange@3x.png",
       "resizeMode": "contain",
-      "backgroundColor": "#f78d1e"
+      "backgroundColor": "#F78D1E"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,8 +23,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#f78d1e"
+        "foregroundImage": "./assets/images/logo/lateralzr-android-adaptive-foreground-1024.png",
+        "backgroundColor": "#F78D1E"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -33,7 +33,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/logo/lateralzr-favicon@2x.png"
     },
     "plugins": [
       "expo-router"

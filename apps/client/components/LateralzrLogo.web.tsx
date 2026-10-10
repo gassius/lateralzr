@@ -1,7 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { Animated as RNAnimated, Image, useWindowDimensions, View } from 'react-native';
 
-const LOGO = require('../assets/images/lateralzr_logo.svg');
+/** Master SVG (same geometry as assets/images/lateralzr_logo.svg / path modules). */
+const LOGO = require('../assets/images/logo/lateralzr-logo-master.svg');
+
+/** Launch / about lockup: 160–200 px wide (guide §5 / Lz-23). */
+const LOCKUP_MIN = 160;
+const LOCKUP_MAX = 200;
 
 type LateralzrLogoProps = {
   animate?: boolean;
@@ -12,7 +17,7 @@ type LateralzrLogoProps = {
  */
 export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
   const { width: winW } = useWindowDimensions();
-  const w = Math.min(winW * 0.72, 260);
+  const w = Math.min(Math.max(winW * 0.48, LOCKUP_MIN), LOCKUP_MAX);
   const h = w * (254.62924 / 286.14209);
   const opacity = useRef(new RNAnimated.Value(1)).current;
   const loopRef = useRef<RNAnimated.CompositeAnimation | null>(null);
