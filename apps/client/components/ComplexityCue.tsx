@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -7,6 +7,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   COMPLEXITY_CUE_APPEAR_DURATION_MS,
   COMPLEXITY_CUE_APPEAR_TRANSLATE_Y,
@@ -26,24 +27,14 @@ type ComplexityCueProps = {
   onHidden: () => void;
 };
 
-function initialReduceMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false;
-  }
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-}
-
 export function ComplexityCue({
   grade,
   token,
   holdMs = COMPLEXITY_CUE_DURATION_MS,
   onHidden,
 }: ComplexityCueProps) {
-  const reduceMotionRef = useRef(initialReduceMotion());
+  const reduceMotion = useReducedMotion();
+  const reduceMotionRef = useRef(reduceMotion);
   const onHiddenRef = useRef(onHidden);
   /** Visible on the first frame so a failed appear animation cannot hide the cue. */
   const progress = useSharedValue(1);
@@ -51,20 +42,7 @@ export function ComplexityCue({
   const label = complexityCueText(grade);
 
   onHiddenRef.current = onHidden;
-
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) reduceMotionRef.current = enabled;
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      reduceMotionRef.current = enabled;
-    });
-    return () => {
-      mounted = false;
-      sub?.remove();
-    };
-  }, []);
+  reduceMotionRef.current = reduceMotion;
 
   useEffect(() => {
     const hide = () => {

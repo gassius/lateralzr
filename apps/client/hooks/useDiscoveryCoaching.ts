@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   FLIP_COACH_DELAY_MS,
   flipCoachContextReady,
@@ -16,17 +16,6 @@ import {
   type DiscoveryCoachingState,
   type DiscoveryCoachingView,
 } from '@/lib/discoveryCoaching';
-
-function initialReduceMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false;
-  }
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-}
 
 type UseDiscoveryCoachingArgs = {
   cardIndex: number;
@@ -61,27 +50,13 @@ export function useDiscoveryCoaching({
   noteFlipped: () => void;
 } {
   const [state, setState] = useState<DiscoveryCoachingState>(getDiscoveryCoachingSession);
-  const [reduceMotion, setReduceMotion] = useState(initialReduceMotion);
+  const reduceMotion = useReducedMotion();
   const [idleEpoch, setIdleEpoch] = useState(0);
 
   const view: DiscoveryCoachingView = useMemo(
     () => ({ cardIndex, flipped, deckStatus }),
     [cardIndex, flipped, deckStatus],
   );
-
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduceMotion(enabled);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setReduceMotion(enabled);
-    });
-    return () => {
-      mounted = false;
-      sub?.remove();
-    };
-  }, []);
 
   const noteInteraction = useCallback(() => {
     setIdleEpoch((n) => n + 1);

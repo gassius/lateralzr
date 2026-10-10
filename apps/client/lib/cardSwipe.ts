@@ -7,6 +7,14 @@
  */
 
 import { motion, spacing } from '@/theme/tokens';
+import { REDUCED_MOTION_CROSSFADE_MS } from '@/lib/reducedMotion';
+
+/** Re-export shared RM first-paint helpers (Lz-34). Prefer `@/lib/reducedMotion`. */
+export {
+  initialPrefersReducedMotion,
+  readWebPrefersReducedMotion,
+  resolveInitialReducedMotion,
+} from '@/lib/reducedMotion';
 
 /** |tx| / width at or above this commits (token: motion.swipeCommitRatio). */
 export const SWIPE_COMMIT_RATIO = motion.swipeCommitRatio;
@@ -21,7 +29,7 @@ export const SWIPE_RETURN_MS = motion.swipeReturnMs;
 export const SWIPE_SETTLE_MS = motion.swipeSettleMs;
 
 /** Reduced-motion commit cross-fade (token: motion.reducedMotionCrossfadeMs). */
-export const SWIPE_REDUCED_MOTION_CROSSFADE_MS = motion.reducedMotionCrossfadeMs;
+export const SWIPE_REDUCED_MOTION_CROSSFADE_MS = REDUCED_MOTION_CROSSFADE_MS;
 
 /** Incoming-card shift distance (spacing step 8). */
 export const SWIPE_ENTER_SHIFT_PX = spacing[1];
@@ -35,34 +43,6 @@ export function SWIPE_EASING(t: number): number {
   'worklet';
   const x = 1 - t;
   return 1 - x * x * x;
-}
-
-/**
- * Sync `matchMedia` on web. `null` on native / when matchMedia is missing
- * (Hermes has `window` but typically no matchMedia).
- */
-export function readWebPrefersReducedMotion(): boolean | null {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return null;
-  }
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * First-paint Reduce Motion flag.
- * Web: live matchMedia. Native / unknown: optimistic ON so a Reduce Motion
- * user never sees the full settle / slide-out before AccessibilityInfo resolves.
- */
-export function resolveInitialReducedMotion(webMatchMedia: boolean | null): boolean {
-  return webMatchMedia ?? true;
-}
-
-export function initialPrefersReducedMotion(): boolean {
-  return resolveInitialReducedMotion(readWebPrefersReducedMotion());
 }
 
 /** Commit exit / settle duration: RM cross-fade token, else settle token. */
