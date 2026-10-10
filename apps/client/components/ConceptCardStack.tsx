@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
+import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -15,6 +15,7 @@ import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
 import { LoadingCard } from './LoadingCard';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   trackCardBackView,
   trackCardView,
@@ -29,7 +30,6 @@ import {
   SWIPE_RETURN_MS,
   cardSwipeFrontTransform,
   cardSwipeReturnOverlayTransform,
-  initialPrefersReducedMotion,
   swipeCommitDirection,
   swipeCommitDurationMs,
   swipeEnterShiftPx,
@@ -100,8 +100,8 @@ export function ConceptCardStack({
   const returnOverlaySuppressSV = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
   const [containerW, setContainerW] = useState<number>(0);
-  const [reduceMotion, setReduceMotion] = useState(initialPrefersReducedMotion);
-  const reduceMotionSV = useSharedValue(initialPrefersReducedMotion() ? 1 : 0);
+  const reduceMotion = useReducedMotion();
+  const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
   const [returnOverlayLockedIndex, setReturnOverlayLockedIndex] = useState<number | null>(null);
   /** While swipe-left commit runs, pin behind card to this index (the “next” card under the front) before index advances. */
@@ -112,6 +112,8 @@ export function ConceptCardStack({
   const complexityRef = useRef(complexity);
   const flippedRef = useRef(flipped);
   const showDeckStatusRef = useRef(false);
+  /** Ignore stack tap→flip briefly after wiki / credit press (AC: links must not flip). */
+  const suppressFlipUntilRef = useRef(0);
   const dwellStartedAtRef = useRef<number>(Date.now());
   const dwellFaceRef = useRef<CardFace>('front');
   const dwellConceptRef = useRef<string | null>(null);
@@ -135,20 +137,6 @@ export function ConceptCardStack({
   useEffect(() => {
     flippedRef.current = flipped;
   }, [flipped]);
-
-  useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduceMotion(enabled);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setReduceMotion(enabled);
-    });
-    return () => {
-      mounted = false;
-      sub?.remove();
-    };
-  }, []);
 
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
@@ -386,7 +374,12 @@ export function ConceptCardStack({
     onSwipeRight();
   }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
+  const noteBackInteractivePress = useCallback(() => {
+    suppressFlipUntilRef.current = Date.now() + 400;
+  }, []);
+
   const toggleFlip = useCallback(() => {
+    if (Date.now() < suppressFlipUntilRef.current) return;
     const wasFlipped = flippedRef.current;
     const next = !wasFlipped;
     const item = conceptsRef.current[currentIndexRef.current];
@@ -719,11 +712,13 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={currentIndex}
                 flipped={flipped}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
                 coachHint={coach ? t(coachMessageKey(coach)) : null}
                 animateCoachAppear={peekEnabled}
                 flipPeek={flipPeek}
                 exposeFrontTitleTestId
+                onBackInteractivePress={noteBackInteractivePress}
               />
             )}
           </Animated.View>
@@ -752,20 +747,24 @@ function ConceptCardForIndex({
   concepts,
   currentIndex,
   flipped,
+  reduceMotion = false,
   preloadedMediaUrls,
   coachHint,
   animateCoachAppear,
   flipPeek,
   exposeFrontTitleTestId = false,
+  onBackInteractivePress,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
   flipped: boolean;
+  reduceMotion?: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
   coachHint?: string | null;
   animateCoachAppear?: boolean;
   flipPeek?: SharedValue<number>;
   exposeFrontTitleTestId?: boolean;
+  onBackInteractivePress?: () => void;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -774,11 +773,13 @@ function ConceptCardForIndex({
     <ConceptCard
       item={item}
       flipped={flipped}
+      reduceMotion={reduceMotion}
       isMediaPrefetched={isMediaPrefetched}
       coachHint={coachHint}
       animateCoachAppear={animateCoachAppear}
       flipPeek={flipPeek}
       exposeFrontTitleTestId={exposeFrontTitleTestId}
+      onBackInteractivePress={onBackInteractivePress}
     />
   );
 }
