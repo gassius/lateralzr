@@ -7,6 +7,19 @@ async function openLateralitySheet(page: Page): Promise<void> {
   await expect(page.getByTestId('laterality-sheet')).toBeVisible();
 }
 
+/** Soft wraps must follow a visible hyphen or space (no bare mid-word splits). */
+function assertCleanLineBreaks(rendered: string): void {
+  for (let i = 0; i < rendered.length; i += 1) {
+    if (rendered[i] !== '\n') continue;
+    const prev = rendered[i - 1];
+    if (prev !== '-' && prev !== ' ') {
+      throw new Error(
+        `Bare mid-word break before newline (prev=${JSON.stringify(prev)}) in:\n${rendered}`,
+      );
+    }
+  }
+}
+
 function relationshipsLateralityPosts(page: Page): number[] {
   const grades: number[] = [];
   page.on('request', (req) => {
@@ -48,6 +61,7 @@ test.describe('laterality sheet', () => {
   }
 
   // Art director: 200% text open captures at 320 and 390 in ES (rows wrap; list scrolls).
+  // Follow-up: title must not bare-split as "Lateralida / d" at 320×200%.
   test('open at 200% text (es)', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;
     test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
@@ -58,6 +72,13 @@ test.describe('laterality sheet', () => {
     await openLateralitySheet(page);
     await expect(page.getByTestId('laterality-sheet')).toBeVisible();
     await expect(page.getByTestId('laterality-sheet-row-4')).toBeVisible();
+
+    const titleText = await page.getByTestId('laterality-sheet-title').innerText();
+    assertCleanLineBreaks(titleText);
+    const compact = titleText.replace(/-\n/g, '').replace(/\n/g, '');
+    expect(compact).toMatch(/Lateralidad/i);
+    expect(titleText.split('\n').map((line) => line.trim())).not.toContain('d');
+
     await capture(page, testInfo, {
       screen: 'laterality-sheet',
       state: 'open-200',

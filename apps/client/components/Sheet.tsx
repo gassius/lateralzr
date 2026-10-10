@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import {
   AccessibilityInfo,
   BackHandler,
+  PixelRatio,
   Platform,
   Pressable,
   StyleSheet,
@@ -17,9 +18,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
+import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
 import { focusSheetHost } from '@/lib/sheetFocus';
+import { layoutSheetTitle, SHEET_TITLE_FONT_SIZE } from '@/lib/sheetTitle';
 import { t } from '@/lib/i18n';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -58,6 +61,7 @@ export function Sheet({
   onClosed,
 }: SheetProps) {
   const [mounted, setMounted] = useState(visible);
+  const [titleWidth, setTitleWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(() => {
     if (Platform.OS === 'web') {
       return readWebPrefersReducedMotion() ?? true;
@@ -65,6 +69,21 @@ export function Sheet({
     return true;
   });
   const titleRef = useRef<ViewType | null>(null);
+  const titleBaseStyle = textStyle('sheetTitle');
+  /** e2eTextScale multiplies display size only; measure uses size × scale (#82). */
+  const e2eScale = Math.max(
+    1,
+    ((titleBaseStyle.fontSize as number) ?? SHEET_TITLE_FONT_SIZE) / SHEET_TITLE_FONT_SIZE,
+  );
+  const measureFontScale = PixelRatio.getFontScale() * e2eScale;
+  const titleLayout = layoutSheetTitle(
+    title,
+    titleWidth,
+    measureConceptFrontTitleWidth,
+    measureFontScale,
+  );
+  const titleFontSize = Math.round(titleLayout.fontSize * e2eScale);
+  const titleLineHeight = Math.round(titleLayout.lineHeight * e2eScale);
   const wasVisibleRef = useRef(visible);
   const progress = useSharedValue(visible ? 1 : 0);
   const reduceMotionRef = useRef(reduceMotion);
@@ -192,7 +211,13 @@ export function Sheet({
       <Animated.View style={[styles.panel, panelStyle]} testID={`${testID}-panel`}>
         <View style={styles.handle} accessible={false} testID={`${testID}-handle`} />
         <View style={styles.header}>
-          <View style={styles.headerText}>
+          <View
+            style={styles.headerText}
+            onLayout={(event) => {
+              const next = Math.round(event.nativeEvent.layout.width);
+              setTitleWidth((prev) => (prev === next ? prev : next));
+            }}
+          >
             <View
               ref={titleRef}
               accessible
@@ -201,8 +226,20 @@ export function Sheet({
               testID={titleTestID}
               {...webTitleFocusProps}
             >
-              <Text style={[styles.title, textStyle('sheetTitle')]} accessible={false}>
-                {title}
+              <Text
+                style={[
+                  styles.title,
+                  titleBaseStyle,
+                  {
+                    fontSize: titleFontSize,
+                    lineHeight: titleLineHeight,
+                    fontWeight: titleBaseStyle.fontWeight,
+                  },
+                  styles.titleWrap,
+                ]}
+                accessible={false}
+              >
+                {titleLayout.displayText}
               </Text>
             </View>
             {helper ? (
@@ -273,6 +310,18 @@ const styles = StyleSheet.create({
   },
   title: {
     color: color.ink,
+  },
+  /** Honour layout `\n` / `-\n`; never let the engine bare-split a word (Lz-31 ES). */
+  titleWrap: {
+    // RN Web Text defaults to wordWrap:'break-word' — override like ConceptCard.
+    ...(Platform.OS === 'web'
+      ? ({
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'normal',
+          wordWrap: 'normal',
+          overflowWrap: 'normal',
+        } as object)
+      : {}),
   },
   helper: {
     color: color.mutedOnPaper,
