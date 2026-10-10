@@ -1,6 +1,14 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Image } from 'expo-image';
-import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -14,7 +22,6 @@ import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
-  CARD_BACK_FACE_PADDING,
   CARD_BACK_MEDIA_CONTENT_FIT,
   CARD_BACK_MEDIA_CONTENT_POSITION,
   cardBackBalancedColumnStyle,
@@ -22,6 +29,7 @@ import {
   composeCardBackLayout,
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
+import { CARD_SHADOW, cardPadding, cardRadius } from '@/lib/cardLayout';
 import {
   CONCEPT_FRONT_LABEL_COLOR,
   CONCEPT_FRONT_LABEL_FONT_SIZE,
@@ -65,6 +73,9 @@ export function ConceptCard({
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
   const mediaUri = imageSource?.uri ?? '';
+  const { width: windowWidth } = useWindowDimensions();
+  const facePad = cardPadding(windowWidth);
+  const radius = cardRadius();
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
@@ -138,8 +149,13 @@ export function ConceptCard({
 
   const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
 
+  const faceInnerStyle = [
+    styles.faceInner,
+    { padding: facePad, borderRadius: radius },
+  ];
+
   const front = (
-    <View style={styles.faceInner} onLayout={onUntransformedFaceLayout}>
+    <View style={faceInnerStyle} onLayout={onUntransformedFaceLayout}>
       <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
       <View style={styles.frontCenter}>
         <Text style={styles.conceptNameFront}>{title}</Text>
@@ -157,8 +173,8 @@ export function ConceptCard({
   });
   const backLayout = composeCardBackLayout(mediaPhase);
   const { rhythm } = backLayout;
-  const backScrollMinHeight = cardBackScrollMinHeight(backFaceH);
-  const noMediaColumnStyle = cardBackBalancedColumnStyle(backFaceH);
+  const backScrollMinHeight = cardBackScrollMinHeight(backFaceH, facePad);
+  const noMediaColumnStyle = cardBackBalancedColumnStyle(backFaceH, facePad);
 
   const backTitle = (
     <Text
@@ -257,11 +273,15 @@ export function ConceptCard({
    * #36 stayed top-heavy. With-media: unchanged expanding well.
    */
   const back = (
-    <View style={styles.faceInner}>
+    <View style={faceInnerStyle}>
       <ConceptCardBrandTexture face="back" faceWidth={brandFaceWidth} />
       {backLayout.balanceCopy ? (
         <View
-          style={[styles.backInnerBalanced, noMediaColumnStyle]}
+          style={[
+            styles.backInnerBalanced,
+            { top: facePad, left: facePad, right: facePad },
+            noMediaColumnStyle,
+          ]}
           testID={`card-back-${backLayout.mode}`}
         >
           <View style={styles.noMediaCopyGroup} testID="card-back-copy">
@@ -307,7 +327,7 @@ export function ConceptCard({
           importantForAccessibility="no-hide-descendants"
         />
       ) : null}
-      <View style={styles.face}>
+      <View style={[styles.face, { borderRadius: radius }, CARD_SHADOW]}>
         <View style={styles.flipRoot}>
           <Animated.View style={[styles.faceSide, styles.faceFront, frontFaceStyle]} pointerEvents={flipped ? 'none' : 'auto'}>
             {front}
@@ -338,13 +358,7 @@ const styles = StyleSheet.create({
   },
   face: {
     flex: 1,
-    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 8,
     zIndex: 1,
   },
   flipRoot: {
@@ -363,11 +377,7 @@ const styles = StyleSheet.create({
   },
   faceInner: {
     flex: 1,
-    padding: CARD_BACK_FACE_PADDING,
-    borderRadius: 16,
     backgroundColor: color.front,
-    borderWidth: 1,
-    borderColor: hexToRgba(color.concept, 0.35),
     minHeight: 0,
     position: 'relative',
   },
@@ -387,12 +397,10 @@ const styles = StyleSheet.create({
   /**
    * Pin to the face box with a measured pixel height. flex leftover and
    * `bottom: 0` do not stretch this column under the flip transform on RN Web.
+   * Insets (top/left/right) are applied inline from `cardPadding(width)`.
    */
   backInnerBalanced: {
     position: 'absolute',
-    top: CARD_BACK_FACE_PADDING,
-    left: CARD_BACK_FACE_PADDING,
-    right: CARD_BACK_FACE_PADDING,
     zIndex: 1,
   },
   noMediaCopyGroup: {

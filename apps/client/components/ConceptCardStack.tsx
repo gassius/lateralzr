@@ -25,6 +25,7 @@ import {
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { cardRadius } from '@/lib/cardLayout';
 import {
   CARD_STACK_BEHIND_TINT,
   CARD_SWIPE_ENTER_ROLL_DEG,
@@ -43,6 +44,9 @@ import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
 import type { LateralitySwirlOutcome } from '@/lib/lateralitySwirl';
 import { displayMediaUrl } from '@/lib/remoteImage';
+
+/** Shared with ConceptCard faces so behind tints clip to the same 22 px radius. */
+const CARD_FACE_RADIUS = cardRadius();
 
 type ConceptCardStackProps = {
   concepts: ConceptItem[];
@@ -794,7 +798,7 @@ const styles = StyleSheet.create({
   behindOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: CARD_STACK_BEHIND_TINT,
-    borderRadius: 16,
+    borderRadius: CARD_FACE_RADIUS,
   },
   frontWrap: {
     position: 'absolute',
@@ -807,7 +811,7 @@ const styles = StyleSheet.create({
   frontCoverDim: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: CARD_STACK_BEHIND_TINT,
-    borderRadius: 16,
+    borderRadius: CARD_FACE_RADIUS,
   },
   returnOverlay: {
     position: 'absolute',

@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { layout } from '../theme/tokens.ts';
+import {
+  CARD_PADDING_NARROW_MAX_WIDTH,
+  CARD_SHADOW,
+  cardPadding,
+  cardRadius,
+} from './cardLayout.ts';
+
+describe('cardLayout radius and padding', () => {
+  it('uses the 22 px card radius token', () => {
+    assert.equal(cardRadius(), 22);
+    assert.equal(cardRadius(), layout.cardRadius);
+  });
+
+  it('pads 20 on narrow widths (≤360) and 24 above', () => {
+    assert.equal(CARD_PADDING_NARROW_MAX_WIDTH, 360);
+    assert.equal(cardPadding(320), 20);
+    assert.equal(cardPadding(360), 20);
+    assert.equal(cardPadding(375), 24);
+    assert.equal(cardPadding(430), 24);
+    assert.equal(cardPadding(320), layout.cardPaddingNarrow);
+    assert.equal(cardPadding(430), layout.cardPadding);
+  });
+
+  it('treats non-finite widths as narrow', () => {
+    assert.equal(cardPadding(Number.NaN), layout.cardPaddingNarrow);
+    assert.equal(cardPadding(-12), layout.cardPaddingNarrow);
+  });
+});
+
+describe('cardLayout shadow', () => {
+  it('keeps a subdued shadow (no dramatic dark cast)', () => {
+    assert.equal(CARD_SHADOW.shadowOpacity, 0.18);
+    assert.equal(CARD_SHADOW.shadowRadius, 12);
+    assert.equal(CARD_SHADOW.elevation, 4);
+    assert.ok(CARD_SHADOW.shadowOpacity < 0.25);
+    assert.ok(CARD_SHADOW.elevation < 8);
+  });
+});

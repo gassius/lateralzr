@@ -13,6 +13,7 @@ import Animated, {
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
+import { CARD_SHADOW, cardRadius } from '@/lib/cardLayout';
 import { t } from '@/lib/i18n';
 import { lateralityGradientStops } from '@/lib/laterality';
 import {
@@ -34,6 +35,9 @@ import {
   shouldAnimateLateralitySwirl,
   type LateralitySwirlOutcome,
 } from '@/lib/lateralitySwirl';
+
+/** Matches ConceptCard face radius (deleted with Lz-33 swirl, but keep in sync until then). */
+const CARD_FACE_RADIUS = cardRadius();
 
 function initialReduceMotion(): boolean {
   return resolveInitialReducedMotion(readWebPrefersReducedMotion());
@@ -246,7 +250,7 @@ function SwirlGhostCard({
         cardStyle,
       ]}
     >
-      <View style={styles.ghostFace}>
+      <View style={[styles.ghostFace, { borderRadius: CARD_FACE_RADIUS }, CARD_SHADOW]}>
         <View
           style={[
             styles.gradeBar,
@@ -278,16 +282,8 @@ const styles = StyleSheet.create({
   },
   ghostFace: {
     flex: 1,
-    borderRadius: 16,
     backgroundColor: color.front,
-    borderWidth: 1,
-    borderColor: hexToRgba(color.concept, 0.35),
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    elevation: 8,
   },
   gradeBar: {
     height: 7,
