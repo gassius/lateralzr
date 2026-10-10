@@ -5,7 +5,10 @@ import { type } from './tokens';
 /**
  * v3.3 type roles (Lz-22 / guide §7.2 + §23 `type.*`).
  * Platform system sans — leave `fontFamily` unset (never `'System'` on web).
- * Absolute `lineHeight` is scaled by `fontScale` so OS text size does not overlap lines.
+ *
+ * Return unscaled `fontSize` / `lineHeight`. React Native already multiplies both
+ * by the OS font-size multiplier when `allowFontScaling` is on — do not pre-scale
+ * `lineHeight` or native text gets ~4× leading at 200% OS size.
  */
 export type TypeRole =
   | 'concept'
@@ -32,8 +35,6 @@ const ROLE_SPEC: Record<TypeRole, RoleSpec> = {
 };
 
 export type TextStyleOptions = {
-  /** Defaults to 1. Pass `PixelRatio.getFontScale()` at render for OS text scaling. */
-  fontScale?: number;
   fontWeight?: TextStyle['fontWeight'];
 };
 
@@ -53,14 +54,33 @@ export function typeLineHeightRatio(role: TypeRole): number {
 }
 
 /**
+ * Web E2E only: `?e2eTextScale=2` multiplies fontSize and lineHeight together
+ * (same joint scale RN applies natively). Ignored in product use / native.
+ */
+function e2eTextScale(): number {
+  if (typeof window === 'undefined' || typeof window.location?.search !== 'string') {
+    return 1;
+  }
+  try {
+    const raw = new URLSearchParams(window.location.search).get('e2eTextScale');
+    if (raw == null || raw === '') return 1;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 1 || n > 4) return 1;
+    return n;
+  } catch {
+    return 1;
+  }
+}
+
+/**
  * Text style for a v3.3 role. Does not set `fontFamily`.
- * `lineHeight` = round(size × ratio × fontScale).
+ * `lineHeight` = round(size × ratio) — unscaled; RN scales with fontSize.
  */
 export function textStyle(role: TypeRole, options: TextStyleOptions = {}): TextStyle {
   const spec = ROLE_SPEC[role];
-  const fontScale = options.fontScale ?? 1;
-  const fontSize = spec.size;
-  const lineHeight = Math.round(fontSize * spec.lineHeightRatio * fontScale);
+  const scale = e2eTextScale();
+  const fontSize = Math.round(spec.size * scale);
+  const lineHeight = Math.round(spec.size * spec.lineHeightRatio * scale);
 
   return {
     fontSize,

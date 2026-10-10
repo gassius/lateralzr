@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, PixelRatio, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   runOnJS,
@@ -110,15 +110,7 @@ export function ComplexityCue({
       testID="complexity-cue"
     >
       <View style={[styles.chip, { backgroundColor: colors.chip }]}>
-        <Text
-          style={[
-            styles.copy,
-            textStyle('label', { fontScale: PixelRatio.getFontScale() }),
-            { color: colors.text },
-          ]}
-        >
-          {label}
-        </Text>
+        <Text style={[styles.copy, textStyle('label'), { color: colors.text }]}>{label}</Text>
       </View>
     </Animated.View>
   );
@@ -138,15 +130,7 @@ export function ComplexitySessionMark({ grade }: { grade: number }) {
       accessibilityLabel={label}
       testID="complexity-session-mark"
     >
-      <Text
-        style={[
-          styles.sessionMark,
-          textStyle('meta', { fontScale: PixelRatio.getFontScale() }),
-          { color: colors.chip },
-        ]}
-      >
-        {label}
-      </Text>
+      <Text style={[styles.sessionMark, textStyle('meta'), { color: colors.chip }]}>{label}</Text>
     </View>
   );
 }
@@ -163,11 +147,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   copy: {
-    letterSpacing: 0.2,
     textAlign: 'center',
   },
   sessionMark: {
-    letterSpacing: 0.2,
     textAlign: 'center',
     opacity: 0.82,
   },

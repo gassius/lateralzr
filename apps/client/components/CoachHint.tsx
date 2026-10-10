@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { PixelRatio, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -57,15 +57,7 @@ export function CoachHint({ text, animateAppear, surface = 'orange' }: CoachHint
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
         ]}
       >
-        <Text
-          style={[
-            styles.copy,
-            textStyle('row', { fontScale: PixelRatio.getFontScale() }),
-            { color: colors.text },
-          ]}
-        >
-          {text}
-        </Text>
+        <Text style={[styles.copy, textStyle('row'), { color: colors.text }]}>{text}</Text>
       </View>
     </Animated.View>
   );
