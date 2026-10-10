@@ -549,12 +549,16 @@ const styles = StyleSheet.create({
     width: '100%',
     textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
     flexShrink: 0,
-    // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle; do not let
-    // the engine invent mid-word breaks without a visible hyphen.
+    // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle.
+    // pre-wrap keeps the trailing space on soft wraps (pre-line collapses it,
+    // which made M1 see `conceptual\nmulti…` as a bare mid-word break).
+    // Override RN Web Text's default wordWrap:'break-word' so the engine
+    // never splits a word unless we inserted a visible hyphen.
     ...Platform.select({
       web: {
-        whiteSpace: 'pre-line' as const,
-        wordBreak: 'keep-all' as const,
+        whiteSpace: 'pre-wrap' as const,
+        wordBreak: 'normal' as const,
+        wordWrap: 'normal' as const,
         overflowWrap: 'normal' as const,
       },
       default: {},

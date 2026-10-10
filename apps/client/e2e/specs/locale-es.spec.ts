@@ -12,8 +12,9 @@ function assertCleanLineBreaks(rendered: string): void {
     if (rendered[i] !== '\n') continue;
     const prev = rendered[i - 1];
     if (prev !== '-' && prev !== ' ') {
+      const next = rendered.slice(i + 1, i + 24).replace(/\n/g, '⏎');
       throw new Error(
-        `Bare mid-word break before newline at …${rendered.slice(Math.max(0, i - 16), i + 16)}…`,
+        `Bare mid-word break before newline (prev=${JSON.stringify(prev)}) at …${rendered.slice(Math.max(0, i - 20), i)}⏎${next}…`,
       );
     }
   }
