@@ -10,6 +10,7 @@ import {
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
   visibleAppMenuRows,
+  withAppMenuRowPress,
   type AppMenuFeatures,
   type AppMenuRowDef,
   type AppMenuView,
@@ -95,16 +96,24 @@ export function AppMenuSheet({
   features = DEFAULT_APP_MENU_FEATURES,
 }: AppMenuSheetProps) {
   const [view, setView] = useState<AppMenuView>('root');
-  const rows = useMemo(() => visibleAppMenuRows(features), [features]);
+  const rows = useMemo(
+    () =>
+      withAppMenuRowPress(visibleAppMenuRows(features), {
+        replayTips: () => {
+          onReplayGestureTips();
+          onDismiss();
+        },
+      }),
+    [features, onDismiss, onReplayGestureTips],
+  );
 
   useEffect(() => {
     if (!visible) setView('root');
   }, [visible]);
 
   const onRowPress = (row: AppMenuRowDef) => {
-    if (row.key === 'replayTips') {
-      onReplayGestureTips();
-      onDismiss();
+    if (row.onPress) {
+      row.onPress();
       return;
     }
     // Nested views (language / …) land with their feature tickets.

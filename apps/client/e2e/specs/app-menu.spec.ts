@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { capture } from '../helpers/capture';
+import { SWIPE_COACH_IDLE_MS } from '../../lib/discoveryCoaching';
+import { capture, swipeForward } from '../helpers/capture';
 import { openApp } from '../helpers/preparePage';
 
 async function openAppMenu(page: Page): Promise<void> {
@@ -44,20 +45,30 @@ test.describe('app menu', () => {
     });
   });
 
-  test('Replay gesture tips closes the sheet and restores trigger focus', async ({ page }) => {
+  test('Replay gesture tips restarts coaching from the current card', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     const trigger = page.getByTestId('app-menu-trigger');
+
+    // Past card 0 so a card-0-only reset would leave coaching silent.
+    await swipeForward(page, 'Mycelium');
     await openAppMenu(page);
 
     await page.getByTestId('app-menu-row-replayTips').click();
     await expect(page.getByTestId('app-menu')).toHaveCount(0);
     await expect(trigger).toBeFocused();
+
+    await page.clock.fastForward(SWIPE_COACH_IDLE_MS);
+    await expect(page.getByTestId('coach-hint')).toBeVisible({ timeout: 5_000 });
   });
 
   for (const dismiss of [
     {
       name: 'Escape',
       act: async (page: Page) => {
+        // Focus must leave the trigger before Escape so return-focus is proven (m1).
+        const close = page.getByTestId('app-menu-close');
+        await close.focus();
+        await expect(close).toBeFocused();
         await page.keyboard.press('Escape');
       },
     },

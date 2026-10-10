@@ -99,10 +99,10 @@ export function useDiscoveryCoaching({
   }, []);
 
   const replayGestureTips = useCallback(() => {
-    resetDiscoveryCoachingSession();
+    resetDiscoveryCoachingSession(cardIndex);
     setState(getDiscoveryCoachingSession());
     setIdleEpoch((n) => n + 1);
-  }, []);
+  }, [cardIndex]);
 
   useEffect(() => {
     return scheduleCoachOffer(swipeCoachContextReady(state, view), SWIPE_COACH_IDLE_MS, () => {

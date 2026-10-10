@@ -20,7 +20,24 @@ export type AppMenuRowDef = {
   valueKey?: MessageKey;
   /** When true the row shows a chevron and opens an in-sheet view. */
   opensView: boolean;
+  /** Bound by the sheet / {@link withAppMenuRowPress}; action rows call this on press. */
+  onPress?: () => void;
 };
+
+/** Per-row press handlers keyed by {@link AppMenuRowKey}. */
+export type AppMenuRowActions = Partial<Record<AppMenuRowKey, () => void>>;
+
+/** Attach `onPress` from `actions` so the sheet never switches on `row.key`. */
+export function withAppMenuRowPress(
+  rows: readonly AppMenuRowDef[],
+  actions: AppMenuRowActions,
+): AppMenuRowDef[] {
+  return rows.map((row) => {
+    const onPress = actions[row.key];
+    if (!onPress) return { ...row };
+    return { ...row, onPress };
+  });
+}
 
 export type AppMenuFeatures = Record<AppMenuRowKey, boolean>;
 

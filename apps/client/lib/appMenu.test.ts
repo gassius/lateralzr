@@ -8,6 +8,7 @@ import {
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
   visibleAppMenuRows,
+  withAppMenuRowPress,
   type AppMenuFeatures,
 } from './appMenu.ts';
 import { t } from './i18n.ts';
@@ -76,6 +77,21 @@ describe('appMenuRowA11yLabel', () => {
       ),
       `${t('menuLanguage')}, ${t('languageEn')}`,
     );
+  });
+});
+
+describe('withAppMenuRowPress', () => {
+  it('binds onPress per row key without requiring sheet key switches', () => {
+    let replayCalls = 0;
+    const rows = withAppMenuRowPress(visibleAppMenuRows(), {
+      replayTips: () => {
+        replayCalls += 1;
+      },
+    });
+    assert.equal(rows.length, 1);
+    assert.equal(typeof rows[0]!.onPress, 'function');
+    rows[0]!.onPress!();
+    assert.equal(replayCalls, 1);
   });
 });
 
