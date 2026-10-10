@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   Platform,
   Pressable,
@@ -8,6 +8,7 @@ import {
   type AccessibilityActionEvent,
   type LayoutChangeEvent,
   type NativeSyntheticEvent,
+  type View as ViewType,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
@@ -39,10 +40,12 @@ type LateralityControlProps = {
   laterality: LateralityGrade | number;
   swapping?: boolean;
   onSelectLaterality: (grade: LateralityGrade) => void;
-  /** Opens the laterality sheet (Lz-31). No-op until that ticket lands. */
+  /** Opens the laterality sheet (Lz-31). */
   onPressLabel?: () => void;
   /** Measured control height (grows when the label wraps at large text). */
   onHeightChange?: (height: number) => void;
+  /** Host for focus restore when the sheet closes. */
+  labelRef?: RefObject<ViewType | null>;
 };
 
 const DOT_COUNT = 5;
@@ -119,6 +122,7 @@ export function LateralityControl({
   onSelectLaterality,
   onPressLabel,
   onHeightChange,
+  labelRef,
 }: LateralityControlProps) {
   const grade = clampLaterality(laterality);
   const disabled = lateralityControlDisabled(true, swapping);
@@ -233,6 +237,7 @@ export function LateralityControl({
       onLayout={onRootLayout}
     >
       <Pressable
+        ref={labelRef}
         onPress={onPressLabel ?? (() => {})}
         disabled={disabled}
         hitSlop={LABEL_HIT_SLOP}

@@ -54,9 +54,12 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
+### Laterality sheet (Lz-31)
+
+- `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es
+
 ### Pending screens (add when UI ships)
 
-- Laterality sheet open
 - App menu open
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps

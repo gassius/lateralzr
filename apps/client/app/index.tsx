@@ -7,6 +7,7 @@ import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
 import { LateralityControl } from '@/components/LateralityControl';
+import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
@@ -98,6 +99,8 @@ export default function HomeScreen() {
   const [lateralitySwap, setLateralitySwap] = useState<{ token: number } | null>(null);
   /** Measured laterality control height (grows when the label wraps at large text). */
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
+  const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
+  const lateralityLabelRef = useRef<View | null>(null);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -590,6 +593,15 @@ export default function HomeScreen() {
     void prefetchLateralityTree();
   }, [lateralitySwap, prefetchLateralityTree]);
 
+  const openLateralitySheet = useCallback(() => {
+    if (lateralitySwap != null) return;
+    setLateralitySheetOpen(true);
+  }, [lateralitySwap]);
+
+  const dismissLateralitySheet = useCallback(() => {
+    setLateralitySheetOpen(false);
+  }, []);
+
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
   }, []);
@@ -718,6 +730,7 @@ export default function HomeScreen() {
       <View
         style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
         testID="practice-column"
+        importantForAccessibility={lateralitySheetOpen ? 'no-hide-descendants' : 'auto'}
       >
         <View
           style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
@@ -741,6 +754,8 @@ export default function HomeScreen() {
             swapping={lateralitySwap != null}
             onSelectLaterality={onSelectLaterality}
             onHeightChange={setLateralityControlHeight}
+            onPressLabel={openLateralitySheet}
+            labelRef={lateralityLabelRef}
           />
           {complexityCue ? (
             <View
@@ -764,6 +779,13 @@ export default function HomeScreen() {
           ) : null}
         </View>
       </View>
+      <LateralitySheet
+        visible={lateralitySheetOpen}
+        laterality={laterality}
+        onDismiss={dismissLateralitySheet}
+        onSelectLaterality={onSelectLaterality}
+        returnFocusRef={lateralityLabelRef}
+      />
     </View>
   );
 }
