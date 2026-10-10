@@ -50,6 +50,12 @@ const DOT_RADIUS = 4.5;
 const LINE_STROKE = 1.75;
 const CHEVRON_SIZE = 12;
 
+/** RN StyleSheet omits web inline display; keep the chevron in the text flow on web. */
+const chevronInlineWebStyle =
+  Platform.OS === 'web'
+    ? ({ display: 'inline-flex', verticalAlign: 'middle' } as Record<string, string>)
+    : null;
+
 /** Expand the visual label row (~20 px) to a 48 px tap target via hitSlop. */
 const LABEL_HIT_SLOP = Math.max(
   0,
@@ -58,7 +64,13 @@ const LABEL_HIT_SLOP = Math.max(
 
 function ChevronDown({ stroke }: { stroke: string }) {
   return (
-    <Svg width={CHEVRON_SIZE} height={CHEVRON_SIZE} viewBox="0 0 12 12" accessible={false}>
+    <Svg
+      width={CHEVRON_SIZE}
+      height={CHEVRON_SIZE}
+      viewBox="0 0 12 12"
+      accessible={false}
+      testID="laterality-label-chevron"
+    >
       <Polyline
         points="2,4 6,8 10,4"
         fill="none"
@@ -246,8 +258,20 @@ export function LateralityControl({
           disabled ? styles.disabled : null,
         ]}
       >
-        <Text style={[styles.labelText, textStyle('label')]}>{labelText}</Text>
-        <ChevronDown stroke={color.paper} />
+        {/*
+          Nest the chevron in the Text so it wraps with the last line
+          (AD #91 review 5480774657: 320×200% must not leave ⌄ alone mid-stack).
+        */}
+        <Text style={[styles.labelText, textStyle('label')]}>
+          {labelText}
+          {'\u00A0'}
+          <View
+            style={[styles.chevronInline, chevronInlineWebStyle]}
+            accessibilityElementsHidden
+          >
+            <ChevronDown stroke={color.paper} />
+          </View>
+        </Text>
       </Pressable>
 
       <GestureDetector gesture={composed}>
@@ -294,13 +318,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 6,
     alignSelf: 'stretch',
   },
   labelText: {
     color: color.paper,
     flexShrink: 1,
     textAlign: 'right',
+  },
+  /** Inline slot so the glyph rides the final wrapped line, not a flex mid-column. */
+  chevronInline: {
+    width: CHEVRON_SIZE,
+    height: CHEVRON_SIZE,
+    marginLeft: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   labelPressed: {
     opacity: 0.72,
