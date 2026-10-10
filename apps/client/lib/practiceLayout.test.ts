@@ -6,6 +6,7 @@ import {
   PRACTICE_COLUMN_GUIDE_MIN_MAX,
   PRACTICE_COLUMN_MAX_WIDTH,
   practiceColumnWidth,
+  practiceMenuChromeHeight,
   practiceMenuTriggerSize,
   practiceScreenGutter,
 } from './practiceLayout.ts';
@@ -45,5 +46,10 @@ describe('practiceLayout menu trigger slot', () => {
 
   it('mounts the trigger once the app menu (Lz-32) lands', () => {
     assert.equal(APP_MENU_TRIGGER_ENABLED, true);
+  });
+
+  it('reserves a 48 px petrol band above the card for the ellipsis', () => {
+    assert.equal(practiceMenuChromeHeight(), 48);
+    assert.equal(practiceMenuChromeHeight(), practiceMenuTriggerSize());
   });
 });

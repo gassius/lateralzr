@@ -43,6 +43,7 @@ import { applyResolvedLocale } from '@/lib/locale';
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_MAX_WIDTH,
+  practiceMenuChromeHeight,
   practiceScreenGutter,
 } from '@/lib/practiceLayout';
 import {
@@ -670,7 +671,8 @@ export default function HomeScreen() {
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
 
-  const usableHeight = layoutHeight - insets.top - insets.bottom;
+  const menuChromeHeight = practiceMenuChromeHeight();
+  const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;
 
   // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
   // Errors skip the intro gate so failures are not delayed.
@@ -736,18 +738,15 @@ export default function HomeScreen() {
       ]}
     >
       <StatusBar style="light" />
-      {/* §4.5: ellipsis mounts with the working app menu (Lz-32). */}
+      {/* §4.5 / AD: ellipsis in its own petrol band above the card (not overlaid). */}
       {APP_MENU_TRIGGER_ENABLED ? (
-        <AppMenuTrigger
-          ref={appMenuTriggerRef}
-          onPress={openAppMenu}
-          style={{
-            position: 'absolute',
-            top: insets.top,
-            right: practiceScreenGutter(),
-            zIndex: 30,
-          }}
-        />
+        <View
+          style={[styles.menuChrome, { height: menuChromeHeight }]}
+          testID="app-menu-chrome"
+          pointerEvents="box-none"
+        >
+          <AppMenuTrigger ref={appMenuTriggerRef} onPress={openAppMenu} />
+        </View>
       ) : null}
       <View
         style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
@@ -832,6 +831,17 @@ const styles = StyleSheet.create({
   mainRoot: {
     backgroundColor: color.shell,
     width: '100%',
+  },
+  /** Top-right ellipsis band on petrol — card starts below (Lz-32 Art Director). */
+  menuChrome: {
+    width: '100%',
+    maxWidth: PRACTICE_COLUMN_MAX_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: practiceScreenGutter(),
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    zIndex: 30,
   },
   /** Centred practice column for tablets / wide native; web phone frame already ≤430. */
   practiceColumn: {
