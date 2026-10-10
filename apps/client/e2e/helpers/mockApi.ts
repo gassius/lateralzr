@@ -84,6 +84,10 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
     return readJson('intergenerational-en.json');
   }
 
+  if (canonicalKey === 'long-description' || startKey === 'long-description') {
+    return readJson('long-description-en.json');
+  }
+
   if (
     canonicalKey === 'no-description' ||
     startKey === 'no-description' ||

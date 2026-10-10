@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 import { capture, flipCard } from '../helpers/capture';
-import { cardBackCopy, cardBackMedia, cardFrontTitle, visibleText } from '../helpers/locators';
+import {
+  cardBackCopy,
+  cardBackMedia,
+  cardBackTitle,
+  cardFrontTitle,
+  visibleText,
+} from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 test.describe('card back', () => {
@@ -9,6 +15,9 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
+    await expect(cardBackTitle(page)).toHaveCount(0);
+    await expect(page.getByTestId('card-back-wiki')).toBeVisible();
+    await expect(page.getByLabel('About Mushroom')).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
 
@@ -18,7 +27,23 @@ test.describe('card back', () => {
     await expect(
       page.getByText("There isn't a description for this concept yet."),
     ).toBeVisible();
+    await expect(page.getByTestId('card-back-wiki')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'en' });
+  });
+
+  test('long description scrolls without flipping', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=long-description');
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+    const copy = cardBackCopy(page);
+    const box = await copy.boundingBox();
+    if (!box) throw new Error('card-back-copy has no box');
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(300);
+    // Still on the back — scroll must not fire the flip tap.
+    await expect(cardBackCopy(page)).toBeVisible();
+    await expect(visibleText(page, 'Long-description')).toHaveCount(0);
   });
 
   test('with photo', async ({ page }, testInfo) => {

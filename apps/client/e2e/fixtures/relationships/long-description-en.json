@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 1,
+      "label": "long-description"
+    },
+    "nodes": [
+      {
+        "id": 1,
+        "label": "long-description",
+        "shortDescription": "A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage for the card back. A long reading passage f",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 2,
+        "label": "companion",
+        "shortDescription": "A short neighbor.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 10,
+        "from": 1,
+        "to": 2,
+        "strength": 0.8,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}
