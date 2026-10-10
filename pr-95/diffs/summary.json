@@ -823,40 +823,12 @@
     "diffImage": "typography_large-text-200_430x932_en.diff.png"
   },
   {
-    "file": "typography_long-label-200_1280x800_en.png",
-    "ratio": 0.020688720703125,
-    "percent": 2.0688720703125,
-    "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 84741,
-    "diffImage": "typography_long-label-200_1280x800_en.diff.png"
-  },
-  {
     "file": "typography_long-label-200_320x568_en.png",
-    "ratio": 0.07476892605633803,
-    "percent": 7.476892605633803,
+    "ratio": 0,
+    "percent": 0,
     "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 54360,
-    "diffImage": "typography_long-label-200_320x568_en.diff.png"
-  },
-  {
-    "file": "typography_long-label-200_390x844_en.png",
-    "ratio": 0.06280608214849921,
-    "percent": 6.280608214849921,
-    "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 82693,
-    "diffImage": "typography_long-label-200_390x844_en.diff.png"
-  },
-  {
-    "file": "typography_long-label-200_430x932_en.png",
-    "ratio": 0.056845119273380575,
-    "percent": 5.6845119273380575,
-    "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 91125,
-    "diffImage": "typography_long-label-200_430x932_en.diff.png"
+    "status": "pass",
+    "mismatchedPixels": 0
   },
   {
     "file": "typography_status-body_1280x800_en.png",
