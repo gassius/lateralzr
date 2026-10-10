@@ -54,6 +54,17 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
+### Card front pattern (Lz-25)
+
+- Production SVGs in `assets/images/pattern/` (Critiquito v3.3.1, byte-locked in `lib/patternPlacement.test.ts`)
+- Product variant = `hash(conceptKey) % 3` — stable across flip / backtrack
+- E2E captures use short titles + `?patternVariant=1|2|3` so clearing does not strip the placement (compare 390-wide to ticket preview PNGs):
+  - `card-front_pattern-01-descending_*` — `mushroom&patternVariant=1`
+  - `card-front_pattern-02-ascending_*` — `tide&patternVariant=2`
+  - `card-front_pattern-03-edge_*` — `mushroom&patternVariant=3`
+  - `card-front_pattern-clear-200_320x568_en` — long-label @ `e2eTextScale=2`; asserts no motif in title+16
+- Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
+
 ### Laterality sheet (Lz-31)
 
 - `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es
