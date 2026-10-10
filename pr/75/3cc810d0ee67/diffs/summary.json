@@ -1,0 +1,19 @@
+[
+  {
+    "file": "card-front_short-label_390x844_en.png",
+    "ratio": 0.0235607303439057,
+    "percent": 2.3560730343905703,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 31021,
+    "diffImage": "card-front_short-label_390x844_en.diff.png"
+  },
+  {
+    "file": "laterality-bar_grade-3_390x844_en.png",
+    "ratio": 0.007115840320816624,
+    "percent": 0.7115840320816624,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 9369
+  }
+]
