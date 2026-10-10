@@ -149,9 +149,12 @@ jobs:
       - name: Orphan-branch push + sticky PR comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # upload-artifact preserves workspace-relative paths
-          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/apps/client/e2e/screenshots
-        run: node /tmp/client-e2e-publish.mjs
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
+        run: |
+          set -euo pipefail
+          echo "SCREENSHOTS_DIR=${SCREENSHOTS_DIR}"
+          find "${SCREENSHOTS_DIR}" -name '*.png' | head -20 || true
+          node /tmp/client-e2e-publish.mjs
 
   # On main only: publish captures as committed baselines (write job; no install/build).
   client-e2e-baselines:
@@ -173,6 +176,6 @@ jobs:
       - name: Publish baselines from artifact
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/apps/client/e2e/screenshots
+          SCREENSHOTS_DIR: ${{ github.workspace }}/artifact/screenshots
           BASELINES_DIR: apps/client/e2e/baselines
         run: node .github/scripts/client-e2e-publish-baselines.mjs
