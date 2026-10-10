@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import { Palette } from '../constants/Colors.ts';
+import { color } from '../theme/tokens.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
   COMPLEXITY_CUE_APPEAR_TRANSLATE_Y,
@@ -157,9 +157,9 @@ describe('complexity cue placement and hierarchy', () => {
 describe('complexity cue contrast', () => {
   it('meets WCAG AA contrast on the off-white chip over the teal letterbox', () => {
     const palette = complexityCuePalette();
-    assert.equal(palette.text, Palette.darkBlue);
-    assert.equal(palette.chip, Palette.offWhite);
-    assert.equal(palette.backdrop, Palette.darkBlue);
+    assert.equal(palette.text, color.concept);
+    assert.equal(palette.chip, color.paper);
+    assert.equal(palette.backdrop, color.shell);
     assert.ok(complexityCueContrastRatio() >= 4.5);
   });
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { Palette } from '../constants/Colors.ts';
+import { color } from '../theme/tokens.ts';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign.ts';
 import {
   blendHexOver,
@@ -28,21 +28,21 @@ describe('coach hint type hierarchy', () => {
 describe('coach hint contrast', () => {
   it('meets WCAG AA normal-text contrast on the orange card chip', () => {
     const orange = coachHintPalette('orange');
-    assert.equal(orange.text, Palette.darkBlue);
-    assert.equal(orange.chip, Palette.offWhite);
+    assert.equal(orange.text, color.concept);
+    assert.equal(orange.chip, color.paper);
     assert.ok(coachHintContrastRatio('orange') >= 4.5);
   });
 
   it('meets WCAG AA contrast if the coach sits on teal without a chip', () => {
     const teal = coachHintPalette('teal');
-    assert.equal(teal.text, Palette.offWhite);
+    assert.equal(teal.text, color.paper);
     assert.equal(teal.chip, 'transparent');
     assert.ok(coachHintContrastRatio('teal') >= 4.5);
   });
 
   it('is a clear upgrade over 12px dark-blue at 75% opacity on orange', () => {
-    const washed = blendHexOver(Palette.darkBlue, 0.75, Palette.orange);
-    const legacyRatio = contrastRatio(washed, Palette.orange);
+    const washed = blendHexOver(color.concept, 0.75, color.front);
+    const legacyRatio = contrastRatio(washed, color.front);
     assert.ok(legacyRatio < 4.5);
     assert.ok(coachHintContrastRatio('orange') > legacyRatio);
   });

@@ -10,7 +10,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { Palette } from '@/constants/Colors';
+import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 import { lateralityGradientStops } from '@/lib/laterality';
 import {
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   ghostFace: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: Palette.orange,
+    backgroundColor: color.front,
     borderWidth: 1,
     borderColor: 'rgba(19,91,119,0.35)',
     overflow: 'hidden',
@@ -306,8 +306,8 @@ const styles = StyleSheet.create({
     elevation: 40,
   },
   caption: {
-    color: Palette.darkBlue,
-    backgroundColor: Palette.offWhite,
+    color: color.concept,
+    backgroundColor: color.paper,
     overflow: 'hidden',
     fontSize: 14,
     lineHeight: 18,

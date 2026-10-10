@@ -10,7 +10,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import type { ConceptItem } from '@/lib/api';
-import { Palette } from '@/constants/Colors';
+import { color } from '@/theme/tokens';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_FACE_PADDING,
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: CARD_BACK_FACE_PADDING,
     borderRadius: 16,
-    backgroundColor: Palette.orange,
+    backgroundColor: color.front,
     borderWidth: 1,
     borderColor: 'rgba(19,91,119,0.35)',
     minHeight: 0,
@@ -439,15 +439,15 @@ const styles = StyleSheet.create({
   },
   conceptName: {
     fontWeight: '700',
-    color: Palette.darkBlue,
+    color: color.ink,
   },
   description: {
     opacity: 0.92,
-    color: Palette.darkBlue,
+    color: color.ink,
   },
   link: {
     fontSize: 16,
-    color: Palette.darkBlue,
+    color: color.ink,
     marginBottom: 8,
     fontWeight: '700',
     textDecorationLine: 'underline',

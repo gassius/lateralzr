@@ -1,8 +1,8 @@
 import { createContext, useContext, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { Palette } from '@/constants/Colors';
 import { webPhoneFrameSize, type WebPhoneFrameSize } from '@/lib/webPhoneFrame';
+import { color } from '@/theme/tokens';
 
 const WebPhoneFrameContext = createContext<WebPhoneFrameSize | null>(null);
 
@@ -10,7 +10,7 @@ const WebPhoneFrameContext = createContext<WebPhoneFrameSize | null>(null);
 const LETTERBOX_STYLE_ID = 'lateralzr-web-phone-frame';
 const LETTERBOX_CSS = `
 html, body, #root { height: 100%; }
-body { background-color: #111111; overflow: hidden; }
+body { background-color: ${color.shell}; overflow: hidden; }
 #web-phone-frame { box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45); }
 `;
 
@@ -67,11 +67,11 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Palette.black,
+    backgroundColor: color.shell,
   },
   phone: {
     overflow: 'hidden',
-    backgroundColor: Palette.darkBlue,
+    backgroundColor: color.shell,
     flexShrink: 0,
   },
   phoneFramed: {

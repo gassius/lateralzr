@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
-import { Palette } from '@/constants/Colors';
+import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 
 type DeckStatusCardProps = {
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: Palette.orange,
+    backgroundColor: color.front,
     borderWidth: 1,
     borderColor: 'rgba(19,91,119,0.35)',
     minHeight: 0,
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     paddingHorizontal: 12,
     opacity: 0.92,
-    color: Palette.darkBlue,
+    color: color.concept,
   },
   retry: {
     marginTop: 4,
@@ -83,6 +83,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     textDecorationLine: 'underline',
-    color: Palette.darkBlue,
+    color: color.concept,
   },
 });

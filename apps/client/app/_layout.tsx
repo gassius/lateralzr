@@ -7,8 +7,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { WebPhoneFrame } from '@/components/WebPhoneFrame';
-import { Palette } from '@/constants/Colors';
 import { ensureGtmWebLoaded } from '@/lib/analytics';
+import { color } from '@/theme/tokens';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -18,10 +18,10 @@ const navTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: Palette.orange,
-    background: Palette.darkBlue,
-    card: Palette.darkBlue,
-    text: Palette.offWhite,
+    primary: color.front,
+    background: color.shell,
+    card: color.shell,
+    text: color.paper,
     border: 'rgba(255,255,255,0.12)',
   },
 };
@@ -39,7 +39,7 @@ export default function RootLayout() {
     <WebPhoneFrame>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider value={navTheme}>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Palette.darkBlue } }}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.shell } }}>
             <Stack.Screen name="index" />
           </Stack>
         </ThemeProvider>

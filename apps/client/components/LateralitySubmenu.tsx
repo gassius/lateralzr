@@ -6,7 +6,7 @@ import {
   WORDMARK_LETTERS,
   wordmarkViewBoxAttr,
 } from '@/assets/images/lateralzrWordmark';
-import { Palette } from '@/constants/Colors';
+import { color } from '@/theme/tokens';
 import { t } from '@/lib/i18n';
 import {
   lateralityBarFit,
@@ -128,7 +128,7 @@ function StepGlyph({ kind }: { kind: 'minus' | 'plus' }) {
         y1={mid}
         x2={STEP_GLYPH - pad}
         y2={mid}
-        stroke={Palette.offWhite}
+        stroke={color.paper}
         strokeWidth={STEP_STROKE}
         strokeLinecap="round"
       />
@@ -138,7 +138,7 @@ function StepGlyph({ kind }: { kind: 'minus' | 'plus' }) {
           y1={pad}
           x2={mid}
           y2={STEP_GLYPH - pad}
-          stroke={Palette.offWhite}
+          stroke={color.paper}
           strokeWidth={STEP_STROKE}
           strokeLinecap="round"
         />
