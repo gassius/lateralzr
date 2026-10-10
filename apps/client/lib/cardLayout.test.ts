@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { layout, shadow } from '../theme/tokens.ts';
 import {
+  CARD_FACE_FALLBACK_WIDTH,
   CARD_PADDING_NARROW_MAX_WIDTH,
   CARD_SHADOW,
   cardPadding,
@@ -27,6 +28,10 @@ describe('cardLayout radius and padding', () => {
   it('treats non-finite widths as narrow', () => {
     assert.equal(cardPadding(Number.NaN), layout.cardPaddingNarrow);
     assert.equal(cardPadding(-12), layout.cardPaddingNarrow);
+  });
+
+  it('exposes a stable fallback face width before onLayout', () => {
+    assert.equal(CARD_FACE_FALLBACK_WIDTH, 341);
   });
 });
 

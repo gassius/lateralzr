@@ -31,7 +31,13 @@ import {
   composeCardBackLayout,
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
-import { CARD_SHADOW, cardPadding, cardRadius } from '@/lib/cardLayout';
+import {
+  CARD_FACE_FALLBACK_WIDTH,
+  CARD_SHADOW,
+  cardPadding,
+  cardRadius,
+} from '@/lib/cardLayout';
+import { conceptKey } from '@/lib/conceptDeck';
 import {
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
@@ -52,11 +58,10 @@ import {
   shouldCommitNativeTitleLayoutToView,
   titleColor,
   type ConceptFrontTitleLayout,
-  type ConceptFrontTitleRect,
 } from '@/lib/conceptFrontTitle';
+import type { PatternRect } from '@/lib/patternPlacement';
 import { CoachHint } from './CoachHint';
-import { ConceptCardBrandTexture } from './ConceptCardBrandTexture';
-import { CARD_BRAND_FALLBACK_FACE_WIDTH } from '@/lib/conceptCardBrand';
+import { PatternLayer } from './brand/PatternLayer';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
@@ -117,8 +122,8 @@ export function ConceptCard({
   );
   /** Bumps when late onTextLayout fills the cache without resizing (unmount probe). */
   const [nativeCacheEpoch, setNativeCacheEpoch] = useState(0);
-  /** Measured title box for Lz-25 pattern clearing (column-local coords). */
-  const titleRectRef = useRef<ConceptFrontTitleRect | null>(null);
+  /** Measured title box in face pixels for Lz-25 pattern clearing. */
+  const [titleFaceRect, setTitleFaceRect] = useState<PatternRect | null>(null);
   /** Cache key already written from onTextLayout (ignore further probe events). */
   const nativeMeasureAcceptedRef = useRef<string | null>(null);
   /** True once B2 fallback is painted — late onTextLayout must not resize. */
@@ -145,8 +150,9 @@ export function ConceptCard({
   /** Content width inside face padding (onLayout width includes padding). */
   const titleContentWidth = Math.max(
     0,
-    (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - facePad * 2,
+    (faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH) - facePad * 2,
   );
+  const patternConceptKey = conceptKey(item.concept);
   const nativeCacheKey = nativeTitleMeasureCacheKey(
     title,
     titleContentWidth,
@@ -155,6 +161,7 @@ export function ConceptCard({
 
   // Reset / hydrate when title, width, or OS text scale changes (M1).
   useLayoutEffect(() => {
+    setTitleFaceRect(null);
     if (Platform.OS === 'web') return;
     if (!titleWidthReady) {
       setNativeTitleLayout(null);
@@ -291,7 +298,8 @@ export function ConceptCard({
     }
   };
 
-  const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
+  const patternFaceWidth = faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH;
+  const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
   const titleBlockH = titleLineCount * displayLineHeight;
   /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
@@ -307,7 +315,13 @@ export function ConceptCard({
 
   const front = (
     <View style={faceInnerStyle} onLayout={onUntransformedFaceLayout}>
-      <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
+      <PatternLayer
+        conceptKey={patternConceptKey}
+        faceWidth={patternFaceWidth}
+        faceHeight={patternFaceHeight}
+        titleFaceRect={titleFaceRect}
+        facePad={facePad}
+      />
       <ScrollView
         style={styles.frontScroll}
         contentContainerStyle={[
@@ -388,7 +402,25 @@ export function ConceptCard({
             ]}
             onLayout={(event) => {
               const { x, y, width, height } = event.nativeEvent.layout;
-              titleRectRef.current = { x, y, width, height };
+              // Column-local → face pixels (pattern is edge-to-edge under face padding).
+              const next: PatternRect = {
+                x: facePad + x,
+                y: facePad + y,
+                width,
+                height,
+              };
+              setTitleFaceRect((prev) => {
+                if (
+                  prev &&
+                  Math.abs(prev.x - next.x) < 0.5 &&
+                  Math.abs(prev.y - next.y) < 0.5 &&
+                  Math.abs(prev.width - next.width) < 0.5 &&
+                  Math.abs(prev.height - next.height) < 0.5
+                ) {
+                  return prev;
+                }
+                return next;
+              });
             }}
             testID={exposeFrontTitleTestId ? 'card-front-title' : undefined}
             accessibilityRole="header"
@@ -513,7 +545,6 @@ export function ConceptCard({
    */
   const back = (
     <View style={faceInnerStyle}>
-      <ConceptCardBrandTexture face="back" faceWidth={brandFaceWidth} />
       {backLayout.balanceCopy ? (
         <View
           style={[
