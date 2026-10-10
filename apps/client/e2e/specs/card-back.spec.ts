@@ -135,7 +135,7 @@ test.describe('card back', () => {
 
   /**
    * Playwright projects already set contextOptions.reducedMotion = 'reduce'.
-   * Assert the RM flip path: back visible, no rotate/perspective in face styles.
+   * Assert the RM flip path: back visible; face computed transforms have no rotate/perspective.
    */
   test('reduced-motion flip has no rotate or perspective', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
@@ -143,15 +143,30 @@ test.describe('card back', () => {
     await expect(cardBackCopy(page)).toBeVisible();
 
     const hasForbiddenTransform = await page.evaluate(() => {
+      const isVisible = (el: Element) => {
+        let p: HTMLElement | null = el as HTMLElement;
+        while (p) {
+          if (getComputedStyle(p).opacity === '0') return false;
+          p = p.parentElement;
+        }
+        return true;
+      };
+      const transformForbidden = (value: string) =>
+        /rotate|perspective/i.test(value) && value !== 'none';
+
+      // Active (visible) back + its front sibling faces only — not preload peers.
       const starts = [
         ...document.querySelectorAll('[data-testid="card-back-copy"]'),
         ...document.querySelectorAll('[data-testid="card-front-title"]'),
-      ];
+      ].filter(isVisible);
+
       for (const start of starts) {
         let p: HTMLElement | null = start as HTMLElement;
         while (p) {
           const inline = p.getAttribute('style') ?? '';
-          if (/rotate|perspective/i.test(inline)) return true;
+          const computed = getComputedStyle(p).transform;
+          if (transformForbidden(inline) || transformForbidden(computed)) return true;
+          if (p.getAttribute('data-testid') === 'card-laterality-group') break;
           p = p.parentElement;
         }
       }

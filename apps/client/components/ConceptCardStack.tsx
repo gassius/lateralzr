@@ -379,6 +379,21 @@ export function ConceptCardStack({
     suppressFlipUntilRef.current = suppressUntil(Date.now());
   }, []);
 
+  // RNGH Tap owns the card surface on web and can steal presses from RN Text.
+  // Capture-phase pointerdown on wiki arms the suppress window before Tap.onEnd.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onPointerDownCapture = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-testid="card-back-wikipedia"]')) {
+        noteBackInteractivePress();
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDownCapture, true);
+    return () => document.removeEventListener('pointerdown', onPointerDownCapture, true);
+  }, [noteBackInteractivePress]);
+
   const toggleFlip = useCallback(() => {
     if (isFlipSuppressed(Date.now(), suppressFlipUntilRef.current)) return;
     const wasFlipped = flippedRef.current;
@@ -693,6 +708,7 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={behindDisplayIndex}
                 flipped={false}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
               />
             </Animated.View>
@@ -733,6 +749,7 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={returnOverlayIndex}
                 flipped={false}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
               />
             </Animated.View>
