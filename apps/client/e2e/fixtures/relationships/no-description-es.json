@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 1,
+      "label": "sin título"
+    },
+    "nodes": [
+      {
+        "id": 1,
+        "label": "sin título",
+        "shortDescription": "",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 0
+      },
+      {
+        "id": 2,
+        "label": "marcador",
+        "shortDescription": "Una idea relacionada con texto.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "es",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 10,
+        "from": 1,
+        "to": 2,
+        "strength": 0.8,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": false,
+      "locale": "es",
+      "laterality": 3
+    }
+  }
+}

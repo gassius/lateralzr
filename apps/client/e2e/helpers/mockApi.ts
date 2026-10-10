@@ -66,6 +66,16 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
   }
 
   if (
+    canonicalKey === 'no-description' ||
+    startKey === 'no-description' ||
+    startKey === 'untitled' ||
+    startKey === 'sin título' ||
+    startKey === 'sin titulo'
+  ) {
+    return readJson(locale === 'es' ? 'no-description-es.json' : 'no-description-en.json');
+  }
+
+  if (
     canonicalKey === 'mushroom' ||
     startKey === 'mushroom' ||
     startKey === 'seta'

@@ -3,6 +3,7 @@ import { afterEach, describe, it } from 'node:test';
 import {
   DEFAULT_LOCALE,
   getActiveLocale,
+  MESSAGE_KEYS,
   normalizeLocaleTag,
   resolveLocalePreference,
   setActiveLocale,
@@ -22,6 +23,38 @@ describe('i18n locale catalogs', () => {
     assert.equal(t('swipeCoach'), 'Desliza para otra idea');
     assert.equal(t('flipCoach'), 'Toca la tarjeta para saber más');
     assert.equal(t('illustrationFor', { concept: 'silencio' }), 'Ilustración de silencio');
+  });
+
+  it('has a non-empty string for every key in en and es', () => {
+    for (const key of MESSAGE_KEYS) {
+      for (const locale of ['en', 'es'] as const) {
+        setActiveLocale(locale);
+        const value = t(key);
+        assert.ok(
+          value.trim().length > 0,
+          `expected non-empty ${locale} for ${key}`,
+        );
+        assert.notEqual(value, key, `expected translated ${locale} for ${key}`);
+      }
+    }
+  });
+
+  it('uses the approved v3.3 noDescription copy', () => {
+    setActiveLocale('en');
+    assert.equal(t('noDescription'), "There isn't a description for this concept yet.");
+    setActiveLocale('es');
+    assert.equal(t('noDescription'), 'Este concepto aún no tiene descripción.');
+  });
+
+  it('exposes approved laterality grade labels', () => {
+    setActiveLocale('en');
+    assert.equal(t('lateralityGrade1'), 'Same domain');
+    assert.equal(t('lateralityGrade5'), 'Random entry');
+    assert.equal(t('lateralityA11yValue', { label: 'Provocation', n: '4' }), 'Provocation, 4 of 5');
+    setActiveLocale('es');
+    assert.equal(t('lateralityGrade1'), 'Mismo dominio');
+    assert.equal(t('lateralityGrade5'), 'Entrada aleatoria');
+    assert.equal(t('lateralityA11yValue', { label: 'Provocación', n: '4' }), 'Provocación, 4 de 5');
   });
 
   it('normalizes BCP-47 tags onto supported locales', () => {
