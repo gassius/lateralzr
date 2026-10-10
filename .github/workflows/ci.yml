@@ -7,8 +7,8 @@ name: CI
 on:
   push:
     branches: [main, master]
+  # Any base branch so stacked PRs (base ≠ main) still get required checks.
   pull_request:
-    branches: [main, master]
 
 permissions:
   contents: read
