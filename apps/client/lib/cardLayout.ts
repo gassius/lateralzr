@@ -3,7 +3,7 @@
  * One radius, width-dependent padding, and a subdued face shadow for both faces.
  */
 
-import { layout } from '@/theme/tokens';
+import { layout, shadow } from '@/theme/tokens';
 
 /** Devices at or below this width use `layout.cardPaddingNarrow`. */
 export const CARD_PADDING_NARROW_MAX_WIDTH = 360;
@@ -24,11 +24,14 @@ export function cardPadding(width: number): number {
     : layout.cardPadding;
 }
 
-/** Subdued cast shadow — no dark halo on shell `#082D3D` (Critiquito). */
+/** Subdued cast shadow — no dark halo on shell `#082D3D` (Critiquito / `shadow.card`). */
 export const CARD_SHADOW = {
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.18,
-  shadowRadius: 12,
-  elevation: 4,
+  shadowColor: shadow.card.color,
+  shadowOffset: {
+    width: shadow.card.offsetWidth,
+    height: shadow.card.offsetHeight,
+  },
+  shadowOpacity: shadow.card.opacity,
+  shadowRadius: shadow.card.radius,
+  elevation: shadow.card.elevation,
 } as const;

@@ -770,8 +770,9 @@ function ConceptCardForIndex({
 const styles = StyleSheet.create({
   outer: {
     width: '100%',
-    // Keep 12 here (not screenGutter 16): 16 on the card narrows the front at 320
-    // and regresses long-label title fit. Screen gutter applies to the control row.
+    // Agreed exception (Lz-21 / Lz-24 AD): keep 12 here, not layout.screenGutter 16.
+    // 16 narrows the front at 320 and regresses ES long-label title fit until Lz-26.
+    // Screen gutter 16 applies to the control row; revisit after #84 lands title fit.
     paddingHorizontal: 12,
     paddingTop: CARD_STACK_PADDING_TOP,
     justifyContent: 'flex-start',

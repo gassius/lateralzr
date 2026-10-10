@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { layout } from '../theme/tokens.ts';
+import { layout, shadow } from '../theme/tokens.ts';
 import {
   CARD_PADDING_NARROW_MAX_WIDTH,
   CARD_SHADOW,
@@ -31,7 +31,13 @@ describe('cardLayout radius and padding', () => {
 });
 
 describe('cardLayout shadow', () => {
-  it('keeps a subdued shadow (no dramatic dark cast)', () => {
+  it('reads subdued shadow.card tokens (no dramatic dark cast)', () => {
+    assert.equal(CARD_SHADOW.shadowColor, shadow.card.color);
+    assert.equal(CARD_SHADOW.shadowOffset.width, shadow.card.offsetWidth);
+    assert.equal(CARD_SHADOW.shadowOffset.height, shadow.card.offsetHeight);
+    assert.equal(CARD_SHADOW.shadowOpacity, shadow.card.opacity);
+    assert.equal(CARD_SHADOW.shadowRadius, shadow.card.radius);
+    assert.equal(CARD_SHADOW.elevation, shadow.card.elevation);
     assert.equal(CARD_SHADOW.shadowOpacity, 0.18);
     assert.equal(CARD_SHADOW.shadowRadius, 12);
     assert.equal(CARD_SHADOW.elevation, 4);
