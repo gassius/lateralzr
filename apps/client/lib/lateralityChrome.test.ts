@@ -77,6 +77,15 @@ describe('laterality chrome grouping', () => {
     assert.equal(cardStackAvailableHeight(200), MIN_CARD_AREA_HEIGHT);
   });
 
+  it('reserves a measured taller control when the label wraps', () => {
+    const wrapped = LATERALITY_CONTROL_HEIGHT + 40;
+    assert.equal(lateralityChromeReserve(568, wrapped), wrapped + 12);
+    assert.equal(
+      cardStackAvailableHeight(844, wrapped),
+      844 - lateralityChromeReserve(844, wrapped),
+    );
+  });
+
   it('pins the minimum row width to WEB_PHONE_MIN_WIDTH', () => {
     assert.equal(WEB_PHONE_MIN_WIDTH, 320);
     assert.equal(LATERALITY_BAR_MIN_ROW_WIDTH, WEB_PHONE_MIN_WIDTH);

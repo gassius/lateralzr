@@ -53,4 +53,27 @@ test.describe('laterality bar', () => {
     );
     await relationshipsWithFive;
   });
+
+  test('label wraps without truncation at 200% text on 320-wide chrome', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en&e2eTextScale=2');
+    const label = page.getByTestId('laterality-label');
+    await expect(label).toBeVisible();
+    const text = await label.innerText();
+    expect(text).toMatch(/Laterality/);
+    expect(text).toMatch(/Abstract bridge/);
+    expect(text).not.toMatch(/\.\.\.|…/);
+    const truncated = await label.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return (
+        style.textOverflow === 'ellipsis' ||
+        el.scrollWidth > el.clientWidth + 1
+      );
+    });
+    expect(truncated).toBe(false);
+    await capture(page, testInfo, {
+      screen: 'laterality-bar',
+      state: 'wrap-200',
+      locale: 'en',
+    });
+  });
 });

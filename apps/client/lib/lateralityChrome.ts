@@ -8,10 +8,13 @@ import { layout, tallScreenMinHeight, type } from '@/theme/tokens';
 /** 48 px stepped-slider hit region (guide §10 / layout.recommendedTouchTarget). */
 export const LATERALITY_RAIL_HEIGHT = layout.recommendedTouchTarget;
 
-/** Label row: type.label line box (14 × 1.4 → 20; matches typography `label` role). */
+/**
+ * Minimum label row: type.label line box at 100% (14 × 1.4 → 20).
+ * At large text the row grows (wrap); callers reserve measured control height.
+ */
 export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 
-/** Label + rail stacked under the card. */
+/** Minimum control height (one label line + rail). Grows when the label wraps. */
 export const LATERALITY_CONTROL_HEIGHT = LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
 
 /** Comfortable tap target size (≥44). */
@@ -37,12 +40,28 @@ export function lateralityCardGap(usableHeight: number): number {
   return height >= tallScreenMinHeight ? layout.cardToControlGapTall : layout.cardToControlGap;
 }
 
-/** Height reserved under the card for the laterality control + grouping gap. */
-export function lateralityChromeReserve(usableHeight: number): number {
-  return LATERALITY_CONTROL_HEIGHT + lateralityCardGap(usableHeight);
+/**
+ * Height reserved under the card for the laterality control + grouping gap.
+ * Pass the measured control height when the label wraps (large text).
+ */
+export function lateralityChromeReserve(
+  usableHeight: number,
+  controlHeight: number = LATERALITY_CONTROL_HEIGHT,
+): number {
+  const control =
+    Number.isFinite(controlHeight) && controlHeight > 0
+      ? Math.max(LATERALITY_CONTROL_HEIGHT, controlHeight)
+      : LATERALITY_CONTROL_HEIGHT;
+  return control + lateralityCardGap(usableHeight);
 }
 
 /** Vertical space the card stack may use once laterality sits under the card. */
-export function cardStackAvailableHeight(usableHeight: number): number {
-  return Math.max(MIN_CARD_AREA_HEIGHT, usableHeight - lateralityChromeReserve(usableHeight));
+export function cardStackAvailableHeight(
+  usableHeight: number,
+  controlHeight: number = LATERALITY_CONTROL_HEIGHT,
+): number {
+  return Math.max(
+    MIN_CARD_AREA_HEIGHT,
+    usableHeight - lateralityChromeReserve(usableHeight, controlHeight),
+  );
 }

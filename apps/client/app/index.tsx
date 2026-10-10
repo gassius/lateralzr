@@ -99,6 +99,8 @@ export default function HomeScreen() {
     token: number;
     outcome: LateralitySwirlOutcome;
   } | null>(null);
+  /** Measured laterality control height (grows when the label wraps at large text). */
+  const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -737,7 +739,7 @@ export default function HomeScreen() {
             onSwipeLeft={onSwipeLeft}
             onSwipeRight={onSwipeRight}
             onSwipeForwardVertical={onSwipeForwardVertical}
-            availableHeight={cardStackAvailableHeight(usableHeight)}
+            availableHeight={cardStackAvailableHeight(usableHeight, lateralityControlHeight)}
             preloadedMediaUrls={preloadedMediaUrls}
             showDeckLoading={showDeckLoading}
             loadMoreError={loadMoreError}
@@ -757,10 +759,11 @@ export default function HomeScreen() {
             laterality={laterality}
             swapping={lateralitySwap != null}
             onSelectLaterality={onSelectLaterality}
+            onHeightChange={setLateralityControlHeight}
           />
           {complexityCue ? (
             <View
-              style={[styles.complexityCueSlot, { bottom: LATERALITY_CONTROL_HEIGHT + 4 }]}
+              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
               pointerEvents="none"
             >
               <ComplexityCue
@@ -772,7 +775,7 @@ export default function HomeScreen() {
             </View>
           ) : showSessionComplexityMark ? (
             <View
-              style={[styles.complexityCueSlot, { bottom: LATERALITY_CONTROL_HEIGHT + 4 }]}
+              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
               pointerEvents="none"
             >
               <ComplexitySessionMark grade={complexity} />

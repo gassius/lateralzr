@@ -12,7 +12,7 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
-import { color } from '@/theme/tokens';
+import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import { t } from '@/lib/i18n';
 import {
@@ -41,12 +41,20 @@ type LateralityControlProps = {
   onSelectLaterality: (grade: LateralityGrade) => void;
   /** Opens the laterality sheet (Lz-31). No-op until that ticket lands. */
   onPressLabel?: () => void;
+  /** Measured control height (grows when the label wraps at large text). */
+  onHeightChange?: (height: number) => void;
 };
 
 const DOT_COUNT = 5;
 const DOT_RADIUS = 4.5;
 const LINE_STROKE = 1.75;
 const CHEVRON_SIZE = 12;
+
+/** Expand the visual label row (~20 px) to a 48 px tap target via hitSlop. */
+const LABEL_HIT_SLOP = Math.max(
+  0,
+  Math.ceil((layout.recommendedTouchTarget - LATERALITY_LABEL_ROW_HEIGHT) / 2),
+);
 
 function ChevronDown({ stroke }: { stroke: string }) {
   return (
@@ -110,6 +118,7 @@ export function LateralityControl({
   swapping = false,
   onSelectLaterality,
   onPressLabel,
+  onHeightChange,
 }: LateralityControlProps) {
   const grade = clampLaterality(laterality);
   const disabled = lateralityControlDisabled(true, swapping);
@@ -117,6 +126,7 @@ export function LateralityControl({
   const [previewGrade, setPreviewGrade] = useState<LateralityGrade | null>(null);
   const displayGrade = previewGrade ?? grade;
   const railWidthRef = useRef(0);
+  const reportedHeightRef = useRef(0);
 
   const labelText = useMemo(
     () => `${t('laterality')} · ${t(lateralityGradeLabelKey(displayGrade))}`,
@@ -153,6 +163,16 @@ export function LateralityControl({
       setRailWidth(next);
     }
   }, []);
+
+  const onRootLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const next = Math.ceil(event.nativeEvent.layout.height);
+      if (next <= 0 || next === reportedHeightRef.current) return;
+      reportedHeightRef.current = next;
+      onHeightChange?.(next);
+    },
+    [onHeightChange],
+  );
 
   const tap = Gesture.Tap()
     .enabled(!disabled)
@@ -210,10 +230,12 @@ export function LateralityControl({
       style={styles.root}
       testID="laterality-control"
       accessibilityState={{ busy: swapping, disabled }}
+      onLayout={onRootLayout}
     >
       <Pressable
         onPress={onPressLabel ?? (() => {})}
         disabled={disabled}
+        hitSlop={LABEL_HIT_SLOP}
         accessibilityRole="button"
         accessibilityLabel={labelText}
         accessibilityState={{ disabled }}
@@ -224,13 +246,7 @@ export function LateralityControl({
           disabled ? styles.disabled : null,
         ]}
       >
-        <Text
-          style={[styles.labelText, textStyle('label')]}
-          numberOfLines={1}
-          ellipsizeMode="clip"
-        >
-          {labelText}
-        </Text>
+        <Text style={[styles.labelText, textStyle('label')]}>{labelText}</Text>
         <ChevronDown stroke={color.paper} />
       </Pressable>
 
@@ -269,12 +285,12 @@ export function LateralityControl({
 const styles = StyleSheet.create({
   root: {
     width: '100%',
-    height: LATERALITY_CONTROL_HEIGHT,
+    minHeight: LATERALITY_CONTROL_HEIGHT,
     paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
     justifyContent: 'flex-start',
   },
   labelRow: {
-    height: LATERALITY_LABEL_ROW_HEIGHT,
+    minHeight: LATERALITY_LABEL_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',

@@ -117,18 +117,18 @@ describe('laterality accessible names', () => {
     setActiveLocale('en');
     assert.equal(t('decreaseLaterality'), 'Decrease laterality');
     assert.equal(t('increaseLaterality'), 'Increase laterality');
-    assert.equal(t('lateralityGrade', { grade: '3' }), 'Laterality 3');
+    assert.equal(t('laterality'), 'Laterality');
   });
 
   it('uses fully Spanish laterality names in es', () => {
     setActiveLocale('es');
     assert.equal(t('decreaseLaterality'), 'Disminuir lateralidad');
     assert.equal(t('increaseLaterality'), 'Aumentar lateralidad');
-    assert.equal(t('lateralityGrade', { grade: '3' }), 'Lateralidad 3');
+    assert.equal(t('laterality'), 'Lateralidad');
 
-    for (const key of ['decreaseLaterality', 'increaseLaterality', 'lateralityGrade'] as const) {
-      assert.match(t(key, { grade: '3' }), /lateralidad/i);
-      assert.doesNotMatch(t(key, { grade: '3' }), /\blaterality\b/i);
+    for (const key of ['decreaseLaterality', 'increaseLaterality', 'laterality'] as const) {
+      assert.match(t(key), /lateralidad/i);
+      assert.doesNotMatch(t(key), /\blaterality\b/i);
     }
   });
 
