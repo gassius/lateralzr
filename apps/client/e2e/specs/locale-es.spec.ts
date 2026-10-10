@@ -25,6 +25,13 @@ test.describe('locale es', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'es' });
   });
 
+  test('back no description fallback copy', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=no-description&locale=es');
+    await flipCard(page);
+    await expect(page.getByText('Este concepto aún no tiene descripción.')).toBeVisible();
+    await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'es' });
+  });
+
   test('back with photo', async ({ page }, testInfo) => {
     await openApp(page, 'localizedConcept=Psicodélicos&onlyWithMedia=true&locale=es');
     await expect(visibleText(page, 'Psicodélicos')).toBeVisible();
