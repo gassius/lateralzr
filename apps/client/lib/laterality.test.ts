@@ -8,8 +8,10 @@ import {
   DEFAULT_LATERALITY,
   LATERALITY_LABEL_KEYS,
   lateralityA11yText,
+  lateralityCommitFromRail,
   lateralityControlDisabled,
   lateralityGradeLabelKey,
+  lateralityNextFromControlInput,
   lateralityStepFromX,
   parseLateralityParam,
   resolveInitialLaterality,
@@ -134,7 +136,7 @@ describe('grade labels and a11y value', () => {
   });
 });
 
-describe('lateralityStepFromX', () => {
+describe('lateralityStepFromX / lateralityCommitFromRail', () => {
   it('maps x across a rail width onto grades 1–5', () => {
     const width = 200;
     assert.equal(lateralityStepFromX(0, width), 1);
@@ -150,6 +152,40 @@ describe('lateralityStepFromX', () => {
   it('falls back safely for empty width or non-finite x', () => {
     assert.equal(lateralityStepFromX(10, 0), DEFAULT_LATERALITY);
     assert.equal(lateralityStepFromX(Number.NaN, 100), DEFAULT_LATERALITY);
+  });
+
+  it('commits the rail-mapped grade unless a swap is in flight', () => {
+    const width = 200;
+    assert.equal(lateralityCommitFromRail(180, width), 5);
+    assert.equal(lateralityCommitFromRail(0, width), 1);
+    assert.equal(lateralityCommitFromRail(100, width, { swapping: false }), 3);
+    assert.equal(lateralityCommitFromRail(180, width, { swapping: true }), null);
+    // Mutating commit to ignore x (always current grade) would fail this:
+    assert.notEqual(lateralityCommitFromRail(180, width), 1);
+  });
+});
+
+describe('lateralityNextFromControlInput', () => {
+  it('steps from increment/decrement actions and arrow keys', () => {
+    assert.equal(lateralityNextFromControlInput(3, 'increment'), 4);
+    assert.equal(lateralityNextFromControlInput(3, 'decrement'), 2);
+    assert.equal(lateralityNextFromControlInput(3, 'ArrowRight'), 4);
+    assert.equal(lateralityNextFromControlInput(3, 'ArrowLeft'), 2);
+    assert.equal(lateralityNextFromControlInput(3, 'ArrowUp'), 4);
+    assert.equal(lateralityNextFromControlInput(3, 'ArrowDown'), 2);
+  });
+
+  it('returns null at clamps, when swapping, or for unknown actions', () => {
+    assert.equal(lateralityNextFromControlInput(1, 'decrement'), null);
+    assert.equal(lateralityNextFromControlInput(5, 'increment'), null);
+    assert.equal(lateralityNextFromControlInput(3, 'increment', { swapping: true }), null);
+    assert.equal(lateralityNextFromControlInput(3, 'decrementX'), null);
+    assert.equal(lateralityNextFromControlInput(3, 'Enter'), null);
+  });
+
+  it('requires the real increment action name (mutation guard)', () => {
+    assert.equal(lateralityNextFromControlInput(2, 'increment'), 3);
+    assert.equal(lateralityNextFromControlInput(2, 'decrementX'), null);
   });
 });
 

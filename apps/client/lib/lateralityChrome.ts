@@ -14,9 +14,6 @@ export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 /** Label + rail stacked under the card. */
 export const LATERALITY_CONTROL_HEIGHT = LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
 
-/** @deprecated Use LATERALITY_CONTROL_HEIGHT — kept for a short transition window. */
-export const LATERALITY_SUBMENU_HEIGHT = LATERALITY_CONTROL_HEIGHT;
-
 /** Comfortable tap target size (≥44). */
 export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;
 

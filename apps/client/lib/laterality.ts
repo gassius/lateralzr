@@ -65,6 +65,53 @@ export function lateralityStepFromX(x: number, width: number): LateralityGrade {
   return (index + 1) as LateralityGrade;
 }
 
+export type LateralityControlGate = {
+  /** True while a neighborhood swap is in flight — control commits are inert. */
+  swapping?: boolean;
+};
+
+/**
+ * Grade to commit from a rail tap/pan x. Null when disabled (swap in flight).
+ */
+export function lateralityCommitFromRail(
+  x: number,
+  width: number,
+  gate: LateralityControlGate = {},
+): LateralityGrade | null {
+  if (gate.swapping) return null;
+  return lateralityStepFromX(x, width);
+}
+
+/**
+ * Next grade from an a11y action name or web key. Null when unrecognized,
+ * disabled (swap in flight), or the step would not change the grade (clamps).
+ */
+export function lateralityNextFromControlInput(
+  grade: number,
+  actionOrKey: string,
+  gate: LateralityControlGate = {},
+): LateralityGrade | null {
+  if (gate.swapping) return null;
+  const current = clampLaterality(grade);
+  let delta: -1 | 1 | null = null;
+  if (
+    actionOrKey === 'increment' ||
+    actionOrKey === 'ArrowRight' ||
+    actionOrKey === 'ArrowUp'
+  ) {
+    delta = 1;
+  } else if (
+    actionOrKey === 'decrement' ||
+    actionOrKey === 'ArrowLeft' ||
+    actionOrKey === 'ArrowDown'
+  ) {
+    delta = -1;
+  }
+  if (delta == null) return null;
+  const next = stepLaterality(current, delta);
+  return next === current ? null : next;
+}
+
 export function lateralityGradeLabelKey(grade: number): MessageKey {
   return LATERALITY_LABEL_KEYS[clampLaterality(grade)];
 }

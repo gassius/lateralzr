@@ -19,4 +19,38 @@ test.describe('laterality bar', () => {
       });
     }
   }
+
+  test('tapping the 5th rail position selects Random entry and requests laterality 5', async ({
+    page,
+  }) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=1&locale=en');
+    await expect(page.getByTestId('laterality-label')).toContainText('Laterality · Same domain');
+
+    const rail = page.getByTestId('laterality-rail');
+    const box = await rail.boundingBox();
+    expect(box, 'laterality-rail bounding box').toBeTruthy();
+    if (!box) throw new Error('laterality-rail has no bounding box');
+
+    const relationshipsWithFive = page.waitForRequest((req) => {
+      if (!req.url().includes('/api/concepts/relationships') || req.method() !== 'POST') {
+        return false;
+      }
+      try {
+        const body = req.postDataJSON() as { laterality?: number };
+        return body?.laterality === 5;
+      } catch {
+        return false;
+      }
+    });
+
+    // 5th of 5 equal segments — click near the right edge of the rail.
+    await rail.click({
+      position: { x: Math.floor(box.width * 0.92), y: Math.floor(box.height / 2) },
+    });
+
+    await expect(page.getByTestId('laterality-label')).toContainText(
+      'Laterality · Random entry',
+    );
+    await relationshipsWithFive;
+  });
 });

@@ -25,12 +25,13 @@ import {
 import {
   clampLaterality,
   lateralityA11yText,
+  lateralityCommitFromRail,
   lateralityControlDisabled,
   lateralityGradeLabelKey,
+  lateralityNextFromControlInput,
   lateralityStepFromX,
   MAX_LATERALITY,
   MIN_LATERALITY,
-  stepLaterality,
   type LateralityGrade,
 } from '@/lib/laterality';
 
@@ -123,16 +124,6 @@ export function LateralityControl({
   );
   const a11yText = lateralityA11yText(displayGrade);
 
-  const commitGrade = useCallback(
-    (next: LateralityGrade) => {
-      if (disabled) return;
-      const clamped = clampLaterality(next);
-      if (clamped === grade && previewGrade == null) return;
-      onSelectLaterality(clamped);
-    },
-    [disabled, grade, onSelectLaterality, previewGrade],
-  );
-
   const previewAt = useCallback(
     (x: number) => {
       if (disabled) return;
@@ -143,12 +134,12 @@ export function LateralityControl({
 
   const commitAt = useCallback(
     (x: number) => {
-      if (disabled) return;
-      const next = lateralityStepFromX(x, railWidthRef.current);
+      const next = lateralityCommitFromRail(x, railWidthRef.current, { swapping });
       setPreviewGrade(null);
+      if (next == null) return;
       onSelectLaterality(next);
     },
-    [disabled, onSelectLaterality],
+    [onSelectLaterality, swapping],
   );
 
   const endPreview = useCallback(() => {
@@ -188,28 +179,22 @@ export function LateralityControl({
 
   const onAccessibilityAction = useCallback(
     (event: AccessibilityActionEvent) => {
-      if (disabled) return;
-      const action = event.nativeEvent.actionName;
-      if (action === 'increment') {
-        commitGrade(stepLaterality(grade, 1));
-      } else if (action === 'decrement') {
-        commitGrade(stepLaterality(grade, -1));
-      }
+      const next = lateralityNextFromControlInput(grade, event.nativeEvent.actionName, {
+        swapping,
+      });
+      if (next == null) return;
+      onSelectLaterality(next);
     },
-    [commitGrade, disabled, grade],
+    [grade, onSelectLaterality, swapping],
   );
 
   const onKeyDown = useCallback(
     (event: NativeSyntheticEvent<{ key: string }>) => {
-      if (disabled) return;
-      const key = event.nativeEvent.key;
-      if (key === 'ArrowRight' || key === 'ArrowUp') {
-        commitGrade(stepLaterality(grade, 1));
-      } else if (key === 'ArrowLeft' || key === 'ArrowDown') {
-        commitGrade(stepLaterality(grade, -1));
-      }
+      const next = lateralityNextFromControlInput(grade, event.nativeEvent.key, { swapping });
+      if (next == null) return;
+      onSelectLaterality(next);
     },
-    [commitGrade, disabled, grade],
+    [grade, onSelectLaterality, swapping],
   );
 
   const webFocusProps =
