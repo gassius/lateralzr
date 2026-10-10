@@ -58,6 +58,17 @@ describe('cardFlipFaceStyle', () => {
     assert.equal(cardFlipFaceStyle(0.01, 'back', true).opacity, 1);
   });
 
+  it('under RM: settled hidden face uses scale(0) so layout box collapses', () => {
+    assert.deepEqual(cardFlipFaceStyle(1, 'front', true).transform, [{ scale: 0 }]);
+    assert.deepEqual(cardFlipFaceStyle(0, 'back', true).transform, [{ scale: 0 }]);
+    assert.deepEqual(cardFlipFaceStyle(0, 'front', true).transform, []);
+    assert.deepEqual(cardFlipFaceStyle(1, 'back', true).transform, []);
+    assert.equal(
+      cardFlipTransformHasRotateOrPerspective(cardFlipFaceStyle(1, 'front', true).transform),
+      false,
+    );
+  });
+
   it('full motion: rotateY + perspective at mid flip', () => {
     const front = cardFlipFaceStyle(0.5, 'front', false);
     const back = cardFlipFaceStyle(0.5, 'back', false);
