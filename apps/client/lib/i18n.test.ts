@@ -3,11 +3,17 @@ import { afterEach, describe, it } from 'node:test';
 import {
   DEFAULT_LOCALE,
   getActiveLocale,
+  MESSAGE_KEYS,
+  messages,
   normalizeLocaleTag,
   resolveLocalePreference,
   setActiveLocale,
   t,
 } from '../lib/i18n.ts';
+
+function placeholderNames(text: string): string[] {
+  return [...text.matchAll(/\{([A-Za-z0-9_]+)\}/g)].map((match) => match[1]!).sort();
+}
 
 afterEach(() => {
   setActiveLocale(DEFAULT_LOCALE);
@@ -22,6 +28,44 @@ describe('i18n locale catalogs', () => {
     assert.equal(t('swipeCoach'), 'Desliza para otra idea');
     assert.equal(t('flipCoach'), 'Toca la tarjeta para saber más');
     assert.equal(t('illustrationFor', { concept: 'silencio' }), 'Ilustración de silencio');
+  });
+
+  it('keeps en and es catalogs aligned with MESSAGE_KEYS (no t() fallback)', () => {
+    const expected = [...MESSAGE_KEYS].sort();
+    assert.deepEqual(Object.keys(messages.en).sort(), expected);
+    assert.deepEqual(Object.keys(messages.es).sort(), expected);
+
+    for (const key of MESSAGE_KEYS) {
+      const en = messages.en[key];
+      const es = messages.es[key];
+      assert.equal(typeof en, 'string', `en.${key} should be a string`);
+      assert.equal(typeof es, 'string', `es.${key} should be a string`);
+      assert.ok(en.trim().length > 0, `expected non-empty en for ${key}`);
+      assert.ok(es.trim().length > 0, `expected non-empty es for ${key}`);
+      assert.deepEqual(
+        placeholderNames(en),
+        placeholderNames(es),
+        `placeholder set mismatch for ${key}`,
+      );
+    }
+  });
+
+  it('uses the approved v3.3 noDescription copy', () => {
+    setActiveLocale('en');
+    assert.equal(t('noDescription'), "There isn't a description for this concept yet.");
+    setActiveLocale('es');
+    assert.equal(t('noDescription'), 'Este concepto aún no tiene descripción.');
+  });
+
+  it('exposes approved laterality grade labels', () => {
+    setActiveLocale('en');
+    assert.equal(t('lateralityGrade1'), 'Same domain');
+    assert.equal(t('lateralityGrade5'), 'Random entry');
+    assert.equal(t('lateralityA11yValue', { label: 'Provocation', n: '4' }), 'Provocation, 4 of 5');
+    setActiveLocale('es');
+    assert.equal(t('lateralityGrade1'), 'Mismo dominio');
+    assert.equal(t('lateralityGrade5'), 'Entrada aleatoria');
+    assert.equal(t('lateralityA11yValue', { label: 'Provocación', n: '4' }), 'Provocación, 4 de 5');
   });
 
   it('normalizes BCP-47 tags onto supported locales', () => {
