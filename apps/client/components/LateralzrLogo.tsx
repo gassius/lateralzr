@@ -23,6 +23,10 @@ const AnimatedSvgXml = Animated.createAnimatedComponent(SvgXml);
 const VB_W = 286.14209;
 const VB_H = 254.62924;
 
+/** Launch / about lockup: 160–200 px wide (guide §5 / Lz-23). */
+const LOCKUP_MIN = 160;
+const LOCKUP_MAX = 200;
+
 function wrapDotPath(fragment: string) {
   return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VB_W} ${VB_H}"><g transform="translate(-5758.4912,-272.80185)">${fragment}</g></svg>`;
 }
@@ -34,7 +38,7 @@ type LateralzrLogoProps = {
 /** Four white circle paths (path188–190 + path202) pulse in sequence over the static white rest layer. */
 export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
   const { width: winW } = useWindowDimensions();
-  const w = Math.min(winW * 0.72, 260);
+  const w = Math.min(Math.max(winW * 0.48, LOCKUP_MIN), LOCKUP_MAX);
   const h = w * (VB_H / VB_W);
 
   const o0 = useSharedValue(1);
