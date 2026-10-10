@@ -24,6 +24,7 @@ const {
   GITHUB_SERVER_URL = 'https://github.com',
   GITHUB_EVENT_PATH,
   SCREENSHOTS_DIR,
+  ARTIFACT_HEAD_SHA: ARTIFACT_HEAD_SHA_ENV,
 } = process.env;
 
 if (!GITHUB_TOKEN || !GITHUB_REPOSITORY || !GITHUB_EVENT_PATH || !SCREENSHOTS_DIR) {
@@ -50,10 +51,23 @@ if (!pr) {
 const isFork = Boolean(pr.head?.repo?.full_name && pr.head.repo.full_name !== GITHUB_REPOSITORY);
 const [owner, repo] = GITHUB_REPOSITORY.split('/');
 const artifactUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}`;
-const shortSha = GITHUB_SHA.slice(0, 12);
 const prDirName = `pr-${pr.number}`;
 const treeUrl = `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/tree/${ORPHAN_BRANCH}/${prDirName}`;
 const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/${prDirName}`;
+
+/** Tip stamped into the downloaded artifact — never trust workflow-run github.sha alone. */
+function readArtifactHeadSha() {
+  const fromEnv = (ARTIFACT_HEAD_SHA_ENV || '').trim();
+  if (fromEnv) return fromEnv;
+  const shaFile = path.join(path.dirname(SCREENSHOTS), 'artifact-head-sha.txt');
+  if (fs.existsSync(shaFile)) {
+    return fs.readFileSync(shaFile, 'utf8').trim();
+  }
+  return '';
+}
+
+const artifactHeadSha = readArtifactHeadSha();
+const shortSha = (artifactHeadSha || GITHUB_SHA || 'unknown').slice(0, 12);
 
 function listPngs(dir) {
   if (!fs.existsSync(dir)) return [];
@@ -84,7 +98,32 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
-function pushOrphan() {
+async function assertArtifactMatchesCurrentHead(phase) {
+  if (!artifactHeadSha) {
+    throw new Error(
+      `${phase}: artifact-head-sha missing (env ARTIFACT_HEAD_SHA or artifact-head-sha.txt); refuse publish`,
+    );
+  }
+  const livePr = await gh(`/repos/${owner}/${repo}/pulls/${pr.number}`);
+  const currentHeadSha = livePr?.head?.sha;
+  if (!currentHeadSha) {
+    throw new Error(`${phase}: could not resolve current head SHA for PR #${pr.number}`);
+  }
+  if (artifactHeadSha !== currentHeadSha) {
+    console.log(
+      `${phase}: stale — artifact ${artifactHeadSha} != current PR head ${currentHeadSha}; skip.`,
+    );
+    return false;
+  }
+  return true;
+}
+
+// Publish-time guard: artifact tip vs live API head (not workflow-run SHA).
+if (!(await assertArtifactMatchesCurrentHead('pre-publish'))) {
+  process.exit(0);
+}
+
+async function pushOrphan() {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-shots-'));
   const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
 
@@ -123,6 +162,12 @@ function pushOrphan() {
     sh(`git commit -m "e2e screenshots ${prDirName} ${shortSha}"`, work);
   } catch {
     console.log('No screenshot changes to commit on orphan branch.');
+  }
+
+  // Re-check immediately before push so a tip move during staging does not write.
+  // Do not cancel an in-flight git push; skip only when we have not pushed yet.
+  if (!(await assertArtifactMatchesCurrentHead('pre-push'))) {
+    return false;
   }
 
   if (hasRemoteBranch) sh(`git push ${remote} HEAD:${ORPHAN_BRANCH}`, work);
@@ -188,7 +233,12 @@ function buildBody(published) {
 let published = false;
 if (!isFork && fs.existsSync(SCREENSHOTS) && listPngs(SCREENSHOTS).length) {
   try {
-    published = pushOrphan();
+    published = await pushOrphan();
+    // Tip moved after staging: do not overwrite a newer sticky comment.
+    if (!published) {
+      console.log('Orphan publish skipped after pre-push guard; leave sticky comment unchanged.');
+      process.exit(0);
+    }
   } catch (err) {
     console.warn('Orphan branch push failed; comment without tree link.', err);
   }
