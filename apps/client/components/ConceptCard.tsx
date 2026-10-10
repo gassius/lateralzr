@@ -417,13 +417,22 @@ export function ConceptCard({
     rhythm.scrollJustify,
   );
 
+  // Apply via textStyle so ?e2eTextScale=2 reaches the back (rhythm constants are unscaled).
+  const backBodyType = textStyle('body');
+  const e2eTextScaleFactor = Math.max(
+    1,
+    ((backBodyType.fontSize as number) ?? rhythm.descriptionFontSize) /
+      rhythm.descriptionFontSize,
+  );
+  const backLinkFontSize = Math.round(16 * e2eTextScaleFactor);
+
   const backDescription = (
     <Text
       style={[
         styles.description,
         {
-          fontSize: rhythm.descriptionFontSize,
-          lineHeight: rhythm.descriptionLineHeight,
+          fontSize: backBodyType.fontSize,
+          lineHeight: backBodyType.lineHeight,
           marginBottom: rhythm.descriptionMarginBottom,
         },
       ]}
@@ -435,7 +444,7 @@ export function ConceptCard({
 
   // 48 px target via hitSlop only — minHeight would pad the visible underline past the
   // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
-  const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - 16) / 2));
+  const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - backLinkFontSize) / 2));
   const backWiki = item.wikiUrl ? (
     <Pressable
       accessibilityRole="link"
@@ -445,7 +454,7 @@ export function ConceptCard({
       style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
       testID="card-back-wiki"
     >
-      <Text style={styles.link}>{t('wikipedia')}</Text>
+      <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
     </Pressable>
   ) : null;
 
