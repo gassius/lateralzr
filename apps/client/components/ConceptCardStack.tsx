@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -24,12 +24,15 @@ import {
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
-  SWIPE_ENTER_SHIFT_PX,
+  SWIPE_EASING,
   SWIPE_RETURN_MS,
-  SWIPE_SETTLE_MS,
   cardSwipeFrontTransform,
   cardSwipeReturnOverlayTransform,
+  initialPrefersReducedMotion,
   swipeCommitDirection,
+  swipeCommitDurationMs,
+  swipeEnterShiftPx,
+  swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
 import { clampComplexity } from '@/lib/complexityStorage';
 import {
@@ -80,6 +83,10 @@ export function ConceptCardStack({
   const translateY = useSharedValue(0);
   const enterX = useSharedValue(0);
   const enterOpacity = useSharedValue(1);
+  /** Multiplies front opacity during RM commit cross-fade (1 → 0). */
+  const frontCommitOpacity = useSharedValue(1);
+  /** Peer (behind / return overlay) opacity during RM commit cross-fade (0 → 1). */
+  const peerCommitOpacity = useSharedValue(0);
   const swipeAnimating = useSharedValue(false);
   const canSwipeRightSV = useSharedValue(0);
   const showDeckStatusSV = useSharedValue(0);
@@ -89,6 +96,8 @@ export function ConceptCardStack({
   const returnOverlaySuppressSV = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
   const [containerW, setContainerW] = useState<number>(0);
+  const [reduceMotion, setReduceMotion] = useState(initialPrefersReducedMotion);
+  const reduceMotionSV = useSharedValue(initialPrefersReducedMotion() ? 1 : 0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
   const [returnOverlayLockedIndex, setReturnOverlayLockedIndex] = useState<number | null>(null);
   /** While swipe-left commit runs, pin behind card to this index (the “next” card under the front) before index advances. */
@@ -122,6 +131,24 @@ export function ConceptCardStack({
   useEffect(() => {
     flippedRef.current = flipped;
   }, [flipped]);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
+      setReduceMotion(enabled);
+    });
+    return () => {
+      mounted = false;
+      sub?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    reduceMotionSV.value = reduceMotion ? 1 : 0;
+  }, [reduceMotion, reduceMotionSV]);
 
   const cardWidth = Math.max(0, containerW);
   const desiredCardHeight = cardWidth > 0 ? cardWidth * CARD_ASPECT : 0;
@@ -278,38 +305,34 @@ export function ConceptCardStack({
       swipeAnimating.value = false;
       coachPeekX.value = 0;
       flipPeek.value = 0;
+      frontCommitOpacity.value = 1;
+      peerCommitOpacity.value = 0;
     })();
     translateX.value = 0;
     translateY.value = 0;
     swipeAnimating.value = false;
     coachPeekX.value = 0;
     flipPeek.value = 0;
+    frontCommitOpacity.value = 1;
+    peerCommitOpacity.value = 0;
     setFlipped(false);
 
-    if (intent === 'forward') {
-      // Next card fades in and shifts from +8 → 0 (outgoing exited left).
-      enterX.value = SWIPE_ENTER_SHIFT_PX;
-      enterOpacity.value = 0;
-      enterX.value = withTiming(0, {
-        duration: SWIPE_SETTLE_MS,
-        easing: Easing.out(Easing.cubic),
-      });
-      enterOpacity.value = withTiming(1, {
-        duration: SWIPE_SETTLE_MS,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else if (intent === 'backward' || intent === 'backwardGesture') {
-      // Backtrack mirrors: shift from −8 → 0.
-      enterX.value = -SWIPE_ENTER_SHIFT_PX;
-      enterOpacity.value = 0;
-      enterX.value = withTiming(0, {
-        duration: SWIPE_SETTLE_MS,
-        easing: Easing.out(Easing.cubic),
-      });
-      enterOpacity.value = withTiming(1, {
-        duration: SWIPE_SETTLE_MS,
-        easing: Easing.out(Easing.cubic),
-      });
+    const rm = reduceMotionSV.value > 0.5;
+    if (intent === 'forward' || intent === 'backward' || intent === 'backwardGesture') {
+      // RM: cross-fade already completed during commit — land settled (no 8 px shift).
+      // Full motion: fade 0→1 + ±8 → 0 over settle token.
+      if (rm) {
+        enterX.value = 0;
+        enterOpacity.value = 1;
+      } else {
+        const forward = intent === 'forward';
+        const shift = swipeEnterShiftPx(false, forward);
+        const duration = swipeCommitDurationMs(false);
+        enterX.value = shift;
+        enterOpacity.value = 0;
+        enterX.value = withTiming(0, { duration, easing: SWIPE_EASING });
+        enterOpacity.value = withTiming(1, { duration, easing: SWIPE_EASING });
+      }
     } else {
       enterX.value = 0;
       enterOpacity.value = 1;
@@ -438,53 +461,64 @@ export function ConceptCardStack({
         if (swipeAnimating.value) return;
         const w = Math.max(1, cardWidthSV.value);
         const direction = swipeCommitDirection(e.translationX, e.velocityX, w);
+        const rm = reduceMotionSV.value > 0.5;
+        const commitMs = swipeCommitDurationMs(rm);
 
         if (direction < 0) {
           if (showDeckStatusSV.value === 1) {
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
-              easing: Easing.out(Easing.cubic),
+              easing: SWIPE_EASING,
             });
             return;
           }
           swipeAnimating.value = true;
           runOnJS(lockBehindIndexForLeftCommit)();
+          if (!swipeShouldSlideOutOnCommit(rm)) {
+            // RM: snap drag, cross-fade outgoing → incoming (no slide-out / no 8 px shift).
+            translateX.value = 0;
+            frontCommitOpacity.value = 1;
+            peerCommitOpacity.value = 0;
+            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              if (finished) runOnJS(commitSwipeLeft)();
+            });
+            return;
+          }
           const target = -(w + 120);
-          translateX.value = withTiming(
-            target,
-            { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
-            (finished) => {
-              if (finished) {
-                runOnJS(commitSwipeLeft)();
-              }
-            },
-          );
+          translateX.value = withTiming(target, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (finished) runOnJS(commitSwipeLeft)();
+          });
           return;
         }
         if (direction > 0) {
           if (canSwipeRightSV.value === 0) {
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
-              easing: Easing.out(Easing.cubic),
+              easing: SWIPE_EASING,
             });
             return;
           }
           swipeAnimating.value = true;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
-          translateX.value = withTiming(
-            w,
-            { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
-            (finished) => {
-              if (finished) {
-                runOnJS(commitSwipeRight)();
-              }
-            },
-          );
+          if (!swipeShouldSlideOutOnCommit(rm)) {
+            translateX.value = 0;
+            frontCommitOpacity.value = 1;
+            peerCommitOpacity.value = 0;
+            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              if (finished) runOnJS(commitSwipeRight)();
+            });
+            return;
+          }
+          translateX.value = withTiming(w, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (finished) runOnJS(commitSwipeRight)();
+          });
           return;
         }
         translateX.value = withTiming(0, {
           duration: SWIPE_RETURN_MS,
-          easing: Easing.out(Easing.cubic),
+          easing: SWIPE_EASING,
         });
       },
     );
@@ -518,7 +552,7 @@ export function ConceptCardStack({
         if (direction === 0) {
           translateY.value = withTiming(0, {
             duration: SWIPE_RETURN_MS,
-            easing: Easing.out(Easing.cubic),
+            easing: SWIPE_EASING,
           });
           return;
         }
@@ -527,22 +561,28 @@ export function ConceptCardStack({
         if (showDeckStatusSV.value === 1) {
           translateY.value = withTiming(0, {
             duration: SWIPE_RETURN_MS,
-            easing: Easing.out(Easing.cubic),
+            easing: SWIPE_EASING,
           });
           return;
         }
         swipeAnimating.value = true;
         runOnJS(lockBehindIndexForLeftCommit)();
+        const rm = reduceMotionSV.value > 0.5;
+        const commitMs = swipeCommitDurationMs(rm);
+        if (!swipeShouldSlideOutOnCommit(rm)) {
+          translateY.value = 0;
+          frontCommitOpacity.value = 1;
+          peerCommitOpacity.value = 0;
+          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (finished) runOnJS(commitSwipeVertical)(vertical);
+          });
+          return;
+        }
         const target = vertical === 'up' ? -(h + 140) : h + 140;
-        translateY.value = withTiming(
-          target,
-          { duration: SWIPE_SETTLE_MS, easing: Easing.out(Easing.cubic) },
-          (finished) => {
-            if (finished) {
-              runOnJS(commitSwipeVertical)(vertical);
-            }
-          },
-        );
+        translateY.value = withTiming(target, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          if (finished) runOnJS(commitSwipeVertical)(vertical);
+        });
       },
     );
 
@@ -559,19 +599,36 @@ export function ConceptCardStack({
     const tx = (translateX.value < 0 ? translateX.value : 0) + peekX;
     const x = enterX.value + tx;
     return {
-      opacity: enterOpacity.value,
+      opacity: enterOpacity.value * frontCommitOpacity.value,
       transform: cardSwipeFrontTransform(x, ty),
+    };
+  });
+
+  /** Preload peer — invisible except during RM commit cross-fade. */
+  const behindAnimatedStyle = useAnimatedStyle(() => {
+    const peer = peerCommitOpacity.value;
+    const showForRm = reduceMotionSV.value > 0.5 && peer > 0.001;
+    return {
+      opacity: showForRm ? peer : 0,
+      transform: [{ translateX: showForRm ? 0 : BEHIND_PEEK_OFFSCREEN_X }],
     };
   });
 
   /**
    * Previous card sliding in from the left ON TOP when swiping right.
-   * Translate only; commit uses backwardGesture settle (opacity + ±8 px).
+   * Translate only; RM commit cross-fades in place via peerCommitOpacity.
    */
   const returnOverlayStyle = useAnimatedStyle(() => {
     const w = Math.max(1, cardWidthSV.value);
     const active = translateX.value > 0;
     const suppressed = returnOverlaySuppressSV.value > 0.5;
+    const rmPeer = reduceMotionSV.value > 0.5 && peerCommitOpacity.value > 0.001;
+    if (rmPeer) {
+      return {
+        opacity: suppressed ? 0 : peerCommitOpacity.value,
+        transform: cardSwipeReturnOverlayTransform(0),
+      };
+    }
     const tx = active ? -w + translateX.value : -w;
     const baseOpacity = active && !suppressed ? 1 : 0;
     return {
@@ -609,14 +666,18 @@ export function ConceptCardStack({
         <GestureDetector gesture={composed}>
           <View style={styles.gestureFill}>
           {showBehindNext ? (
-            <View style={styles.behindWrap} pointerEvents="none" accessibilityElementsHidden>
+            <Animated.View
+              style={[styles.behindWrap, behindAnimatedStyle]}
+              pointerEvents="none"
+              accessibilityElementsHidden
+            >
               <ConceptCardForIndex
                 concepts={concepts}
                 currentIndex={behindDisplayIndex}
                 flipped={false}
                 preloadedMediaUrls={preloadedMediaUrls}
               />
-            </View>
+            </Animated.View>
           ) : null}
 
           <Animated.View
@@ -717,7 +778,7 @@ const styles = StyleSheet.create({
   gestureFill: {
     ...StyleSheet.absoluteFillObject,
   },
-  /** Flat preload peer — invisible, no depth tint / offset (Lz-33). */
+  /** Flat preload peer — no depth tint; visibility driven by behindAnimatedStyle (Lz-33). */
   behindWrap: {
     position: 'absolute',
     left: 0,
@@ -725,8 +786,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1,
-    opacity: 0,
-    transform: [{ translateX: BEHIND_PEEK_OFFSCREEN_X }],
   },
   frontWrap: {
     position: 'absolute',

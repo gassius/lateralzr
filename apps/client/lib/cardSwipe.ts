@@ -3,6 +3,7 @@
  *
  * 1:1 horizontal drag, token thresholds, no tilt / rotate / depth stack.
  * Timing and commit ratios come from `motion.*` tokens.
+ * Reduced motion: cross-fade commits over `motion.reducedMotionCrossfadeMs` (no 8 px shift / slide-out).
  */
 
 import { motion, spacing } from '@/theme/tokens';
@@ -19,8 +20,22 @@ export const SWIPE_RETURN_MS = motion.swipeReturnMs;
 /** Commit settle: fade + 8 px shift (token: motion.swipeSettleMs). */
 export const SWIPE_SETTLE_MS = motion.swipeSettleMs;
 
+/** Reduced-motion commit cross-fade (token: motion.reducedMotionCrossfadeMs). */
+export const SWIPE_REDUCED_MOTION_CROSSFADE_MS = motion.reducedMotionCrossfadeMs;
+
 /** Incoming-card shift distance (spacing step 8). */
 export const SWIPE_ENTER_SHIFT_PX = spacing[1];
+
+/**
+ * Settled non-bouncy ease-out for return / settle / RM cross-fade.
+ * Matches Reanimated `Easing.out(Easing.cubic)` (1 − (1−t)³) without importing
+ * reanimated into this pure module (keeps `node:test` loadable).
+ */
+export function SWIPE_EASING(t: number): number {
+  'worklet';
+  const x = 1 - t;
+  return 1 - x * x * x;
+}
 
 /**
  * Sync `matchMedia` on web. `null` on native / when matchMedia is missing
@@ -40,7 +55,7 @@ export function readWebPrefersReducedMotion(): boolean | null {
 /**
  * First-paint Reduce Motion flag.
  * Web: live matchMedia. Native / unknown: optimistic ON so a Reduce Motion
- * user never sees motion chrome before AccessibilityInfo resolves.
+ * user never sees the full settle / slide-out before AccessibilityInfo resolves.
  */
 export function resolveInitialReducedMotion(webMatchMedia: boolean | null): boolean {
   return webMatchMedia ?? true;
@@ -48,6 +63,28 @@ export function resolveInitialReducedMotion(webMatchMedia: boolean | null): bool
 
 export function initialPrefersReducedMotion(): boolean {
   return resolveInitialReducedMotion(readWebPrefersReducedMotion());
+}
+
+/** Commit exit / settle duration: RM cross-fade token, else settle token. */
+export function swipeCommitDurationMs(reduceMotion: boolean): number {
+  'worklet';
+  return reduceMotion ? SWIPE_REDUCED_MOTION_CROSSFADE_MS : SWIPE_SETTLE_MS;
+}
+
+/**
+ * Incoming-card enter shift. Under RM: 0 (cross-fade only).
+ * Forward (left / vertical commit) uses +8; backtrack uses −8.
+ */
+export function swipeEnterShiftPx(reduceMotion: boolean, forward: boolean): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  return forward ? SWIPE_ENTER_SHIFT_PX : -SWIPE_ENTER_SHIFT_PX;
+}
+
+/** Under RM commits cross-fade in place — no slide-out translate. */
+export function swipeShouldSlideOutOnCommit(reduceMotion: boolean): boolean {
+  'worklet';
+  return !reduceMotion;
 }
 
 /**

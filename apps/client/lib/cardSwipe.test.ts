@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   SWIPE_COMMIT_RATIO,
+  SWIPE_EASING,
   SWIPE_ENTER_SHIFT_PX,
   SWIPE_FLING_PX_PER_MS,
+  SWIPE_REDUCED_MOTION_CROSSFADE_MS,
   SWIPE_RETURN_MS,
   SWIPE_SETTLE_MS,
   cardSwipeFrontTransform,
@@ -13,13 +15,16 @@ import {
   resolveInitialReducedMotion,
   shouldCommitSwipe,
   swipeCommitDirection,
+  swipeCommitDurationMs,
+  swipeEnterShiftPx,
+  swipeShouldSlideOutOnCommit,
 } from './cardSwipe.ts';
 import { motion, spacing } from '../theme/tokens.ts';
 
 const CARD_W = 360;
 
 describe('swipe motion tokens', () => {
-  it('pins commit / fling / settle / return from motion.*', () => {
+  it('pins commit / fling / settle / return / RM cross-fade from motion.*', () => {
     assert.equal(SWIPE_COMMIT_RATIO, motion.swipeCommitRatio);
     assert.equal(SWIPE_COMMIT_RATIO, 0.3);
     assert.equal(SWIPE_FLING_PX_PER_MS, motion.swipeFlingPxPerMs);
@@ -28,6 +33,8 @@ describe('swipe motion tokens', () => {
     assert.equal(SWIPE_SETTLE_MS, 260);
     assert.equal(SWIPE_RETURN_MS, motion.swipeReturnMs);
     assert.equal(SWIPE_RETURN_MS, 200);
+    assert.equal(SWIPE_REDUCED_MOTION_CROSSFADE_MS, motion.reducedMotionCrossfadeMs);
+    assert.equal(SWIPE_REDUCED_MOTION_CROSSFADE_MS, 150);
     assert.equal(SWIPE_ENTER_SHIFT_PX, spacing[1]);
     assert.equal(SWIPE_ENTER_SHIFT_PX, 8);
   });
@@ -76,6 +83,30 @@ describe('quiet swipe transforms', () => {
         assert.ok(key === 'translateX' || key === 'translateY');
       }
     }
+  });
+});
+
+describe('reduced-motion swipe commit branch', () => {
+  it('uses 150 ms cross-fade, no enter shift, no slide-out', () => {
+    assert.equal(swipeCommitDurationMs(true), SWIPE_REDUCED_MOTION_CROSSFADE_MS);
+    assert.equal(swipeCommitDurationMs(true), 150);
+    assert.equal(swipeEnterShiftPx(true, true), 0);
+    assert.equal(swipeEnterShiftPx(true, false), 0);
+    assert.equal(swipeShouldSlideOutOnCommit(true), false);
+  });
+
+  it('keeps settle timing / ±8 shift / slide-out when RM is off', () => {
+    assert.equal(swipeCommitDurationMs(false), SWIPE_SETTLE_MS);
+    assert.equal(swipeEnterShiftPx(false, true), SWIPE_ENTER_SHIFT_PX);
+    assert.equal(swipeEnterShiftPx(false, false), -SWIPE_ENTER_SHIFT_PX);
+    assert.equal(swipeShouldSlideOutOnCommit(false), true);
+  });
+
+  it('SWIPE_EASING is cubic ease-out (matches Easing.out(Easing.cubic))', () => {
+    assert.equal(SWIPE_EASING(0), 0);
+    assert.equal(SWIPE_EASING(1), 1);
+    assert.ok(SWIPE_EASING(0.5) > 0.5);
+    assert.ok(Math.abs(SWIPE_EASING(0.5) - (1 - 0.5 ** 3)) < 1e-12);
   });
 });
 
