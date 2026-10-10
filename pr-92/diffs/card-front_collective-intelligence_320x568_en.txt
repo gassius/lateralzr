@@ -1,4 +1,4 @@
 Baseline diff for card-front_collective-intelligence_320x568_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/card-front_collective-intelligence_320x568_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/card-front_collective-intelligence_320x568_en.png
-diff ratio 0.0336 > 0.01 (24412 px)
+diff ratio 0.0351 > 0.01 (25551 px)
