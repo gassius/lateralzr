@@ -128,7 +128,17 @@ function pushOrphan(primaryFiles) {
   return primaryFiles.map((f) => ({ name: f, url: `${base}/${f}` }));
 }
 
-function buildBody(embeds, diffPngs) {
+function loadDiffSummary() {
+  const summaryPath = path.join(SCREENSHOTS, 'diffs', 'summary.json');
+  if (!fs.existsSync(summaryPath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+function buildBody(embeds) {
   const lines = [
     MARKER,
     '### Agent: GasNet Implementer',
@@ -139,6 +149,7 @@ function buildBody(embeds, diffPngs) {
     `- SHA: \`${shortSha}\``,
     '- Artifact: **client-e2e-screenshots** (captures + `diffs/` + HTML report)',
     '- Baseline diffs: **report-only** (1% threshold) until Critiquito approves; `E2E_STRICT_BASELINES=1` to fail',
+    '- Demo seeds (not approved baselines): see `apps/client/e2e/baselines/DEMO-SEEDS.md`',
     '',
   ];
 
@@ -151,29 +162,39 @@ function buildBody(embeds, diffPngs) {
     }
   }
 
-  const diffDir = path.join(SCREENSHOTS, 'diffs');
-  const diffImages = fs.existsSync(diffDir)
-    ? fs.readdirSync(diffDir).filter((f) => f.endsWith('.png')).sort()
-    : [];
-  if (diffImages.length || diffPngs.length) {
-    lines.push('#### Baseline diffs (report-only)', '');
-    const diffBase = !isFork
-      ? `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}/diffs`
-      : null;
-    for (const name of diffImages) {
-      lines.push(`- \`${name}\``);
-      if (diffBase) lines.push('', `![${name}](${diffBase}/${name})`, '');
+  const summary = loadDiffSummary();
+  const diffBase = !isFork
+    ? `https://raw.githubusercontent.com/${owner}/${repo}/${ORPHAN_BRANCH}/pr/${pr.number}/${shortSha}/diffs`
+    : null;
+
+  if (summary.length) {
+    lines.push('#### Baseline diff summary (report-only)', '');
+    lines.push('| Screen | % changed | Result | Diff |');
+    lines.push('| --- | ---: | --- | --- |');
+    for (const row of summary) {
+      const pct = typeof row.percent === 'number' ? row.percent.toFixed(2) : '?';
+      const result =
+        row.status === 'pass'
+          ? 'pass'
+          : row.status === 'over-threshold'
+            ? 'over-threshold'
+            : row.status;
+      let diffCell = '—';
+      if (row.diffImage && diffBase) {
+        diffCell = `[diff](${diffBase}/${row.diffImage})`;
+      } else if (row.status === 'size-mismatch') {
+        diffCell = 'size-mismatch';
+      }
+      lines.push(`| \`${row.file}\` | ${pct}% | ${result} | ${diffCell} |`);
     }
     lines.push('');
-  }
 
-  const notesDir = path.join(SCREENSHOTS, 'diffs');
-  if (fs.existsSync(notesDir)) {
-    const notes = fs.readdirSync(notesDir).filter((f) => f.endsWith('.txt'));
-    if (notes.length) {
-      lines.push('#### Diff notes', '');
-      for (const n of notes.slice(0, 30)) lines.push(`- \`${n}\``);
-      lines.push('');
+    const overWithImages = summary.filter((r) => r.diffImage);
+    if (overWithImages.length && diffBase) {
+      lines.push('#### Diff images', '');
+      for (const row of overWithImages) {
+        lines.push(`**${row.file}** (${row.percent.toFixed(2)}%)`, '', `![${row.diffImage}](${diffBase}/${row.diffImage})`, '');
+      }
     }
   }
 
@@ -182,7 +203,6 @@ function buildBody(embeds, diffPngs) {
 
 const allPngs = listPngs(SCREENSHOTS);
 const primary = allPngs.filter((f) => f.includes('_390x844_')).sort();
-const diffPngs = listPngs(path.join(SCREENSHOTS, 'diffs')).filter((f) => f.endsWith('.diff.png'));
 
 let embeds = [];
 if (!isFork && primary.length) {
@@ -193,7 +213,7 @@ if (!isFork && primary.length) {
   }
 }
 
-const body = buildBody(embeds, diffPngs);
+const body = buildBody(embeds);
 const comments = await gh(`/repos/${owner}/${repo}/issues/${pr.number}/comments?per_page=100`);
 const existing = Array.isArray(comments)
   ? comments.find((c) => typeof c.body === 'string' && c.body.includes(MARKER))

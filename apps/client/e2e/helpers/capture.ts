@@ -74,6 +74,34 @@ export async function capture(
   return outPath;
 }
 
+type DiffSummaryRow = {
+  file: string;
+  ratio: number;
+  percent: number;
+  threshold: number;
+  status: 'pass' | 'over-threshold' | 'size-mismatch';
+  mismatchedPixels: number;
+  diffImage?: string;
+  note?: string;
+};
+
+function writeDiffSummary(row: DiffSummaryRow): void {
+  fs.mkdirSync(DIFF_ROOT, { recursive: true });
+  const summaryPath = path.join(DIFF_ROOT, 'summary.json');
+  let rows: DiffSummaryRow[] = [];
+  if (fs.existsSync(summaryPath)) {
+    try {
+      rows = JSON.parse(fs.readFileSync(summaryPath, 'utf8')) as DiffSummaryRow[];
+    } catch {
+      rows = [];
+    }
+  }
+  rows = rows.filter((r) => r.file !== row.file);
+  rows.push(row);
+  rows.sort((a, b) => a.file.localeCompare(b.file));
+  fs.writeFileSync(summaryPath, `${JSON.stringify(rows, null, 2)}\n`, 'utf8');
+}
+
 async function compareToBaseline(
   testInfo: TestInfo,
   fileName: string,
@@ -83,17 +111,27 @@ async function compareToBaseline(
   const soft = !strictBaselinesEnabled();
   const actual = PNG.sync.read(fs.readFileSync(actualPath));
   const baseline = PNG.sync.read(fs.readFileSync(baselinePath));
+  const threshold = 0.01;
 
   if (actual.width !== baseline.width || actual.height !== baseline.height) {
-    fs.mkdirSync(DIFF_ROOT, { recursive: true });
     const stem = fileName.replace(/\.png$/, '');
     const notePath = path.join(DIFF_ROOT, `${stem}.txt`);
     const actualCopy = path.join(DIFF_ROOT, `${stem}.actual.png`);
     const baselineCopy = path.join(DIFF_ROOT, `${stem}.baseline.png`);
     const message = `size mismatch actual=${actual.width}x${actual.height} baseline=${baseline.width}x${baseline.height}`;
+    fs.mkdirSync(DIFF_ROOT, { recursive: true });
     fs.writeFileSync(notePath, `${message}\n`, 'utf8');
     fs.copyFileSync(actualPath, actualCopy);
     fs.copyFileSync(baselinePath, baselineCopy);
+    writeDiffSummary({
+      file: fileName,
+      ratio: 1,
+      percent: 100,
+      threshold,
+      status: 'size-mismatch',
+      mismatchedPixels: -1,
+      note: message,
+    });
     await testInfo.attach(`diff-note-${fileName}`, { path: notePath, contentType: 'text/plain' });
     await testInfo.attach(`diff-actual-${fileName}`, { path: actualCopy, contentType: 'image/png' });
     testInfo.annotations.push({ type: 'baseline-diff-report-only', description: `${fileName}: ${message}` });
@@ -106,12 +144,15 @@ async function compareToBaseline(
     threshold: 0.1,
   });
   const ratio = mismatched / (actual.width * actual.height);
-  const threshold = 0.01;
+  const percent = ratio * 100;
+  const over = ratio > threshold;
+  const stem = fileName.replace(/\.png$/, '');
+  const diffRel = over ? `${stem}.diff.png` : undefined;
 
-  if (ratio > threshold) {
+  if (over) {
     fs.mkdirSync(DIFF_ROOT, { recursive: true });
-    const diffPng = path.join(DIFF_ROOT, fileName.replace(/\.png$/, '.diff.png'));
-    const notePath = path.join(DIFF_ROOT, fileName.replace(/\.png$/, '.txt'));
+    const diffPng = path.join(DIFF_ROOT, diffRel!);
+    const notePath = path.join(DIFF_ROOT, `${stem}.txt`);
     fs.writeFileSync(diffPng, PNG.sync.write(diff));
     const message = `diff ratio ${ratio.toFixed(4)} > ${threshold} (${mismatched} px)`;
     fs.writeFileSync(
@@ -127,9 +168,20 @@ async function compareToBaseline(
       type: 'baseline-diff-report-only',
       description: `${fileName}: ${message}`,
     });
-    if (!soft) {
-      throw new Error(message);
-    }
+  }
+
+  writeDiffSummary({
+    file: fileName,
+    ratio,
+    percent,
+    threshold,
+    status: over ? 'over-threshold' : 'pass',
+    mismatchedPixels: mismatched,
+    ...(diffRel ? { diffImage: diffRel } : {}),
+  });
+
+  if (over && !soft) {
+    throw new Error(`diff ratio ${ratio.toFixed(4)} > ${threshold}`);
   }
 }
 
