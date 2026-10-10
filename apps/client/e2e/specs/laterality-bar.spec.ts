@@ -70,6 +70,21 @@ test.describe('laterality bar', () => {
       );
     });
     expect(truncated).toBe(false);
+
+    // Chevron must ride the last wrapped line (not a mid-stack orphan).
+    const chevron = page.getByTestId('laterality-label-chevron');
+    await expect(chevron).toBeVisible();
+    const labelBox = await label.boundingBox();
+    const chevronBox = await chevron.boundingBox();
+    expect(labelBox, 'laterality-label box').toBeTruthy();
+    expect(chevronBox, 'laterality-label-chevron box').toBeTruthy();
+    if (!labelBox || !chevronBox) throw new Error('missing label/chevron boxes');
+    expect(labelBox.height).toBeGreaterThan(chevronBox.height * 1.5);
+    const chevronMidY = chevronBox.y + chevronBox.height / 2;
+    const labelMidY = labelBox.y + labelBox.height / 2;
+    // Last-line placement: chevron centre sits below the label's vertical mid.
+    expect(chevronMidY).toBeGreaterThan(labelMidY);
+
     await capture(page, testInfo, {
       screen: 'laterality-bar',
       state: 'wrap-200',
