@@ -1,15 +1,14 @@
 # Deterministic Playwright screenshots for the Expo web client.
 # Security: the test job is contents:read + persist-credentials:false and never
 # receives a write token. Privileged jobs only download artifacts (no pnpm/expo).
+#
+# pull_request always runs so "Client E2E screenshots" can be a required check.
+# Non-client PRs succeed quickly without capture/publish (job is not skipped).
 
 name: Client E2E
 
 on:
   pull_request:
-    paths:
-      - 'apps/client/**'
-      - '.github/workflows/client-e2e.yml'
-      - '.github/scripts/client-e2e-*.mjs'
   push:
     branches: [main, master]
     paths:
@@ -36,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      should_run: ${{ steps.filter.outputs.should_run }}
     defaults:
       run:
         working-directory: apps/client
@@ -44,7 +45,41 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Detect client-related paths
+        id: filter
+        working-directory: .
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Non-PR event: run full client e2e"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+          CHANGED="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          echo "Changed files:"
+          echo "${CHANGED}"
+          if printf '%s\n' "${CHANGED}" | grep -qE '^(apps/client/|\.github/workflows/client-e2e\.yml|\.github/scripts/client-e2e-)'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Client-related paths touched; running capture"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "No client-related paths; succeeding without capture/publish"
+          fi
+
+      - name: Skip capture (no client-related paths)
+        if: steps.filter.outputs.should_run != 'true'
+        working-directory: .
+        run: |
+          echo "Client E2E screenshots: nothing to capture for this PR."
+          echo "Required check reports success without Playwright / publish / sticky comment."
+
       - name: Assert no GitHub write credentials in git config
+        if: steps.filter.outputs.should_run == 'true'
         working-directory: .
         run: |
           set -euo pipefail
@@ -55,19 +90,23 @@ jobs:
           echo "OK: no http.https://github.com/.extraheader"
 
       - name: Install pnpm
+        if: steps.filter.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node
+        if: steps.filter.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: steps.filter.outputs.should_run == 'true'
         working-directory: .
         run: pnpm install --frozen-lockfile
 
       - name: Cache Playwright browsers
+        if: steps.filter.outputs.should_run == 'true'
         uses: actions/cache@v4
         id: playwright-cache
         with:
@@ -75,19 +114,21 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json', 'pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.filter.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Install Playwright system deps (cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        if: steps.filter.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
       - name: Build Expo web export (no GTM)
+        if: steps.filter.outputs.should_run == 'true'
         env:
           EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
         run: pnpm build
 
       - name: Sync orphan e2e-screenshots:baselines/ (read-only)
+        if: steps.filter.outputs.should_run == 'true'
         working-directory: apps/client
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -116,6 +157,7 @@ jobs:
           rm -rf "${TMP}"
 
       - name: Run Playwright E2E
+        if: steps.filter.outputs.should_run == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
@@ -123,6 +165,7 @@ jobs:
         run: pnpm e2e
 
       - name: Smoke stability (--repeat-each=2) + pixel-identical captures
+        if: steps.filter.outputs.should_run == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
@@ -142,7 +185,7 @@ jobs:
             e2e/screenshots/repeat-2
 
       - name: Stage flat artifact tree
-        if: always()
+        if: always() && steps.filter.outputs.should_run == 'true'
         working-directory: apps/client
         run: |
           set -euo pipefail
@@ -152,7 +195,7 @@ jobs:
           find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
 
       - name: Upload screenshots, diffs, and report
-        if: always()
+        if: always() && steps.filter.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: client-e2e-screenshots
@@ -165,7 +208,11 @@ jobs:
   client-e2e-publish:
     name: Client E2E PR comment
     needs: client-e2e
-    if: github.event_name == 'pull_request' && always() && needs.client-e2e.result != 'cancelled'
+    if: >-
+      github.event_name == 'pull_request'
+      && always()
+      && needs.client-e2e.result != 'cancelled'
+      && needs.client-e2e.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
