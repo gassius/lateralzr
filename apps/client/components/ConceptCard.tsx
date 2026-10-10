@@ -85,8 +85,9 @@ type ConceptCardProps = {
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
   /**
-   * Only the interactive front-of-stack card should expose `card-front-title`
-   * (behind / return-overlay duplicates must not, or Playwright strict mode fails).
+   * Only the interactive front-of-stack card should expose front testIDs
+   * (`card-front-title`, `card-front-pattern`) — behind / return-overlay
+   * duplicates must not, or Playwright strict mode fails.
    */
   exposeFrontTitleTestId?: boolean;
 };
@@ -321,6 +322,7 @@ export function ConceptCard({
         faceHeight={patternFaceHeight}
         titleFaceRect={titleFaceRect}
         facePad={facePad}
+        exposeTestId={exposeFrontTitleTestId}
       />
       <ScrollView
         style={styles.frontScroll}
@@ -733,7 +735,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   conceptNameFront: {
-    width: '100%',
+    /**
+     * Ink-hugging box for Lz-25 clear (title + 16 px). `maxWidth: '100%'` still
+     * wraps at the column; `width: '100%'` would clear the whole face and hide
+     * edge-current motifs beside a short title.
+     */
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
     textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
     flexShrink: 0,
     // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle.

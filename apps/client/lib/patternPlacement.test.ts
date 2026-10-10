@@ -153,6 +153,18 @@ describe('title clearing', () => {
     assert.ok(Math.abs(resolved.y - (title.y - 16)) < 0.01);
   });
 
+  it('does not hide edge motifs for a short ink-hugging title on variant 03', () => {
+    // Full-column width would wrongly clear beside "Mushroom" on edge-current.
+    const shortInk = { x: 24, y: 280, width: 160, height: 37 };
+    const clear = resolvePatternClearArea({
+      variant: 2,
+      titleFaceRect: shortInk,
+      faceWidth: 358,
+      faceHeight: 560,
+    });
+    assert.deepEqual(motifsIntersectingClearArea(2, clear), []);
+  });
+
   it('strips intersecting motifs from the SVG without rewriting path data', () => {
     const { xml, hiddenMotifs, variant } = buildPatternSvgXml({
       conceptKey: 'long-label',

@@ -18,6 +18,11 @@ type PatternLayerProps = {
   titleFaceRect: PatternRect | null;
   /** Face padding — pattern is edge-to-edge under the padded content. */
   facePad: number;
+  /**
+   * Only the interactive front-of-stack card should expose `card-front-pattern`
+   * (behind / return-overlay duplicates must not — Playwright strict mode).
+   */
+  exposeTestId?: boolean;
   /** Test-only variant override (0–2). */
   variantOverride?: PatternVariantIndex | null;
 };
@@ -32,6 +37,7 @@ export function PatternLayer({
   faceHeight,
   titleFaceRect,
   facePad,
+  exposeTestId = false,
   variantOverride = null,
 }: PatternLayerProps) {
   if (faceWidth < 8 || faceHeight < 8) {
@@ -58,11 +64,11 @@ export function PatternLayer({
           height: faceHeight,
         },
       ]}
-      testID="card-front-pattern"
+      testID={exposeTestId ? 'card-front-pattern' : undefined}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       // Expose variant for Critiquito / Playwright without affecting a11y tree.
-      nativeID={`pattern-variant-${variant}`}
+      nativeID={exposeTestId ? `pattern-variant-${variant}` : undefined}
     >
       <SvgXml
         xml={xml}
