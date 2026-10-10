@@ -20,7 +20,6 @@ export const MESSAGE_KEYS = [
   'invalidApiResponse',
   'decreaseLaterality',
   'increaseLaterality',
-  'lateralityGrade',
   'complexityGrade',
   'loadingLateralNeighborhood',
   // v3.3 UI labels (Lz-43)
@@ -83,7 +82,6 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     invalidApiResponse: 'Invalid response from API',
     decreaseLaterality: 'Decrease laterality',
     increaseLaterality: 'Increase laterality',
-    lateralityGrade: 'Laterality {grade}',
     complexityGrade: 'Complexity {grade}',
     loadingLateralNeighborhood: 'Loading a new neighborhood',
     lateralityGrade1: 'Same domain',
@@ -140,7 +138,6 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     invalidApiResponse: 'Respuesta inválida de la API',
     decreaseLaterality: 'Disminuir lateralidad',
     increaseLaterality: 'Aumentar lateralidad',
-    lateralityGrade: 'Lateralidad {grade}',
     complexityGrade: 'Complejidad {grade}',
     loadingLateralNeighborhood: 'Cargando un vecindario nuevo',
     lateralityGrade1: 'Mismo dominio',

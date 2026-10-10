@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
-import { LateralitySubmenu } from '@/components/LateralitySubmenu';
+import { LateralityControl } from '@/components/LateralityControl';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
@@ -25,16 +25,16 @@ import { getActiveLocale, t } from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
+  clampLaterality,
   DEFAULT_LATERALITY,
   resolveInitialLaterality,
   shouldPersistLateralityAfterSwap,
-  stepLaterality,
   type LateralityGrade,
 } from '@/lib/laterality';
 import {
   cardStackAvailableHeight,
-  LATERALITY_CARD_GAP,
-  LATERALITY_SUBMENU_HEIGHT,
+  LATERALITY_CONTROL_HEIGHT,
+  lateralityCardGap,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
@@ -96,6 +96,8 @@ export default function HomeScreen() {
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
   /** Gates laterality controls while the neighborhood tree prefetches — no swirl overlay (Lz-33). */
   const [lateralitySwap, setLateralitySwap] = useState<{ token: number } | null>(null);
+  /** Measured laterality control height (grows when the label wraps at large text). */
+  const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -571,9 +573,9 @@ export default function HomeScreen() {
     }
   }, [fetchBatch]);
 
-  const onChangeLaterality = useCallback((delta: -1 | 1) => {
+  const onSelectLaterality = useCallback((grade: LateralityGrade) => {
     if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
-    const next = stepLaterality(lateralityRef.current, delta);
+    const next = clampLaterality(grade);
     if (next === lateralityRef.current) return;
     lateralityRef.current = next;
     setLaterality(next);
@@ -717,7 +719,10 @@ export default function HomeScreen() {
         style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
         testID="practice-column"
       >
-        <View style={styles.cardLateralityGroup} testID="card-laterality-group">
+        <View
+          style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
+          testID="card-laterality-group"
+        >
           <ConceptCardStack
             concepts={concepts}
             currentIndex={currentIndex}
@@ -725,20 +730,23 @@ export default function HomeScreen() {
             onSwipeLeft={onSwipeLeft}
             onSwipeRight={onSwipeRight}
             onSwipeForwardVertical={onSwipeForwardVertical}
-            availableHeight={cardStackAvailableHeight(usableHeight)}
+            availableHeight={cardStackAvailableHeight(usableHeight, lateralityControlHeight)}
             preloadedMediaUrls={preloadedMediaUrls}
             showDeckLoading={showDeckLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
           />
-          <LateralitySubmenu
+          <LateralityControl
             laterality={laterality}
             swapping={lateralitySwap != null}
-            onDecrease={() => onChangeLaterality(-1)}
-            onIncrease={() => onChangeLaterality(1)}
+            onSelectLaterality={onSelectLaterality}
+            onHeightChange={setLateralityControlHeight}
           />
           {complexityCue ? (
-            <View style={styles.complexityCueSlot} pointerEvents="none">
+            <View
+              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+              pointerEvents="none"
+            >
               <ComplexityCue
                 grade={complexityCue.grade}
                 token={complexityCue.token}
@@ -747,7 +755,10 @@ export default function HomeScreen() {
               />
             </View>
           ) : showSessionComplexityMark ? (
-            <View style={styles.complexityCueSlot} pointerEvents="none">
+            <View
+              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+              pointerEvents="none"
+            >
               <ComplexitySessionMark grade={complexity} />
             </View>
           ) : null}
@@ -780,14 +791,12 @@ const styles = StyleSheet.create({
   cardLateralityGroup: {
     width: '100%',
     position: 'relative',
-    gap: LATERALITY_CARD_GAP,
   },
-  /** Above − / wordmark / +, never on that row. */
+  /** Above the laterality control, never on that row. */
   complexityCueSlot: {
     position: 'absolute',
     left: practiceScreenGutter(),
     right: practiceScreenGutter(),
-    bottom: LATERALITY_SUBMENU_HEIGHT + 4,
     alignItems: 'center',
     zIndex: 20,
     elevation: 20,
