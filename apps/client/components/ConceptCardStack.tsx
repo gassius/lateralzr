@@ -37,6 +37,10 @@ import {
 } from '@/lib/cardSwipe';
 import { clampComplexity } from '@/lib/complexityStorage';
 import {
+  returnOverlayIndexForEndLoading,
+  settleIntentAfterLoadingClear,
+} from '@/lib/deckSlotState';
+import {
   coachMessageKey,
   SWIPE_COACH_PEEK_PX,
   type CoachKind,
@@ -108,6 +112,10 @@ export function ConceptCardStack({
   const [behindLockedIndex, setBehindLockedIndex] = useState<number | null>(null);
   const currentIndexRef = useRef(currentIndex);
   const navIntentRef = useRef<'forward' | 'backward' | 'backwardGesture' | null>(null);
+  /** Previous paint's deck-status flag — used to settle when loading clears without a swipe intent (Lz-36). */
+  const wasDeckStatusRef = useRef(false);
+  /** Index before the latest layout pass — pairs with wasDeckStatusRef for loading→card settle direction. */
+  const loadingClearPrevIndexRef = useRef(currentIndex);
   const conceptsRef = useRef(concepts);
   const complexityRef = useRef(complexity);
   const flippedRef = useRef(flipped);
@@ -287,8 +295,9 @@ export function ConceptCardStack({
   }, [flushDwell]);
 
   useEffect(() => {
-    canSwipeRightSV.value = currentIndex > 0 ? 1 : 0;
-  }, [canSwipeRightSV, currentIndex]);
+    // Lz-36: back from end-of-deck loading must work even on a single-card deck (index 0).
+    canSwipeRightSV.value = currentIndex > 0 || showDeckStatus ? 1 : 0;
+  }, [canSwipeRightSV, currentIndex, showDeckStatus]);
 
   useEffect(() => {
     showDeckStatusSV.value = showDeckStatus ? 1 : 0;
@@ -297,8 +306,19 @@ export function ConceptCardStack({
   // Layout effect: reset gesture + enter state before paint so the new top card never flashes with the
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
   useLayoutEffect(() => {
-    const intent = navIntentRef.current;
+    let intent = navIntentRef.current;
     navIntentRef.current = null;
+
+    // Lz-36: loading → concept without a swipe intent (append settle, or back cleared pending).
+    if (!intent && wasDeckStatusRef.current && !showDeckStatus) {
+      intent = settleIntentAfterLoadingClear({
+        previousIndex: loadingClearPrevIndexRef.current,
+        nextIndex: currentIndex,
+      });
+    }
+
+    wasDeckStatusRef.current = showDeckStatus;
+    loadingClearPrevIndexRef.current = currentIndex;
 
     returnOverlaySuppressSV.value = 1;
 
@@ -323,9 +343,9 @@ export function ConceptCardStack({
 
     const rm = reduceMotionSV.value > 0.5;
     if (intent === 'forward' || intent === 'backward' || intent === 'backwardGesture') {
-      // RM: cross-fade already completed during commit — land settled (no 8 px shift).
-      // Full motion: fade 0→1 + ±8 → 0 over settle token.
-      if (rm) {
+      // RM / backwardGesture: cross-fade or return overlay already completed — land settled.
+      // Full motion: fade 0→1 + ±8 → 0 over settle token (260 ms; Lz-36 loading replace).
+      if (rm || intent === 'backwardGesture') {
         enterX.value = 0;
         enterOpacity.value = 1;
       } else {
@@ -415,6 +435,11 @@ export function ConceptCardStack({
   }, [flushDwell, noteFlipped]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
+    // Lz-36: back from loading reveals the same last card under the silhouette.
+    if (showDeckStatusRef.current) {
+      setReturnOverlayLockedIndex(returnOverlayIndexForEndLoading(currentIndexRef.current));
+      return;
+    }
     const i = currentIndexRef.current - 1;
     if (i >= 0) setReturnOverlayLockedIndex(i);
   }, []);
@@ -672,12 +697,19 @@ export function ConceptCardStack({
   const showBehindNext =
     !showDeckStatus && behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
   const prevIndex = currentIndex - 1;
+  // Lz-36: while the loading face is up, the return overlay is the last concept (under the silhouette).
   const returnOverlayIndex =
-    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : prevIndex >= 0 ? prevIndex : -1;
+    returnOverlayLockedIndex !== null
+      ? returnOverlayLockedIndex
+      : showDeckStatus
+        ? returnOverlayIndexForEndLoading(currentIndex)
+        : prevIndex >= 0
+          ? prevIndex
+          : -1;
   const showReturnOverlay =
-    !showDeckStatus &&
     returnOverlayIndex >= 0 &&
-    (currentIndex > 0 || returnOverlayLockedIndex !== null);
+    returnOverlayIndex < concepts.length &&
+    (showDeckStatus || currentIndex > 0 || returnOverlayLockedIndex !== null);
 
   return (
     <View
