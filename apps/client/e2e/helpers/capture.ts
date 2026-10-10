@@ -10,7 +10,7 @@ const HERE = __dirname;
 const SCREENSHOT_ROOT = path.join(HERE, '..', 'screenshots');
 /**
  * Compare root for report-only pixel diffs.
- * CI syncs Critiquito-approved PNGs from orphan `e2e-screenshots:baselines/` into this
+ * CI syncs UI/UX and Art Supervisor (gasnet-art-director)-approved PNGs from orphan `e2e-screenshots:baselines/` into this
  * folder when present; otherwise in-repo DEMO seeds under `e2e/baselines/` are used
  * (removed once main publishes real baselines to the orphan branch).
  */

@@ -48,7 +48,7 @@ API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) �
 
 Repo-wide **Agent attribution** (commit trailers, PR footers, review headers) is defined in [`.cursorrules/AGENTS.md`](../../.cursorrules/AGENTS.md#agent-attribution) and applies to client work as well.
 
-## Test / Critiquito URL params (Expo web)
+## Test / UI/UX and Art Supervisor (gasnet-art-director) URL params (Expo web)
 
 Testers can deep-link the web preview with query params. **Do not treat this as product UX.** Full table and copy-paste URLs: [TEST-URL-PARAMS.md](./TEST-URL-PARAMS.md).
 
@@ -63,7 +63,7 @@ Testers can deep-link the web preview with query params. **Do not treat this as 
 
 Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWithMedia=true&complexity=5`
 
-## Playwright E2E + Critiquito screenshots
+## Playwright E2E + UI/UX and Art Supervisor (gasnet-art-director) screenshots
 
 Deterministic captures of the static web export live in [`e2e/`](./e2e/). Full local / CI / “add a screen” notes: [`e2e/README.md`](./e2e/README.md). Baseline approval: [`e2e/baselines/README.md`](./e2e/baselines/README.md).
 
