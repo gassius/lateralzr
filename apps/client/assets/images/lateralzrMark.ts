@@ -1,5 +1,6 @@
 /**
- * Lateralzr mark (nodes → lightbulb) from assets/images/lateralzr_logo.svg.
+ * Lateralzr mark (nodes → lightbulb) from logo/lateralzr-logo-master.svg
+ * (mirrored at assets/images/lateralzr_logo.svg for path-module tests).
  * Cropped below the word strip — no LATERALZR letterforms.
  *
  * Keep these outlines in lockstep with the logo SVG.

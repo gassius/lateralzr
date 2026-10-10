@@ -1,5 +1,6 @@
 /**
- * Lateralzr wordmark letterforms from assets/images/lateralzr_logo.svg
+ * Lateralzr wordmark letterforms from logo/lateralzr-logo-master.svg
+ * (mirrored at assets/images/lateralzr_logo.svg for path-module tests).
  * (paths 179–187). Cropped to the word strip — no lightbulb, no graph.
  *
  * Keep these outlines in lockstep with the logo SVG. Do not replace with

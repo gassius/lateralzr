@@ -10,6 +10,8 @@ const IMAGES = path.join(FIXTURES, 'images');
 export type MockOptions = {
   /** Hold load-more / subsequent relationship calls open this long (Node timer). */
   delayLoadMoreMs?: number;
+  /** Hold the first relationships call open this long (intro / logo capture). */
+  delayFirstMs?: number;
 };
 
 type RelationshipsBody = {
@@ -113,6 +115,7 @@ function isLocalAsset(url: string): boolean {
 export async function installApiMocks(page: Page, options: MockOptions = {}): Promise<void> {
   let relationshipsCalls = 0;
   const delayLoadMoreMs = options.delayLoadMoreMs ?? 0;
+  const delayFirstMs = options.delayFirstMs ?? 0;
 
   await page.route('**/*', async (route) => {
     const url = route.request().url();
@@ -142,6 +145,10 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
       canonicalKey === 'loading-deck' ||
       startKey === 'loading-deck' ||
       startKey === 'horizon';
+
+    if (relationshipsCalls === 1 && delayFirstMs > 0) {
+      await new Promise((r) => setTimeout(r, delayFirstMs));
+    }
 
     // Delay 2nd+ calls for the loading-deck journey (prefetch / swipe load-more).
     if (isLoadingDeck && relationshipsCalls > 1 && delayLoadMoreMs > 0) {
