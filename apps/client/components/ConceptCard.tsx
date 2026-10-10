@@ -33,6 +33,7 @@ import {
   type CardBackLayout,
 } from '@/lib/cardBackLayout';
 import {
+  CARD_BACK_MEDIA_SEAM_OVERLAP,
   resolveCardBackMediaBand,
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
@@ -424,7 +425,9 @@ export function ConceptCard({
     failed: mediaError,
   });
   const phaseLayout = composeCardBackLayout(mediaPhase);
-  const mediaBand = resolveCardBackMediaBand(backFaceH, backTextBlockH);
+  // Reserve guide face padding under copy so the 28% band scrolls instead of
+  // pinning Wikipedia / description against the card edge (art director B2).
+  const mediaBand = resolveCardBackMediaBand(backFaceH, backTextBlockH, facePad);
   const backLayout: CardBackLayout =
     phaseLayout.showMediaZone && mediaBand.dropImage
       ? composeCardBackLayout('failed')
@@ -433,6 +436,10 @@ export function ConceptCard({
   const showMediaLayer = backLayout.showMediaZone && !mediaBand.dropImage;
   const bandHeight = showMediaLayer ? mediaBand.bandHeight : 0;
   const fade = resolveCardBackMediaFade(bandHeight);
+  const readingPadTop =
+    showMediaLayer && bandHeight > 0
+      ? Math.max(0, bandHeight - CARD_BACK_MEDIA_SEAM_OVERLAP)
+      : 0;
   const mediaSlotWidth = faceWidth > 0 ? faceWidth : 0;
   const fitPlan = resolveCardBackMediaFit({
     mediaUrl: item.mediaUrl ?? '',
@@ -600,6 +607,7 @@ export function ConceptCard({
               <Defs>
                 <LinearGradient id="cardBackPaperFade" x1="0%" y1="0%" x2="0%" y2="100%">
                   <Stop offset="0%" stopColor={color.paper} stopOpacity="0" />
+                  <Stop offset="70%" stopColor={color.paper} stopOpacity="0.85" />
                   <Stop offset="100%" stopColor={color.paper} stopOpacity="1" />
                 </LinearGradient>
               </Defs>
@@ -632,7 +640,7 @@ export function ConceptCard({
         style={styles.backScroll}
         contentContainerStyle={[
           scrollContentStyle,
-          showMediaLayer && bandHeight > 0 ? { paddingTop: bandHeight } : null,
+          readingPadTop > 0 ? { paddingTop: readingPadTop } : null,
         ]}
         showsVerticalScrollIndicator={false}
         bounces
@@ -643,7 +651,15 @@ export function ConceptCard({
           style={[
             styles.backInner,
             showMediaLayer ? styles.backReadingOnPaper : null,
-            showMediaLayer ? { paddingHorizontal: facePad, paddingBottom: facePad } : null,
+            // paddingTop on the paper block covers the seam overlap so ink still
+            // clears the fade; paddingBottom holds the guide 24/20 inset.
+            showMediaLayer
+              ? {
+                  paddingHorizontal: facePad,
+                  paddingTop: CARD_BACK_MEDIA_SEAM_OVERLAP,
+                  paddingBottom: facePad,
+                }
+              : null,
             backLayout.expandMediaZone ? styles.backInnerExpand : null,
           ]}
         >

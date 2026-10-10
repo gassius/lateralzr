@@ -29,6 +29,12 @@ export const CARD_BACK_MEDIA_FADE_RATIO = 0.4;
  */
 export const CARD_BACK_MEDIA_MIN_READING_STRIP = 27;
 
+/**
+ * Paper reading block overlaps the fade by this many px so the gradient end
+ * does not show a 1 px seam against the opaque paper edge (guide §9.3).
+ */
+export const CARD_BACK_MEDIA_SEAM_OVERLAP = 2;
+
 export type CardBackMediaBand = {
   bandHeight: number;
   /** True → collapse to no-media layout (Lz-27). */
@@ -125,41 +131,50 @@ export function resolveCardBackMediaFit(input: {
 
 /**
  * Image band height and drop rule.
- * Prefer leftover height after the text block; never go below 28% (text scrolls).
- * Drop when even a 28% band leaves no usable reading strip.
+ * Prefer leftover height after the text block + bottom reading inset; never go
+ * below 28% (text scrolls). Drop when even a 28% band leaves no usable strip.
+ *
+ * `readingInsetBottom` is the guide face padding (24 / 20) reserved under the
+ * copy so Wikipedia / description never sit on the card edge.
  */
 export function resolveCardBackMediaBand(
   faceHeight: number,
   textBlockHeight: number,
+  readingInsetBottom: number = 0,
 ): CardBackMediaBand {
   if (!Number.isFinite(faceHeight) || faceHeight <= 0) {
     return { bandHeight: 0, dropImage: true };
   }
+  const inset = Math.max(0, readingInsetBottom);
   const minBand = faceHeight * CARD_BACK_MEDIA_MIN_BAND_RATIO;
   const readingStripIfMin = faceHeight - minBand;
-  if (readingStripIfMin < CARD_BACK_MEDIA_MIN_READING_STRIP) {
+  if (readingStripIfMin < CARD_BACK_MEDIA_MIN_READING_STRIP + inset) {
     return { bandHeight: 0, dropImage: true };
   }
   // Before the reading block measures, keep the 28% floor so copy can lay out.
   if (!(textBlockHeight > 0)) {
     return { bandHeight: minBand, dropImage: false };
   }
-  const naturalBand = faceHeight - textBlockHeight;
+  const readingNeed = textBlockHeight + inset;
+  const naturalBand = faceHeight - readingNeed;
   const bandHeight = Math.max(minBand, naturalBand);
   return { bandHeight, dropImage: false };
 }
 
 /**
  * Fade overlay geometry inside the image band (no dark/busy offset).
+ * Height reaches the band floor so the last gradient samples are fully paper.
  */
 export function resolveCardBackMediaFade(bandHeight: number): CardBackMediaFade {
   if (!(bandHeight > 0)) {
     return { startY: 0, height: 0 };
   }
   const height = bandHeight * CARD_BACK_MEDIA_FADE_RATIO;
+  const startY = Math.max(0, bandHeight - height);
   return {
-    startY: Math.max(0, bandHeight - height),
-    height,
+    startY,
+    // Reach the band edge (and a hair past via layout overlap in ConceptCard).
+    height: bandHeight - startY,
   };
 }
 
