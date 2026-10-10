@@ -15,6 +15,12 @@ on:
       - 'apps/client/**'
       - '.github/workflows/client-e2e.yml'
       - '.github/scripts/client-e2e-*.mjs'
+      - 'pnpm-lock.yaml'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - '.nvmrc'
+      - '.npmrc'
   workflow_dispatch:
     inputs:
       strict_baselines:
@@ -64,7 +70,7 @@ jobs:
           CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
           echo "Changed files:"
           echo "${CHANGED}"
-          if printf '%s\n' "${CHANGED}" | grep -qE '^(apps/client/|\.github/workflows/client-e2e\.yml|\.github/scripts/client-e2e-)'; then
+          if printf '%s\n' "${CHANGED}" | grep -qE '^(apps/client/|\.github/workflows/client-e2e\.yml|\.github/scripts/client-e2e-|pnpm-lock\.yaml$|package\.json$|pnpm-workspace\.yaml$|turbo\.json$|\.nvmrc$|\.npmrc$)'; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "Client-related paths touched; running capture"
           else
