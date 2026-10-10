@@ -1,5 +1,6 @@
 import { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contrast';
 import { color } from '../theme/tokens';
+import { textStyle, typeSize, typeWeight } from '../theme/typography';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
 
 export { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contrast';
@@ -10,14 +11,16 @@ export { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contras
  * The previous overlay was 12px / 75% opacity / bottom-left on orange — easy to
  * miss at arm's length. Coaching stays progressive (not always-on); this module
  * only makes the copy readable when it is shown.
+ *
+ * Type role: v3.3 menu row (Lz-22). Apply `textStyle('row', { fontScale })` at render.
  */
 
-/** Secondary to the 48px concept title; large enough to read at arm's length. */
-export const COACH_HINT_FONT_SIZE = 17;
+/** Secondary to the concept title; v3.3 `type.row`. */
+export const COACH_HINT_FONT_SIZE = typeSize('row');
 
-export const COACH_HINT_LINE_HEIGHT = 22;
+export const COACH_HINT_LINE_HEIGHT = textStyle('row', { fontScale: 1 }).lineHeight as number;
 
-export const COACH_HINT_FONT_WEIGHT = '600' as const;
+export const COACH_HINT_FONT_WEIGHT = typeWeight('row');
 
 /** Full opacity — washed-out 0.75 on orange was the contrast failure. */
 export const COACH_HINT_OPACITY = 1;
