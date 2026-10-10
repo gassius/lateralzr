@@ -38,6 +38,7 @@ import {
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
+  NATIVE_TITLE_MEASURE_FALLBACK_MS,
   applyNativeTitleTextLayoutOnce,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
@@ -46,8 +47,9 @@ import {
   getCachedNativeTitleLayout,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
+  nativeTitleFallbackLayout,
   nativeTitleMeasureCacheKey,
-  resolveNativeFrontTitlePresentation,
+  shouldCommitNativeTitleLayoutToView,
   titleColor,
   type ConceptFrontTitleLayout,
   type ConceptFrontTitleRect,
@@ -107,16 +109,20 @@ export function ConceptCard({
   const [frontFaceH, setFrontFaceH] = useState(0);
   const [frontContentH, setFrontContentH] = useState(0);
   /**
-   * Native: final layout from one onTextLayout (cached by title+width).
+   * Native: committed visible layout (onTextLayout or B2 fallback).
    * Web uses sync DOM measure and never touches this.
    */
   const [nativeTitleLayout, setNativeTitleLayout] = useState<ConceptFrontTitleLayout | null>(
     null,
   );
+  /** Bumps when late onTextLayout fills the cache without resizing (unmount probe). */
+  const [nativeCacheEpoch, setNativeCacheEpoch] = useState(0);
   /** Measured title box for Lz-25 pattern clearing (column-local coords). */
   const titleRectRef = useRef<ConceptFrontTitleRect | null>(null);
-  /** Guards against applying onTextLayout more than once per title+width in this mount. */
+  /** Cache key already written from onTextLayout (ignore further probe events). */
   const nativeMeasureAcceptedRef = useRef<string | null>(null);
+  /** True once B2 fallback is painted — late onTextLayout must not resize. */
+  const nativeFallbackVisibleRef = useRef(false);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
   const flipProgress = useSharedValue(0);
   const fallbackFlipPeek = useSharedValue(0);
@@ -141,24 +147,46 @@ export function ConceptCard({
     0,
     (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - facePad * 2,
   );
+  const nativeCacheKey = nativeTitleMeasureCacheKey(
+    title,
+    titleContentWidth,
+    measureFontScale,
+  );
 
+  // Reset / hydrate when title, width, or OS text scale changes (M1).
   useLayoutEffect(() => {
     if (Platform.OS === 'web') return;
     if (!titleWidthReady) {
       setNativeTitleLayout(null);
+      nativeFallbackVisibleRef.current = false;
+      nativeMeasureAcceptedRef.current = null;
       return;
     }
-    const key = nativeTitleMeasureCacheKey(title, titleContentWidth);
-    const cached = getCachedNativeTitleLayout(title, titleContentWidth);
+    const cached = getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale);
     setNativeTitleLayout(cached);
-    // Allow one accept for a new title+width; keep the guard if already cached.
-    nativeMeasureAcceptedRef.current = cached != null ? key : null;
-  }, [title, titleContentWidth, titleWidthReady]);
+    nativeFallbackVisibleRef.current = false;
+    nativeMeasureAcceptedRef.current = cached != null ? nativeCacheKey : null;
+  }, [title, titleContentWidth, titleWidthReady, measureFontScale, nativeCacheKey]);
 
-  const nativePresentation =
-    Platform.OS === 'web' || !titleWidthReady
-      ? null
-      : resolveNativeFrontTitlePresentation(title, titleContentWidth);
+  // B2: if onTextLayout never fires, show approx layout after a short wait.
+  useEffect(() => {
+    if (Platform.OS === 'web' || !titleWidthReady || title.length === 0) return;
+    if (getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale) != null) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (getCachedNativeTitleLayout(title, titleContentWidth, measureFontScale) != null) {
+        return;
+      }
+      if (nativeMeasureAcceptedRef.current === nativeCacheKey) return;
+      setNativeTitleLayout((prev) => {
+        if (prev != null) return prev;
+        nativeFallbackVisibleRef.current = true;
+        return nativeTitleFallbackLayout(title, titleContentWidth, measureFontScale);
+      });
+    }, NATIVE_TITLE_MEASURE_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [title, titleContentWidth, titleWidthReady, measureFontScale, nativeCacheKey]);
 
   const frontTitleLayout: ConceptFrontTitleLayout =
     Platform.OS === 'web'
@@ -170,8 +198,7 @@ export function ConceptCard({
           CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
           measureFontScale,
         )
-      : (nativeTitleLayout ??
-        nativePresentation?.layout ?? {
+      : (nativeTitleLayout ?? {
           displayText: title,
           fontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
           lineHeight: Math.round(
@@ -180,9 +207,19 @@ export function ConceptCard({
         });
 
   const titleOpacity: 0 | 1 =
-    Platform.OS === 'web' ? 1 : titleWidthReady && nativePresentation?.opacity === 1 ? 1 : 0;
+    Platform.OS === 'web' ? 1 : nativeTitleLayout != null ? 1 : 0;
+  /** Keep probing until the onTextLayout cache has this key (even after B2 fallback). */
+  const cachedNativeLayout = getCachedNativeTitleLayout(
+    title,
+    titleContentWidth,
+    measureFontScale,
+  );
   const shouldProbeNative =
-    Platform.OS !== 'web' && titleWidthReady && (nativePresentation?.shouldProbe ?? false);
+    Platform.OS !== 'web' &&
+    titleWidthReady &&
+    title.length > 0 &&
+    cachedNativeLayout == null;
+  void nativeCacheEpoch; // epoch bump re-renders so shouldProbe sees a filled cache
 
   const displayFontSize = Math.round(frontTitleLayout.fontSize * e2eScale);
   const displayLineHeight = Math.round(frontTitleLayout.lineHeight * e2eScale);
@@ -297,6 +334,8 @@ export function ConceptCard({
           />
           {shouldProbeNative ? (
             <Text
+              // B1: unscaled probe widths — OS scale is applied once via measureFontScale.
+              allowFontScaling={false}
               style={[
                 styles.nativeTitleProbe,
                 {
@@ -305,9 +344,7 @@ export function ConceptCard({
                 },
               ]}
               onTextLayout={(event) => {
-                const key = nativeTitleMeasureCacheKey(title, titleContentWidth);
-                // Once applied for this title+width, ignore further layout events
-                // (including any fired after the final font size is painted).
+                const key = nativeCacheKey;
                 if (nativeMeasureAcceptedRef.current === key) return;
                 const result = applyNativeTitleTextLayoutOnce({
                   title,
@@ -321,6 +358,11 @@ export function ConceptCard({
                 });
                 if (!result.applied) return;
                 nativeMeasureAcceptedRef.current = key;
+                // Fallback already on screen: cache only — do not resize (clarification).
+                if (!shouldCommitNativeTitleLayoutToView(nativeFallbackVisibleRef.current)) {
+                  setNativeCacheEpoch((epoch) => epoch + 1);
+                  return;
+                }
                 setNativeTitleLayout(result.layout);
               }}
               accessibilityElementsHidden

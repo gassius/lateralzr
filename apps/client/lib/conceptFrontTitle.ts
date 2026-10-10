@@ -365,16 +365,26 @@ export function layoutConceptFrontTitle(
   };
 }
 
-// --- Native onTextLayout measure (once per title+width; no resize loop) ---
+// --- Native onTextLayout measure (once per title+width+fontScale; no resize loop) ---
+
+/** Wait before showing the approx-measure fallback if onTextLayout never fires. */
+export const NATIVE_TITLE_MEASURE_FALLBACK_MS = 100;
 
 export type NativeTitleTextLayoutLine = {
   text: string;
   width: number;
 };
 
-/** Cache key: raw title + content width (rounded). */
-export function nativeTitleMeasureCacheKey(title: string, maxWidth: number): string {
-  return `${title}\0${Math.round(maxWidth * 100) / 100}`;
+/**
+ * Cache key: title + content width + fontScale.
+ * OS text-size changes (fontScale) invalidate like a width change.
+ */
+export function nativeTitleMeasureCacheKey(
+  title: string,
+  maxWidth: number,
+  fontScale: number = 1,
+): string {
+  return `${title}\0${Math.round(maxWidth * 100) / 100}\0${Math.round(fontScale * 1000) / 1000}`;
 }
 
 const nativeTitleLayoutCache = new Map<string, ConceptFrontTitleLayout>();
@@ -387,8 +397,11 @@ export function clearNativeTitleMeasureCache(): void {
 export function getCachedNativeTitleLayout(
   title: string,
   maxWidth: number,
+  fontScale: number = 1,
 ): ConceptFrontTitleLayout | null {
-  return nativeTitleLayoutCache.get(nativeTitleMeasureCacheKey(title, maxWidth)) ?? null;
+  return (
+    nativeTitleLayoutCache.get(nativeTitleMeasureCacheKey(title, maxWidth, fontScale)) ?? null
+  );
 }
 
 /** One word per line so `onTextLayout` reports each token width. */
@@ -438,8 +451,12 @@ export type ApplyNativeTitleTextLayoutResult = {
 };
 
 /**
- * Consume one native `onTextLayout`. Caches by title+width and never overwrites —
- * later calls (including after the chosen font size is applied) are no-ops.
+ * Consume one native `onTextLayout`. Caches by title+width+fontScale and never
+ * overwrites — later calls (including after the chosen font size is applied) are no-ops.
+ *
+ * Probe widths must be unscaled (`allowFontScaling={false}` on the probe Text).
+ * Pass the full `measureFontScale` (OS × e2e) here once — never bake OS scale
+ * into the probe widths and again into `fontScale` (B1 / #82).
  */
 export function applyNativeTitleTextLayoutOnce(args: {
   title: string;
@@ -455,7 +472,7 @@ export function applyNativeTitleTextLayoutOnce(args: {
     probeFontSize = CONCEPT_FRONT_TITLE_FONT_SIZE,
     fontScale = 1,
   } = args;
-  const key = nativeTitleMeasureCacheKey(title, maxWidth);
+  const key = nativeTitleMeasureCacheKey(title, maxWidth, fontScale);
   const cached = nativeTitleLayoutCache.get(key);
   if (cached != null) {
     return { applied: false, layout: cached };
@@ -474,25 +491,56 @@ export function applyNativeTitleTextLayoutOnce(args: {
   return { applied: true, layout };
 }
 
+/**
+ * Approx layout used when onTextLayout never fires (B2). Not written into the
+ * onTextLayout cache — a late probe may still populate the cache without
+ * resizing a title that already showed this fallback.
+ */
+export function nativeTitleFallbackLayout(
+  title: string,
+  maxWidth: number,
+  fontScale: number = 1,
+): ConceptFrontTitleLayout {
+  return layoutConceptFrontTitle(
+    title,
+    maxWidth,
+    measureConceptFrontTitleWidth,
+    CONCEPT_FRONT_TITLE_FONT_SIZE,
+    CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+    fontScale,
+  );
+}
+
+/**
+ * Whether a newly measured layout may replace the visible title.
+ * Once a fallback is on screen, late onTextLayout only updates the cache.
+ * A new title/width/fontScale key clears the fallback flag (caller).
+ */
+export function shouldCommitNativeTitleLayoutToView(fallbackVisible: boolean): boolean {
+  return !fallbackVisible;
+}
+
 export type NativeFrontTitlePresentation = {
-  /** 0 until measured; 1 only with the final cached layout (no 32→final jump). */
+  /** 0 until measured or fallback; 1 with a committed layout (no 32→final jump). */
   opacity: 0 | 1;
   layout: ConceptFrontTitleLayout | null;
+  /** Keep probing until the onTextLayout cache has this key (even after fallback). */
   shouldProbe: boolean;
 };
 
 /**
- * Native presentation gate: stay at opacity 0 until a cache entry exists for
- * this title+width. Web callers skip this and use sync DOM measure.
+ * Native presentation from cache. Opacity for the live view also follows a
+ * committed fallback via the caller's state; this helper is cache-centric.
  */
 export function resolveNativeFrontTitlePresentation(
   title: string,
   maxWidth: number,
+  fontScale: number = 1,
 ): NativeFrontTitlePresentation {
   if (maxWidth <= 0 || title.length === 0) {
     return { opacity: 0, layout: null, shouldProbe: false };
   }
-  const cached = getCachedNativeTitleLayout(title, maxWidth);
+  const cached = getCachedNativeTitleLayout(title, maxWidth, fontScale);
   if (cached != null) {
     return { opacity: 1, layout: cached, shouldProbe: false };
   }

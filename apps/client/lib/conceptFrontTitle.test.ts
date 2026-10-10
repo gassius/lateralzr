@@ -13,6 +13,7 @@ import {
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
+  NATIVE_TITLE_MEASURE_FALLBACK_MS,
   TITLE_CLEAR_AREA,
   applyNativeTitleTextLayoutOnce,
   clearNativeTitleMeasureCache,
@@ -23,7 +24,10 @@ import {
   getCachedNativeTitleLayout,
   hyphenateWord,
   layoutConceptFrontTitle,
+  nativeTitleFallbackLayout,
+  nativeTitleMeasureCacheKey,
   resolveNativeFrontTitlePresentation,
+  shouldCommitNativeTitleLayoutToView,
   titleColor,
   wrapTitleAtSpaces,
 } from './conceptFrontTitle.ts';
@@ -200,7 +204,7 @@ test('top spacer shrinks so a tall title block fits in the face', () => {
   assert.ok(risen + tallTitleH + 48 <= faceH);
 });
 
-test('native onTextLayout applies once per title+width; no remeasure after size apply', () => {
+test('native onTextLayout applies once per title+width+scale; no remeasure after size apply', () => {
   clearNativeTitleMeasureCache();
   const title = 'Extraordinarily elaborate framework';
   const maxWidth = 200;
@@ -230,7 +234,7 @@ test('native onTextLayout applies once per title+width; no remeasure after size 
   });
   assert.equal(afterSizeApply.applied, false);
   assert.deepEqual(afterSizeApply.layout, first.layout);
-  assert.deepEqual(getCachedNativeTitleLayout(title, maxWidth), first.layout);
+  assert.deepEqual(getCachedNativeTitleLayout(title, maxWidth, 1), first.layout);
 });
 
 test('native presentation stays opacity 0 until measured; first visible frame is final size', () => {
@@ -238,7 +242,7 @@ test('native presentation stays opacity 0 until measured; first visible frame is
   const title = 'Collective intelligence';
   const maxWidth = 240;
 
-  const before = resolveNativeFrontTitlePresentation(title, maxWidth);
+  const before = resolveNativeFrontTitlePresentation(title, maxWidth, 1);
   assert.equal(before.opacity, 0);
   assert.equal(before.layout, null);
   assert.equal(before.shouldProbe, true);
@@ -249,14 +253,116 @@ test('native presentation stays opacity 0 until measured; first visible frame is
     maxWidth,
     lines: words.map((word) => ({ text: word, width: word.length * 14 })),
     probeFontSize: 32,
+    fontScale: 1,
   });
   assert.equal(applied.applied, true);
 
-  const visible = resolveNativeFrontTitlePresentation(title, maxWidth);
+  const visible = resolveNativeFrontTitlePresentation(title, maxWidth, 1);
   assert.equal(visible.opacity, 1);
   assert.equal(visible.shouldProbe, false);
   assert.ok(visible.layout != null);
   assert.deepEqual(visible.layout, applied.layout);
   // First visible frame uses the cached final layout — never a provisional 32 with opacity 1.
   assert.equal(visible.layout!.fontSize, applied.layout.fontSize);
+});
+
+test('B1: unscaled probe widths + fontScale 2 (200%) scale once — not double', () => {
+  clearNativeTitleMeasureCache();
+  // Probe allowFontScaling={false}: widths are at 32 px unscaled.
+  const title = 'Extraordinarily';
+  const lines = [{ text: 'Extraordinarily', width: 180 }]; // fits at 32 in ~200 box
+  const atScale1 = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth: 200,
+    lines,
+    probeFontSize: 32,
+    fontScale: 1,
+  });
+  assert.equal(atScale1.layout.fontSize, 32);
+
+  clearNativeTitleMeasureCache();
+  // Same unscaled probe widths with fontScale 2 (200%): measure sees 2× advance → shrink.
+  const atScale2 = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth: 200,
+    lines,
+    probeFontSize: 32,
+    fontScale: 2,
+  });
+  assert.ok(atScale2.layout.fontSize < 32);
+  assert.ok(atScale2.layout.fontSize >= 24);
+
+  // Double-scaling mutant: pretreat widths as already ×2 then pass fontScale 2 → over-shrink/hyphen.
+  clearNativeTitleMeasureCache();
+  const doubleScaled = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth: 200,
+    lines: [{ text: 'Extraordinarily', width: 180 * 2 }],
+    probeFontSize: 32,
+    fontScale: 2,
+  });
+  assert.ok(
+    doubleScaled.layout.fontSize < atScale2.layout.fontSize ||
+      doubleScaled.layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN),
+    'double-scaled probe would over-shrink vs allowFontScaling={false}',
+  );
+});
+
+test('B2: fallback layout exists; late measure does not resize once fallback is visible', () => {
+  assert.ok(NATIVE_TITLE_MEASURE_FALLBACK_MS <= 100);
+  clearNativeTitleMeasureCache();
+  const title = 'Tide Collective';
+  const maxWidth = 120;
+  const fallback = nativeTitleFallbackLayout(title, maxWidth, 1);
+  assert.ok(fallback.fontSize <= 32);
+
+  // Fallback on screen → do not commit a late measured layout to the view.
+  assert.equal(shouldCommitNativeTitleLayoutToView(true), false);
+  assert.equal(shouldCommitNativeTitleLayoutToView(false), true);
+
+  const words = conceptFrontTitleNativeProbeText(title).split('\n');
+  const late = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines: words.map((word) => ({ text: word, width: word.length * 10 })),
+    probeFontSize: 32,
+    fontScale: 1,
+  });
+  assert.equal(late.applied, true);
+  // Cache updated for the next card/width, but the visible title keeps `fallback`.
+  assert.deepEqual(getCachedNativeTitleLayout(title, maxWidth, 1), late.layout);
+  assert.notDeepEqual(late.layout, fallback);
+  assert.equal(shouldCommitNativeTitleLayoutToView(true), false);
+});
+
+test('M1: cache key includes fontScale; OS text-size change may remeasure', () => {
+  clearNativeTitleMeasureCache();
+  const title = 'Framework';
+  const maxWidth = 180;
+  const key1 = nativeTitleMeasureCacheKey(title, maxWidth, 1);
+  const key2 = nativeTitleMeasureCacheKey(title, maxWidth, 2);
+  assert.notEqual(key1, key2);
+
+  const lines = [{ text: 'Framework', width: 100 }];
+  const at1 = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines,
+    probeFontSize: 32,
+    fontScale: 1,
+  });
+  assert.equal(at1.applied, true);
+  assert.ok(getCachedNativeTitleLayout(title, maxWidth, 1) != null);
+  // Different OS scale → miss → may apply a new layout (like a width change).
+  assert.equal(getCachedNativeTitleLayout(title, maxWidth, 2), null);
+  const at2 = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines,
+    probeFontSize: 32,
+    fontScale: 2,
+  });
+  assert.equal(at2.applied, true);
+  // New key allows a different committed size (remeasure + resize).
+  assert.ok(at2.layout.fontSize <= at1.layout.fontSize);
 });
