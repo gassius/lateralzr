@@ -58,9 +58,13 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 - `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es
 
+### App menu (Lz-32)
+
+- `app-menu_open_*` — sheet open from ellipsis, en + es (Replay row only)
+- `app-menu_open-200_*` — ES at 200% text, 320 + 390
+
 ### Pending screens (add when UI ships)
 
-- App menu open
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps
 - Offline line

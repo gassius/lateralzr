@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppMenuSheet } from '@/components/AppMenuSheet';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
@@ -42,6 +43,7 @@ import { applyResolvedLocale } from '@/lib/locale';
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_MAX_WIDTH,
+  practiceMenuChromeHeight,
   practiceScreenGutter,
 } from '@/lib/practiceLayout';
 import {
@@ -100,7 +102,10 @@ export default function HomeScreen() {
   /** Measured laterality control height (grows when the label wraps at large text). */
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
+  const [appMenuOpen, setAppMenuOpen] = useState(false);
   const lateralityLabelRef = useRef<View | null>(null);
+  const appMenuTriggerRef = useRef<View | null>(null);
+  const replayGestureTipsRef = useRef<() => void>(() => {});
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -602,6 +607,22 @@ export default function HomeScreen() {
     setLateralitySheetOpen(false);
   }, []);
 
+  const openAppMenu = useCallback(() => {
+    setAppMenuOpen(true);
+  }, []);
+
+  const dismissAppMenu = useCallback(() => {
+    setAppMenuOpen(false);
+  }, []);
+
+  const onReplayGestureTipsReady = useCallback((replay: () => void) => {
+    replayGestureTipsRef.current = replay;
+  }, []);
+
+  const onReplayGestureTips = useCallback(() => {
+    replayGestureTipsRef.current();
+  }, []);
+
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
   }, []);
@@ -650,7 +671,8 @@ export default function HomeScreen() {
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
 
-  const usableHeight = layoutHeight - insets.top - insets.bottom;
+  const menuChromeHeight = practiceMenuChromeHeight();
+  const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;
 
   // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
   // Errors skip the intro gate so failures are not delayed.
@@ -716,21 +738,22 @@ export default function HomeScreen() {
       ]}
     >
       <StatusBar style="light" />
-      {/* Slot for Lz-32: trigger mounts only when APP_MENU_TRIGGER_ENABLED (§4.5). */}
+      {/* §4.5 / AD: ellipsis in its own petrol band above the card (not overlaid). */}
       {APP_MENU_TRIGGER_ENABLED ? (
-        <AppMenuTrigger
-          style={{
-            position: 'absolute',
-            top: insets.top,
-            right: practiceScreenGutter(),
-            zIndex: 30,
-          }}
-        />
+        <View
+          style={[styles.menuChrome, { height: menuChromeHeight }]}
+          testID="app-menu-chrome"
+          pointerEvents="box-none"
+        >
+          <AppMenuTrigger ref={appMenuTriggerRef} onPress={openAppMenu} />
+        </View>
       ) : null}
       <View
         style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
         testID="practice-column"
-        importantForAccessibility={lateralitySheetOpen ? 'no-hide-descendants' : 'auto'}
+        importantForAccessibility={
+          lateralitySheetOpen || appMenuOpen ? 'no-hide-descendants' : 'auto'
+        }
       >
         <View
           style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
@@ -748,6 +771,7 @@ export default function HomeScreen() {
             showDeckLoading={showDeckLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
+            onReplayGestureTipsReady={onReplayGestureTipsReady}
           />
           <LateralityControl
             laterality={laterality}
@@ -786,6 +810,12 @@ export default function HomeScreen() {
         onSelectLaterality={onSelectLaterality}
         returnFocusRef={lateralityLabelRef}
       />
+      <AppMenuSheet
+        visible={appMenuOpen}
+        onDismiss={dismissAppMenu}
+        onReplayGestureTips={onReplayGestureTips}
+        returnFocusRef={appMenuTriggerRef}
+      />
     </View>
   );
 }
@@ -801,6 +831,17 @@ const styles = StyleSheet.create({
   mainRoot: {
     backgroundColor: color.shell,
     width: '100%',
+  },
+  /** Top-right ellipsis band on petrol — card starts below (Lz-32 Art Director). */
+  menuChrome: {
+    width: '100%',
+    maxWidth: PRACTICE_COLUMN_MAX_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: practiceScreenGutter(),
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    zIndex: 30,
   },
   /** Centred practice column for tablets / wide native; web phone frame already ≤430. */
   practiceColumn: {
