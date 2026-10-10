@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { capture, swipeForward } from '../helpers/capture';
+import { capture, swipeBack, swipeForward } from '../helpers/capture';
 import { visibleText } from '../helpers/locators';
 import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
 import { expectStatusLineClearOfLaterality } from '../helpers/statusLayout';
@@ -69,5 +69,21 @@ test.describe('status screens', () => {
     await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
     await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'en' });
+  });
+
+  test('back from end-of-deck loading returns to the last concept (Lz-36)', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=loading-deck', {
+      mock: { delayLoadMoreMs: 120_000 },
+      skipNetworkIdle: true,
+    });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await swipeForward(page);
+    await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
+
+    await swipeBack(page, 'Horizon');
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
   });
 });

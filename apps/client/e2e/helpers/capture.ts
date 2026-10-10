@@ -265,3 +265,26 @@ export async function swipeForward(
   }
   // When no label is provided (e.g. end-of-deck loading), the caller waits on the resulting UI.
 }
+
+/**
+ * Backtrack with a right swipe (Lz-36: also exits end-of-deck loading onto the last card).
+ */
+export async function swipeBack(
+  page: Page,
+  expectLabel?: string | RegExp,
+): Promise<void> {
+  const stack = page.getByTestId('card-laterality-group');
+  const box = await stack.boundingBox();
+  if (!box) throw new Error('card-laterality-group has no bounding box');
+  const y = box.y + box.height * 0.3;
+  const fromX = box.x + box.width * 0.2;
+  const toX = box.x + box.width * 0.85;
+  await page.mouse.move(fromX, y);
+  await page.mouse.down();
+  await page.mouse.move(toX, y, { steps: 16 });
+  await page.mouse.up();
+
+  if (expectLabel != null) {
+    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+  }
+}
