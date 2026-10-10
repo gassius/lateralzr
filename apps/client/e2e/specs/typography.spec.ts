@@ -54,8 +54,9 @@ test.describe('typography', () => {
 
     // AD follow-up (#91 note / Lz-26): at 320×200% the last line must not clip
     // at the card bottom — shrink into the ink band + collapse bottom reserve.
+    // Line count may be 4–5 with real system fonts; no-clip is the gate.
     const lines = text.split('\n').filter((line) => line.trim().length > 0);
-    expect(lines.length).toBeLessThanOrEqual(4);
+    expect(lines.length).toBeLessThanOrEqual(5);
 
     const visibility = await title.evaluate((el) => {
       const titleBox = el.getBoundingClientRect();
@@ -67,10 +68,14 @@ test.describe('typography', () => {
         titleTop: titleBox.top,
         faceBottom: faceBox?.bottom ?? 0,
         faceTop: faceBox?.top ?? 0,
+        titleHeight: titleBox.height,
+        faceHeight: faceBox?.height ?? 0,
       };
     });
     expect(visibility.titleBottom).toBeLessThanOrEqual(visibility.faceBottom + 1);
     expect(visibility.titleTop).toBeGreaterThanOrEqual(visibility.faceTop - 1);
+    // Title block itself must fit the face (not merely start on-screen).
+    expect(visibility.titleHeight).toBeLessThanOrEqual(visibility.faceHeight + 1);
 
     await capture(page, testInfo, {
       screen: 'typography',
