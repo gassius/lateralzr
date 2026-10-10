@@ -9,13 +9,21 @@ import {
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_HYPHEN,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+  CONCEPT_FRONT_TITLE_MAX_LINES,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   CONCEPT_FRONT_TITLE_TOP_RATIO,
   TITLE_CLEAR_AREA,
+  applyNativeTitleTextLayoutOnce,
+  clearNativeTitleMeasureCache,
+  conceptFrontTitleLineCount,
+  conceptFrontTitleNativeProbeText,
   conceptFrontTitleRenderedSize,
+  conceptFrontTitleTopSpacerHeight,
+  getCachedNativeTitleLayout,
   hyphenateWord,
   layoutConceptFrontTitle,
+  resolveNativeFrontTitlePresentation,
   titleColor,
   wrapTitleAtSpaces,
 } from './conceptFrontTitle.ts';
@@ -165,4 +173,90 @@ test('titleColor uses layout fontSize after shrink (ink only below 24)', () => {
   const atFloor = layoutConceptFrontTitle('multidisciplinario', 41, measure);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(atFloor.fontSize, 1)), color.concept);
   assert.equal(titleColor(conceptFrontTitleRenderedSize(23, 1)), color.ink);
+});
+
+test('§7.3: shrinks when space wrap exceeds max lines (EN long label shape)', () => {
+  assert.equal(CONCEPT_FRONT_TITLE_MAX_LINES, 4);
+  // Five 8-letter words: at 32 each is 25.6 wide → width 26 yields 5 lines.
+  // Width 41: at 24 two words = 40.8 fit → 3 lines (shrink from 32).
+  const fiveWords = 'aaaaaaaa bbbbbbbb cccccccc dddddddd eeeeeeee';
+  const at32 = wrapTitleAtSpaces(fiveWords, 26, 32, measure);
+  assert.ok(at32 != null);
+  assert.equal(conceptFrontTitleLineCount(at32!), 5);
+
+  const layout = layoutConceptFrontTitle(fiveWords, 41, measure);
+  assert.ok(layout.fontSize < 32);
+  assert.ok(conceptFrontTitleLineCount(layout.displayText) <= CONCEPT_FRONT_TITLE_MAX_LINES);
+});
+
+test('top spacer shrinks so a tall title block fits in the face', () => {
+  const faceH = 400;
+  const shortTop = conceptFrontTitleTopSpacerHeight(faceH, 37);
+  assert.equal(shortTop, Math.round(faceH * CONCEPT_FRONT_TITLE_TOP_RATIO));
+
+  const tallTitleH = 200;
+  const risen = conceptFrontTitleTopSpacerHeight(faceH, tallTitleH);
+  assert.ok(risen < shortTop);
+  assert.ok(risen + tallTitleH + 48 <= faceH);
+});
+
+test('native onTextLayout applies once per title+width; no remeasure after size apply', () => {
+  clearNativeTitleMeasureCache();
+  const title = 'Extraordinarily elaborate framework';
+  const maxWidth = 200;
+  const words = conceptFrontTitleNativeProbeText(title).split('\n');
+  const lines = words.map((word) => ({
+    text: word,
+    width: word.length * 12,
+  }));
+
+  const first = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines,
+    probeFontSize: 32,
+    fontScale: 1,
+  });
+  assert.equal(first.applied, true);
+  assert.ok(first.layout.fontSize <= 32);
+
+  // Simulate another onTextLayout after the chosen size is painted (wider lines).
+  const afterSizeApply = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines: words.map((word) => ({ text: word, width: word.length * 20 })),
+    probeFontSize: 32,
+    fontScale: 1,
+  });
+  assert.equal(afterSizeApply.applied, false);
+  assert.deepEqual(afterSizeApply.layout, first.layout);
+  assert.deepEqual(getCachedNativeTitleLayout(title, maxWidth), first.layout);
+});
+
+test('native presentation stays opacity 0 until measured; first visible frame is final size', () => {
+  clearNativeTitleMeasureCache();
+  const title = 'Collective intelligence';
+  const maxWidth = 240;
+
+  const before = resolveNativeFrontTitlePresentation(title, maxWidth);
+  assert.equal(before.opacity, 0);
+  assert.equal(before.layout, null);
+  assert.equal(before.shouldProbe, true);
+
+  const words = conceptFrontTitleNativeProbeText(title).split('\n');
+  const applied = applyNativeTitleTextLayoutOnce({
+    title,
+    maxWidth,
+    lines: words.map((word) => ({ text: word, width: word.length * 14 })),
+    probeFontSize: 32,
+  });
+  assert.equal(applied.applied, true);
+
+  const visible = resolveNativeFrontTitlePresentation(title, maxWidth);
+  assert.equal(visible.opacity, 1);
+  assert.equal(visible.shouldProbe, false);
+  assert.ok(visible.layout != null);
+  assert.deepEqual(visible.layout, applied.layout);
+  // First visible frame uses the cached final layout — never a provisional 32 with opacity 1.
+  assert.equal(visible.layout!.fontSize, applied.layout.fontSize);
 });

@@ -7,9 +7,11 @@ import { color, type } from '../theme/tokens';
  * `type.concept` (32). Concept teal on orange is contrast-safe only at
  * ≥ `type.conceptMinOnOrange` (24); below that, fall back to ink.
  *
- * Wrap policy (art director): never split a word without a visible hyphen.
+ * Wrap policy (art director / §7.3): never split a word without a visible hyphen.
  * Prefer space wraps; if a word overflows at 32, step size down to 24; only
- * then insert `-\n`. Pattern clearing (Lz-25) consumes the title rect.
+ * then insert `-\n`. Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines —
+ * shrink toward 24 before falling back to face scroll. Pattern clearing (Lz-25)
+ * consumes the title rect.
  */
 
 export const CONCEPT_FRONT_TITLE_FONT_SIZE = type.concept;
@@ -21,8 +23,17 @@ export const CONCEPT_FRONT_TITLE_TEXT_ALIGN = 'left' as const;
 /** Line-height ratio for the front title (v3.3 concept role). */
 export const CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO = 1.15;
 
+/**
+ * §7.3 / Lz-26: 3–4 lines allowed. When a space wrap exceeds this, shrink
+ * toward 24 before relying on scroll.
+ */
+export const CONCEPT_FRONT_TITLE_MAX_LINES = 4;
+
 /** Visible hyphen used when a word still overflows at the 24 px floor. */
 export const CONCEPT_FRONT_TITLE_HYPHEN = '-';
+
+/** Minimum breathing room below the title block inside the face (px). */
+export const CONCEPT_FRONT_TITLE_BOTTOM_RESERVE = 48;
 
 /**
  * RN Web `Text` default (`font: '14px System'` → createReactDOMStyle SYSTEM_FONT_STACK).
@@ -56,6 +67,7 @@ export const CONCEPT_FRONT_TITLE_BASELINE_RATIO = 0.52;
 /**
  * Fraction of face height above the title block so a short one-liner’s
  * first baseline lands near {@link CONCEPT_FRONT_TITLE_BASELINE_RATIO}.
+ * Long titles shrink this spacer so the block can rise and never clip.
  */
 export const CONCEPT_FRONT_TITLE_TOP_RATIO = 0.47;
 
@@ -65,6 +77,27 @@ export type ConceptFrontTitleRect = {
   width: number;
   height: number;
 };
+
+/** Soft-wrap line count in a layout `displayText` (hyphen breaks count). */
+export function conceptFrontTitleLineCount(displayText: string): number {
+  if (displayText.length === 0) return 0;
+  return displayText.split('\n').length;
+}
+
+/**
+ * Top spacer height: prefer the lower-middle anchor, but shrink so the title
+ * block fits in the face without clipping at default text size.
+ */
+export function conceptFrontTitleTopSpacerHeight(
+  faceHeight: number,
+  titleBlockHeight: number,
+  bottomReserve: number = CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
+): number {
+  if (faceHeight <= 0) return 0;
+  const preferred = Math.round(faceHeight * CONCEPT_FRONT_TITLE_TOP_RATIO);
+  const maxTop = Math.max(0, Math.round(faceHeight - titleBlockHeight - bottomReserve));
+  return Math.min(preferred, maxTop);
+}
 
 /**
  * Title colour for a given rendered px size (after any shrink × font scale).
@@ -278,6 +311,7 @@ export function wrapTitleWithHyphens(
 /**
  * Pick font size (32→24) and display string.
  * Shrink before hyphenating; never mid-word break without a visible `-`.
+ * Prefer ≤ {@link CONCEPT_FRONT_TITLE_MAX_LINES} lines (shrink toward 24 first).
  *
  * `fontScale` is passed into measure as `size × fontScale` (OS / e2e glyph scale).
  * Returned `fontSize` / `lineHeight` stay unscaled for the Text style (#82).
@@ -302,15 +336,25 @@ export function layoutConceptFrontTitle(
     };
   }
 
+  /** Last space-wrap that worked (may exceed max lines); prefers smaller size. */
+  let overflowFallback: ConceptFrontTitleLayout | null = null;
+
   for (let size = maxFontSize; size >= minFontSize; size -= 1) {
     const wrapped = wrapTitleAtSpaces(text, width, size, scaledMeasure);
-    if (wrapped != null) {
-      return {
-        displayText: wrapped,
-        fontSize: size,
-        lineHeight: Math.round(size * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
-      };
+    if (wrapped == null) continue;
+    const layout: ConceptFrontTitleLayout = {
+      displayText: wrapped,
+      fontSize: size,
+      lineHeight: Math.round(size * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
+    };
+    if (conceptFrontTitleLineCount(wrapped) <= CONCEPT_FRONT_TITLE_MAX_LINES) {
+      return layout;
     }
+    overflowFallback = layout;
+  }
+
+  if (overflowFallback != null) {
+    return overflowFallback;
   }
 
   const fontSize = minFontSize;
@@ -319,4 +363,138 @@ export function layoutConceptFrontTitle(
     fontSize,
     lineHeight: Math.round(fontSize * CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO),
   };
+}
+
+// --- Native onTextLayout measure (once per title+width; no resize loop) ---
+
+export type NativeTitleTextLayoutLine = {
+  text: string;
+  width: number;
+};
+
+/** Cache key: raw title + content width (rounded). */
+export function nativeTitleMeasureCacheKey(title: string, maxWidth: number): string {
+  return `${title}\0${Math.round(maxWidth * 100) / 100}`;
+}
+
+const nativeTitleLayoutCache = new Map<string, ConceptFrontTitleLayout>();
+
+/** Test hook — clears the native layout cache. */
+export function clearNativeTitleMeasureCache(): void {
+  nativeTitleLayoutCache.clear();
+}
+
+export function getCachedNativeTitleLayout(
+  title: string,
+  maxWidth: number,
+): ConceptFrontTitleLayout | null {
+  return nativeTitleLayoutCache.get(nativeTitleMeasureCacheKey(title, maxWidth)) ?? null;
+}
+
+/** One word per line so `onTextLayout` reports each token width. */
+export function conceptFrontTitleNativeProbeText(title: string): string {
+  return title.split(/\s+/u).filter((part) => part.length > 0).join('\n');
+}
+
+/**
+ * Build a width measure from probe lines (each line = one word at `probeFontSize`).
+ * Composite phrases sum token widths + an estimated space.
+ */
+export function measureFromNativeTextLayoutLines(
+  lines: readonly NativeTitleTextLayoutLine[],
+  probeFontSize: number,
+): MeasureTitleWidth {
+  const widths = new Map<string, number>();
+  for (const line of lines) {
+    const token = line.text.replace(/\n$/u, '');
+    if (token.length > 0) widths.set(token, line.width);
+  }
+  const spaceWidth = probeFontSize * CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO * 0.35;
+
+  return (text, fontSize) => {
+    if (text.length === 0) return 0;
+    const scale = probeFontSize > 0 ? fontSize / probeFontSize : 1;
+    if (widths.has(text)) return widths.get(text)! * scale;
+
+    let total = 0;
+    for (const part of text.split(/(\s+)/u)) {
+      if (part.length === 0) continue;
+      if (/^\s+$/u.test(part)) {
+        total += spaceWidth * part.length * scale;
+        continue;
+      }
+      const known = widths.get(part);
+      if (known != null) total += known * scale;
+      else total += part.length * fontSize * CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO;
+    }
+    return total;
+  };
+}
+
+export type ApplyNativeTitleTextLayoutResult = {
+  /** True only the first time this title+width is measured. */
+  applied: boolean;
+  layout: ConceptFrontTitleLayout;
+};
+
+/**
+ * Consume one native `onTextLayout`. Caches by title+width and never overwrites —
+ * later calls (including after the chosen font size is applied) are no-ops.
+ */
+export function applyNativeTitleTextLayoutOnce(args: {
+  title: string;
+  maxWidth: number;
+  lines: readonly NativeTitleTextLayoutLine[];
+  probeFontSize?: number;
+  fontScale?: number;
+}): ApplyNativeTitleTextLayoutResult {
+  const {
+    title,
+    maxWidth,
+    lines,
+    probeFontSize = CONCEPT_FRONT_TITLE_FONT_SIZE,
+    fontScale = 1,
+  } = args;
+  const key = nativeTitleMeasureCacheKey(title, maxWidth);
+  const cached = nativeTitleLayoutCache.get(key);
+  if (cached != null) {
+    return { applied: false, layout: cached };
+  }
+
+  const measure = measureFromNativeTextLayoutLines(lines, probeFontSize);
+  const layout = layoutConceptFrontTitle(
+    title,
+    maxWidth,
+    measure,
+    CONCEPT_FRONT_TITLE_FONT_SIZE,
+    CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
+    fontScale,
+  );
+  nativeTitleLayoutCache.set(key, layout);
+  return { applied: true, layout };
+}
+
+export type NativeFrontTitlePresentation = {
+  /** 0 until measured; 1 only with the final cached layout (no 32→final jump). */
+  opacity: 0 | 1;
+  layout: ConceptFrontTitleLayout | null;
+  shouldProbe: boolean;
+};
+
+/**
+ * Native presentation gate: stay at opacity 0 until a cache entry exists for
+ * this title+width. Web callers skip this and use sync DOM measure.
+ */
+export function resolveNativeFrontTitlePresentation(
+  title: string,
+  maxWidth: number,
+): NativeFrontTitlePresentation {
+  if (maxWidth <= 0 || title.length === 0) {
+    return { opacity: 0, layout: null, shouldProbe: false };
+  }
+  const cached = getCachedNativeTitleLayout(title, maxWidth);
+  if (cached != null) {
+    return { opacity: 1, layout: cached, shouldProbe: false };
+  }
+  return { opacity: 0, layout: null, shouldProbe: true };
 }
