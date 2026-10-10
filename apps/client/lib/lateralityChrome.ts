@@ -1,48 +1,27 @@
 /**
- * Tokens for grouping the laterality row with the card.
- * The row is part of the card composition — not a bezel-pinned footer.
+ * Tokens for grouping the laterality control with the card.
+ * The control is part of the card composition — not a bezel-pinned footer.
  */
 
-import { layout, spacing } from '@/theme/tokens';
-import { WORDMARK_ASPECT } from '../assets/images/lateralzrWordmark';
+import { layout, tallScreenMinHeight, type } from '@/theme/tokens';
 
-/** − / wordmark / + row. Keep ≥44px targets inside this height. */
-export const LATERALITY_SUBMENU_HEIGHT = 72;
+/** 48 px stepped-slider hit region (guide §10 / layout.recommendedTouchTarget). */
+export const LATERALITY_RAIL_HEIGHT = layout.recommendedTouchTarget;
 
-/** Comfortable tap target for − / + (visually weightier than a 44px ghost). */
-export const LATERALITY_STEP_SIZE = 48;
+/**
+ * Minimum label row: type.label line box at 100% (14 × 1.4 → 20).
+ * At large text the row grows (wrap); callers reserve measured control height.
+ */
+export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 
-/** Preferred logo wordmark strip height on a wide phone. Scales down on 320–375. */
-export const LATERALITY_WORDMARK_HEIGHT = 28;
+/** Minimum control height (one label line + rail). Grows when the label wraps. */
+export const LATERALITY_CONTROL_HEIGHT = LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
 
-/** Preferred connected-nodes motif width (not the reserved lightbulb). Scales with the wordmark. */
-export const LATERALITY_NODES_WIDTH = 32;
+/** Comfortable tap target size (≥44). */
+export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;
 
-/** Horizontal inset on the − / wordmark / + row — matches practice screen gutter (Lz-21). */
+/** Horizontal inset — matches practice screen gutter (Lz-21). */
 export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
-
-/**
- * §5.2 — logo/wordmark never sits directly on shell (#082D3D).
- * Until Lz-30 removes the wordmark from the bar, it rides an orange tile (`front`).
- */
-export const LATERALITY_WORDMARK_SURFACE: 'front' = 'front';
-
-/**
- * §5.3 clear space: ≥ one terminal-node diameter on every side of the paths.
- * Named from the spacing scale (12 / 8 / 8).
- */
-export const LATERALITY_WORDMARK_TILE_PAD_X = spacing[2];
-export const LATERALITY_WORDMARK_TILE_PAD_Y = spacing[1];
-export const LATERALITY_WORDMARK_TILE_RADIUS = spacing[1];
-
-/** Gap between the five row slots (step, nodes, word, nodes, step). */
-export const LATERALITY_ROW_GAP = 6;
-
-const LATERALITY_ROW_ITEM_COUNT = 5;
-const LATERALITY_ROW_GAP_COUNT = LATERALITY_ROW_ITEM_COUNT - 1;
-
-/** Flush attach under the card — close the Lz-11 orphaned teal band. */
-export const LATERALITY_CARD_GAP = 2;
 
 /** Narrowest phone chrome the bar must fit (WEB_PHONE_MIN_WIDTH / iPhone SE). */
 export const LATERALITY_BAR_MIN_ROW_WIDTH = 320;
@@ -52,85 +31,37 @@ export const CARD_STACK_PADDING_TOP = 8;
 
 export const MIN_CARD_AREA_HEIGHT = 260;
 
-/** Height reserved under the card for the laterality row + grouping gap. */
-export function lateralityChromeReserve(): number {
-  return LATERALITY_SUBMENU_HEIGHT + LATERALITY_CARD_GAP;
-}
-
-/** Vertical space the card stack may use once laterality sits under the card. */
-export function cardStackAvailableHeight(usableHeight: number): number {
-  return Math.max(MIN_CARD_AREA_HEIGHT, usableHeight - lateralityChromeReserve());
-}
-
-export type LateralityBarFit = {
-  rowWidth: number;
-  stepSize: number;
-  paddingHorizontal: number;
-  gap: number;
-  nodesWidth: number;
-  wordmarkWidth: number;
-  wordmarkHeight: number;
-  totalWidth: number;
-};
-
-/** Fixed chrome that does not shrink: padding + −/+ + gaps. */
-export function lateralityBarReservedWidth(): number {
-  return (
-    LATERALITY_ROW_PADDING_HORIZONTAL * 2 +
-    LATERALITY_STEP_SIZE * 2 +
-    LATERALITY_ROW_GAP * LATERALITY_ROW_GAP_COUNT
-  );
-}
-
-export function lateralityBarPreferredWordmarkWidth(): number {
-  return Math.round(LATERALITY_WORDMARK_HEIGHT * WORDMARK_ASPECT);
-}
-
-/** Extra horizontal space the §5.2 orange wordmark tile needs beyond the paths. */
-export function lateralityWordmarkTileExtraWidth(): number {
-  return LATERALITY_WORDMARK_TILE_PAD_X * 2;
+/**
+ * Gap card bottom → control label (v3.3 §8).
+ * 12 px normally; 16 px when usable height (viewport − safe areas) ≥ 800.
+ */
+export function lateralityCardGap(usableHeight: number): number {
+  const height = Number.isFinite(usableHeight) ? usableHeight : 0;
+  return height >= tallScreenMinHeight ? layout.cardToControlGapTall : layout.cardToControlGap;
 }
 
 /**
- * Size the wordmark + nodes from the width left after −/+ and padding.
- * Steps stay 48px so tap targets do not shrink on SE-class frames.
- * Wordmark path width excludes the orange tile pad (counted separately so the row still fits).
+ * Height reserved under the card for the laterality control + grouping gap.
+ * Pass the measured control height when the label wraps (large text).
  */
-export function lateralityBarFit(rowWidth: number): LateralityBarFit {
-  const width = Number.isFinite(rowWidth) ? Math.max(0, Math.floor(rowWidth)) : 0;
-  const reserved = lateralityBarReservedWidth();
-  const tileExtra = lateralityWordmarkTileExtraWidth();
-  const remaining = Math.max(0, width - reserved);
-  const preferredWordmark = lateralityBarPreferredWordmarkWidth();
-  const preferredNodes = LATERALITY_NODES_WIDTH;
-  const preferredMiddle = preferredWordmark + preferredNodes * 2 + tileExtra;
+export function lateralityChromeReserve(
+  usableHeight: number,
+  controlHeight: number = LATERALITY_CONTROL_HEIGHT,
+): number {
+  const control =
+    Number.isFinite(controlHeight) && controlHeight > 0
+      ? Math.max(LATERALITY_CONTROL_HEIGHT, controlHeight)
+      : LATERALITY_CONTROL_HEIGHT;
+  return control + lateralityCardGap(usableHeight);
+}
 
-  let nodesWidth: number;
-  let wordmarkWidth: number;
-  if (preferredMiddle <= remaining) {
-    nodesWidth = preferredNodes;
-    wordmarkWidth = preferredWordmark;
-  } else if (remaining <= tileExtra) {
-    nodesWidth = 0;
-    wordmarkWidth = 0;
-  } else {
-    const pathBudget = remaining - tileExtra;
-    const pathPreferred = preferredWordmark + preferredNodes * 2;
-    const scale = pathBudget / pathPreferred;
-    nodesWidth = Math.floor(preferredNodes * scale);
-    wordmarkWidth = Math.max(0, pathBudget - nodesWidth * 2);
-  }
-
-  const wordmarkTileWidth = wordmarkWidth > 0 ? wordmarkWidth + tileExtra : 0;
-
-  return {
-    rowWidth: width,
-    stepSize: LATERALITY_STEP_SIZE,
-    paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
-    gap: LATERALITY_ROW_GAP,
-    nodesWidth,
-    wordmarkWidth,
-    wordmarkHeight: wordmarkWidth > 0 ? wordmarkWidth / WORDMARK_ASPECT : 0,
-    totalWidth: reserved + nodesWidth * 2 + wordmarkTileWidth,
-  };
+/** Vertical space the card stack may use once laterality sits under the card. */
+export function cardStackAvailableHeight(
+  usableHeight: number,
+  controlHeight: number = LATERALITY_CONTROL_HEIGHT,
+): number {
+  return Math.max(
+    MIN_CARD_AREA_HEIGHT,
+    usableHeight - lateralityChromeReserve(usableHeight, controlHeight),
+  );
 }

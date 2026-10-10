@@ -8,7 +8,7 @@ test.describe('smoke', () => {
     const consoleBucket = await openApp(page, 'canonicalConcept=mushroom');
 
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
-    await expect(page.getByTestId('laterality-wordmark')).toBeVisible();
+    await expect(page.getByTestId('laterality-control')).toBeVisible();
 
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();

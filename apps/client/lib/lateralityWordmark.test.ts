@@ -11,15 +11,11 @@ import {
   WORDMARK_VIEWBOX,
   wordmarkViewBoxAttr,
 } from '../assets/images/lateralzrWordmark.ts';
-import {
-  LATERALITY_STEP_SIZE,
-  LATERALITY_WORDMARK_HEIGHT,
-} from './lateralityChrome.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const logoSvg = readFileSync(join(here, '../assets/images/lateralzr_logo.svg'), 'utf8');
 
-describe('laterality wordmark matches the logo outlines', () => {
+describe('lateralzr wordmark asset (bar no longer hosts it)', () => {
   it('uses the nine Lateralzr letter paths from the logo SVG', () => {
     assert.deepEqual([...WORDMARK_LETTER_IDS], [
       'path179',
@@ -40,7 +36,7 @@ describe('laterality wordmark matches the logo outlines', () => {
     }
   });
 
-  it('does not ship the reserved lightbulb / idea mark on the laterality bar', () => {
+  it('does not ship the reserved lightbulb / idea mark in the wordmark strip', () => {
     const ids: string[] = WORDMARK_LETTERS.map((letter) => letter.id);
     for (const reserved of RESERVED_LIGHTBULB_PATH_IDS) {
       assert.equal(ids.includes(reserved), false);
@@ -56,10 +52,5 @@ describe('laterality wordmark matches the logo outlines', () => {
       wordmarkViewBoxAttr(),
       `${WORDMARK_VIEWBOX.x} ${WORDMARK_VIEWBOX.y} ${WORDMARK_VIEWBOX.width} ${WORDMARK_VIEWBOX.height}`,
     );
-  });
-
-  it('keeps the bar wordmark larger than the old 20px generic label', () => {
-    assert.ok(LATERALITY_WORDMARK_HEIGHT >= 26);
-    assert.ok(LATERALITY_STEP_SIZE >= 44);
   });
 });
