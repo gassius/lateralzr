@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { capture, flipCard } from '../helpers/capture';
-import { cardBackCopy, cardBackMedia, visibleText } from '../helpers/locators';
+import { cardBackCopy, cardBackMedia, cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
-/** Fail if `word` appears split across a line/name break without a preceding `-`. */
+/** Fail if `word` appears split across a line break without a preceding `-`. */
 function assertNoBareMidWordBreak(rendered: string, word: string): void {
   const compact = rendered.replace(/\n/g, '');
   if (compact.toLowerCase().includes(word.toLowerCase())) return;
@@ -26,13 +26,15 @@ test.describe('locale es', () => {
 
   test('front long label', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=long-label&locale=es');
-    const title = page.getByTestId('card-front-title');
+    const title = cardFrontTitle(page);
     await expect(title).toBeVisible();
     // Lz-26: no mid-word break without a visible hyphen (320 ES is the art-director check).
-    const text = (await title.innerText()).replace(/\s+/g, ' ').trim();
+    const text = await title.innerText();
     assertNoBareMidWordBreak(text, 'multidisciplinario');
-    await expect(title).toContainText(/marco conceptual/i);
-    await expect(title).toContainText(/extraordinariamente elaborado/i);
+    await expect(title).toHaveAttribute(
+      'aria-label',
+      /marco conceptual multidisciplinario extraordinariamente elaborado/i,
+    );
     await capture(page, testInfo, { screen: 'card-front', state: 'long-label', locale: 'es' });
   });
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { capture, flipCard } from '../helpers/capture';
-import { cardBackCopy, cardBackMedia, visibleText } from '../helpers/locators';
+import { cardBackCopy, cardBackMedia, cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 test.describe('card back', () => {
@@ -31,7 +31,8 @@ test.describe('card back', () => {
 
   test('with diagram (direct deep link)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=diagram&onlyWithMedia=true');
-    await expect(visibleText(page, /schematic lattice/i)).toBeVisible();
+    // Front title may wrap with \\n; match the unwrapped aria-label.
+    await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /schematic lattice/i);
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-diagram', locale: 'en' });
@@ -39,9 +40,10 @@ test.describe('card back', () => {
 
   test('with transparent media', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=transparent&onlyWithMedia=true');
-    await expect(visibleText(page, /amber cutout/i)).toBeVisible();
+    await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /amber cutout/i);
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-transparent', locale: 'en' });
   });
 });
+

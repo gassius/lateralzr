@@ -28,3 +28,11 @@ export function cardBackMedia(page: Page): Locator {
 export function cardBackTitle(page: Page): Locator {
   return page.locator('[data-testid="card-back-title"]:visible').first();
 }
+
+/**
+ * Interactive front-of-stack title only (`exposeFrontTitleTestId` on the front card).
+ * Prefer this over getByText for long labels — layout may insert `\\n` / `-\n`.
+ */
+export function cardFrontTitle(page: Page): Locator {
+  return page.locator('[data-testid="card-front-title"]:visible').first();
+}

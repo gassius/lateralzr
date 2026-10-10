@@ -58,6 +58,11 @@ type ConceptCardProps = {
   animateCoachAppear?: boolean;
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
+  /**
+   * Only the interactive front-of-stack card should expose `card-front-title`
+   * (behind / return-overlay duplicates must not, or Playwright strict mode fails).
+   */
+  exposeFrontTitleTestId?: boolean;
 };
 
 export function ConceptCard({
@@ -67,6 +72,7 @@ export function ConceptCard({
   coachHint,
   animateCoachAppear = true,
   flipPeek,
+  exposeFrontTitleTestId = false,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -210,7 +216,7 @@ export function ConceptCard({
               const { x, y, width, height } = event.nativeEvent.layout;
               titleRectRef.current = { x, y, width, height };
             }}
-            testID="card-front-title"
+            testID={exposeFrontTitleTestId ? 'card-front-title' : undefined}
             accessibilityRole="header"
             accessibilityLabel={title}
           >

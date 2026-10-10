@@ -696,6 +696,7 @@ export function ConceptCardStack({
                 coachHint={coach ? t(coachMessageKey(coach)) : null}
                 animateCoachAppear={peekEnabled}
                 flipPeek={flipPeek}
+                exposeFrontTitleTestId
               />
             )}
             <Animated.View style={[styles.frontCoverDim, frontCoverDimStyle]} pointerEvents="none" />
@@ -739,6 +740,7 @@ function ConceptCardForIndex({
   coachHint,
   animateCoachAppear,
   flipPeek,
+  exposeFrontTitleTestId = false,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -747,6 +749,7 @@ function ConceptCardForIndex({
   coachHint?: string | null;
   animateCoachAppear?: boolean;
   flipPeek?: SharedValue<number>;
+  exposeFrontTitleTestId?: boolean;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -759,6 +762,7 @@ function ConceptCardForIndex({
       coachHint={coachHint}
       animateCoachAppear={animateCoachAppear}
       flipPeek={flipPeek}
+      exposeFrontTitleTestId={exposeFrontTitleTestId}
     />
   );
 }
