@@ -1,5 +1,6 @@
 import { contrastRatio } from '../theme/contrast';
 import { color } from '../theme/tokens';
+import { textStyle, typeSize, typeWeight } from '../theme/typography';
 import { CONCEPT_FRONT_LABEL_FONT_SIZE } from './conceptFrontLabelAlign';
 import { t } from './i18n';
 
@@ -9,17 +10,19 @@ import { t } from './i18n';
  * Laterality has a persistent − / wordmark / + row. Complexity is a different
  * dimension (label density, not edge distance) and must not join that row.
  * Deep links and vertical swipes only get a short, secondary confirmation.
+ *
+ * Type roles: v3.3 label / meta (Lz-22). Apply `textStyle` at render.
  */
 
-/** Quiet type: smaller than swipe/flip coaching (17) and the 48px title. */
-export const COMPLEXITY_CUE_FONT_SIZE = 14;
+/** Quiet type: v3.3 compact control label. */
+export const COMPLEXITY_CUE_FONT_SIZE = typeSize('label');
 
-/** After the chip leaves, a session deep-link keeps this quieter mark. */
-export const COMPLEXITY_SESSION_MARK_FONT_SIZE = 12;
+/** After the chip leaves, a session deep-link keeps this quieter mark (attribution/help). */
+export const COMPLEXITY_SESSION_MARK_FONT_SIZE = typeSize('meta');
 
-export const COMPLEXITY_CUE_LINE_HEIGHT = 18;
+export const COMPLEXITY_CUE_LINE_HEIGHT = textStyle('label').lineHeight as number;
 
-export const COMPLEXITY_CUE_FONT_WEIGHT = '500' as const;
+export const COMPLEXITY_CUE_FONT_WEIGHT = typeWeight('label');
 
 /** How long a swipe cue stays readable before it leaves. */
 export const COMPLEXITY_CUE_DURATION_MS = 1800;

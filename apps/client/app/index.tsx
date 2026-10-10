@@ -12,6 +12,7 @@ import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { color } from '@/theme/tokens';
+import { textStyle } from '@/theme/typography';
 import {
   complexityCueHoldMs,
   resolveSessionComplexityToAnnounce,
@@ -683,9 +684,9 @@ export default function HomeScreen() {
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
         <LateralzrLogo animate={false} />
-        <Text style={styles.error}>{error}</Text>
+        <Text style={[styles.error, textStyle('body')]}>{error}</Text>
         <Pressable onPress={() => loadConcepts()} style={styles.retryBtn}>
-          <Text style={styles.retryText}>{t('tapToRetry')}</Text>
+          <Text style={[styles.retryText, textStyle('row')]}>{t('tapToRetry')}</Text>
         </Pressable>
       </View>
     );
@@ -790,7 +791,6 @@ const styles = StyleSheet.create({
   error: {
     color: color.ink,
     textAlign: 'center',
-    fontSize: 16,
     marginTop: 20,
     opacity: 0.9,
   },
@@ -801,8 +801,6 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: color.ink,
-    fontSize: 16,
-    fontWeight: '600',
     textDecorationLine: 'underline',
   },
 });

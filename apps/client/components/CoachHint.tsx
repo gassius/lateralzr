@@ -9,13 +9,11 @@ import Animated, {
 import {
   COACH_APPEAR_DURATION_MS,
   COACH_APPEAR_TRANSLATE_Y,
-  COACH_HINT_FONT_SIZE,
-  COACH_HINT_FONT_WEIGHT,
-  COACH_HINT_LINE_HEIGHT,
   COACH_HINT_OPACITY,
   coachHintPalette,
   type CoachHintSurface,
 } from '@/lib/coachHintPresentation';
+import { textStyle } from '@/theme/typography';
 
 type CoachHintProps = {
   text: string;
@@ -59,7 +57,7 @@ export function CoachHint({ text, animateAppear, surface = 'orange' }: CoachHint
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
         ]}
       >
-        <Text style={[styles.copy, { color: colors.text }]}>{text}</Text>
+        <Text style={[styles.copy, textStyle('row'), { color: colors.text }]}>{text}</Text>
       </View>
     </Animated.View>
   );
@@ -86,9 +84,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   copy: {
-    fontSize: COACH_HINT_FONT_SIZE,
-    lineHeight: COACH_HINT_LINE_HEIGHT,
-    fontWeight: COACH_HINT_FONT_WEIGHT,
     textAlign: 'center',
   },
 });
