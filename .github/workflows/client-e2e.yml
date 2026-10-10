@@ -51,7 +51,6 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           if [ "${EVENT_NAME}" != "pull_request" ]; then
@@ -59,8 +58,10 @@ jobs:
             echo "Non-PR event: run full client e2e"
             exit 0
           fi
+          # checkout@v4 for pull_request leaves the merge commit at HEAD; the
+          # PR head SHA is not in the shallow clone. Diff base…HEAD instead.
           git fetch --no-tags --depth=1 origin "${BASE_SHA}"
-          CHANGED="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}")"
+          CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
           echo "Changed files:"
           echo "${CHANGED}"
           if printf '%s\n' "${CHANGED}" | grep -qE '^(apps/client/|\.github/workflows/client-e2e\.yml|\.github/scripts/client-e2e-)'; then
