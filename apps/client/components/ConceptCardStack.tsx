@@ -62,6 +62,8 @@ type ConceptCardStackProps = {
   showInitialLoading?: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
+  /** Lz-32: bind app-menu Replay to the coaching hook’s reset+refresh. */
+  onReplayGestureTipsReady?: (replay: () => void) => void;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
@@ -82,6 +84,7 @@ export function ConceptCardStack({
   showInitialLoading = false,
   loadMoreError,
   onRetryLoadMore,
+  onReplayGestureTipsReady,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -171,11 +174,16 @@ export function ConceptCardStack({
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
 
-  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped } = useDiscoveryCoaching({
-    cardIndex: currentIndex,
-    flipped: flipped || concepts.length === 0,
-    deckStatus: showDeckStatus,
-  });
+  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped, replayGestureTips } =
+    useDiscoveryCoaching({
+      cardIndex: currentIndex,
+      flipped: flipped || concepts.length === 0,
+      deckStatus: showDeckStatus,
+    });
+
+  useEffect(() => {
+    onReplayGestureTipsReady?.(replayGestureTips);
+  }, [onReplayGestureTipsReady, replayGestureTips]);
 
   useEffect(() => {
     if (!coach || !peekEnabled) {

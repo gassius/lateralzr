@@ -315,4 +315,38 @@ describe('discovery coaching session', () => {
     resetDiscoveryCoachingSession();
     assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
   });
+
+  it('replay reset clears offered + discovered flags for a new coaching sequence', () => {
+    setDiscoveryCoachingSession({
+      swipeDiscovered: true,
+      flipDiscovered: true,
+      swipeCoachOffered: true,
+      flipCoachOffered: true,
+      replayAnchorIndex: 0,
+    });
+    resetDiscoveryCoachingSession();
+    assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
+    assert.equal(
+      swipeCoachContextReady(getDiscoveryCoachingSession(), view({ cardIndex: 0 })),
+      true,
+    );
+  });
+
+  it('replay at cardIndex 5 arms swipe at 5 and flip at 7', () => {
+    resetDiscoveryCoachingSession(5);
+    const s = getDiscoveryCoachingSession();
+    assert.equal(s.replayAnchorIndex, 5);
+    assert.equal(swipeCoachContextReady(s, view({ cardIndex: 5 })), true);
+    assert.equal(swipeCoachContextReady(s, view({ cardIndex: 0 })), false);
+    assert.equal(flipCoachContextReady(s, view({ cardIndex: 7 })), true);
+    assert.equal(flipCoachContextReady(s, view({ cardIndex: 2 })), false);
+
+    const swipeOffered = reduceDiscoveryCoaching(s, { type: 'offerSwipe' });
+    assert.equal(visibleCoach(swipeOffered, view({ cardIndex: 5 })), 'swipe');
+    assert.equal(visibleCoach(swipeOffered, view({ cardIndex: 0 })), null);
+
+    const flipOffered = reduceDiscoveryCoaching(s, { type: 'offerFlip' });
+    assert.equal(visibleCoach(flipOffered, view({ cardIndex: 7 })), 'flip');
+    assert.equal(visibleCoach(flipOffered, view({ cardIndex: 2 })), null);
+  });
 });

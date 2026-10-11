@@ -31,7 +31,14 @@ export function practiceColumnWidth(viewportWidth: number): number {
 }
 
 /**
- * §4.5 — only show controls that work. Flip when Lz-32 (app menu) lands.
- * Slot + component ship in Lz-21; the Practice screen does not mount the trigger yet.
+ * §4.5 — only show controls that work. Enabled with Lz-32 (app menu + Replay row).
  */
-export const APP_MENU_TRIGGER_ENABLED = false;
+export const APP_MENU_TRIGGER_ENABLED = true;
+
+/**
+ * Top petrol band for the ellipsis (guide §9.1 / Art Director Lz-32).
+ * Card stack starts below this so the trigger never overlays the card face.
+ */
+export function practiceMenuChromeHeight(): number {
+  return APP_MENU_TRIGGER_ENABLED ? practiceMenuTriggerSize() : 0;
+}
