@@ -495,6 +495,20 @@ export function ConceptCard({
     onBackInteractivePress?.();
     void Linking.openURL(item.wikiUrl!);
   };
+  // RN-web Pressable does not activate role=link on Enter; handle keys so the
+  // focused back link opens without bubbling a flip to the card surface.
+  const wikiWebKeyProps =
+    Platform.OS === 'web'
+      ? ({
+          onKeyDown: (event: { nativeEvent?: { key?: string }; preventDefault?: () => void; stopPropagation?: () => void }) => {
+            const key = event.nativeEvent?.key;
+            if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+            event.preventDefault?.();
+            event.stopPropagation?.();
+            openWiki();
+          },
+        } as Record<string, unknown>)
+      : {};
   const backWiki = item.wikiUrl ? (
     <Pressable
       accessibilityRole="link"
@@ -504,6 +518,7 @@ export function ConceptCard({
       hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
       style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
       testID="card-back-wikipedia"
+      {...wikiWebKeyProps}
     >
       <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
     </Pressable>

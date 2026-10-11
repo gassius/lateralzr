@@ -346,4 +346,12 @@ describe('component wiring kills surviving a11y mutations', () => {
     assert.match(hookSrc, /shouldQueryScreenReaderForNav/);
     assert.match(hookSrc, /shouldClearKeyboardModalityOnPointer/);
   });
+
+  it('back Wikipedia link activates on Enter without relying on Pressable defaults', () => {
+    const cardSrc = readFileSync(join(here, '../components/ConceptCard.tsx'), 'utf8');
+    assert.match(cardSrc, /card-back-wikipedia/);
+    assert.match(cardSrc, /wikiWebKeyProps/);
+    assert.match(cardSrc, /key !== 'Enter'/);
+    assert.match(cardSrc, /openWiki\(\)/);
+  });
 });

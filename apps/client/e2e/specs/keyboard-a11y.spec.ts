@@ -49,7 +49,12 @@ test.describe('keyboard a11y', () => {
       await route.abort();
     });
     await page.evaluate(() => {
-      window.open = () => null;
+      (window as unknown as { __lzWikiOpen?: number }).__lzWikiOpen = 0;
+      window.open = () => {
+        const w = window as unknown as { __lzWikiOpen?: number };
+        w.__lzWikiOpen = (w.__lzWikiOpen ?? 0) + 1;
+        return null;
+      };
     });
 
     const wiki = page.getByTestId('card-back-wikipedia');
@@ -59,7 +64,12 @@ test.describe('keyboard a11y', () => {
     await page.keyboard.press('Enter');
 
     await expect
-      .poll(() => wikiRequested, { timeout: 5_000 })
+      .poll(async () => {
+        const opened = await page.evaluate(
+          () => (window as unknown as { __lzWikiOpen?: number }).__lzWikiOpen ?? 0,
+        );
+        return wikiRequested || opened > 0;
+      }, { timeout: 5_000 })
       .toBe(true);
 
     await expect
