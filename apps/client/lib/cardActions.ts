@@ -1,0 +1,267 @@
+/**
+ * Non-swipe accessible controls (ClickUp Lz-39 / 869ff5gep).
+ *
+ * Keyboard, switch, and screen-reader paths share the same commit functions as
+ * gestures (Lz-33). Action labels come from Lz-43 i18n keys.
+ */
+
+import type { MessageKey } from '@/lib/i18n';
+import { color, layout } from '@/theme/tokens';
+
+/** Compact nav / a11y target size (guide §10 / layout.recommendedTouchTarget). */
+export const ACCESSIBLE_NAV_TARGET_PX = layout.recommendedTouchTarget;
+
+/** Minimum row height when the optional assistive nav is visible (48 px targets). */
+export const ACCESSIBLE_NAV_ROW_MIN_HEIGHT = ACCESSIBLE_NAV_TARGET_PX;
+
+/** @deprecated Prefer ACCESSIBLE_NAV_ROW_MIN_HEIGHT — row grows when labels wrap. */
+export const ACCESSIBLE_NAV_ROW_HEIGHT = ACCESSIBLE_NAV_ROW_MIN_HEIGHT;
+
+export type CardAction =
+  | 'next'
+  | 'previous'
+  | 'flip'
+  | 'complexityUp'
+  | 'complexityDown';
+
+/** RN accessibilityAction `name` values declared on the active card. */
+export type CardAccessibilityActionName =
+  | 'activate'
+  | 'next'
+  | 'previous'
+  | 'complexityUp'
+  | 'complexityDown';
+
+export type CardActionGate = {
+  currentIndex: number;
+  /** Laterality sheet (or any modal) open — ignore card keys / actions. */
+  sheetOpen?: boolean;
+  /** Commit / flip animation already in flight. */
+  animating?: boolean;
+  /** End-of-deck status card — no next / complexity / flip (previous still ok). */
+  showDeckStatus?: boolean;
+};
+
+export type CardAccessibilityActionDef = {
+  name: CardAccessibilityActionName;
+  labelKey: MessageKey;
+};
+
+/** Ordered a11y actions + i18n label keys (en/es via Lz-43). */
+export const CARD_ACCESSIBILITY_ACTION_DEFS: readonly CardAccessibilityActionDef[] = [
+  { name: 'activate', labelKey: 'actionTurn' },
+  { name: 'next', labelKey: 'actionNext' },
+  { name: 'previous', labelKey: 'actionPrevious' },
+  { name: 'complexityUp', labelKey: 'actionComplexityUp' },
+  { name: 'complexityDown', labelKey: 'actionComplexityDown' },
+] as const;
+
+const KEY_TO_ACTION: Readonly<Record<string, CardAction>> = {
+  ArrowRight: 'next',
+  ArrowLeft: 'previous',
+  Enter: 'flip',
+  ' ': 'flip',
+  Space: 'flip',
+  Spacebar: 'flip',
+  ArrowUp: 'complexityUp',
+  ArrowDown: 'complexityDown',
+};
+
+const A11Y_NAME_TO_ACTION: Readonly<Record<string, CardAction>> = {
+  activate: 'flip',
+  turn: 'flip',
+  next: 'next',
+  previous: 'previous',
+  complexityUp: 'complexityUp',
+  complexityDown: 'complexityDown',
+  // Optional magicTap → flip (ES exploration note).
+  magicTap: 'flip',
+};
+
+/** Map a web keyboard key to a card action, or null when unrecognized. */
+export function cardActionFromKey(key: string): CardAction | null {
+  return KEY_TO_ACTION[key] ?? null;
+}
+
+/** Map an RN accessibilityAction name to a card action, or null. */
+export function cardActionFromAccessibilityName(name: string): CardAction | null {
+  return A11Y_NAME_TO_ACTION[name] ?? null;
+}
+
+/**
+ * Whether an action may run given deck / sheet / animation gates.
+ * Previous is disabled at the start of history (index 0).
+ * During deck status, only previous (index > 0) remains available so the loop can finish.
+ */
+export function canRunCardAction(action: CardAction, gate: CardActionGate): boolean {
+  if (gate.sheetOpen || gate.animating) return false;
+  if (action === 'previous') {
+    return gate.currentIndex > 0;
+  }
+  if (gate.showDeckStatus) {
+    return false;
+  }
+  return true;
+}
+
+/** Shared disabled gate for the assistive nav row and `runAction`. */
+export function isCardActionDisabled(action: CardAction, gate: CardActionGate): boolean {
+  return !canRunCardAction(action, gate);
+}
+
+/** Vertical swipe direction for complexity actions (mirrors gesture commit). */
+export function complexityDirectionForAction(
+  action: Extract<CardAction, 'complexityUp' | 'complexityDown'>,
+): 'up' | 'down' {
+  return action === 'complexityUp' ? 'up' : 'down';
+}
+
+/**
+ * Show the compact nav row only for keyboard modality or screen reader —
+ * never for plain touch users without assistive tech.
+ * On web, callers must pass `screenReaderEnabled: false` (RN-web always reports true).
+ */
+export function shouldShowAccessibleNavRow(opts: {
+  screenReaderEnabled: boolean;
+  keyboardModality: boolean;
+}): boolean {
+  return opts.screenReaderEnabled || opts.keyboardModality;
+}
+
+/** Web must not trust AccessibilityInfo.isScreenReaderEnabled (always true on RN-web). */
+export function shouldQueryScreenReaderForNav(platformOS: string): boolean {
+  return platformOS !== 'web';
+}
+
+/**
+ * Keys that establish keyboard modality for revealing the assistive nav row.
+ * Pointer/touch after this clears modality (unless screen reader stays on).
+ */
+export function keyEstablishesKeyboardModality(key: string): boolean {
+  return (
+    key === 'Tab' ||
+    key === 'Enter' ||
+    key === ' ' ||
+    key === 'Space' ||
+    key === 'Spacebar' ||
+    key.startsWith('Arrow')
+  );
+}
+
+/** Clear keyboard modality only when the pointer/touch lands outside the nav row. */
+export function shouldClearKeyboardModalityOnPointer(
+  target: EventTarget | null,
+  rowElement: { contains: (node: Node) => boolean } | null,
+): boolean {
+  if (rowElement == null || target == null) return true;
+  return !rowElement.contains(target as Node);
+}
+
+/**
+ * Card surface key handler must ignore bubbled keys from nested controls
+ * (e.g. the Wikipedia link on the back face).
+ */
+export function shouldHandleCardSurfaceKey(
+  target: EventTarget | null | undefined,
+  currentTarget: EventTarget | null | undefined,
+): boolean {
+  return target != null && currentTarget != null && target === currentTarget;
+}
+
+/** Resolve an a11y action name through the shared gate into a runnable CardAction. */
+export function resolveRunnableAccessibilityAction(
+  actionName: string,
+  gate: CardActionGate,
+): CardAction | null {
+  const action = cardActionFromAccessibilityName(actionName);
+  if (action == null) return null;
+  if (!canRunCardAction(action, gate)) return null;
+  return action;
+}
+
+/** Web tabIndex for the card surface (previous stays reachable on deck status). */
+export function cardWebTabIndex(gate: Pick<CardActionGate, 'sheetOpen' | 'showDeckStatus' | 'currentIndex'>): number {
+  if (gate.sheetOpen) return -1;
+  if (gate.showDeckStatus && gate.currentIndex <= 0) return -1;
+  return 0;
+}
+
+/** Whether the card surface merges into one accessible button (not when flipped — link must stay reachable). */
+export function cardSurfaceIsAccessibleButton(opts: {
+  showDeckStatus: boolean;
+  flipped: boolean;
+}): boolean {
+  return !opts.showDeckStatus && !opts.flipped;
+}
+
+/** Build labeled accessibilityActions for the card (locale-sensitive via `translate`). */
+export function buildCardAccessibilityActions(
+  translate: (key: MessageKey) => string,
+): { name: CardAccessibilityActionName; label: string }[] {
+  return CARD_ACCESSIBILITY_ACTION_DEFS.map((def) => ({
+    name: def.name,
+    label: translate(def.labelKey),
+  }));
+}
+
+/** Nav-row button a11y props — roles/labels/disabled tested against mutations. */
+export function navButtonA11yProps(opts: {
+  action: CardAction;
+  label: string;
+  gate: CardActionGate;
+}): {
+  accessibilityRole: 'button';
+  accessibilityLabel: string;
+  accessibilityState: { disabled: boolean };
+  disabled: boolean;
+} {
+  const disabled = isCardActionDisabled(opts.action, opts.gate);
+  return {
+    accessibilityRole: 'button',
+    accessibilityLabel: opts.label,
+    accessibilityState: { disabled },
+    disabled,
+  };
+}
+
+/** Height to reserve under the card when the assistive nav row is visible. */
+export function accessibleNavChromeReserve(visible: boolean): number {
+  return visible ? ACCESSIBLE_NAV_ROW_MIN_HEIGHT : 0;
+}
+
+/** Guide §6 focus ring: 2px stroke + 2px gap. Paper on shell; Ink on orange/light. */
+export const A11Y_FOCUS_RING = {
+  widthPx: 2,
+  offsetPx: 2,
+  onShell: color.paper,
+  onOrangeOrLight: color.ink,
+} as const;
+
+export const A11Y_FOCUS_STYLE_ID = 'lateralzr-a11y-focus-ring';
+
+/** Injected once on web for :focus-visible rings on nav buttons + card surface. */
+export function a11yFocusRingCss(): string {
+  const w = A11Y_FOCUS_RING.widthPx;
+  const o = A11Y_FOCUS_RING.offsetPx;
+  return `
+[data-testid="a11y-nav-previous"]:focus-visible,
+[data-testid="a11y-nav-complexity-down"]:focus-visible,
+[data-testid="a11y-nav-flip"]:focus-visible,
+[data-testid="a11y-nav-complexity-up"]:focus-visible,
+[data-testid="a11y-nav-next"]:focus-visible,
+[data-testid="card-a11y-surface"]:focus-visible {
+  /* Ring paints in the 2px gap on petrol shell — Paper, not Ink. */
+  outline: ${w}px solid ${A11Y_FOCUS_RING.onShell} !important;
+  outline-offset: ${o}px;
+}
+`.trim();
+}
+
+export function ensureA11yFocusRingStyles(): void {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(A11Y_FOCUS_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = A11Y_FOCUS_STYLE_ID;
+  style.textContent = a11yFocusRingCss();
+  document.head.appendChild(style);
+}
