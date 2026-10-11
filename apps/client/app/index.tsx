@@ -3,16 +3,22 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AccessibleNavRow } from '@/components/AccessibleNavRow';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
-import { ConceptCardStack } from '@/components/ConceptCardStack';
+import {
+  ConceptCardStack,
+  type ConceptCardStackHandle,
+} from '@/components/ConceptCardStack';
 import { DeckStatusLine } from '@/components/DeckStatusLine';
 import { LateralityControl } from '@/components/LateralityControl';
 import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
+import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
+import { accessibleNavChromeReserve } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -102,6 +108,8 @@ export default function HomeScreen() {
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
   const lateralityLabelRef = useRef<View | null>(null);
+  const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
+  const accessibleNavVisible = useAccessibleNavVisible();
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -746,19 +754,34 @@ export default function HomeScreen() {
           testID="card-laterality-group"
         >
           <ConceptCardStack
+            ref={cardStackRef}
             concepts={concepts}
             currentIndex={currentIndex}
             complexity={complexity}
             onSwipeLeft={onSwipeLeft}
             onSwipeRight={onSwipeRight}
             onSwipeForwardVertical={onSwipeForwardVertical}
-            availableHeight={cardStackAvailableHeight(usableHeight, lateralityControlHeight)}
+            availableHeight={
+              cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
+              accessibleNavChromeReserve(accessibleNavVisible)
+            }
             preloadedMediaUrls={preloadedMediaUrls}
             showDeckLoading={showDeckLoading}
             showInitialLoading={showInitialLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
+            sheetOpen={lateralitySheetOpen}
           />
+          {accessibleNavVisible ? (
+            <AccessibleNavRow
+              currentIndex={currentIndex}
+              showDeckStatus={showDeckLoading}
+              sheetOpen={lateralitySheetOpen}
+              onAction={(action) => {
+                cardStackRef.current?.runAction(action);
+              }}
+            />
+          ) : null}
           <LateralityControl
             laterality={laterality}
             swapping={lateralitySwap != null}
