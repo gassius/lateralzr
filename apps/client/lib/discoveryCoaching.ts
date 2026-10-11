@@ -1,43 +1,57 @@
 /**
- * Progressive, session-scoped gesture coaching for the concept deck.
+ * Progressive, session-scoped gesture coaching for the concept deck (§12.3).
  *
- * Help only until the user has discovered swipe / flip; stay quiet after.
- * Timings follow Critiquito Lz-02 (idle ~4–6s on the first card; flip around
- * the third card). Copy and animation live in the UI layer.
+ * One tip at a time, fixed order tipTap → tipSwipe → tipComplexity. Laterality
+ * is not coached. Copy and chip chrome live in the UI layer.
  */
 
-/** Idle on the first card before swipe coaching. Ticket suggests ~4–6s. */
-export const SWIPE_COACH_IDLE_MS = 5000;
+/** Idle on a settled card before offering the next tip (§12.3). */
+export const COACH_IDLE_MS = 4000;
 
 /**
- * Offset from {@link DiscoveryCoachingState.replayAnchorIndex} for flip coaching.
- * Default anchor 0 → third card (index 2). After Replay, flip arms at anchor + 2.
+ * @deprecated Prefer {@link COACH_IDLE_MS}. Kept for e2e / older imports.
+ * Same 4s idle as the §12.3 sequence.
  */
-export const FLIP_COACH_CARD_INDEX = 2;
+export const SWIPE_COACH_IDLE_MS = COACH_IDLE_MS;
 
-/** Short pause after landing on the third card so the concept can be read first. */
-export const FLIP_COACH_DELAY_MS = 800;
+/** Fixed coaching order. Laterality is intentionally omitted. */
+export const COACH_TIP_SEQUENCE = ['tipTap', 'tipSwipe', 'tipComplexity'] as const;
 
-/** How far the front card peeks toward the next card during swipe coaching. */
+export type CoachTip = (typeof COACH_TIP_SEQUENCE)[number];
+
+/** @deprecated Legacy alias; use {@link CoachTip}. */
+export type CoachKind = CoachTip;
+
+/**
+ * How far the front card used to peek during swipe coaching.
+ * Peek is disabled under §12.3 (tips sit on the shell); constant kept for tests.
+ */
 export const SWIPE_COACH_PEEK_PX = 36;
 
 /**
- * Flip-peek amount mixed into the card's 0–1 flip progress (a glimpse, not a flip).
- * Kept well below 0.5 so the back face never becomes the primary view.
+ * Flip-peek amount mixed into the card's 0–1 flip progress (legacy).
+ * Kept for ConceptCard prop wiring; coaching no longer drives peek.
  */
 export const FLIP_COACH_PEEK_AMOUNT = 0.22;
 
-export type CoachKind = 'swipe' | 'flip';
-
 export type DiscoveryCoachingState = {
+  tapDiscovered: boolean;
   swipeDiscovered: boolean;
-  flipDiscovered: boolean;
-  /** Offered at most once per session, even if the user ignores it. */
-  swipeCoachOffered: boolean;
-  flipCoachOffered: boolean;
+  complexityDiscovered: boolean;
+  /** Tip dismissed by tapping the chip (action may still be undiscovered). */
+  tipTapDismissed: boolean;
+  tipSwipeDismissed: boolean;
+  tipComplexityDismissed: boolean;
+  /** Tip currently offered after idle. */
+  offeredTip: CoachTip | null;
   /**
-   * Card index where the coaching sequence restarts (Lz-32 Replay).
-   * Swipe coach arms at this index; flip at anchor + {@link FLIP_COACH_CARD_INDEX}.
+   * Card index that already received a tip offer this session
+   * (at most one tip per card).
+   */
+  tipCardIndex: number | null;
+  /**
+   * Card index where Replay re-armed the sequence (Lz-32).
+   * Tips only arm on this card and later.
    */
   replayAnchorIndex: number;
 };
@@ -49,16 +63,22 @@ export type DiscoveryCoachingView = {
 };
 
 export type DiscoveryCoachingEvent =
-  | { type: 'swiped' }
-  | { type: 'flipped' }
-  | { type: 'offerSwipe' }
-  | { type: 'offerFlip' };
+  | { type: 'tapped' }
+  | { type: 'swipedHorizontal' }
+  | { type: 'swipedVertical' }
+  | { type: 'offerTip'; tip: CoachTip; cardIndex: number }
+  | { type: 'dismissTip' }
+  | { type: 'clearOffer' };
 
 export const INITIAL_DISCOVERY_COACHING_STATE: DiscoveryCoachingState = {
+  tapDiscovered: false,
   swipeDiscovered: false,
-  flipDiscovered: false,
-  swipeCoachOffered: false,
-  flipCoachOffered: false,
+  complexityDiscovered: false,
+  tipTapDismissed: false,
+  tipSwipeDismissed: false,
+  tipComplexityDismissed: false,
+  offeredTip: null,
+  tipCardIndex: null,
   replayAnchorIndex: 0,
 };
 
@@ -87,82 +107,117 @@ export function resetDiscoveryCoachingSession(anchorIndex = 0): void {
   sessionState = discoveryCoachingStateAfterReplay(anchorIndex);
 }
 
+export function tipResolved(current: DiscoveryCoachingState, tip: CoachTip): boolean {
+  switch (tip) {
+    case 'tipTap':
+      return current.tapDiscovered || current.tipTapDismissed;
+    case 'tipSwipe':
+      return current.swipeDiscovered || current.tipSwipeDismissed;
+    case 'tipComplexity':
+      return current.complexityDiscovered || current.tipComplexityDismissed;
+    default:
+      return true;
+  }
+}
+
+/** Next unresolved tip in the fixed §12.3 order, or null when the sequence is done. */
+export function nextCoachTip(current: DiscoveryCoachingState): CoachTip | null {
+  for (const tip of COACH_TIP_SEQUENCE) {
+    if (!tipResolved(current, tip)) return tip;
+  }
+  return null;
+}
+
+function withTipDismissed(
+  current: DiscoveryCoachingState,
+  tip: CoachTip,
+): DiscoveryCoachingState {
+  switch (tip) {
+    case 'tipTap':
+      return { ...current, tipTapDismissed: true, offeredTip: null };
+    case 'tipSwipe':
+      return { ...current, tipSwipeDismissed: true, offeredTip: null };
+    case 'tipComplexity':
+      return { ...current, tipComplexityDismissed: true, offeredTip: null };
+    default:
+      return { ...current, offeredTip: null };
+  }
+}
+
 export function reduceDiscoveryCoaching(
   current: DiscoveryCoachingState,
   event: DiscoveryCoachingEvent,
 ): DiscoveryCoachingState {
   switch (event.type) {
-    case 'swiped':
-      if (current.swipeDiscovered) return current;
-      return { ...current, swipeDiscovered: true };
-    case 'flipped':
-      if (current.flipDiscovered) return current;
-      return { ...current, flipDiscovered: true };
-    case 'offerSwipe':
-      if (current.swipeDiscovered || current.swipeCoachOffered) return current;
-      return { ...current, swipeCoachOffered: true };
-    case 'offerFlip':
-      if (current.flipDiscovered || current.flipCoachOffered) return current;
-      return { ...current, flipCoachOffered: true };
+    case 'tapped':
+      if (current.tapDiscovered && current.offeredTip == null) return current;
+      return { ...current, tapDiscovered: true, offeredTip: null };
+    case 'swipedHorizontal':
+      if (current.swipeDiscovered && current.offeredTip == null) return current;
+      return { ...current, swipeDiscovered: true, offeredTip: null };
+    case 'swipedVertical':
+      if (current.complexityDiscovered && current.offeredTip == null) return current;
+      return { ...current, complexityDiscovered: true, offeredTip: null };
+    case 'offerTip': {
+      if (current.offeredTip != null) return current;
+      if (tipResolved(current, event.tip)) return current;
+      if (nextCoachTip(current) !== event.tip) return current;
+      if (current.tipCardIndex === event.cardIndex) return current;
+      return {
+        ...current,
+        offeredTip: event.tip,
+        tipCardIndex: event.cardIndex,
+      };
+    }
+    case 'dismissTip':
+      if (current.offeredTip == null) return current;
+      return withTipDismissed(current, current.offeredTip);
+    case 'clearOffer':
+      if (current.offeredTip == null) return current;
+      return { ...current, offeredTip: null };
     default:
       return current;
   }
 }
 
-/** Context for swipe coaching, ignoring idle time (used to start the idle timer). */
-export function swipeCoachContextReady(
+/**
+ * Context ready to start the idle timer for the next tip.
+ * Ignores idle time (used to start the timer).
+ */
+export function coachContextReady(
   current: DiscoveryCoachingState,
   currentView: DiscoveryCoachingView,
 ): boolean {
-  if (current.swipeDiscovered || current.swipeCoachOffered) return false;
   if (currentView.deckStatus || currentView.flipped) return false;
-  return currentView.cardIndex === current.replayAnchorIndex;
+  if (current.offeredTip != null) return false;
+  if (currentView.cardIndex < current.replayAnchorIndex) return false;
+  if (current.tipCardIndex === currentView.cardIndex) return false;
+  return nextCoachTip(current) != null;
 }
 
-/** Context for flip coaching, ignoring dwell time (used to start the flip-card delay). */
-export function flipCoachContextReady(
-  current: DiscoveryCoachingState,
-  currentView: DiscoveryCoachingView,
-): boolean {
-  if (current.flipDiscovered || current.flipCoachOffered) return false;
-  if (currentView.deckStatus || currentView.flipped) return false;
-  return currentView.cardIndex === current.replayAnchorIndex + FLIP_COACH_CARD_INDEX;
-}
-
-/** Visible coach for this card. Null after discovery or when the UI should stay quiet. */
+/** Visible coach tip for this settled card. Null when the UI should stay quiet. */
 export function visibleCoach(
   current: DiscoveryCoachingState,
   currentView: DiscoveryCoachingView,
-): CoachKind | null {
+): CoachTip | null {
   if (currentView.deckStatus || currentView.flipped) return null;
-  if (
-    !current.swipeDiscovered &&
-    current.swipeCoachOffered &&
-    currentView.cardIndex === current.replayAnchorIndex
-  ) {
-    return 'swipe';
-  }
-  if (
-    !current.flipDiscovered &&
-    current.flipCoachOffered &&
-    currentView.cardIndex === current.replayAnchorIndex + FLIP_COACH_CARD_INDEX
-  ) {
-    return 'flip';
-  }
-  return null;
+  if (current.offeredTip == null) return null;
+  if (current.tipCardIndex !== currentView.cardIndex) return null;
+  return current.offeredTip;
 }
 
-export function shouldAnimateCoachPeek(reduceMotion: boolean): boolean {
-  return !reduceMotion;
+/** Peek animation is off under §12.3 (tips sit on the shell). Always false. */
+export function shouldAnimateCoachPeek(_reduceMotion: boolean): boolean {
+  return false;
 }
 
-export function coachMessageKey(kind: CoachKind): 'swipeCoach' | 'flipCoach' {
-  return kind === 'swipe' ? 'swipeCoach' : 'flipCoach';
+export function coachMessageKey(tip: CoachTip): CoachTip {
+  return tip;
 }
 
 /**
  * Schedule a one-shot coach offer. Returns a cancel function (no-op when not ready).
- * Both discovery-coaching effects share this so idle/dwell can be unit-tested.
+ * Shared so idle can be unit-tested with a fake clock.
  */
 export function scheduleCoachOffer(
   ready: boolean,

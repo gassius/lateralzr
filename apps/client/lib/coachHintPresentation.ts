@@ -6,41 +6,58 @@ import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle';
 export { blendHexOver, contrastRatio, relativeLuminance } from '../theme/contrast';
 
 /**
- * Visual tokens for momentary swipe/flip coaching (Critiquito Lz-06).
+ * Visual tokens for §12.3 discovery tips (Lz-48).
  *
- * The previous overlay was 12px / 75% opacity / bottom-left on orange — easy to
- * miss at arm's length. Coaching stays progressive (not always-on); this module
- * only makes the copy readable when it is shown.
- *
- * Type role: v3.3 menu row (Lz-22). Apply `textStyle('row')` at render.
+ * Tips sit on the shell in the control region above the laterality rail —
+ * never over the concept title or card. Chip: shell tinted with rail @ 10%,
+ * paper 14/500 text, radius 12, padding 8×12.
  */
 
-/** Secondary to the concept title; v3.3 `type.row`. */
-export const COACH_HINT_FONT_SIZE = typeSize('row');
+/** Quiet type: v3.3 label (14 / 500). */
+export const COACH_HINT_FONT_SIZE = typeSize('label');
 
-export const COACH_HINT_LINE_HEIGHT = textStyle('row').lineHeight as number;
+export const COACH_HINT_LINE_HEIGHT = textStyle('label').lineHeight as number;
 
-export const COACH_HINT_FONT_WEIGHT = typeWeight('row');
+export const COACH_HINT_FONT_WEIGHT = typeWeight('label');
 
-/** Full opacity — washed-out 0.75 on orange was the contrast failure. */
+/** Full opacity — washed-out overlays failed contrast on the letterbox. */
 export const COACH_HINT_OPACITY = 1;
 
-/** Brief fade/slide when the coach appears. Skipped under reduced motion. */
-export const COACH_APPEAR_DURATION_MS = 280;
+/** Full-motion tip fade (§12.3). Reduced motion uses instant show (animateAppear false). */
+export const COACH_APPEAR_DURATION_MS = 150;
 
-export const COACH_APPEAR_TRANSLATE_Y = 8;
+/** No slide — tip chip fades in place (peek removed under §12.3). */
+export const COACH_APPEAR_TRANSLATE_Y = 0;
 
-export type CoachHintSurface = 'orange' | 'teal';
+/** Chip geometry (§12.3). */
+export const COACH_HINT_RADIUS = 12;
+export const COACH_HINT_PADDING_V = 8;
+export const COACH_HINT_PADDING_H = 12;
+
+/** Rail over shell at 10% for the tip chip fill. */
+export const COACH_HINT_CHIP_RAIL_ALPHA = 0.1;
+
+export type CoachHintSurface = 'shell' | 'orange' | 'teal';
 
 export type CoachHintPalette = {
   text: string;
-  /** Chip fill. Transparent on teal so copy sits on the letterbox, not a second card. */
+  /** Chip fill. */
   chip: string;
-  /** Card / letterbox color the chip sits on, used for contrast checks. */
+  /** Backdrop color the chip sits on, used for contrast checks. */
   backdrop: string;
 };
 
+function shellTintedChip(): string {
+  return blendHexOver(color.rail, COACH_HINT_CHIP_RAIL_ALPHA, color.shell);
+}
+
 export const COACH_HINT_PALETTE: Record<CoachHintSurface, CoachHintPalette> = {
+  shell: {
+    text: color.paper,
+    chip: shellTintedChip(),
+    backdrop: color.shell,
+  },
+  /** Legacy orange-card surface — kept for contrast helpers / older callers. */
   orange: {
     text: color.concept,
     chip: color.paper,
@@ -53,7 +70,7 @@ export const COACH_HINT_PALETTE: Record<CoachHintSurface, CoachHintPalette> = {
   },
 };
 
-export function coachHintPalette(surface: CoachHintSurface): CoachHintPalette {
+export function coachHintPalette(surface: CoachHintSurface = 'shell'): CoachHintPalette {
   return COACH_HINT_PALETTE[surface];
 }
 
@@ -65,7 +82,7 @@ export function coachHintIsSecondaryToConceptTitle(
 }
 
 /** Text contrast against the color the glyphs actually sit on (chip, else backdrop). */
-export function coachHintContrastRatio(surface: CoachHintSurface): number {
+export function coachHintContrastRatio(surface: CoachHintSurface = 'shell'): number {
   const { text, chip, backdrop } = COACH_HINT_PALETTE[surface];
   const background = chip === 'transparent' ? backdrop : chip;
   return contrastRatio(text, background);

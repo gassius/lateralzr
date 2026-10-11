@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibleNavRow } from '@/components/AccessibleNavRow';
 import { AppMenuSheet } from '@/components/AppMenuSheet';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
+import { CoachHint } from '@/components/CoachHint';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import {
   ConceptCardStack,
@@ -136,6 +137,12 @@ export default function HomeScreen() {
   const replayGestureTipsRef = useRef<() => void>(() => {});
   /** React state mirrors activeLocale so menu / chrome re-render on pick. */
   const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
+  /** §12.3 tip chip — rendered above the laterality rail, never on the card. */
+  const [coachTip, setCoachTip] = useState<{
+    text: string;
+    animateAppear: boolean;
+    onDismiss: () => void;
+  } | null>(null);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -732,6 +739,19 @@ export default function HomeScreen() {
     });
   }, []);
 
+  const onCoachTipChange = useCallback(
+    (
+      tip: {
+        text: string;
+        animateAppear: boolean;
+        onDismiss: () => void;
+      } | null,
+    ) => {
+      setCoachTip(tip);
+    },
+    [],
+  );
+
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
   }, []);
@@ -923,6 +943,7 @@ export default function HomeScreen() {
               onRetryLoadMore={retryLoadMore}
               sheetOpen={lateralitySheetOpen || appMenuOpen}
               onReplayGestureTipsReady={onReplayGestureTipsReady}
+              onCoachTipChange={onCoachTipChange}
             />
             {accessibleNavVisible ? (
               <AccessibleNavRow
@@ -956,9 +977,25 @@ export default function HomeScreen() {
                 ) : undefined
               }
             />
+            {coachTip ? (
+              <View
+                style={[styles.coachTipSlot, { bottom: lateralityControlHeight + 4 }]}
+                pointerEvents="box-none"
+              >
+                <CoachHint
+                  text={coachTip.text}
+                  animateAppear={coachTip.animateAppear}
+                  surface="shell"
+                  onDismiss={coachTip.onDismiss}
+                />
+              </View>
+            ) : null}
             {complexityCue ? (
               <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                style={[
+                  styles.complexityCueSlot,
+                  { bottom: lateralityControlHeight + (coachTip ? 44 : 4) },
+                ]}
                 pointerEvents="none"
               >
                 <ComplexityCue
@@ -968,7 +1005,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark ? (
+            ) : showSessionComplexityMark && !coachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
@@ -1074,6 +1111,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 20,
     elevation: 20,
+  },
+  /** §12.3 tip chip — shell control region above the rail; tappable to dismiss. */
+  coachTipSlot: {
+    position: 'absolute',
+    left: practiceScreenGutter(),
+    right: practiceScreenGutter(),
+    alignItems: 'center',
+    zIndex: 22,
+    elevation: 22,
   },
   error: {
     color: color.ink,

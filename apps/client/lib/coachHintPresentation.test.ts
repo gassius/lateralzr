@@ -1,24 +1,26 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { blendHexOver, contrastRatio } from '../theme/contrast.ts';
 import { color } from '../theme/tokens.ts';
 import { CONCEPT_FRONT_TITLE_FONT_SIZE } from './conceptFrontTitle.ts';
 import {
-  blendHexOver,
   coachHintContrastRatio,
   coachHintIsSecondaryToConceptTitle,
-  contrastRatio,
   COACH_APPEAR_DURATION_MS,
   COACH_APPEAR_TRANSLATE_Y,
+  COACH_HINT_CHIP_RAIL_ALPHA,
   COACH_HINT_FONT_SIZE,
   COACH_HINT_FONT_WEIGHT,
   COACH_HINT_OPACITY,
+  COACH_HINT_PADDING_H,
+  COACH_HINT_PADDING_V,
+  COACH_HINT_RADIUS,
   coachHintPalette,
 } from './coachHintPresentation.ts';
 
 describe('coach hint type hierarchy', () => {
-  it('is larger than the previous 12px overlay and still smaller than the concept title', () => {
-    assert.ok(COACH_HINT_FONT_SIZE > 12);
-    assert.equal(COACH_HINT_FONT_SIZE, 17);
+  it('uses 14/500 paper-scale type and stays smaller than the concept title', () => {
+    assert.equal(COACH_HINT_FONT_SIZE, 14);
     assert.equal(COACH_HINT_FONT_WEIGHT, '500');
     assert.equal(COACH_HINT_OPACITY, 1);
     assert.ok(coachHintIsSecondaryToConceptTitle());
@@ -26,19 +28,24 @@ describe('coach hint type hierarchy', () => {
   });
 });
 
-describe('coach hint contrast', () => {
-  it('meets WCAG AA normal-text contrast on the orange card chip', () => {
+describe('coach hint chip (§12.3 shell)', () => {
+  it('tints shell with rail at 10%, radius 12, padding 8×12', () => {
+    const shell = coachHintPalette('shell');
+    assert.equal(shell.text, color.paper);
+    assert.equal(shell.backdrop, color.shell);
+    assert.equal(shell.chip, blendHexOver(color.rail, COACH_HINT_CHIP_RAIL_ALPHA, color.shell));
+    assert.equal(COACH_HINT_CHIP_RAIL_ALPHA, 0.1);
+    assert.equal(COACH_HINT_RADIUS, 12);
+    assert.equal(COACH_HINT_PADDING_V, 8);
+    assert.equal(COACH_HINT_PADDING_H, 12);
+    assert.ok(coachHintContrastRatio('shell') >= 4.5);
+  });
+
+  it('keeps legacy orange contrast for helpers that still check it', () => {
     const orange = coachHintPalette('orange');
     assert.equal(orange.text, color.concept);
     assert.equal(orange.chip, color.paper);
     assert.ok(coachHintContrastRatio('orange') >= 4.5);
-  });
-
-  it('meets WCAG AA contrast if the coach sits on teal without a chip', () => {
-    const teal = coachHintPalette('teal');
-    assert.equal(teal.text, color.paper);
-    assert.equal(teal.chip, 'transparent');
-    assert.ok(coachHintContrastRatio('teal') >= 4.5);
   });
 
   it('is a clear upgrade over 12px dark-blue at 75% opacity on orange', () => {
@@ -50,8 +57,8 @@ describe('coach hint contrast', () => {
 });
 
 describe('coach appear motion', () => {
-  it('is a short fade/slide whose tokens stay locked', () => {
-    assert.ok(COACH_APPEAR_DURATION_MS <= 400);
-    assert.equal(COACH_APPEAR_TRANSLATE_Y, 8);
+  it('fades in 150ms with no peek/slide translate', () => {
+    assert.equal(COACH_APPEAR_DURATION_MS, 150);
+    assert.equal(COACH_APPEAR_TRANSLATE_Y, 0);
   });
 });

@@ -24,7 +24,6 @@ import Animated, {
   runOnUI,
   useAnimatedStyle,
   useSharedValue,
-  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -69,11 +68,7 @@ import {
   resolveNavSettleIntent,
   returnOverlayIndexForEndLoading,
 } from '@/lib/deckSlotState';
-import {
-  coachMessageKey,
-  SWIPE_COACH_PEEK_PX,
-  type CoachKind,
-} from '@/lib/discoveryCoaching';
+import { coachMessageKey } from '@/lib/discoveryCoaching';
 import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
@@ -105,6 +100,14 @@ type ConceptCardStackProps = {
   sheetOpen?: boolean;
   /** Lz-32: bind app-menu Replay to the coaching hook’s reset+refresh. */
   onReplayGestureTipsReady?: (replay: () => void) => void;
+  /** Lz-48: tip chip lives in the shell control region (parent), not on the card. */
+  onCoachTipChange?: (
+    tip: {
+      text: string;
+      animateAppear: boolean;
+      onDismiss: () => void;
+    } | null,
+  ) => void;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
@@ -127,6 +130,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   onRetryLoadMore,
   sheetOpen = false,
   onReplayGestureTipsReady,
+  onCoachTipChange,
 }, ref) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -169,7 +173,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const dwellIndexRef = useRef<number>(-1);
   const coachPeekX = useSharedValue(0);
   const flipPeek = useSharedValue(0);
-  const peekedKindRef = useRef<CoachKind | null>(null);
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
@@ -213,42 +216,43 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
 
-  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped, replayGestureTips } =
-    useDiscoveryCoaching({
-      cardIndex: currentIndex,
-      flipped: flipped || concepts.length === 0,
-      deckStatus: showDeckStatus,
-    });
+  const {
+    coach,
+    animateAppear,
+    noteInteraction,
+    noteTapped,
+    noteSwipedHorizontal,
+    noteSwipedVertical,
+    dismissTip,
+    a11yHint,
+    replayGestureTips,
+  } = useDiscoveryCoaching({
+    cardIndex: currentIndex,
+    flipped: flipped || concepts.length === 0,
+    deckStatus: showDeckStatus,
+  });
 
   useEffect(() => {
     onReplayGestureTipsReady?.(replayGestureTips);
   }, [onReplayGestureTipsReady, replayGestureTips]);
 
   useEffect(() => {
-    if (!coach || !peekEnabled) {
-      coachPeekX.value = 0;
-      flipPeek.value = 0;
+    // §12.3: tips sit on the shell — never peek the card.
+    coachPeekX.value = 0;
+    flipPeek.value = 0;
+  }, [coachPeekX, flipPeek]);
+
+  useEffect(() => {
+    if (coach == null) {
+      onCoachTipChange?.(null);
       return;
     }
-    if (peekedKindRef.current === coach) return;
-    peekedKindRef.current = coach;
-    if (coach === 'swipe') {
-      flipPeek.value = 0;
-      coachPeekX.value = withSequence(
-        withTiming(-SWIPE_COACH_PEEK_PX, {
-          duration: 520,
-          easing: Easing.inOut(Easing.cubic),
-        }),
-        withTiming(0, { duration: 560, easing: Easing.out(Easing.cubic) }),
-      );
-    } else {
-      coachPeekX.value = 0;
-      flipPeek.value = withSequence(
-        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.cubic) }),
-        withTiming(0, { duration: 460, easing: Easing.out(Easing.cubic) }),
-      );
-    }
-  }, [coach, peekEnabled, coachPeekX, flipPeek]);
+    onCoachTipChange?.({
+      text: t(coachMessageKey(coach)),
+      animateAppear,
+      onDismiss: dismissTip,
+    });
+  }, [animateAppear, coach, dismissTip, onCoachTipChange]);
 
   const flushDwell = useCallback((nextFace?: CardFace, nextConcept?: string | null, nextIndex?: number) => {
     const concept = dwellConceptRef.current;
@@ -412,16 +416,16 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   }, [currentIndex, showDeckStatus]);
 
   const commitSwipeLeft = useCallback(() => {
-    noteSwiped();
+    noteSwipedHorizontal();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('left', ctx);
     navIntentRef.current = 'forward';
     onSwipeLeft();
-  }, [analyticsContextForIndex, noteSwiped, onSwipeLeft]);
+  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeLeft]);
 
   const commitSwipeVertical = useCallback(
     (direction: 'up' | 'down') => {
-      noteSwiped();
+      noteSwipedVertical();
       const ctx = analyticsContextForIndex(currentIndexRef.current);
       if (ctx) {
         const complexityAfter = clampComplexity(
@@ -432,11 +436,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       navIntentRef.current = 'forward';
       onSwipeForwardVertical(direction);
     },
-    [analyticsContextForIndex, noteSwiped, onSwipeForwardVertical],
+    [analyticsContextForIndex, noteSwipedVertical, onSwipeForwardVertical],
   );
 
   const commitSwipeRight = useCallback(() => {
-    noteSwiped();
+    noteSwipedHorizontal();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('right', ctx);
     // Lz-36: back from end-of-deck loading has no return-overlay peer — settle the revealed card.
@@ -450,7 +454,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       commitFromStatus: showDeckStatusRef.current,
     });
     onSwipeRight();
-  }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
+  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeRight]);
 
   const noteBackInteractivePress = useCallback(() => {
     suppressFlipUntilRef.current = suppressUntil(Date.now());
@@ -478,7 +482,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const item = conceptsRef.current[currentIndexRef.current];
     if (item && !showDeckStatusRef.current) {
       if (next) {
-        noteFlipped();
+        noteTapped();
         flushDwell('back', item.concept, currentIndexRef.current);
         trackCardBackView({
           concept: item.concept,
@@ -498,7 +502,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       }
     }
     setFlipped(next);
-  }, [flushDwell, noteFlipped]);
+  }, [flushDwell, noteTapped]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
     const i = currentIndexRef.current - 1;
@@ -1002,7 +1006,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               accessibilityLabel={
                 surfaceIsButton ? concepts[currentIndex]?.concept : undefined
               }
-              accessibilityHint={surfaceIsButton ? t('actionTurn') : undefined}
+              accessibilityHint={
+                a11yHint
+                  ? t(coachMessageKey(a11yHint))
+                  : surfaceIsButton
+                    ? t('actionTurn')
+                    : undefined
+              }
               accessibilityActions={surfaceIsButton ? accessibilityActions : undefined}
               onAccessibilityAction={surfaceIsButton ? onAccessibilityAction : undefined}
               accessibilityState={{
@@ -1023,8 +1033,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   flipped={flipped}
                   reduceMotion={reduceMotion}
                   preloadedMediaUrls={preloadedMediaUrls}
-                  coachHint={coach ? t(coachMessageKey(coach)) : null}
-                  animateCoachAppear={peekEnabled}
                   flipPeek={flipPeek}
                   exposeFrontTitleTestId
                   onBackInteractivePress={noteBackInteractivePress}
@@ -1060,8 +1068,6 @@ function ConceptCardForIndex({
   flipped,
   reduceMotion = false,
   preloadedMediaUrls,
-  coachHint,
-  animateCoachAppear,
   flipPeek,
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
@@ -1071,8 +1077,6 @@ function ConceptCardForIndex({
   flipped: boolean;
   reduceMotion?: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
-  coachHint?: string | null;
-  animateCoachAppear?: boolean;
   flipPeek?: SharedValue<number>;
   exposeFrontTitleTestId?: boolean;
   onBackInteractivePress?: () => void;
@@ -1086,8 +1090,6 @@ function ConceptCardForIndex({
       flipped={flipped}
       reduceMotion={reduceMotion}
       isMediaPrefetched={isMediaPrefetched}
-      coachHint={coachHint}
-      animateCoachAppear={animateCoachAppear}
       flipPeek={flipPeek}
       exposeFrontTitleTestId={exposeFrontTitleTestId}
       onBackInteractivePress={onBackInteractivePress}
