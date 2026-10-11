@@ -3,22 +3,23 @@ import { capture, swipeForward } from '../helpers/capture';
 import { cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
-/**
- * Lz-26 / #95 B1+AD: at 200% the title must not mid-glyph clip in the face, and
- * the last line must be reachable via `card-front-scroll`.
- *
- * - At scrollTop 0: visible title height in the scrollport is ≤4 line-heights
- *   (overflowFallback must not paint unlimited lines in the viewport).
- * - If content overflows: scrollTop = scrollHeight, then
- *   title.bottom ≤ scroll.bottom + 1.
- * - If content does not overflow: scrollHeight ≤ clientHeight + 1 and
- *   title.bottom ≤ face.bottom + 1.
- *
- * Mutation: fails with main's ConceptCard/conceptFrontTitle (7-line viewport /
- * mid-glyph cut at 320×200% ES); passes on the PR fix.
- */
-async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
-  const metrics = await title.evaluate((el) => {
+type TitleScrollMetrics = {
+  titleTop: number;
+  faceTop: number;
+  faceBottom: number;
+  titleBottom: number;
+  scrollBottom: number;
+  fontSize: number;
+  lineHeight: number;
+  scrollHeight: number;
+  clientHeight: number;
+  faceHeight: number;
+  visibleTitleH: number;
+  overflowY: string;
+};
+
+async function readTitleScrollMetrics(title: Locator): Promise<TitleScrollMetrics> {
+  return title.evaluate((el) => {
     const titleBox = el.getBoundingClientRect();
     const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
     const face = scroll?.parentElement ?? el.parentElement;
@@ -41,9 +42,41 @@ async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
       lineHeight,
       scrollHeight,
       clientHeight,
+      faceHeight: faceBox?.height ?? 0,
       visibleTitleH,
+      overflowY: scroll ? getComputedStyle(scroll).overflowY : '',
     };
   });
+}
+
+/**
+ * Lz-26 / #95 B1+AD: at 200% the title must not mid-glyph clip in the face, and
+ * the last line must be reachable via `card-front-scroll`.
+ *
+ * - At scrollTop 0: visible title height in the scrollport is ≤4 line-heights
+ *   (overflowFallback must not paint unlimited lines in the viewport).
+ * - If content overflows: scrollTop = scrollHeight, then
+ *   title.bottom ≤ scroll.bottom + 1.
+ * - If content does not overflow: scrollHeight ≤ clientHeight + 1 and
+ *   title.bottom ≤ face.bottom + 1.
+ *
+ * Mutation: fails with main's ConceptCard/conceptFrontTitle (7-line viewport /
+ * mid-glyph cut at 320×200% ES); passes on the PR fix.
+ */
+async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
+  // Wait for face onLayout + overflow top spacer (first paint can show all lines).
+  await expect
+    .poll(
+      async () => {
+        const m = await readTitleScrollMetrics(title);
+        if (m.lineHeight <= 0 || m.faceHeight <= 0) return false;
+        return m.visibleTitleH <= 4 * m.lineHeight + 1;
+      },
+      { timeout: 5_000 },
+    )
+    .toBe(true);
+
+  const metrics = await readTitleScrollMetrics(title);
 
   // Layout size 24 × e2eTextScale 2 → displayed ≥48 (never ink-band 12×2).
   expect(metrics.fontSize).toBeGreaterThanOrEqual(48);
@@ -77,6 +110,92 @@ async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
   expect(
     reachable.ok,
     `last title line not reachable after scroll (titleBottom=${reachable.titleBottom}, scrollBottom=${reachable.scrollBottom})`,
+  ).toBe(true);
+}
+
+/**
+ * B1/B2 (#95 PRR): content in the pad band
+ * `frontContentFaceH < content ≤ frontFaceH` (~2·facePad).
+ *
+ * With `frontNeedsScroll` vs outer `frontFaceH`, scroll stays disabled while the
+ * last line is clipped. Assert scroll is enabled and scroll-to-end reachability.
+ *
+ * Proof (local): long-label @ 320 — fails with frontFaceH mutation (overflowY
+ * hidden); passes on the PR (overflowY auto + reachable).
+ */
+async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const m = await readTitleScrollMetrics(title);
+        return (
+          m.faceHeight > 0 &&
+          m.scrollHeight > m.clientHeight + 0.5 &&
+          m.scrollHeight <= m.faceHeight + 0.5
+        );
+      },
+      { timeout: 5_000 },
+    )
+    .toBe(true);
+
+  const rest = await title.evaluate((el) => {
+    const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
+    if (!scroll) {
+      return {
+        ok: false,
+        scrollHeight: 0,
+        clientHeight: 0,
+        faceHeight: 0,
+        titleBottom: 0,
+        scrollBottom: 0,
+        overflowY: '',
+        clippedAtRest: false,
+      };
+    }
+    scroll.scrollTop = 0;
+    const face = scroll.parentElement;
+    const titleBox = el.getBoundingClientRect();
+    const scrollBox = scroll.getBoundingClientRect();
+    const faceH = face?.getBoundingClientRect().height ?? 0;
+    return {
+      ok: true,
+      scrollHeight: scroll.scrollHeight,
+      clientHeight: scroll.clientHeight,
+      faceHeight: faceH,
+      titleBottom: titleBox.bottom,
+      scrollBottom: scrollBox.bottom,
+      overflowY: getComputedStyle(scroll).overflowY,
+      clippedAtRest: titleBox.bottom > scrollBox.bottom + 1,
+    };
+  });
+
+  expect(rest.scrollHeight).toBeGreaterThan(rest.clientHeight + 0.5);
+  expect(rest.scrollHeight).toBeLessThanOrEqual(rest.faceHeight + 0.5);
+  expect(rest.clippedAtRest, 'last title line must clip at scrollTop 0 in the pad band').toBe(
+    true,
+  );
+  // B2: comparing to outer faceH leaves scroll disabled in this band.
+  expect(rest.overflowY, 'frontNeedsScroll must enable scroll in the pad band').not.toBe(
+    'hidden',
+  );
+
+  const reachable = await title.evaluate((el) => {
+    const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
+    if (!scroll) {
+      return { ok: false, titleBottom: 0, scrollBottom: 0 };
+    }
+    scroll.scrollTop = scroll.scrollHeight;
+    const titleBottom = el.getBoundingClientRect().bottom;
+    const scrollBottom = scroll.getBoundingClientRect().bottom;
+    return {
+      ok: titleBottom <= scrollBottom + 1,
+      titleBottom,
+      scrollBottom,
+    };
+  });
+  expect(
+    reachable.ok,
+    `pad-band last line not reachable after scroll (titleBottom=${reachable.titleBottom}, scrollBottom=${reachable.scrollBottom})`,
   ).toBe(true);
 }
 
@@ -161,5 +280,20 @@ test.describe('typography', () => {
       state: 'long-label-200',
       locale: 'es',
     });
+  });
+
+  // PRR B1 @ 3a5ca4d: pad-band case locks frontNeedsScroll vs frontContentFaceH.
+  test('long-label pad-band scrollport at 320', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== '320x568', 'B2 pad band is sized for 320 facePad');
+    // Default scale: content lands in frontContentFaceH < content ≤ frontFaceH (~30px).
+    await openApp(page, 'canonicalConcept=long-label');
+    const title = cardFrontTitle(page);
+    await expect(title).toBeVisible();
+    await expect(title).toHaveAttribute(
+      'aria-label',
+      /extraordinarily elaborate multidisciplinary conceptual framework/i,
+    );
+
+    await assertFrontPadBandTitleReachable(title);
   });
 });
