@@ -146,22 +146,96 @@ test.describe('status screens', () => {
     });
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
-    // PRR B1 — click Retry (refetch), restore network, Offline/Retry clear ≤2 s.
-    // Do not use not.toContainText on deck-status-line: when the slot unmounts,
-    // Playwright treats a missing node as failure. Assert Offline/Retry locators
-    // reach count 0 instead (load-more copy in the slot is fine).
-    const refetch = page.waitForRequest(
-      (req) =>
-        req.url().includes('/api/concepts/relationships') && req.method() === 'POST',
-    );
-    await retry.click();
-    await refetch;
+    // PRR B1 — restore CDP network first, then click Retry. Re-assert Offline UI
+    // (block online; fake navigator.onLine + offline event) so clear depends on
+    // reportRetrySucceeded, not setOnline. Fulfill unique concepts so load-more
+    // appends (mushroom fixture alone would coldStart/retryEmpty without clearing).
+    await page.evaluate(() => {
+      window.addEventListener('online', (e) => e.stopImmediatePropagation(), true);
+    });
     await context.setOffline(false);
-    await page.waitForFunction(() => navigator.onLine === true);
-    await expect(page.getByTestId('deck-status-retry')).toHaveCount(0, { timeout: 2_000 });
-    await expect(page.getByTestId('deck-status-line').filter({ hasText: /Offline/i })).toHaveCount(
-      0,
-    );
+    await expect(async () => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'onLine', {
+          configurable: true,
+          get: () => false,
+        });
+        window.dispatchEvent(new Event('offline'));
+      });
+      await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+        timeout: 800,
+      });
+    }).toPass({ timeout: 3_000 });
+    await expect(retry).toBeVisible();
+
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          data: {
+            start: { id: 901, label: 'retry-seed' },
+            nodes: [
+              {
+                id: 901,
+                label: 'retry-seed',
+                shortDescription: 'Unique seed for offline retry append.',
+                complexity: 2,
+                wikiUrl: null,
+                mediaUrl: null,
+                media: [],
+                locale: 'en',
+                degree: 0,
+              },
+              {
+                id: 902,
+                label: 'retry-neighbor',
+                shortDescription: 'Unique neighbor for offline retry append.',
+                complexity: 2,
+                wikiUrl: null,
+                mediaUrl: null,
+                media: [],
+                locale: 'en',
+                degree: 1,
+              },
+            ],
+            edges: [{ id: 910, from: 901, to: 902, strength: 0.8, laterality: 3 }],
+            meta: {
+              depth: 2,
+              limit: 12,
+              minStrength: 0,
+              hasMore: false,
+              locale: 'en',
+              laterality: 3,
+            },
+          },
+        }),
+      });
+    });
+
+    const isRelationshipsPost = (req: { url: () => string; method: () => string }) =>
+      req.url().includes('/api/concepts/relationships') && req.method() === 'POST';
+    let postsFromClick = 0;
+    const onRelationshipsPost = (req: { url: () => string; method: () => string }) => {
+      if (isRelationshipsPost(req)) postsFromClick += 1;
+    };
+    page.on('request', onRelationshipsPost);
+    try {
+      postsFromClick = 0;
+      await retry.click();
+      // Arm wait after click so a pre-armed wait cannot match a stray POST (PRR B1).
+      if (postsFromClick === 0) {
+        await page.waitForRequest(isRelationshipsPost, { timeout: 2_000 });
+      }
+      // Clear depends on retrySucceeded (online → setOnline is suppressed above).
+      await expect(page.getByTestId('deck-status-retry')).toHaveCount(0, { timeout: 2_000 });
+      await expect(
+        page.getByTestId('deck-status-line').filter({ hasText: /Offline/i }),
+      ).toHaveCount(0);
+    } finally {
+      page.off('request', onRelationshipsPost);
+    }
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
   });
 
