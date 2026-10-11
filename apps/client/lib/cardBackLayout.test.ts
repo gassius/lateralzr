@@ -38,8 +38,8 @@ const withMediaReady: CardBackLayout = {
 const withMediaLoading: CardBackLayout = {
   mode: 'with-media',
   showMediaZone: true,
-  showMediaPlaceholder: true,
-  showMediaImage: true,
+  showMediaPlaceholder: false,
+  showMediaImage: false,
   expandMediaZone: true,
   balanceCopy: false,
   mediaContentFit: 'cover',
@@ -89,12 +89,14 @@ test('ready media uses a prominent media zone with copy stacked, not balanced as
   assert.equal(composeCardBackLayout('ready').rhythm, CARD_BACK_WITH_MEDIA_RHYTHM);
 });
 
-test('loading media keeps the with-media layout and a calm placeholder, not a broken box', () => {
+test('loading media keeps the with-media branch on paper — no tinted placeholder, image after decode', () => {
   assert.equal(
     resolveCardBackMediaPhase({ hasMediaUrl: true, decoded: false, failed: false }),
     'loading',
   );
   assert.deepEqual(composeCardBackLayout('loading'), withMediaLoading);
+  assert.equal(composeCardBackLayout('loading').showMediaPlaceholder, false);
+  assert.equal(composeCardBackLayout('loading').showMediaImage, false);
 });
 
 test('failed media load degrades to the same layout as a concept without media', () => {
@@ -166,12 +168,14 @@ test('missing wikiUrl leaves no reserved link gap in the rhythm', () => {
   assert.equal(CARD_BACK_WITH_MEDIA_RHYTHM.descriptionMarginBottom, 0);
 });
 
-test('ready media cover-fills the expanding well so landscape and portrait do not letterbox on paper', () => {
+test('ready media defaults to cover/center; runtime fit may switch via cardBackMedia', () => {
   const layout = composeCardBackLayout('ready');
   assert.equal(layout.expandMediaZone, true);
   assert.equal(layout.mediaContentFit, 'cover');
   assert.equal(layout.mediaContentFit, CARD_BACK_MEDIA_CONTENT_FIT);
   assert.equal(CARD_BACK_MEDIA_CONTENT_POSITION, 'center');
+  assert.equal(layout.showMediaImage, true);
+  assert.equal(layout.showMediaPlaceholder, false);
 });
 
 test('no-media and failed media do not invent a fit or a filler well', () => {

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { type Page, type TestInfo } from '@playwright/test';
+import { expect, type Page, type TestInfo } from '@playwright/test';
 import { VIEWPORTS, type ViewportId } from './viewports';
 import { visibleText } from './locators';
 import { DIFF_RATIO_THRESHOLD, diffPngs } from './pngDiff';
@@ -18,6 +18,38 @@ const BASELINE_ROOT = path.join(HERE, '..', 'baselines');
 const DIFF_ROOT = path.join(SCREENSHOT_ROOT, 'diffs');
 
 const VIEWPORT_IDS = new Set<string>(VIEWPORTS.map((vp) => vp.id));
+
+/** Matches theme `motion.swipeSettleMs` — skip mid-settle frames before capture. */
+const CAPTURE_SETTLE_MS = 260;
+const LAYOUT_STABLE_GAP_MS = 50;
+const LAYOUT_STABLE_TIMEOUT_MS = 2_000;
+
+/** Serialize root + `[data-testid]` boxes for stable-layout polls. */
+function layoutSnapshot(): string {
+  const root = document.documentElement;
+  const parts = [`root:${root.scrollWidth}x${root.scrollHeight}`];
+  for (const el of Array.from(document.querySelectorAll('[data-testid]'))) {
+    const r = el.getBoundingClientRect();
+    parts.push(
+      `${el.getAttribute('data-testid')}:${Math.round(r.x)}|${Math.round(r.y)}|${Math.round(r.width)}|${Math.round(r.height)}`,
+    );
+  }
+  return parts.join(';');
+}
+
+/**
+ * Wait out swipe settle, then require two identical layout reads.
+ * Fixes AD mid-animation captures (loading-initial, long-label) without product UI changes.
+ */
+async function settleBeforeCapture(page: Page): Promise<void> {
+  await page.waitForTimeout(CAPTURE_SETTLE_MS);
+  await expect(async () => {
+    const first = await page.evaluate(layoutSnapshot);
+    await page.waitForTimeout(LAYOUT_STABLE_GAP_MS);
+    const second = await page.evaluate(layoutSnapshot);
+    expect(first, 'layout must match across two reads before capture').toBe(second);
+  }).toPass({ timeout: LAYOUT_STABLE_TIMEOUT_MS });
+}
 
 function screenshotRoot(): string {
   const sub = process.env.E2E_SHOT_SUBDIR?.trim();
@@ -69,6 +101,8 @@ export async function capture(
   const shotRoot = screenshotRoot();
   fs.mkdirSync(shotRoot, { recursive: true });
   const outPath = path.join(shotRoot, fileName);
+
+  await settleBeforeCapture(page);
 
   await page.screenshot({
     path: outPath,

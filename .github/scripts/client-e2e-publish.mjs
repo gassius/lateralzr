@@ -98,6 +98,13 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
+/** Rewrite apps/client/vercel.json so Vercel never builds previews from this orphan. */
+function ensureOrphanVercelJson(workRoot) {
+  const dest = path.join(workRoot, 'apps', 'client', 'vercel.json');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, '{"git":{"deploymentEnabled":false}}\n');
+}
+
 async function assertArtifactMatchesCurrentHead(phase) {
   if (!artifactHeadSha) {
     throw new Error(
@@ -156,6 +163,9 @@ async function pushOrphan() {
   if (fs.existsSync(diffs)) {
     fs.cpSync(diffs, path.join(destRoot, 'diffs'), { recursive: true });
   }
+
+  // Preserve/rewrite disable file — orphan pushes must never wipe it.
+  ensureOrphanVercelJson(work);
 
   sh('git add -A', work);
   try {
