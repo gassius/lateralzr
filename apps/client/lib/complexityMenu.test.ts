@@ -6,10 +6,9 @@ import {
   complexityMenuCommitValue,
   complexityMenuRows,
 } from './complexityMenu.ts';
-import { MAX_CONCEPT_COMPLEXITY, MIN_CONCEPT_COMPLEXITY } from './complexityStorage.ts';
 
 describe('complexityMenuRows', () => {
-  it('returns grades 1→5 with a single checked row', () => {
+  it('returns grades 1→5 (complexityStorage MIN/MAX) with a single checked row', () => {
     setActiveLocale('en');
     const rows = complexityMenuRows(3);
     assert.equal(rows.length, 5);
@@ -43,10 +42,10 @@ describe('complexityMenuRows', () => {
   it('clamps out-of-range selected onto a valid checked row', () => {
     const low = complexityMenuRows(0);
     assert.equal(low[0]?.checked, true);
-    assert.equal(low[0]?.grade, MIN_CONCEPT_COMPLEXITY);
+    assert.equal(low[0]?.grade, 1);
     const high = complexityMenuRows(9);
     assert.equal(high[4]?.checked, true);
-    assert.equal(high[4]?.grade, MAX_CONCEPT_COMPLEXITY);
+    assert.equal(high[4]?.grade, 5);
   });
 });
 
