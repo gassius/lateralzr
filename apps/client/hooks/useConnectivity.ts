@@ -91,7 +91,9 @@ export function useConnectivity(): {
       });
     };
 
-    const onBrowserOnline = () => syncFromBrowser(true);
+    // Trust the browser online event immediately. NetInfo can lag after Playwright /
+    // DevTools leave offline and would otherwise keep Offline stuck (stale isConnected:false).
+    const onBrowserOnline = () => applyConnected(true);
     const onBrowserOffline = () => syncFromBrowser(false);
 
     if (typeof window !== 'undefined') {

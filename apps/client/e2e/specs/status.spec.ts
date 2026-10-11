@@ -146,15 +146,20 @@ test.describe('status screens', () => {
     });
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
-    // PRR B1 — restore network, click Retry, assert refetch + line clears ≤2 s.
-    // Click before setOnline can unmount Retry; setOffline(false) lets the POST complete
-    // if CDP offline would otherwise block it.
+    // PRR B1 — click Retry (refetch), restore network, Offline/Retry clear ≤2 s.
+    // Load-more may briefly reuse the slot ("Loading more ideas"), so do not require
+    // deck-status-line count 0 — only that Offline copy and Retry are gone.
     const refetch = page.waitForRequest(
       (req) =>
         req.url().includes('/api/concepts/relationships') && req.method() === 'POST',
     );
-    await Promise.all([refetch, retry.click(), context.setOffline(false)]);
-    await expect(page.getByTestId('deck-status-line')).toHaveCount(0, { timeout: 2_000 });
+    await retry.click();
+    await context.setOffline(false);
+    await refetch;
+    await expect(page.getByTestId('deck-status-line')).not.toContainText(/Offline/i, {
+      timeout: 2_000,
+    });
+    await expect(page.getByTestId('deck-status-retry')).toHaveCount(0);
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
   });
 
