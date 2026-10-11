@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { capture, swipeForward } from '../helpers/capture';
-import { visibleText } from '../helpers/locators';
+import { capture, swipeBack, swipeForward } from '../helpers/capture';
+import { cardFrontTitle, visibleText } from '../helpers/locators';
 import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
 import {
   expectStatusLineClearOfLaterality,
@@ -178,5 +178,26 @@ test.describe('status screens', () => {
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'es' });
+  });
+
+  test('back from end-of-deck loading returns to the same last concept N>0 (Lz-36)', async ({
+    page,
+  }) => {
+    // Two-card deck: old i-1 pop would show Horizon; correct path keeps Meridian (N).
+    await openApp(page, 'canonicalConcept=loading-deck-two', {
+      mock: { delayLoadMoreMs: 120_000 },
+      skipNetworkIdle: true,
+    });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await swipeForward(page, 'Meridian');
+    await swipeForward(page);
+    await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
+
+    await swipeBack(page, 'Meridian');
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
+    // Front title must be card N (Meridian), not N-1 (Horizon) from an unguarded pop.
+    await expect(cardFrontTitle(page)).toHaveText('Meridian');
   });
 });

@@ -9,7 +9,10 @@
 /** Idle on the first card before swipe coaching. Ticket suggests ~4–6s. */
 export const SWIPE_COACH_IDLE_MS = 5000;
 
-/** 0-based index of the card where flip coaching may appear (the third card). */
+/**
+ * Offset from {@link DiscoveryCoachingState.replayAnchorIndex} for flip coaching.
+ * Default anchor 0 → third card (index 2). After Replay, flip arms at anchor + 2.
+ */
 export const FLIP_COACH_CARD_INDEX = 2;
 
 /** Short pause after landing on the third card so the concept can be read first. */
@@ -32,6 +35,11 @@ export type DiscoveryCoachingState = {
   /** Offered at most once per session, even if the user ignores it. */
   swipeCoachOffered: boolean;
   flipCoachOffered: boolean;
+  /**
+   * Card index where the coaching sequence restarts (Lz-32 Replay).
+   * Swipe coach arms at this index; flip at anchor + {@link FLIP_COACH_CARD_INDEX}.
+   */
+  replayAnchorIndex: number;
 };
 
 export type DiscoveryCoachingView = {
@@ -51,6 +59,7 @@ export const INITIAL_DISCOVERY_COACHING_STATE: DiscoveryCoachingState = {
   flipDiscovered: false,
   swipeCoachOffered: false,
   flipCoachOffered: false,
+  replayAnchorIndex: 0,
 };
 
 let sessionState: DiscoveryCoachingState = { ...INITIAL_DISCOVERY_COACHING_STATE };
@@ -63,8 +72,19 @@ export function setDiscoveryCoachingSession(next: DiscoveryCoachingState): void 
   sessionState = next;
 }
 
-export function resetDiscoveryCoachingSession(): void {
-  sessionState = { ...INITIAL_DISCOVERY_COACHING_STATE };
+/** Fresh coaching state anchored at `anchorIndex` (floored, ≥ 0). */
+export function discoveryCoachingStateAfterReplay(anchorIndex: number): DiscoveryCoachingState {
+  const anchor =
+    Number.isFinite(anchorIndex) && anchorIndex >= 0 ? Math.floor(anchorIndex) : 0;
+  return {
+    ...INITIAL_DISCOVERY_COACHING_STATE,
+    replayAnchorIndex: anchor,
+  };
+}
+
+/** Reset session coaching; optional anchor is the current card (Replay from mid-deck). */
+export function resetDiscoveryCoachingSession(anchorIndex = 0): void {
+  sessionState = discoveryCoachingStateAfterReplay(anchorIndex);
 }
 
 export function reduceDiscoveryCoaching(
@@ -96,17 +116,17 @@ export function swipeCoachContextReady(
 ): boolean {
   if (current.swipeDiscovered || current.swipeCoachOffered) return false;
   if (currentView.deckStatus || currentView.flipped) return false;
-  return currentView.cardIndex === 0;
+  return currentView.cardIndex === current.replayAnchorIndex;
 }
 
-/** Context for flip coaching, ignoring dwell time (used to start the third-card delay). */
+/** Context for flip coaching, ignoring dwell time (used to start the flip-card delay). */
 export function flipCoachContextReady(
   current: DiscoveryCoachingState,
   currentView: DiscoveryCoachingView,
 ): boolean {
   if (current.flipDiscovered || current.flipCoachOffered) return false;
   if (currentView.deckStatus || currentView.flipped) return false;
-  return currentView.cardIndex === FLIP_COACH_CARD_INDEX;
+  return currentView.cardIndex === current.replayAnchorIndex + FLIP_COACH_CARD_INDEX;
 }
 
 /** Visible coach for this card. Null after discovery or when the UI should stay quiet. */
@@ -118,14 +138,14 @@ export function visibleCoach(
   if (
     !current.swipeDiscovered &&
     current.swipeCoachOffered &&
-    currentView.cardIndex === 0
+    currentView.cardIndex === current.replayAnchorIndex
   ) {
     return 'swipe';
   }
   if (
     !current.flipDiscovered &&
     current.flipCoachOffered &&
-    currentView.cardIndex === FLIP_COACH_CARD_INDEX
+    currentView.cardIndex === current.replayAnchorIndex + FLIP_COACH_CARD_INDEX
   ) {
     return 'flip';
   }

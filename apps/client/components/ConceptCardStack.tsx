@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
+import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -15,6 +15,7 @@ import { ConceptCard } from './ConceptCard';
 import { DeckStatusCard } from './DeckStatusCard';
 import { LoadingCard } from './LoadingCard';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
   trackCardBackView,
   trackCardView,
@@ -29,18 +30,22 @@ import {
   SWIPE_RETURN_MS,
   cardSwipeFrontTransform,
   cardSwipeReturnOverlayTransform,
-  initialPrefersReducedMotion,
   swipeCommitDirection,
   swipeCommitDurationMs,
-  swipeEnterShiftPx,
   swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
 import { clampComplexity } from '@/lib/complexityStorage';
+import { deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
+import {
+  resolveNavSettleIntent,
+  returnOverlayIndexForEndLoading,
+} from '@/lib/deckSlotState';
 import {
   coachMessageKey,
   SWIPE_COACH_PEEK_PX,
   type CoachKind,
 } from '@/lib/discoveryCoaching';
+import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
 import { displayMediaUrl } from '@/lib/remoteImage';
@@ -62,6 +67,8 @@ type ConceptCardStackProps = {
   showInitialLoading?: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
+  /** Lz-32: bind app-menu Replay to the coaching hook’s reset+refresh. */
+  onReplayGestureTipsReady?: (replay: () => void) => void;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
@@ -82,6 +89,7 @@ export function ConceptCardStack({
   showInitialLoading = false,
   loadMoreError,
   onRetryLoadMore,
+  onReplayGestureTipsReady,
 }: ConceptCardStackProps) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -100,18 +108,24 @@ export function ConceptCardStack({
   const returnOverlaySuppressSV = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
   const [containerW, setContainerW] = useState<number>(0);
-  const [reduceMotion, setReduceMotion] = useState(initialPrefersReducedMotion);
-  const reduceMotionSV = useSharedValue(initialPrefersReducedMotion() ? 1 : 0);
+  const reduceMotion = useReducedMotion();
+  const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
   const [returnOverlayLockedIndex, setReturnOverlayLockedIndex] = useState<number | null>(null);
   /** While swipe-left commit runs, pin behind card to this index (the “next” card under the front) before index advances. */
   const [behindLockedIndex, setBehindLockedIndex] = useState<number | null>(null);
   const currentIndexRef = useRef(currentIndex);
   const navIntentRef = useRef<'forward' | 'backward' | 'backwardGesture' | null>(null);
+  /** Previous paint's deck-status flag — used to settle when loading clears without a swipe intent (Lz-36). */
+  const wasDeckStatusRef = useRef(false);
+  /** Index before the latest layout pass — pairs with wasDeckStatusRef for loading→card settle direction. */
+  const loadingClearPrevIndexRef = useRef(currentIndex);
   const conceptsRef = useRef(concepts);
   const complexityRef = useRef(complexity);
   const flippedRef = useRef(flipped);
   const showDeckStatusRef = useRef(false);
+  /** Ignore stack tap→flip briefly after wiki / credit press (AC: links must not flip). */
+  const suppressFlipUntilRef = useRef(0);
   const dwellStartedAtRef = useRef<number>(Date.now());
   const dwellFaceRef = useRef<CardFace>('front');
   const dwellConceptRef = useRef<string | null>(null);
@@ -137,20 +151,6 @@ export function ConceptCardStack({
   }, [flipped]);
 
   useEffect(() => {
-    let mounted = true;
-    void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (mounted) setReduceMotion(enabled);
-    });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setReduceMotion(enabled);
-    });
-    return () => {
-      mounted = false;
-      sub?.remove();
-    };
-  }, []);
-
-  useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
   }, [reduceMotion, reduceMotionSV]);
 
@@ -171,11 +171,16 @@ export function ConceptCardStack({
 
   const deckStatusVariant = loadMoreError ? 'error' : 'loading';
 
-  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped } = useDiscoveryCoaching({
-    cardIndex: currentIndex,
-    flipped: flipped || concepts.length === 0,
-    deckStatus: showDeckStatus,
-  });
+  const { coach, peekEnabled, noteInteraction, noteSwiped, noteFlipped, replayGestureTips } =
+    useDiscoveryCoaching({
+      cardIndex: currentIndex,
+      flipped: flipped || concepts.length === 0,
+      deckStatus: showDeckStatus,
+    });
+
+  useEffect(() => {
+    onReplayGestureTipsReady?.(replayGestureTips);
+  }, [onReplayGestureTipsReady, replayGestureTips]);
 
   useEffect(() => {
     if (!coach || !peekEnabled) {
@@ -287,8 +292,9 @@ export function ConceptCardStack({
   }, [flushDwell]);
 
   useEffect(() => {
-    canSwipeRightSV.value = currentIndex > 0 ? 1 : 0;
-  }, [canSwipeRightSV, currentIndex]);
+    // Lz-36: back from end-of-deck loading must work even on a single-card deck (index 0).
+    canSwipeRightSV.value = currentIndex > 0 || showDeckStatus ? 1 : 0;
+  }, [canSwipeRightSV, currentIndex, showDeckStatus]);
 
   useEffect(() => {
     showDeckStatusSV.value = showDeckStatus ? 1 : 0;
@@ -297,8 +303,18 @@ export function ConceptCardStack({
   // Layout effect: reset gesture + enter state before paint so the new top card never flashes with the
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
   useLayoutEffect(() => {
-    const intent = navIntentRef.current;
+    // Lz-36: loading → concept without a swipe intent (append settle, or back cleared pending).
+    const intent = resolveNavSettleIntent({
+      navIntent: navIntentRef.current,
+      wasDeckStatus: wasDeckStatusRef.current,
+      showDeckStatus,
+      prevIndex: loadingClearPrevIndexRef.current,
+      index: currentIndex,
+    });
     navIntentRef.current = null;
+
+    wasDeckStatusRef.current = showDeckStatus;
+    loadingClearPrevIndexRef.current = currentIndex;
 
     returnOverlaySuppressSV.value = 1;
 
@@ -323,15 +339,15 @@ export function ConceptCardStack({
 
     const rm = reduceMotionSV.value > 0.5;
     if (intent === 'forward' || intent === 'backward' || intent === 'backwardGesture') {
-      // RM: cross-fade already completed during commit — land settled (no 8 px shift).
-      // Full motion: fade 0→1 + ±8 → 0 over settle token.
-      if (rm) {
+      // RM / backwardGesture: cross-fade or return overlay already completed — land settled.
+      // Full motion: fade 0→1 + ±8 → 0 over settle token (260 ms; Lz-36 loading replace).
+      if (rm || intent === 'backwardGesture') {
         enterX.value = 0;
         enterOpacity.value = 1;
       } else {
         const forward = intent === 'forward';
-        const shift = swipeEnterShiftPx(false, forward);
-        const duration = swipeCommitDurationMs(false);
+        const shift = deckSettleEnterShiftPx(false, forward);
+        const duration = deckSettleDurationMs(false);
         enterX.value = shift;
         enterOpacity.value = 0;
         enterX.value = withTiming(0, { duration, easing: SWIPE_EASING });
@@ -381,12 +397,40 @@ export function ConceptCardStack({
     noteSwiped();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('right', ctx);
-    // Gesture already animated the previous card into place; do not replay backward enter on index change.
-    navIntentRef.current = 'backwardGesture';
+    // Lz-36: back from end-of-deck loading has no return-overlay peer — settle the revealed card.
+    // Normal backtrack: gesture already animated the previous card; skip enter replay.
+    navIntentRef.current = resolveNavSettleIntent({
+      navIntent: null,
+      wasDeckStatus: wasDeckStatusRef.current,
+      showDeckStatus: showDeckStatusRef.current,
+      prevIndex: loadingClearPrevIndexRef.current,
+      index: currentIndexRef.current,
+      commitFromStatus: showDeckStatusRef.current,
+    });
     onSwipeRight();
   }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
+  const noteBackInteractivePress = useCallback(() => {
+    suppressFlipUntilRef.current = suppressUntil(Date.now());
+  }, []);
+
+  // RNGH Tap owns the card surface on web and can steal presses from RN Text.
+  // Capture-phase pointerdown on wiki arms the suppress window before Tap.onEnd.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onPointerDownCapture = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('[data-testid="card-back-wikipedia"]')) {
+        noteBackInteractivePress();
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDownCapture, true);
+    return () => document.removeEventListener('pointerdown', onPointerDownCapture, true);
+  }, [noteBackInteractivePress]);
+
   const toggleFlip = useCallback(() => {
+    if (isFlipSuppressed(Date.now(), suppressFlipUntilRef.current)) return;
     const wasFlipped = flippedRef.current;
     const next = !wasFlipped;
     const item = conceptsRef.current[currentIndexRef.current];
@@ -502,6 +546,25 @@ export function ConceptCardStack({
             translateX.value = withTiming(0, {
               duration: SWIPE_RETURN_MS,
               easing: SWIPE_EASING,
+            });
+            return;
+          }
+          // Lz-36: back from loading — slide/fade the silhouette away; no return-overlay mount
+          // (mounting a peer ConceptCard under LoadingCard raced peerCommitOpacity and flaked
+          // deck-status-line vs laterality-rail bbox asserts in Client E2E).
+          if (showDeckStatusSV.value === 1) {
+            swipeAnimating.value = true;
+            if (!swipeShouldSlideOutOnCommit(rm)) {
+              translateX.value = 0;
+              frontCommitOpacity.value = 1;
+              peerCommitOpacity.value = 0;
+              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+                if (finished) runOnJS(commitSwipeRight)();
+              });
+              return;
+            }
+            translateX.value = withTiming(w, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              if (finished) runOnJS(commitSwipeRight)();
             });
             return;
           }
@@ -672,8 +735,15 @@ export function ConceptCardStack({
   const showBehindNext =
     !showDeckStatus && behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
   const prevIndex = currentIndex - 1;
+  // Under the loading silhouette the resting underlay is the current last card (not N-1).
+  const restingUnderlayIndex = showDeckStatus
+    ? returnOverlayIndexForEndLoading(currentIndex)
+    : prevIndex >= 0
+      ? prevIndex
+      : -1;
   const returnOverlayIndex =
-    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : prevIndex >= 0 ? prevIndex : -1;
+    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : restingUnderlayIndex;
+  // Never mount return-overlay under the loading face at rest (Lz-36 back uses slide/fade + settle).
   const showReturnOverlay =
     !showDeckStatus &&
     returnOverlayIndex >= 0 &&
@@ -699,6 +769,7 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={behindDisplayIndex}
                 flipped={false}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
               />
             </Animated.View>
@@ -719,11 +790,13 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={currentIndex}
                 flipped={flipped}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
                 coachHint={coach ? t(coachMessageKey(coach)) : null}
                 animateCoachAppear={peekEnabled}
                 flipPeek={flipPeek}
                 exposeFrontTitleTestId
+                onBackInteractivePress={noteBackInteractivePress}
               />
             )}
           </Animated.View>
@@ -737,6 +810,7 @@ export function ConceptCardStack({
                 concepts={concepts}
                 currentIndex={returnOverlayIndex}
                 flipped={false}
+                reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
               />
             </Animated.View>
@@ -752,20 +826,24 @@ function ConceptCardForIndex({
   concepts,
   currentIndex,
   flipped,
+  reduceMotion = false,
   preloadedMediaUrls,
   coachHint,
   animateCoachAppear,
   flipPeek,
   exposeFrontTitleTestId = false,
+  onBackInteractivePress,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
   flipped: boolean;
+  reduceMotion?: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
   coachHint?: string | null;
   animateCoachAppear?: boolean;
   flipPeek?: SharedValue<number>;
   exposeFrontTitleTestId?: boolean;
+  onBackInteractivePress?: () => void;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -774,11 +852,13 @@ function ConceptCardForIndex({
     <ConceptCard
       item={item}
       flipped={flipped}
+      reduceMotion={reduceMotion}
       isMediaPrefetched={isMediaPrefetched}
       coachHint={coachHint}
       animateCoachAppear={animateCoachAppear}
       flipPeek={flipPeek}
       exposeFrontTitleTestId={exposeFrontTitleTestId}
+      onBackInteractivePress={onBackInteractivePress}
     />
   );
 }
