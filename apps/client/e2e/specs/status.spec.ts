@@ -133,7 +133,7 @@ test.describe('status screens', () => {
 
   test('offline status line ES', async ({ page, context }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
-    await expect(visibleText(page, 'seta')).toBeVisible();
+    await expect(visibleText(page, 'Seta')).toBeVisible();
     await context.setOffline(true);
     await expect(page.getByTestId('deck-status-line')).toContainText(/Sin conexión/i, {
       timeout: 2_000,
@@ -142,7 +142,7 @@ test.describe('status screens', () => {
       'aria-label',
       /Reintentar/i,
     );
-    await expect(visibleText(page, 'seta')).toBeVisible();
+    await expect(visibleText(page, 'Seta')).toBeVisible();
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'es' });
