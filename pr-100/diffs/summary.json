@@ -489,11 +489,12 @@
   },
   {
     "file": "card-front_pattern-clear-200_320x568_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.10327904929577465,
+    "percent": 10.327904929577466,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
+    "status": "over-threshold",
+    "mismatchedPixels": 75088,
+    "diffImage": "card-front_pattern-clear-200_320x568_en.diff.png"
   },
   {
     "file": "card-front_short-label_1280x800_en.png",
@@ -897,11 +898,11 @@
   },
   {
     "file": "logo_lockup-on-orange_1280x800_en.png",
-    "ratio": 0.009401123046875,
-    "percent": 0.9401123046875,
+    "ratio": 0,
+    "percent": 0,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 38507
+    "mismatchedPixels": 0
   },
   {
     "file": "logo_lockup-on-orange_320x568_en.png",
@@ -921,12 +922,11 @@
   },
   {
     "file": "logo_lockup-on-orange_430x932_en.png",
-    "ratio": 0.02401562032138936,
-    "percent": 2.401562032138936,
+    "ratio": 0,
+    "percent": 0,
     "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 38498,
-    "diffImage": "logo_lockup-on-orange_430x932_en.diff.png"
+    "status": "pass",
+    "mismatchedPixels": 0
   },
   {
     "file": "status_loading_1280x800_en.png",
@@ -939,11 +939,11 @@
   },
   {
     "file": "status_loading_320x568_en.png",
-    "ratio": 0.6211198833626761,
-    "percent": 62.11198833626761,
+    "ratio": 0.6209397007042253,
+    "percent": 62.093970070422536,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 451579,
+    "mismatchedPixels": 451448,
     "diffImage": "status_loading_320x568_en.diff.png"
   },
   {
@@ -1022,10 +1022,11 @@
   },
   {
     "file": "typography_long-label-200_430x932_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.1519856023555245,
+    "percent": 15.19856023555245,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
+    "status": "over-threshold",
+    "mismatchedPixels": 243639,
+    "diffImage": "typography_long-label-200_430x932_en.diff.png"
   }
 ]
