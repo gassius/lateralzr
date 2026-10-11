@@ -98,6 +98,164 @@ test.describe('status screens', () => {
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'es' });
   });
 
+  test('offline status line with Retry (Lz-37)', async ({ page, context }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await swipeForward(page, 'Mycelium');
+    await expect(visibleText(page, 'Mycelium')).toBeVisible();
+
+    await context.setOffline(true);
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+      timeout: 2_000,
+    });
+    const retry = page.getByTestId('deck-status-retry');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveAttribute('aria-label', /Retry/i);
+    // Current card stays; history back still works within loaded deck.
+    await expect(visibleText(page, 'Mycelium')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+
+    const stack = page.getByTestId('card-laterality-group');
+    const box = await stack.boundingBox();
+    if (!box) throw new Error('card-laterality-group has no bounding box');
+    const y = box.y + box.height * 0.3;
+    await page.mouse.move(box.x + box.width * 0.2, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.85, y, { steps: 16 });
+    await page.mouse.up();
+    await expect(visibleText(page, 'Mushroom')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i);
+
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'en' });
+
+    // PRR B1 — still-offline: Retry keeps the line; card stays (force refetch fail).
+    let failNextRelationships = true;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      if (failNextRelationships) {
+        failNextRelationships = false;
+        await route.abort('failed');
+        return;
+      }
+      await route.fallback();
+    });
+    await retry.click();
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+      timeout: 2_000,
+    });
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+
+    // PRR B1 — restore CDP network first, then click Retry. Re-assert Offline UI
+    // (block online; fake navigator.onLine + offline event) so clear depends on
+    // reportRetrySucceeded, not setOnline. Fulfill unique concepts so load-more
+    // appends (mushroom fixture alone would coldStart/retryEmpty without clearing).
+    await page.evaluate(() => {
+      window.addEventListener('online', (e) => e.stopImmediatePropagation(), true);
+    });
+    await context.setOffline(false);
+    await expect(async () => {
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'onLine', {
+          configurable: true,
+          get: () => false,
+        });
+        window.dispatchEvent(new Event('offline'));
+      });
+      await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+        timeout: 800,
+      });
+    }).toPass({ timeout: 3_000 });
+    await expect(retry).toBeVisible();
+
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          status: 'success',
+          data: {
+            start: { id: 901, label: 'retry-seed' },
+            nodes: [
+              {
+                id: 901,
+                label: 'retry-seed',
+                shortDescription: 'Unique seed for offline retry append.',
+                complexity: 2,
+                wikiUrl: null,
+                mediaUrl: null,
+                media: [],
+                locale: 'en',
+                degree: 0,
+              },
+              {
+                id: 902,
+                label: 'retry-neighbor',
+                shortDescription: 'Unique neighbor for offline retry append.',
+                complexity: 2,
+                wikiUrl: null,
+                mediaUrl: null,
+                media: [],
+                locale: 'en',
+                degree: 1,
+              },
+            ],
+            edges: [{ id: 910, from: 901, to: 902, strength: 0.8, laterality: 3 }],
+            meta: {
+              depth: 2,
+              limit: 12,
+              minStrength: 0,
+              hasMore: false,
+              locale: 'en',
+              laterality: 3,
+            },
+          },
+        }),
+      });
+    });
+
+    const isRelationshipsPost = (req: { url: () => string; method: () => string }) =>
+      req.url().includes('/api/concepts/relationships') && req.method() === 'POST';
+    let postsFromClick = 0;
+    const onRelationshipsPost = (req: { url: () => string; method: () => string }) => {
+      if (isRelationshipsPost(req)) postsFromClick += 1;
+    };
+    page.on('request', onRelationshipsPost);
+    try {
+      postsFromClick = 0;
+      await retry.click();
+      // Arm wait after click so a pre-armed wait cannot match a stray POST (PRR B1).
+      if (postsFromClick === 0) {
+        await page.waitForRequest(isRelationshipsPost, { timeout: 2_000 });
+      }
+      // Clear depends on retrySucceeded (online → setOnline is suppressed above).
+      await expect(page.getByTestId('deck-status-retry')).toHaveCount(0, { timeout: 2_000 });
+      await expect(
+        page.getByTestId('deck-status-line').filter({ hasText: /Offline/i }),
+      ).toHaveCount(0);
+    } finally {
+      page.off('request', onRelationshipsPost);
+    }
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+  });
+
+  test('offline status line ES', async ({ page, context }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=es');
+    await expect(visibleText(page, 'Seta')).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Sin conexión/i, {
+      timeout: 2_000,
+    });
+    await expect(page.getByTestId('deck-status-retry')).toHaveAttribute(
+      'aria-label',
+      /Reintentar/i,
+    );
+    await expect(visibleText(page, 'Seta')).toBeVisible();
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'es' });
+  });
+
   test('back from end-of-deck loading returns to the same last concept N>0 (Lz-36)', async ({
     page,
   }) => {

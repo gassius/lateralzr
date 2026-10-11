@@ -18,6 +18,7 @@ import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
@@ -123,9 +124,25 @@ export default function HomeScreen() {
   const [loadMoreError, setLoadMoreError] = useState(false);
   /** True only after the user swipes forward from the last card while waiting for more items. */
   const [pendingEndDeckLoad, setPendingEndDeckLoad] = useState(false);
+  const {
+    offline,
+    shouldAnnounce: shouldAnnounceOffline,
+    beginRetry: beginOfflineRetry,
+    reportRetrySucceeded,
+    reportRetryFailed,
+    consumeAnnounce: consumeOfflineAnnounce,
+  } = useConnectivity();
+  const offlineRef = useRef(false);
 
   const conceptsRef = useRef(concepts);
   const currentIndexRef = useRef(currentIndex);
+  useEffect(() => {
+    offlineRef.current = offline;
+    if (offline) {
+      // Offline line owns Retry — do not leave a load-more error face on the card.
+      setLoadMoreError(false);
+    }
+  }, [offline]);
   const loadMoreInFlightRef = useRef(false);
   const fetchGenRef = useRef(0);
   const emptyRetryDelayRef = useRef(INITIAL_EMPTY_RETRY_MS);
@@ -313,15 +330,17 @@ export default function HomeScreen() {
       currentIndexRef.current = 0;
       setConcepts(list);
       setCurrentIndex(0);
+      reportRetrySucceeded();
     } catch (e) {
       if (gen !== fetchGenRef.current) return;
       setError(e instanceof Error ? e.message : t('failedToLoadConcepts'));
+      reportRetryFailed();
     } finally {
       if (gen === fetchGenRef.current) {
         setLoading(false);
       }
     }
-  }, [fetchBatch]);
+  }, [fetchBatch, reportRetryFailed, reportRetrySucceeded]);
 
   useEffect(() => {
     if (!complexityHydrated || !lateralityHydrated || !localeReady) return;
@@ -409,15 +428,19 @@ export default function HomeScreen() {
         currentIndexRef.current = applied.nextIndex;
         setCurrentIndex(applied.nextIndex);
       }
+      reportRetrySucceeded();
     } catch {
-      if (stillCurrent()) setLoadMoreError(true);
+      if (stillCurrent()) {
+        if (!offlineRef.current) setLoadMoreError(true);
+        reportRetryFailed();
+      }
     } finally {
       loadMoreInFlightRef.current = false;
       if (stillCurrent()) {
         setLoadingMore(false);
       }
     }
-  }, [fetchBatch]);
+  }, [fetchBatch, reportRetryFailed, reportRetrySucceeded]);
 
   useEffect(() => {
     loadMoreConceptsRef.current = loadMoreConcepts;
@@ -429,7 +452,17 @@ export default function HomeScreen() {
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
 
+  const onOfflineRetry = useCallback(() => {
+    beginOfflineRetry();
+    if (conceptsRef.current.length === 0) {
+      void loadConcepts();
+      return;
+    }
+    retryLoadMore();
+  }, [beginOfflineRetry, loadConcepts, retryLoadMore]);
+
   useEffect(() => {
+    if (offline) return;
     if (loading || concepts.length === 0) return;
     if (loadMoreError) return;
 
@@ -437,7 +470,7 @@ export default function HomeScreen() {
     if (unvisitedAhead > UNVISITED_AHEAD_PREFETCH_AT) return;
 
     void loadMoreConcepts();
-  }, [loading, concepts.length, currentIndex, loadMoreError, loadMoreConcepts]);
+  }, [offline, loading, concepts.length, currentIndex, loadMoreError, loadMoreConcepts]);
 
   const onSwipeLeft = useCallback(() => {
     const len = conceptsRef.current.length;
@@ -450,6 +483,8 @@ export default function HomeScreen() {
       setCurrentIndex(i + 1);
       return;
     }
+    // Offline: keep the last card; status line Retry owns the refetch (Lz-37).
+    if (offlineRef.current) return;
     // Stuck on last card: show deck loading UI immediately (do not require loadingMore yet — avoids empty gap).
     pendingEndDeckLoadRef.current = true;
     setPendingEndDeckLoad(true);
@@ -712,11 +747,14 @@ export default function HomeScreen() {
   const showInitialLoading = prefsReady && introGateOpen && concepts.length === 0 && !error;
   const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
   const deckStatusMessage =
-    showInitialLoading
-      ? t('findingStart')
-      : deckSlotState === 'loading'
-        ? t('loadingMoreIdeas')
-        : null;
+    offline
+      ? null
+      : showInitialLoading
+        ? t('findingStart')
+        : deckSlotState === 'loading'
+          ? t('loadingMoreIdeas')
+          : null;
+  const showStatusSlot = offline || deckStatusMessage != null;
 
   useEffect(() => {
     if (!showMainDeck) return;
@@ -826,8 +864,16 @@ export default function HomeScreen() {
               onPressLabel={openLateralitySheet}
               labelRef={lateralityLabelRef}
               statusSlot={
-                deckStatusMessage != null ? (
-                  <DeckStatusLine message={deckStatusMessage} />
+                showStatusSlot ? (
+                  <DeckStatusLine
+                    message={deckStatusMessage}
+                    offline={offline}
+                    offlineLabel={t('offline')}
+                    retryLabel={t('retry')}
+                    onRetry={onOfflineRetry}
+                    shouldAnnounceOffline={shouldAnnounceOffline}
+                    onOfflineAnnounced={consumeOfflineAnnounce}
+                  />
                 ) : undefined
               }
             />

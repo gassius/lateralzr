@@ -48,6 +48,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck (Lz-36)
 - Back from that loading face returns to the last concept (no route change; history untouched)
 - Next card replaces loading via settle (`motion.swipeSettleMs` 260 / RM 150)
+- `status_offline_*` — Lz-37 offline row (`t('offline')` + Retry) via `context.setOffline(true)`; card stays
 
 ### Typography (Lz-22)
 
@@ -88,7 +89,6 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps
-- Offline line
 - “No next idea” empty state
 - End-of-deck (non-loading) if distinct from `status_loading`
 
