@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import { ConceptCardStack } from '@/components/ConceptCardStack';
+import { DeckStatusLine } from '@/components/DeckStatusLine';
 import { LateralityControl } from '@/components/LateralityControl';
 import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
@@ -649,19 +650,27 @@ export default function HomeScreen() {
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
+  const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
 
-  const usableHeight = layoutHeight - insets.top - insets.bottom;
-
-  // Keep the animated logo up until data is ready AND the min intro duration has elapsed.
-  // Errors skip the intro gate so failures are not delayed.
+  // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
+  // After the intro gate opens, a still-empty deck uses the quiet silhouette (not more logo).
   const showIntroLogo =
     !complexityHydrated ||
     !lateralityHydrated ||
     !localeReady ||
-    (loading && concepts.length === 0) ||
-    (!error && concepts.length > 0 && !introGateOpen);
+    (!error && !introGateOpen);
 
+  /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
+  const showInitialLoading = prefsReady && introGateOpen && concepts.length === 0 && !error;
   const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
+  const deckStatusMessage =
+    showInitialLoading
+      ? t('findingStart')
+      : isLastCard && pendingEndDeckLoad && !loadMoreError
+        ? t('loadingMoreIdeas')
+        : null;
+
+  const usableHeight = layoutHeight - insets.top - insets.bottom;
 
   useEffect(() => {
     if (!showMainDeck) return;
@@ -746,6 +755,7 @@ export default function HomeScreen() {
             availableHeight={cardStackAvailableHeight(usableHeight, lateralityControlHeight)}
             preloadedMediaUrls={preloadedMediaUrls}
             showDeckLoading={showDeckLoading}
+            showInitialLoading={showInitialLoading}
             loadMoreError={loadMoreError}
             onRetryLoadMore={retryLoadMore}
           />
@@ -756,6 +766,11 @@ export default function HomeScreen() {
             onHeightChange={setLateralityControlHeight}
             onPressLabel={openLateralitySheet}
             labelRef={lateralityLabelRef}
+            statusSlot={
+              deckStatusMessage != null ? (
+                <DeckStatusLine message={deckStatusMessage} />
+              ) : undefined
+            }
           />
           {complexityCue ? (
             <View
