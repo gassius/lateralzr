@@ -60,6 +60,11 @@ export type SheetProps = {
   returnFocusRef?: RefObject<ViewType | null>;
   /** Called after the close animation finishes. */
   onClosed?: () => void;
+  /**
+   * When set, drives sheet appear/dismiss motion (Lz-46 `useReducedMotion(appPref)`).
+   * Omit to keep local OS-only detection (Laterality sheet until it opts in).
+   */
+  reduceMotion?: boolean;
 };
 
 /**
@@ -82,15 +87,17 @@ export function Sheet({
   closeTestID = 'sheet-close',
   returnFocusRef,
   onClosed,
+  reduceMotion: reduceMotionProp,
 }: SheetProps) {
   const [mounted, setMounted] = useState(visible);
   const [titleMeasure, setTitleMeasure] = useState(initialSheetTitleMeasureState);
-  const [reduceMotion, setReduceMotion] = useState(() => {
+  const [localReduceMotion, setLocalReduceMotion] = useState(() => {
     if (Platform.OS === 'web') {
       return readWebPrefersReducedMotion() ?? true;
     }
     return true;
   });
+  const reduceMotion = reduceMotionProp ?? localReduceMotion;
   const titleRef = useRef<ViewType | null>(null);
   const titleBaseStyle = textStyle('sheetTitle');
   /** e2eTextScale multiplies display size only; measure uses size × scale (#82). */
@@ -118,20 +125,22 @@ export function Sheet({
   returnFocusRefStable.current = returnFocusRef;
   onClosedRef.current = onClosed;
 
-  // Local OS check (Lz-34 hook deferred — Critiquito / Carlos).
+  // Local OS check when uncontrolled. Prefer `reduceMotion` prop from
+  // `useReducedMotion(appPref)` (Lz-46) so in-app Reduced applies immediately.
   useEffect(() => {
+    if (reduceMotionProp != null) return;
     let alive = true;
     void AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (alive) setReduceMotion(enabled);
+      if (alive) setLocalReduceMotion(enabled);
     });
     const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (enabled) => {
-      setReduceMotion(enabled);
+      setLocalReduceMotion(enabled);
     });
     return () => {
       alive = false;
       sub?.remove();
     };
-  }, []);
+  }, [reduceMotionProp]);
 
   // B2: reveal after positive onLayout or ~100ms fallback; freeze width on first paint (AD/#84).
   useEffect(() => {

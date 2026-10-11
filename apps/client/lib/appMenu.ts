@@ -77,23 +77,28 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
 /** About lockup width on paper (guide §5.3 / Lz-47). */
 export const ABOUT_LOGO_WIDTH = 160;
 
-/** Language + Complexity + About + Replay gesture tips. */
+/** Language + Complexity + Motion + About + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
   language: true,
   complexity: true,
-  motion: false,
+  motion: true,
   about: true,
   replayTips: true,
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root' | 'language' | 'complexity' | 'about';
+export type AppMenuView = 'root' | 'language' | 'complexity' | 'motion' | 'about';
 
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
   features: AppMenuFeatures = DEFAULT_APP_MENU_FEATURES,
 ): AppMenuRowDef[] {
   return APP_MENU_ROW_ORDER.filter((row) => features[row.key]);
+}
+
+/** Whether `view` is a nested in-sheet picker (not root). */
+export function isAppMenuNestedView(view: AppMenuView): boolean {
+  return view !== 'root';
 }
 
 /** Chevron is drawn only when the row opens a nested view. */

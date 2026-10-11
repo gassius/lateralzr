@@ -12,6 +12,7 @@ import Constants from 'expo-constants';
 import Svg, { Polyline, SvgXml } from 'react-native-svg';
 import { LOGO_SVG_ON_PAPER } from '@/assets/images/logo/lateralzrLogoOnPaper';
 import { Sheet } from '@/components/Sheet';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { aboutViewContent } from '@/lib/aboutView';
 import {
   ABOUT_LOGO_WIDTH,
@@ -27,6 +28,7 @@ import {
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
   focusLanguagePickerOnOpen,
+  isAppMenuNestedView,
   visibleAppMenuRows,
   withAppMenuRowPress,
   type AppMenuFeatures,
@@ -47,6 +49,12 @@ import {
   type AppLocale,
 } from '@/lib/i18n';
 import { LATERALITY_SHEET_ROW_MIN_HEIGHT } from '@/lib/lateralitySheet';
+import {
+  DEFAULT_MOTION_PREFERENCE,
+  MOTION_PREFERENCE_OPTIONS,
+  motionPreferenceLabelKey,
+  type MotionPreference,
+} from '@/lib/motionStorage';
 import { focusSheetHost } from '@/lib/sheetFocus';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -72,6 +80,9 @@ type AppMenuSheetProps = {
   currentComplexity: number;
   /** Persist + apply grade for the next move; must not advance the deck. */
   onSelectComplexity: (grade: number) => void;
+  /** In-app Motion preference (Lz-46). */
+  motionPreference?: MotionPreference;
+  onMotionPreferenceChange?: (pref: MotionPreference) => void;
   returnFocusRef?: RefObject<ViewType | null>;
   features?: AppMenuFeatures;
 };
@@ -233,7 +244,7 @@ function AppMenuAboutView({ onBack }: { onBack: () => void }) {
 
 /**
  * General app menu sheet (guide §12.2). Language (Lz-44), Complexity (Lz-45),
- * About (Lz-47), and Replay tips share one sheet with in-sheet views.
+ * Motion (Lz-46), About (Lz-47), and Replay tips share one sheet with in-sheet views.
  */
 export function AppMenuSheet({
   visible,
@@ -243,25 +254,30 @@ export function AppMenuSheet({
   onSelectLocale,
   currentComplexity,
   onSelectComplexity,
+  motionPreference = DEFAULT_MOTION_PREFERENCE,
+  onMotionPreferenceChange,
   returnFocusRef,
   features = DEFAULT_APP_MENU_FEATURES,
 }: AppMenuSheetProps) {
   const [view, setView] = useState<AppMenuView>('root');
   const languageRowRef = useRef<ViewType | null>(null);
   const complexityRowRef = useRef<ViewType | null>(null);
+  const motionRowRef = useRef<ViewType | null>(null);
   const sheetBackRef = useRef<ViewType | null>(null);
+  const reduceMotion = useReducedMotion(motionPreference);
   const complexityValue = complexityCueText(currentComplexity);
   const pickerRows = useMemo(
     () => complexityMenuRows(currentComplexity),
     [currentComplexity],
   );
-  const nestedBack = view === 'language' || view === 'complexity';
+  const nestedBack = isAppMenuNestedView(view) && view !== 'about';
 
   const rows = useMemo(
     () =>
       withAppMenuRowPress(visibleAppMenuRows(features), {
         language: () => setView('language'),
         complexity: () => setView('complexity'),
+        motion: () => setView('motion'),
         about: () => setView('about'),
         replayTips: () => {
           onReplayGestureTips();
@@ -280,9 +296,15 @@ export function AppMenuSheet({
             value: complexityValue,
           };
         }
+        if (row.key === 'motion') {
+          return {
+            ...row,
+            valueKey: motionPreferenceLabelKey(motionPreference),
+          };
+        }
         return row;
       }),
-    [complexityValue, features, locale, onDismiss, onReplayGestureTips],
+    [complexityValue, features, locale, motionPreference, onDismiss, onReplayGestureTips],
   );
 
   useEffect(() => {
@@ -290,7 +312,7 @@ export function AppMenuSheet({
   }, [visible]);
 
   useEffect(() => {
-    if (view !== 'language' && view !== 'complexity') return;
+    if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
     const frame = requestAnimationFrame(() => {
       focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
     });
@@ -308,15 +330,31 @@ export function AppMenuSheet({
     if (row.opensView && row.key === 'complexity') {
       setView('complexity');
     }
+    if (row.opensView && row.key === 'motion') {
+      setView('motion');
+    }
     if (row.opensView && row.key === 'about') {
       setView('about');
     }
   };
 
   const goBackToRoot = () => {
-    const returnRef = view === 'complexity' ? complexityRowRef : languageRowRef;
+    const returnRef =
+      view === 'complexity'
+        ? complexityRowRef
+        : view === 'motion'
+          ? motionRowRef
+          : languageRowRef;
     setView('root');
     requestAnimationFrame(() => focusSheetHost(returnRef));
+  };
+
+  const selectMotion = (pref: MotionPreference) => {
+    onMotionPreferenceChange?.(pref);
+    setView('root');
+    requestAnimationFrame(() => {
+      focusSheetHost(motionRowRef);
+    });
   };
 
   const sheetTitle =
@@ -324,9 +362,11 @@ export function AppMenuSheet({
       ? t('menuLanguage')
       : view === 'complexity'
         ? t('menuComplexity')
-        : view === 'about'
-          ? t('menuAbout')
-          : t('menuTitle');
+        : view === 'motion'
+          ? t('menuMotion')
+          : view === 'about'
+            ? t('menuAbout')
+            : t('menuTitle');
 
   return (
     <Sheet
@@ -341,6 +381,7 @@ export function AppMenuSheet({
       backAccessibilityLabel={t('back')}
       backTestID="app-menu-back"
       backRef={sheetBackRef}
+      reduceMotion={reduceMotion}
     >
       {view === 'root' ? (
         <View style={styles.list} testID="app-menu-rows">
@@ -355,7 +396,9 @@ export function AppMenuSheet({
                   ? languageRowRef
                   : row.key === 'complexity'
                     ? complexityRowRef
-                    : undefined
+                    : row.key === 'motion'
+                      ? motionRowRef
+                      : undefined
               }
             />
           ))}
@@ -435,6 +478,43 @@ export function AppMenuSheet({
             </Pressable>
           ))}
         </ScrollView>
+      ) : null}
+      {view === 'motion' ? (
+        <View style={styles.languageView} testID="app-menu-motion">
+          <View style={styles.languageList} testID="app-menu-motion-rows">
+            {MOTION_PREFERENCE_OPTIONS.map((pref) => {
+              const checked = motionPreference === pref;
+              const labelKey = motionPreferenceLabelKey(pref);
+              const label = t(labelKey);
+              return (
+                <Pressable
+                  key={pref}
+                  onPress={() => selectMotion(pref)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked }}
+                  accessibilityLabel={label}
+                  testID={`app-menu-motion-row-${pref}`}
+                  style={({ pressed }) => [
+                    styles.languageRow,
+                    checked ? styles.languageRowSelected : null,
+                    pressed ? styles.rowPressed : null,
+                  ]}
+                >
+                  <MenuRadio checked={checked} />
+                  <Text
+                    style={[
+                      styles.languageRowLabel,
+                      textStyle('row'),
+                      checked ? styles.languageRowLabelSelected : null,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
       ) : null}
       {view === 'about' ? <AppMenuAboutView onBack={() => setView('root')} /> : null}
     </Sheet>

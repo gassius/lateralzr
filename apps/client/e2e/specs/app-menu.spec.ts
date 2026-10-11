@@ -19,6 +19,7 @@ test.describe('app menu', () => {
       await expect(page.getByTestId('app-menu-trigger')).toBeVisible();
       await openAppMenu(page);
       await expect(page.getByTestId('app-menu-title')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-chevron-replayTips')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-handle')).toBeVisible();
@@ -78,13 +79,14 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-language')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-complexity')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
 
     // PRR B3/B4: labels wrap at spaces (no horizontal overflow); Complejidad stays one line.
     if (vp === '320x568') {
       const fits = await page.evaluate(() => {
-        const keys = ['language', 'complexity', 'about', 'replayTips'];
+        const keys = ['language', 'complexity', 'motion', 'about', 'replayTips'];
         return keys.map((key) => {
           const row = document.querySelector(
             `[data-testid="app-menu-row-${key}"]`,
@@ -165,6 +167,26 @@ test.describe('app menu', () => {
       await capture(page, testInfo, {
         screen: 'app-menu',
         state: 'complexity-picker',
+        locale,
+      });
+    });
+  }
+
+  // AD: Motion picker radios (Lz-46) — System / Reduced / Full.
+  for (const locale of ['en', 'es'] as const) {
+    test(`motion picker (${locale})`, async ({ page }, testInfo) => {
+      await openApp(page, `canonicalConcept=mushroom&locale=${locale}`);
+      await openAppMenu(page);
+      await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
+      await page.getByTestId('app-menu-row-motion').click();
+      await expect(page.getByTestId('app-menu-motion-rows')).toBeVisible();
+      await expect(page.getByTestId('app-menu-motion-row-system')).toBeVisible();
+      await expect(page.getByTestId('app-menu-motion-row-reduced')).toBeVisible();
+      await expect(page.getByTestId('app-menu-motion-row-full')).toBeVisible();
+      await expect(page.getByTestId('app-menu-back')).toBeVisible();
+      await capture(page, testInfo, {
+        screen: 'app-menu',
+        state: 'motion-picker',
         locale,
       });
     });
