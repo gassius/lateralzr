@@ -31,7 +31,13 @@ import {
   composeCardBackLayout,
   resolveCardBackMediaPhase,
 } from '@/lib/cardBackLayout';
-import { CARD_SHADOW, cardPadding, cardRadius } from '@/lib/cardLayout';
+import {
+  CARD_FACE_FALLBACK_WIDTH,
+  CARD_SHADOW,
+  cardPadding,
+  cardRadius,
+} from '@/lib/cardLayout';
+import { conceptKey } from '@/lib/conceptDeck';
 import {
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
@@ -52,14 +58,14 @@ import {
   shouldCommitNativeTitleLayoutToView,
   titleColor,
   type ConceptFrontTitleLayout,
-  type ConceptFrontTitleRect,
 } from '@/lib/conceptFrontTitle';
+import type { PatternRect } from '@/lib/patternPlacement';
 import { CoachHint } from './CoachHint';
-import { ConceptCardBrandTexture } from './ConceptCardBrandTexture';
-import { CARD_BRAND_FALLBACK_FACE_WIDTH } from '@/lib/conceptCardBrand';
+import { PatternLayer } from './brand/PatternLayer';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
+import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 const FLIP_MS = 420;
 const LINK_HIT = layout.recommendedTouchTarget;
@@ -81,8 +87,9 @@ type ConceptCardProps = {
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
   /**
-   * Only the interactive front-of-stack card should expose `card-front-title`
-   * (behind / return-overlay duplicates must not, or Playwright strict mode fails).
+   * Only the interactive front-of-stack card should expose front testIDs
+   * (`card-front-title`, `card-front-pattern`) — behind / return-overlay
+   * duplicates must not, or Playwright strict mode fails.
    */
   exposeFrontTitleTestId?: boolean;
 };
@@ -118,8 +125,10 @@ export function ConceptCard({
   );
   /** Bumps when late onTextLayout fills the cache without resizing (unmount probe). */
   const [nativeCacheEpoch, setNativeCacheEpoch] = useState(0);
-  /** Measured title box for Lz-25 pattern clearing (column-local coords). */
-  const titleRectRef = useRef<ConceptFrontTitleRect | null>(null);
+  /** Ink width/height from title onLayout (column-local); position comes from spacer. */
+  const [titleInkSize, setTitleInkSize] = useState<{ width: number; height: number } | null>(
+    null,
+  );
   /** Cache key already written from onTextLayout (ignore further probe events). */
   const nativeMeasureAcceptedRef = useRef<string | null>(null);
   /** True once B2 fallback is painted — late onTextLayout must not resize. */
@@ -146,8 +155,9 @@ export function ConceptCard({
   /** Content width inside face padding (onLayout width includes padding). */
   const titleContentWidth = Math.max(
     0,
-    (faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH) - facePad * 2,
+    (faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH) - facePad * 2,
   );
+  const patternConceptKey = conceptKey(item.concept);
   const nativeCacheKey = nativeTitleMeasureCacheKey(
     title,
     titleContentWidth,
@@ -156,6 +166,7 @@ export function ConceptCard({
 
   // Reset / hydrate when title, width, or OS text scale changes (M1).
   useLayoutEffect(() => {
+    setTitleInkSize(null);
     if (Platform.OS === 'web') return;
     if (!titleWidthReady) {
       setNativeTitleLayout(null);
@@ -292,7 +303,8 @@ export function ConceptCard({
     }
   };
 
-  const brandFaceWidth = faceWidth > 0 ? faceWidth : CARD_BRAND_FALLBACK_FACE_WIDTH;
+  const patternFaceWidth = faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH;
+  const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
   const titleBlockH = titleLineCount * displayLineHeight;
   /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
@@ -300,13 +312,36 @@ export function ConceptCard({
     frontFaceH > 0
       ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
       : undefined;
+  /**
+   * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
+   * layout/scale changes (onLayout alone can lag after the title rises or e2eTextScale).
+   * Width prefers ink-hugging onLayout so short titles do not wipe edge motifs.
+   */
+  const titleFaceRect: PatternRect | null =
+    frontTopSpacerH != null && titleLineCount > 0
+      ? {
+          x: facePad,
+          y: facePad + frontTopSpacerH,
+          width: titleInkSize != null && titleInkSize.width > 0 ? titleInkSize.width : titleContentWidth,
+          height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
+        }
+      : null;
+  const patternVariantOverride = readJourneyTestParams().patternVariant ?? null;
 
   const front = (
     <View
       style={[styles.faceInner, styles.faceFrontInner, { padding: facePad, borderRadius: radius }]}
       onLayout={onUntransformedFaceLayout}
     >
-      <ConceptCardBrandTexture face="front" faceWidth={brandFaceWidth} />
+      <PatternLayer
+        conceptKey={patternConceptKey}
+        faceWidth={patternFaceWidth}
+        faceHeight={patternFaceHeight}
+        titleFaceRect={titleFaceRect}
+        facePad={facePad}
+        exposeTestId={exposeFrontTitleTestId}
+        variantOverride={patternVariantOverride}
+      />
       <ScrollView
         style={styles.frontScroll}
         contentContainerStyle={[
@@ -386,8 +421,17 @@ export function ConceptCard({
               },
             ]}
             onLayout={(event) => {
-              const { x, y, width, height } = event.nativeEvent.layout;
-              titleRectRef.current = { x, y, width, height };
+              const { width, height } = event.nativeEvent.layout;
+              setTitleInkSize((prev) => {
+                if (
+                  prev &&
+                  Math.abs(prev.width - width) < 0.5 &&
+                  Math.abs(prev.height - height) < 0.5
+                ) {
+                  return prev;
+                }
+                return { width, height };
+              });
             }}
             testID={exposeFrontTitleTestId ? 'card-front-title' : undefined}
             accessibilityRole="header"
@@ -697,7 +741,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   conceptNameFront: {
-    width: '100%',
+    /**
+     * Ink-hugging box for Lz-25 clear (title + 16 px). `maxWidth: '100%'` still
+     * wraps at the column; `width: '100%'` would clear the whole face and hide
+     * edge-current motifs beside a short title.
+     */
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
     textAlign: CONCEPT_FRONT_TITLE_TEXT_ALIGN,
     flexShrink: 0,
     // Honour explicit `\n` / `-\n` from layoutConceptFrontTitle.

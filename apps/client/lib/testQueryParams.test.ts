@@ -5,6 +5,7 @@ import {
   buildRelationshipsRequestBody,
   journeyStartOptions,
   parseJourneyTestParams,
+  parsePatternVariantParam,
   rememberWebSearch,
   resetRememberedWebSearch,
   resolveInitialComplexity,
@@ -73,6 +74,18 @@ describe('parseJourneyTestParams', () => {
     assert.equal(parseJourneyTestParams('laterality=').laterality, undefined);
     assert.equal(parseJourneyTestParams('laterality=abc').laterality, undefined);
     assert.equal(parseJourneyTestParams('laterality=6').laterality, undefined);
+  });
+
+  it('reads patternVariant 1–3 as index 0–2 and ignores invalid values', () => {
+    assert.equal(parsePatternVariantParam('1'), 0);
+    assert.equal(parsePatternVariantParam('2'), 1);
+    assert.equal(parsePatternVariantParam('3'), 2);
+    assert.equal(parsePatternVariantParam('0'), undefined);
+    assert.equal(parsePatternVariantParam('4'), undefined);
+    assert.equal(parsePatternVariantParam('1.5'), undefined);
+    assert.equal(parseJourneyTestParams('patternVariant=1').patternVariant, 0);
+    assert.equal(parseJourneyTestParams('patternVariant=3').patternVariant, 2);
+    assert.equal(parseJourneyTestParams('patternVariant=').patternVariant, undefined);
   });
 
   it('treats blank or whitespace-only concept values as missing', () => {
