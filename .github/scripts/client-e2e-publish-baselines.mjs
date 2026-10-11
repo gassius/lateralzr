@@ -40,6 +40,13 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
+/** Rewrite apps/client/vercel.json so Vercel never builds previews from this orphan. */
+function ensureOrphanVercelJson(workRoot) {
+  const dest = path.join(workRoot, 'apps', 'client', 'vercel.json');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, '{"git":{"deploymentEnabled":false}}\n');
+}
+
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-baselines-'));
 const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
 const shortSha = (GITHUB_SHA || 'unknown').slice(0, 12);
@@ -64,6 +71,9 @@ fs.mkdirSync(dest, { recursive: true });
 for (const file of pngs) {
   fs.copyFileSync(path.join(src, file), path.join(dest, file));
 }
+
+// Preserve/rewrite disable file — orphan pushes must never wipe it.
+ensureOrphanVercelJson(work);
 
 sh('git add -A', work);
 try {

@@ -88,6 +88,13 @@ describe('parseJourneyTestParams', () => {
     assert.equal(parseJourneyTestParams('patternVariant=').patternVariant, undefined);
   });
 
+  it('reads e2ePadBand test flag', () => {
+    assert.equal(parseJourneyTestParams('e2ePadBand=1').e2ePadBand, true);
+    assert.equal(parseJourneyTestParams('e2ePadBand=true').e2ePadBand, true);
+    assert.equal(parseJourneyTestParams('e2ePadBand=0').e2ePadBand, undefined);
+    assert.equal(parseJourneyTestParams('').e2ePadBand, undefined);
+  });
+
   it('treats blank or whitespace-only concept values as missing', () => {
     const parsed = parseJourneyTestParams('canonicalConcept=%20%20&localizedConcept=');
     assert.equal(parsed.canonicalConcept, undefined);

@@ -18,8 +18,8 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { ConceptItem } from '@/lib/api';
-import { hexToRgba } from '@/theme/contrast';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
@@ -29,7 +29,15 @@ import {
   cardBackScrollContentStyle,
   composeCardBackLayout,
   resolveCardBackMediaPhase,
+  type CardBackLayout,
 } from '@/lib/cardBackLayout';
+import {
+  CARD_BACK_MEDIA_SEAM_OVERLAP,
+  resolveCardBackMediaBand,
+  resolveCardBackMediaFade,
+  resolveCardBackMediaFit,
+  resolveContainMediaBox,
+} from '@/lib/cardBackMedia';
 import {
   CARD_FACE_FALLBACK_WIDTH,
   CARD_SHADOW,
@@ -38,17 +46,23 @@ import {
 } from '@/lib/cardLayout';
 import { conceptKey } from '@/lib/conceptDeck';
 import {
+  CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+  CONCEPT_FRONT_TITLE_MAX_LINES,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   NATIVE_TITLE_MEASURE_FALLBACK_MS,
   applyNativeTitleTextLayoutOnce,
+  conceptFrontTitleBlockHeight,
+  conceptFrontTitleBottomSpacerMinHeight,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
+  conceptFrontTitleOverflowTopSpacerHeight,
   conceptFrontTitleRenderedSize,
   conceptFrontTitleTopSpacerHeight,
+  conceptFrontTitleViewportBlockHeight,
   getCachedNativeTitleLayout,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
@@ -117,10 +131,15 @@ export function ConceptCard({
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [mediaSourceSize, setMediaSourceSize] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [backFaceH, setBackFaceH] = useState(0);
   const [faceWidth, setFaceWidth] = useState(0);
   const [frontFaceH, setFrontFaceH] = useState(0);
   const [frontContentH, setFrontContentH] = useState(0);
+  const [backTextBlockH, setBackTextBlockH] = useState(0);
   /**
    * Native: committed visible layout (onTextLayout or B2 fallback).
    * Web uses sync DOM measure and never touches this.
@@ -248,7 +267,15 @@ export function ConceptCard({
   const frontTitleColor = titleColor(
     conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, measureFontScale),
   );
-  const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
+  /**
+   * Scroll viewport ≈ face box minus padding. Spacer math and scroll-enable
+   * must use this (not outer face height) so a band of ~2·facePad does not
+   * leave overflow clipped with scrolling disabled (B2 / #95).
+   */
+  const frontContentFaceH =
+    frontFaceH > 0 ? Math.max(0, frontFaceH - facePad * 2) : 0;
+  const frontNeedsScroll =
+    frontContentFaceH > 0 && frontContentH > frontContentFaceH + 0.5;
   const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
@@ -261,6 +288,8 @@ export function ConceptCard({
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
   useLayoutEffect(() => {
+    setMediaSourceSize(null);
+    setBackTextBlockH(0);
     if (mediaUri.length === 0) {
       setMediaDecoded(true);
       setMediaError(false);
@@ -308,11 +337,18 @@ export function ConceptCard({
   const patternFaceWidth = faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH;
   const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
-  const titleBlockH = titleLineCount * displayLineHeight;
-  /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
+  const titleBlockH = conceptFrontTitleBlockHeight(frontTitleLayout, e2eScale);
+  const titleViewportH = conceptFrontTitleViewportBlockHeight(frontTitleLayout, e2eScale);
+  /**
+   * AD #95: when overflowFallback exceeds max lines, size the top spacer so the
+   * initial viewport shows at most 4 whole title lines; face scrolls for the rest.
+   * ≤4 lines keep the lower-middle anchor against the full block height.
+   */
   const frontTopSpacerH =
-    frontFaceH > 0
-      ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
+    frontContentFaceH > 0
+      ? titleLineCount > CONCEPT_FRONT_TITLE_MAX_LINES
+        ? conceptFrontTitleOverflowTopSpacerHeight(frontContentFaceH, titleViewportH)
+        : conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
    * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
@@ -328,7 +364,24 @@ export function ConceptCard({
           height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
         }
       : null;
-  const patternVariantOverride = readJourneyTestParams().patternVariant ?? null;
+  const journeyTestParams = readJourneyTestParams();
+  const patternVariantOverride = journeyTestParams.patternVariant ?? null;
+  /**
+   * Test-only `?e2ePadBand=1`: force content height to contentFace + facePad so it
+   * lands in frontContentFaceH < content ≤ frontFaceH (B2 band), font-independent.
+   */
+  const e2ePadBandExtra =
+    journeyTestParams.e2ePadBand && frontContentFaceH > 0 ? facePad : 0;
+  const frontBottomSpacerMinH =
+    frontContentFaceH > 0 && frontTopSpacerH != null
+      ? conceptFrontTitleBottomSpacerMinHeight(
+          frontContentFaceH,
+          titleBlockH,
+          frontTopSpacerH,
+        )
+      : CONCEPT_FRONT_TITLE_BOTTOM_RESERVE;
+  const frontScrollMinH =
+    frontContentFaceH > 0 ? frontContentFaceH + e2ePadBandExtra : 0;
 
   const front = (
     <View
@@ -348,7 +401,7 @@ export function ConceptCard({
         style={styles.frontScroll}
         contentContainerStyle={[
           styles.frontScrollContent,
-          frontFaceH > 0 ? { minHeight: frontFaceH } : null,
+          frontScrollMinH > 0 ? { minHeight: frontScrollMinH } : null,
         ]}
         scrollEnabled={frontNeedsScroll}
         showsVerticalScrollIndicator={false}
@@ -356,7 +409,12 @@ export function ConceptCard({
         testID="card-front-scroll"
       >
         <View
-          style={styles.frontColumn}
+          style={[
+            styles.frontColumn,
+            e2ePadBandExtra > 0 && frontScrollMinH > 0
+              ? { minHeight: frontScrollMinH }
+              : null,
+          ]}
           onLayout={(event) => {
             const next = event.nativeEvent.layout.height;
             setFrontContentH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
@@ -441,7 +499,18 @@ export function ConceptCard({
           >
             {frontTitleLayout.displayText}
           </Text>
-          <View style={styles.frontTitleBottomSpacer} />
+          <View
+            style={[
+              styles.frontTitleBottomSpacer,
+              { minHeight: frontBottomSpacerMinH },
+            ]}
+          />
+          {e2ePadBandExtra > 0 ? (
+            <View
+              testID={exposeFrontTitleTestId ? 'card-front-pad-band-end' : undefined}
+              style={{ width: 1, height: 1, opacity: 0 }}
+            />
+          ) : null}
         </View>
       </ScrollView>
       {coachHint ? (
@@ -455,11 +524,46 @@ export function ConceptCard({
     decoded: mediaDecoded,
     failed: mediaError,
   });
-  const backLayout = composeCardBackLayout(mediaPhase);
+  const phaseLayout = composeCardBackLayout(mediaPhase);
+  // Reserve guide face padding under copy so the 28% band scrolls instead of
+  // pinning Wikipedia / description against the card edge (art director B2).
+  const mediaBand = resolveCardBackMediaBand(backFaceH, backTextBlockH, facePad);
+  const backLayout: CardBackLayout =
+    phaseLayout.showMediaZone && mediaBand.dropImage
+      ? composeCardBackLayout('failed')
+      : phaseLayout;
   const { rhythm } = backLayout;
+  const showMediaLayer = backLayout.showMediaZone && !mediaBand.dropImage;
+  const bandHeight = showMediaLayer ? mediaBand.bandHeight : 0;
+  const fade = resolveCardBackMediaFade(bandHeight);
+  const readingPadTop =
+    showMediaLayer && bandHeight > 0
+      ? Math.max(0, bandHeight - CARD_BACK_MEDIA_SEAM_OVERLAP)
+      : 0;
+  const mediaSlotWidth = faceWidth > 0 ? faceWidth : 0;
+  const fitPlan = resolveCardBackMediaFit({
+    mediaUrl: item.mediaUrl ?? '',
+    sourceWidth: mediaSourceSize?.width,
+    sourceHeight: mediaSourceSize?.height,
+    slotWidth: mediaSlotWidth,
+    slotHeight: bandHeight,
+  });
+  const contentFit = fitPlan.contentFit;
+  const containBox =
+    contentFit === 'contain' &&
+    mediaSourceSize != null &&
+    mediaSlotWidth > 0 &&
+    bandHeight > 0
+      ? resolveContainMediaBox({
+          sourceWidth: mediaSourceSize.width,
+          sourceHeight: mediaSourceSize.height,
+          slotWidth: mediaSlotWidth,
+          slotHeight: bandHeight,
+        })
+      : null;
   const scrollContentStyle = cardBackScrollContentStyle(
     backFaceH,
-    facePad,
+    showMediaLayer ? 0 : facePad,
     rhythm.scrollJustify,
   );
 
@@ -525,78 +629,160 @@ export function ConceptCard({
   ) : null;
 
   const backCopy = (
-    <View style={styles.copyCluster} testID="card-back-copy">
+    <View
+      style={styles.copyCluster}
+      testID="card-back-copy"
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.height;
+        setBackTextBlockH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
+      }}
+    >
       {backDescription}
       {backWiki}
     </View>
   );
 
-  const backMedia =
-    backLayout.showMediaZone && imageSource ? (
+  const backMediaLayer =
+    showMediaLayer && imageSource ? (
       <View
-        style={[styles.mediaSlot, backLayout.expandMediaZone && styles.mediaSlotExpand]}
+        style={[styles.mediaLayer, { height: bandHeight > 0 ? bandHeight : '28%' }]}
         testID="card-back-media"
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        {...(Platform.OS === 'web' ? { 'aria-hidden': true } : null)}
       >
         {backLayout.showMediaImage ? (
-          <Image
-            source={imageSource}
-            style={[
-              StyleSheet.absoluteFillObject,
-              styles.mediaImageInner,
-              backLayout.showMediaPlaceholder ? styles.mediaImagePending : null,
-            ]}
-            contentFit={backLayout.mediaContentFit ?? CARD_BACK_MEDIA_CONTENT_FIT}
-            contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
-            cachePolicy="memory-disk"
-            priority="high"
-            transition={0}
-            onLoad={() => {
-              setMediaDecoded(true);
-              setMediaError(false);
-            }}
-            onLoadEnd={() => {
-              setMediaDecoded(true);
-            }}
-            onError={() => {
-              setMediaError(true);
-            }}
-            accessibilityRole="image"
-            accessibilityLabel={t('illustrationFor', { concept: item.concept })}
-          />
+          contentFit === 'contain' ? (
+            <Image
+              source={imageSource}
+              style={
+                containBox != null && containBox.width > 0
+                  ? {
+                      position: 'absolute',
+                      width: containBox.width,
+                      height: containBox.height,
+                      left: containBox.left,
+                      top: containBox.top,
+                    }
+                  : styles.mediaContainPending
+              }
+              contentFit="contain"
+              contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
+              cachePolicy="memory-disk"
+              priority="high"
+              transition={0}
+              onLoad={(event) => {
+                const src = event.source;
+                if (src?.width && src?.height) {
+                  setMediaSourceSize({ width: src.width, height: src.height });
+                }
+                setMediaDecoded(true);
+                setMediaError(false);
+              }}
+              onLoadEnd={() => {
+                setMediaDecoded(true);
+              }}
+              onError={() => {
+                setMediaError(true);
+              }}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          ) : (
+            <Image
+              source={imageSource}
+              style={StyleSheet.absoluteFillObject}
+              contentFit={CARD_BACK_MEDIA_CONTENT_FIT}
+              contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
+              cachePolicy="memory-disk"
+              priority="high"
+              transition={0}
+              onLoad={(event) => {
+                const src = event.source;
+                if (src?.width && src?.height) {
+                  setMediaSourceSize({ width: src.width, height: src.height });
+                }
+                setMediaDecoded(true);
+                setMediaError(false);
+              }}
+              onLoadEnd={() => {
+                setMediaDecoded(true);
+              }}
+              onError={() => {
+                setMediaError(true);
+              }}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+            />
+          )
         ) : null}
-        {backLayout.showMediaPlaceholder ? (
+        {fade.height > 0 ? (
           <View
-            style={styles.mediaPlaceholder}
+            style={[styles.mediaFade, { top: fade.startY, height: fade.height }]}
             pointerEvents="none"
-            testID="card-back-media-placeholder"
-          />
+            testID="card-back-media-fade"
+          >
+            <Svg width="100%" height="100%">
+              <Defs>
+                <LinearGradient id="cardBackPaperFade" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor={color.paper} stopOpacity="0" />
+                  <Stop offset="70%" stopColor={color.paper} stopOpacity="0.85" />
+                  <Stop offset="100%" stopColor={color.paper} stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#cardBackPaperFade)" />
+            </Svg>
+          </View>
         ) : null}
       </View>
     ) : null;
 
   /**
-   * One ScrollView for both branches (Lz-27). Measured minHeight from the
+   * One ScrollView for both branches (Lz-27 / Lz-28). Measured minHeight from the
    * untransformed front keeps center/flex-start real under the flip on RN Web.
-   * No back title, no brand stamp — full paper reading surface.
+   * Media is a full-bleed layer under the paper reading block — not an inner box.
    */
   const back = (
     <View
-      style={[styles.faceInner, styles.faceBackInner, { padding: facePad, borderRadius: radius }]}
+      style={[
+        styles.faceInner,
+        styles.faceBackInner,
+        showMediaLayer ? styles.faceBackInnerMedia : null,
+        { borderRadius: radius },
+        showMediaLayer ? null : { padding: facePad },
+      ]}
       accessibilityLabel={t('aboutConcept', { concept: title })}
       testID={`card-back-${backLayout.mode}`}
     >
+      {backMediaLayer}
       <ScrollView
         style={styles.backScroll}
-        contentContainerStyle={scrollContentStyle}
+        contentContainerStyle={[
+          scrollContentStyle,
+          readingPadTop > 0 ? { paddingTop: readingPadTop } : null,
+        ]}
         showsVerticalScrollIndicator={false}
         bounces
         nestedScrollEnabled
         testID="card-back-scroll"
       >
         <View
-          style={[styles.backInner, backLayout.expandMediaZone ? styles.backInnerExpand : null]}
+          style={[
+            styles.backInner,
+            showMediaLayer ? styles.backReadingOnPaper : null,
+            // paddingTop on the paper block covers the seam overlap so ink still
+            // clears the fade; paddingBottom holds the guide 24/20 inset.
+            showMediaLayer
+              ? {
+                  paddingHorizontal: facePad,
+                  paddingTop: CARD_BACK_MEDIA_SEAM_OVERLAP,
+                  paddingBottom: facePad,
+                }
+              : null,
+            backLayout.expandMediaZone ? styles.backInnerExpand : null,
+          ]}
         >
-          {backMedia}
           {backCopy}
         </View>
       </ScrollView>
@@ -615,6 +801,14 @@ export function ConceptCard({
           cachePolicy="memory-disk"
           priority="high"
           transition={0}
+          onLoad={(event) => {
+            const src = event.source;
+            if (src?.width && src?.height) {
+              setMediaSourceSize({ width: src.width, height: src.height });
+            }
+            setMediaDecoded(true);
+            setMediaError(false);
+          }}
           onError={() => {
             setMediaError(true);
           }}
@@ -693,6 +887,11 @@ const styles = StyleSheet.create({
   faceBackInner: {
     backgroundColor: color.paper,
   },
+  /** Edge-to-edge media under the reading block; padding lives on the copy. */
+  faceBackInnerMedia: {
+    overflow: 'hidden',
+    padding: 0,
+  },
   backScroll: {
     flex: 1,
     minHeight: 0,
@@ -702,30 +901,36 @@ const styles = StyleSheet.create({
     width: '100%',
     zIndex: 1,
   },
-  /** With-media only: let the photo well claim leftover height inside the ScrollView. */
+  /** Solid paper under copy so ink never sits on the photo fade. */
+  backReadingOnPaper: {
+    backgroundColor: color.paper,
+  },
+  /** With-media only: reading rhythm stays top-stacked under the band. */
   backInnerExpand: {
     flexGrow: 1,
   },
-  mediaSlot: {
-    width: '100%',
-    marginBottom: 16,
-    borderRadius: 12,
+  mediaLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: color.paper,
     overflow: 'hidden',
-    backgroundColor: hexToRgba(color.concept, 0.1),
+    zIndex: 0,
   },
-  mediaSlotExpand: {
-    flexGrow: 1,
-    minHeight: 180,
+  mediaFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 1,
   },
-  mediaImageInner: {
-    borderRadius: 12,
-  },
-  mediaImagePending: {
-    opacity: 0,
-  },
-  mediaPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: hexToRgba(color.concept, 0.1),
+  /** 16 px inset contain while source dimensions are still unknown. */
+  mediaContainPending: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    bottom: 16,
+    left: 16,
   },
   copyCluster: {
     width: '100%',
@@ -756,10 +961,9 @@ const styles = StyleSheet.create({
     width: 4096,
     zIndex: -1,
   },
-  /** Room below short titles; long titles grow into this then the face scrolls. */
+  /** Room below short titles; long titles collapse minHeight then the face scrolls. */
   frontTitleBottomSpacer: {
     flexGrow: 1,
-    minHeight: 48,
     width: '100%',
   },
   conceptNameFront: {

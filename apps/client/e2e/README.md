@@ -58,6 +58,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
 - Spec strings: `card-front_tide_*`, `card-front_collective-intelligence_*`, `card-front_intergenerational_*`
 - `typography_long-label-200_*` — long front at `?e2eTextScale=2`
+- `typography` pad-band @ 320 (`?e2ePadBand=1` on short title) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + end-marker reachability
 - Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
@@ -69,7 +70,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
   - `card-front_pattern-01-descending_*` — `mushroom&patternVariant=1`
   - `card-front_pattern-02-ascending_*` — `tide&patternVariant=2`
   - `card-front_pattern-03-edge_*` — `mushroom&patternVariant=3`
-  - `card-front_pattern-clear-200_320x568_en` — long-label @ `e2eTextScale=2`; asserts no motif in title+16
+  - `card-front_pattern-clear-200_320x568_en` / `_es` — long-label @ `e2eTextScale=2`, resting scrollTop 0; asserts no motif in title+16
 - Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
 ### Laterality sheet (Lz-31)
