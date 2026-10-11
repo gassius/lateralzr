@@ -930,11 +930,11 @@
   },
   {
     "file": "typography_large-text-200_320x568_en.png",
-    "ratio": 0.07876457966549295,
-    "percent": 7.876457966549295,
+    "ratio": 0.18196522887323943,
+    "percent": 18.196522887323944,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 57265,
+    "mismatchedPixels": 132296,
     "diffImage": "typography_large-text-200_320x568_en.diff.png"
   },
   {
