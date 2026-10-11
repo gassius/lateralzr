@@ -1,0 +1,4 @@
+Baseline diff for laterality-bar_wrap-200_320x568_es.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/laterality-bar_wrap-200_320x568_es.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/laterality-bar_wrap-200_320x568_es.png
+diff ratio 0.0173 > 0.01 (12556 px)
