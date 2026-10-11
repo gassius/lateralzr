@@ -46,6 +46,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - Empty-deck error still shows the static lockup on orange (asserted in `logo.spec.ts`)
 - `status_loading-initial_*` — quiet silhouette + `findingStart` after intro (delayed first fetch)
 - `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
+- `status_offline_*` — Lz-37 offline row (`t('offline')` + Retry) via `context.setOffline(true)`; card stays
 
 ### Typography (Lz-22)
 
@@ -82,7 +83,6 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - App menu open
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps
-- Offline line
 - “No next idea” empty state
 - End-of-deck (non-loading) if distinct from `status_loading`
 

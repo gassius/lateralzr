@@ -97,4 +97,54 @@ test.describe('status screens', () => {
     await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'es' });
   });
+
+  test('offline status line with Retry (Lz-37)', async ({ page, context }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await swipeForward(page, 'Mycelium');
+    await expect(visibleText(page, 'Mycelium')).toBeVisible();
+
+    await context.setOffline(true);
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+      timeout: 2_000,
+    });
+    const retry = page.getByTestId('deck-status-retry');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveAttribute('aria-label', /Retry/i);
+    // Current card stays; history back still works within loaded deck.
+    await expect(visibleText(page, 'Mycelium')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+
+    const stack = page.getByTestId('card-laterality-group');
+    const box = await stack.boundingBox();
+    if (!box) throw new Error('card-laterality-group has no bounding box');
+    const y = box.y + box.height * 0.3;
+    await page.mouse.move(box.x + box.width * 0.2, y);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.85, y, { steps: 16 });
+    await page.mouse.up();
+    await expect(visibleText(page, 'Mushroom')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i);
+
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'en' });
+  });
+
+  test('offline status line ES', async ({ page, context }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=es');
+    await expect(visibleText(page, 'seta')).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Sin conexión/i, {
+      timeout: 2_000,
+    });
+    await expect(page.getByTestId('deck-status-retry')).toHaveAttribute(
+      'aria-label',
+      /Reintentar/i,
+    );
+    await expect(visibleText(page, 'seta')).toBeVisible();
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'es' });
+  });
 });
