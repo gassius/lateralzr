@@ -9,8 +9,5 @@ export const VIEWPORTS = [
 export type ViewportId = (typeof VIEWPORTS)[number]['id'];
 
 export const FIXED_CLOCK_ISO = '2026-01-15T12:00:00.000Z';
-/**
- * Prefs hydrate / locale settle buffer (Lz-35 dropped the ~3s intro logo gate).
- * Kept modest so openApp still advances installed fake timers.
- */
-export const INTRO_FAST_FORWARD_MS = 500;
+/** Intro logo holds ~3s even when the API is instant. */
+export const INTRO_FAST_FORWARD_MS = 3_500;

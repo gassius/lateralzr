@@ -40,11 +40,16 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 4. Create `e2e/specs/<screen>.spec.ts`. Use `openApp(page, query)` then `capture(page, testInfo, { screen, state, locale })`.
 5. Add the spec only when the UI exists — do not leave always-skipped placeholders.
 
+### Logo / status (Lz-23 / Lz-35)
+
+- `logo_lockup-on-orange_*` — animated intro lockup on orange at boot (same as main; held for `MIN_INTRO_LOGO_MS`)
+- Empty-deck error still shows the static lockup on orange (asserted in `logo.spec.ts`)
+- `status_loading-initial_*` — quiet silhouette + `findingStart` after intro (delayed first fetch)
+- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
+
 ### Typography (Lz-22)
 
 - `typography_status-meta_*` — deck status line at meta scale (v3.3 `type.meta`, Lz-35)
-- `status_loading-initial_*` — quiet silhouette + `findingStart` on first fetch
-- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
 - `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
 ### Card front title (Lz-26)

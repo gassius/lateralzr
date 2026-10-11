@@ -24,6 +24,7 @@ import {
 } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import { getActiveLocale, t } from '@/lib/i18n';
+import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
   clampLaterality,
@@ -82,6 +83,9 @@ export default function HomeScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** False until the intro logo has been on screen for at least one animation cycle (~3s). */
+  const [introGateOpen, setIntroGateOpen] = useState(false);
+  const introStartedAtRef = useRef(Date.now());
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
@@ -192,6 +196,13 @@ export default function HomeScreen() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Hold the brand logo for one full pulse cycle even when the API is fast.
+  useEffect(() => {
+    const remaining = remainingIntroMs(introStartedAtRef.current, Date.now());
+    const timer = setTimeout(() => setIntroGateOpen(true), remaining);
+    return () => clearTimeout(timer);
   }, []);
 
   const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
@@ -640,9 +651,18 @@ export default function HomeScreen() {
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
   const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
-  /** Lz-35: empty deck → quiet silhouette (no animated intro logo). */
-  const showInitialLoading = prefsReady && concepts.length === 0 && !error;
-  const showMainDeck = prefsReady && !(error && concepts.length === 0);
+
+  // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
+  // After the intro gate opens, a still-empty deck uses the quiet silhouette (not more logo).
+  const showIntroLogo =
+    !complexityHydrated ||
+    !lateralityHydrated ||
+    !localeReady ||
+    (!error && !introGateOpen);
+
+  /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
+  const showInitialLoading = prefsReady && introGateOpen && concepts.length === 0 && !error;
+  const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
   const deckStatusMessage =
     showInitialLoading
       ? t('findingStart')
@@ -670,20 +690,11 @@ export default function HomeScreen() {
     announceComplexity(pending, 'session-url');
   }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
 
-  if (!prefsReady) {
+  if (showIntroLogo) {
     return (
-      <View
-        style={[
-          styles.mainRoot,
-          {
-            paddingTop: insets.top,
-            paddingBottom: insets.bottom,
-            minHeight: layoutHeight,
-            height: layoutHeight,
-          },
-        ]}
-      >
+      <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
+        <LateralzrLogo animate />
       </View>
     );
   }

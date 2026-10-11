@@ -3,12 +3,15 @@ import { capture, swipeForward } from '../helpers/capture';
 import { visibleText } from '../helpers/locators';
 import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
 import { expectStatusLineClearOfLaterality } from '../helpers/statusLayout';
+import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
 
 test.describe('status screens', () => {
   test('initial loading silhouette (delayed first fetch)', async ({ page }, testInfo) => {
     await preparePage(page, { delayFirstMs: 120_000 });
     await page.goto('/?canonicalConcept=mushroom', { waitUntil: 'domcontentloaded' });
-    await page.clock.fastForward(500);
+    // Intro lockup first (same as main); silhouette only after MIN_INTRO_LOGO_MS.
+    await expect(page.getByLabel('Lateralzr logo')).toBeVisible({ timeout: 8_000 });
+    await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Finding a starting point/i);
     await expect(page.getByTestId('laterality-control')).toBeVisible();
@@ -20,7 +23,8 @@ test.describe('status screens', () => {
   test('initial loading silhouette ES (wrap at 320)', async ({ page }, testInfo) => {
     await preparePage(page, { delayFirstMs: 120_000 });
     await page.goto('/?canonicalConcept=mushroom&locale=es', { waitUntil: 'domcontentloaded' });
-    await page.clock.fastForward(500);
+    await expect(page.getByLabel('Lateralzr logo')).toBeVisible({ timeout: 8_000 });
+    await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Buscando un punto de partida/i);
     await expectStatusLineClearOfLaterality(page);
