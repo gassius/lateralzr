@@ -186,8 +186,8 @@ test.describe('laterality sheet', () => {
     await expect(page.getByTestId('laterality-sheet-row-4')).toBeVisible();
 
     const title = page.getByTestId('laterality-sheet-title');
-    // m1: title host stays opacity 0 until measured — wait for the final paint.
-    await expect(title).toBeVisible();
+    // m1/B2: wait for measured (or fallback) paint — toBeVisible ignores opacity:0.
+    await expect(title).toHaveCSS('opacity', '1');
     await expect(title).toContainText(/Lateralidad/i);
     await assertSheetTitleGeometry(title);
 

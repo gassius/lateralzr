@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CONCEPT_FRONT_TITLE_HYPHEN } from './conceptFrontTitle';
 import {
+  initialSheetTitleMeasureState,
   layoutSheetTitle,
+  reduceSheetTitleMeasure,
+  sheetTitleHostOpacity,
+  sheetTitleLayoutWidth,
   SHEET_TITLE_FONT_SIZE,
+  SHEET_TITLE_MEASURE_FALLBACK_MS,
   SHEET_TITLE_MIN_FONT_SIZE,
 } from './sheetTitle';
 
@@ -42,4 +47,33 @@ test('pathological narrow width hyphenates with a visible hyphen at the floor', 
   for (const line of layout.displayText.split('\n')) {
     assert.notEqual(line, 'd', 'must not leave a lone letter on its own line');
   }
+});
+
+test('B2: width 0 + timeout reveals opacity 1 and freezes layout (no late resize)', () => {
+  assert.ok(SHEET_TITLE_MEASURE_FALLBACK_MS <= 100);
+  let state = initialSheetTitleMeasureState();
+  assert.equal(sheetTitleHostOpacity(state), 0);
+
+  // Force width 0 forever until timeout (collapsed parent / missing onLayout).
+  state = reduceSheetTitleMeasure(state, { type: 'timeout' });
+  assert.equal(sheetTitleHostOpacity(state), 1);
+  assert.equal(sheetTitleLayoutWidth(state), 0);
+  assert.equal(state.frozenWidth, 0);
+
+  // Late positive onLayout must not resize the already-visible title (AD / #84).
+  const afterLate = reduceSheetTitleMeasure(state, { type: 'layout', width: 232 });
+  assert.equal(sheetTitleHostOpacity(afterLate), 1);
+  assert.equal(sheetTitleLayoutWidth(afterLate), 0);
+  assert.equal(afterLate.frozenWidth, 0);
+});
+
+test('positive onLayout freezes immediately; timeout is a no-op after freeze', () => {
+  let state = initialSheetTitleMeasureState();
+  state = reduceSheetTitleMeasure(state, { type: 'layout', width: 232 });
+  assert.equal(sheetTitleHostOpacity(state), 1);
+  assert.equal(sheetTitleLayoutWidth(state), 232);
+
+  state = reduceSheetTitleMeasure(state, { type: 'timeout' });
+  assert.equal(sheetTitleLayoutWidth(state), 232);
+  assert.equal(sheetTitleHostOpacity(state), 1);
 });

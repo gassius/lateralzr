@@ -22,7 +22,15 @@ import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
 import { focusSheetHost } from '@/lib/sheetFocus';
-import { layoutSheetTitle, SHEET_TITLE_FONT_SIZE } from '@/lib/sheetTitle';
+import {
+  initialSheetTitleMeasureState,
+  layoutSheetTitle,
+  reduceSheetTitleMeasure,
+  sheetTitleHostOpacity,
+  sheetTitleLayoutWidth,
+  SHEET_TITLE_FONT_SIZE,
+  SHEET_TITLE_MEASURE_FALLBACK_MS,
+} from '@/lib/sheetTitle';
 import { t } from '@/lib/i18n';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -61,7 +69,7 @@ export function Sheet({
   onClosed,
 }: SheetProps) {
   const [mounted, setMounted] = useState(visible);
-  const [titleWidth, setTitleWidth] = useState(0);
+  const [titleMeasure, setTitleMeasure] = useState(initialSheetTitleMeasureState);
   const [reduceMotion, setReduceMotion] = useState(() => {
     if (Platform.OS === 'web') {
       return readWebPrefersReducedMotion() ?? true;
@@ -76,14 +84,16 @@ export function Sheet({
     ((titleBaseStyle.fontSize as number) ?? SHEET_TITLE_FONT_SIZE) / SHEET_TITLE_FONT_SIZE,
   );
   const measureFontScale = PixelRatio.getFontScale() * e2eScale;
+  const titleLayoutWidth = sheetTitleLayoutWidth(titleMeasure);
   const titleLayout = layoutSheetTitle(
     title,
-    titleWidth,
+    titleLayoutWidth,
     measureConceptFrontTitleWidth,
     measureFontScale,
   );
   const titleFontSize = Math.round(titleLayout.fontSize * e2eScale);
   const titleLineHeight = Math.round(titleLayout.lineHeight * e2eScale);
+  const titleHostOpacity = sheetTitleHostOpacity(titleMeasure);
   const wasVisibleRef = useRef(visible);
   const progress = useSharedValue(visible ? 1 : 0);
   const reduceMotionRef = useRef(reduceMotion);
@@ -107,6 +117,19 @@ export function Sheet({
       sub?.remove();
     };
   }, []);
+
+  // B2: reveal after positive onLayout or ~100ms fallback; freeze width on first paint (AD/#84).
+  useEffect(() => {
+    if (!mounted) {
+      setTitleMeasure(initialSheetTitleMeasureState());
+      return;
+    }
+    if (titleMeasure.frozenWidth !== null) return;
+    const timer = setTimeout(() => {
+      setTitleMeasure((prev) => reduceSheetTitleMeasure(prev, { type: 'timeout' }));
+    }, SHEET_TITLE_MEASURE_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [mounted, titleMeasure.frozenWidth]);
 
   useEffect(() => {
     if (visible) {
@@ -215,7 +238,9 @@ export function Sheet({
             style={styles.headerText}
             onLayout={(event) => {
               const next = Math.round(event.nativeEvent.layout.width);
-              setTitleWidth((prev) => (prev === next ? prev : next));
+              setTitleMeasure((prev) =>
+                reduceSheetTitleMeasure(prev, { type: 'layout', width: next }),
+              );
             }}
           >
             <View
@@ -224,8 +249,8 @@ export function Sheet({
               accessibilityRole="header"
               accessibilityLabel={title}
               testID={titleTestID}
-              // Hold invisible until header column width is known (m1: avoid 24×scale first paint).
-              style={titleWidth > 0 ? undefined : styles.titlePending}
+              // m1: hide until measured; B2: ~100ms fallback; AD: freeze width on first visible frame.
+              style={titleHostOpacity === 1 ? undefined : styles.titlePending}
               {...webTitleFocusProps}
             >
               <Text
