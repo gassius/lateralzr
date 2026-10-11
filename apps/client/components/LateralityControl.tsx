@@ -22,6 +22,7 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
+  STATUS_SLOT_MIN_WIDTH,
 } from '@/lib/lateralityChrome';
 import {
   clampLaterality,
@@ -339,11 +340,14 @@ const styles = StyleSheet.create({
   },
   labelRowWithStatus: {
     justifyContent: 'flex-start',
+    flexWrap: 'wrap',
     gap: 8,
   },
   statusSlot: {
-    flex: 1,
-    minWidth: 0,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: STATUS_SLOT_MIN_WIDTH,
+    minWidth: STATUS_SLOT_MIN_WIDTH,
     justifyContent: 'center',
   },
   labelCluster: {
@@ -351,7 +355,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 6,
+    flexGrow: 0,
     flexShrink: 1,
+    maxWidth: '100%',
     marginLeft: 'auto',
   },
   labelText: {

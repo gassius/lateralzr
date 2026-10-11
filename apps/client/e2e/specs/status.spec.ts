@@ -71,7 +71,24 @@ test.describe('status screens', () => {
     await swipeForward(page);
     await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
+    await expect(page.getByTestId('laterality-label')).toBeVisible();
+    await expect(page.getByTestId('laterality-rail')).toBeVisible();
     await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'en' });
+  });
+
+  test('loading card at 200% e2e text scale ES', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=loading-deck&locale=es&e2eTextScale=2', {
+      mock: { delayLoadMoreMs: 120_000 },
+      skipNetworkIdle: true,
+    });
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await swipeForward(page);
+    await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Cargando más ideas/i);
+    await expect(page.getByTestId('laterality-label')).toBeVisible();
+    await expect(page.getByTestId('laterality-rail')).toBeVisible();
+    await expectStatusLineClearOfLaterality(page);
+    await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'es' });
   });
 });

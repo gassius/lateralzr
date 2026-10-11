@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, StyleSheet, Text, View } from 'react-native';
+import { STATUS_SLOT_MIN_WIDTH } from '@/lib/lateralityChrome';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
@@ -45,12 +46,12 @@ export function DeckStatusLine({ message }: DeckStatusLineProps) {
 }
 
 const styles = StyleSheet.create({
-  /** Flex left slot on the laterality label row. */
+  /** Fills the LateralityControl statusSlot; min width matches the host slot. */
   slot: {
-    flex: 1,
-    minWidth: 0,
+    alignSelf: 'stretch',
+    width: '100%',
+    minWidth: STATUS_SLOT_MIN_WIDTH,
     justifyContent: 'center',
-    paddingRight: 8,
   },
   copy: {
     color: color.mutedOnShell,
