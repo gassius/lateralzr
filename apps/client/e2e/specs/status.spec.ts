@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 import { capture, swipeForward } from '../helpers/capture';
 import { visibleText } from '../helpers/locators';
 import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
-import { expectStatusLineClearOfLaterality } from '../helpers/statusLayout';
+import {
+  expectStatusLineClearOfLaterality,
+  waitForStableLoadingChrome,
+} from '../helpers/statusLayout';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
 
 test.describe('status screens', () => {
@@ -15,6 +18,8 @@ test.describe('status screens', () => {
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Finding a starting point/i);
     await expect(page.getByTestId('laterality-control')).toBeVisible();
+    // 390/430: wait for settled card + full-width rail before capture (AD).
+    await waitForStableLoadingChrome(page);
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-initial', locale: 'en' });
@@ -27,6 +32,7 @@ test.describe('status screens', () => {
     await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Buscando un punto de partida/i);
+    await waitForStableLoadingChrome(page);
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-initial', locale: 'es' });
