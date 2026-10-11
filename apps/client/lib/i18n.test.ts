@@ -76,20 +76,68 @@ describe('i18n locale catalogs', () => {
 });
 
 describe('resolveLocalePreference', () => {
-  it('prefers URL locale over default', () => {
-    assert.equal(resolveLocalePreference({ urlLocale: 'es' }), 'es');
+  it('prefers stored locale over URL and device', () => {
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: 'en',
+        urlLocale: 'es',
+        deviceLocale: 'es-MX',
+      }),
+      'en',
+    );
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: 'es',
+        urlLocale: 'en',
+        deviceLocale: 'en-US',
+      }),
+      'es',
+    );
+  });
+
+  it('prefers URL locale over device when nothing is stored', () => {
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: null,
+        urlLocale: 'es',
+        deviceLocale: 'en-US',
+      }),
+      'es',
+    );
     assert.equal(resolveLocalePreference({ urlLocale: 'en-US' }), 'en');
   });
 
-  it('defaults to en when URL locale is missing or unsupported', () => {
-    assert.equal(resolveLocalePreference({ urlLocale: null }), DEFAULT_LOCALE);
-    assert.equal(resolveLocalePreference({}), DEFAULT_LOCALE);
-    assert.equal(resolveLocalePreference({ urlLocale: 'fr' }), DEFAULT_LOCALE);
-    assert.equal(resolveLocalePreference({ urlLocale: 'es-MX' }), 'es');
+  it('uses device locale when stored and URL are absent', () => {
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: null,
+        urlLocale: null,
+        deviceLocale: 'es-ES',
+      }),
+      'es',
+    );
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: '',
+        urlLocale: 'fr',
+        deviceLocale: 'en_US',
+      }),
+      'en',
+    );
   });
 
-  it('never uses device/browser locale as the default', () => {
-    assert.equal(resolveLocalePreference({ urlLocale: null }), 'en');
+  it('defaults to en when stored, URL, and device are missing or unsupported', () => {
+    assert.equal(resolveLocalePreference({ urlLocale: null }), DEFAULT_LOCALE);
+    assert.equal(resolveLocalePreference({}), DEFAULT_LOCALE);
+    assert.equal(
+      resolveLocalePreference({
+        storedLocale: 'fr',
+        urlLocale: 'de',
+        deviceLocale: 'pt-BR',
+      }),
+      DEFAULT_LOCALE,
+    );
+    assert.equal(resolveLocalePreference({ urlLocale: 'es-MX' }), 'es');
     assert.equal(DEFAULT_LOCALE, 'en');
   });
 });

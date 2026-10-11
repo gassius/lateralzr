@@ -18,6 +18,8 @@ export type AppMenuRowDef = {
   key: AppMenuRowKey;
   labelKey: MessageKey;
   valueKey?: MessageKey;
+  /** Optional pre-resolved value label (dynamic rows; wins over valueKey for display). */
+  value?: string;
   /** When true the row shows a chevron and opens an in-sheet view. */
   opensView: boolean;
   /** Bound by the sheet / {@link withAppMenuRowPress}; action rows call this on press. */
@@ -53,9 +55,9 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
   { key: 'replayTips', labelKey: 'menuReplayTips', opensView: false },
 ] as const;
 
-/** v3.3: only Replay gesture tips is enabled. */
+/** v3.3: Language + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
-  language: false,
+  language: true,
   complexity: false,
   motion: false,
   about: false,
@@ -63,7 +65,7 @@ export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root';
+export type AppMenuView = 'root' | 'language';
 
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
@@ -83,6 +85,8 @@ export function appMenuRowA11yLabel(
   translate: (key: MessageKey) => string,
 ): string {
   const label = translate(row.labelKey);
-  if (row.valueKey == null) return label;
-  return `${label}, ${translate(row.valueKey)}`;
+  const value =
+    row.value ?? (row.valueKey != null ? translate(row.valueKey) : null);
+  if (value == null) return label;
+  return `${label}, ${value}`;
 }

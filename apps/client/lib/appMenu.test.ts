@@ -14,12 +14,15 @@ import {
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
-  it('v3.3 defaults to Replay gesture tips only', () => {
+  it('v3.3 defaults to Language + Replay gesture tips', () => {
     const rows = visibleAppMenuRows();
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]!.key, 'replayTips');
-    assert.equal(rows[0]!.labelKey, 'menuReplayTips');
-    assert.equal(rows[0]!.opensView, false);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]!.key, 'language');
+    assert.equal(rows[0]!.labelKey, 'menuLanguage');
+    assert.equal(rows[0]!.opensView, true);
+    assert.equal(rows[1]!.key, 'replayTips');
+    assert.equal(rows[1]!.labelKey, 'menuReplayTips');
+    assert.equal(rows[1]!.opensView, false);
   });
 
   it('filters out disabled features and keeps fixed order', () => {
@@ -51,7 +54,9 @@ describe('appMenuRowShowsChevron', () => {
     for (const row of APP_MENU_ROW_ORDER) {
       assert.equal(appMenuRowShowsChevron(row), row.opensView);
     }
-    const replay = visibleAppMenuRows()[0]!;
+    const language = visibleAppMenuRows()[0]!;
+    const replay = visibleAppMenuRows()[1]!;
+    assert.equal(appMenuRowShowsChevron(language), true);
     assert.equal(appMenuRowShowsChevron(replay), false);
   });
 });
@@ -88,10 +93,29 @@ describe('withAppMenuRowPress', () => {
         replayCalls += 1;
       },
     });
-    assert.equal(rows.length, 1);
-    assert.equal(typeof rows[0]!.onPress, 'function');
-    rows[0]!.onPress!();
+    assert.equal(rows.length, 2);
+    const replay = rows.find((r) => r.key === 'replayTips');
+    assert.equal(typeof replay?.onPress, 'function');
+    replay!.onPress!();
     assert.equal(replayCalls, 1);
+  });
+});
+
+describe('appMenuRowA11yLabel value field', () => {
+  it('prefers explicit value string over valueKey', () => {
+    assert.equal(
+      appMenuRowA11yLabel(
+        {
+          key: 'language',
+          labelKey: 'menuLanguage',
+          valueKey: 'languageEn',
+          value: 'Español',
+          opensView: true,
+        },
+        t,
+      ),
+      `${t('menuLanguage')}, Español`,
+    );
   });
 });
 
@@ -101,9 +125,9 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
   });
 
-  it('matches DEFAULT_APP_MENU_FEATURES to §4.5 v3.3 scope', () => {
+  it('matches DEFAULT_APP_MENU_FEATURES to §4.5 v3.3 scope (Language + Replay)', () => {
     assert.deepEqual(DEFAULT_APP_MENU_FEATURES, {
-      language: false,
+      language: true,
       complexity: false,
       motion: false,
       about: false,
