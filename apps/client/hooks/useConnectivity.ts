@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import NetInfo, { type NetInfoState } from '@react-native-community/netinfo';
 import {
   initialConnectivityUiState,
@@ -7,6 +8,15 @@ import {
   resolveIsConnected,
   type ConnectivityUiState,
 } from '@/lib/connectivityStatus';
+
+/** Browser online/offline events — RN/Expo Go may define `window` without addEventListener. */
+function canUseBrowserConnectivityEvents(): boolean {
+  return (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    typeof window.addEventListener === 'function'
+  );
+}
 
 function readNavigatorOnline(): boolean | null {
   if (typeof navigator === 'undefined' || typeof navigator.onLine !== 'boolean') {
@@ -104,10 +114,12 @@ export function useConnectivity(): {
 
     // Trust the browser online event immediately. NetInfo can lag after Playwright /
     // DevTools leave offline and would otherwise keep Offline stuck (stale isConnected:false).
+    // Native (Expo Go / iOS / Android) relies on NetInfo only — no window events.
     const onBrowserOnline = () => applyConnected(true);
     const onBrowserOffline = () => syncFromBrowser(false);
+    const useBrowserEvents = canUseBrowserConnectivityEvents();
 
-    if (typeof window !== 'undefined') {
+    if (useBrowserEvents) {
       window.addEventListener('online', onBrowserOnline);
       window.addEventListener('offline', onBrowserOffline);
     }
@@ -119,7 +131,7 @@ export function useConnectivity(): {
         clearTimeout(offlineTimerRef.current);
         offlineTimerRef.current = null;
       }
-      if (typeof window !== 'undefined') {
+      if (useBrowserEvents) {
         window.removeEventListener('online', onBrowserOnline);
         window.removeEventListener('offline', onBrowserOffline);
       }
