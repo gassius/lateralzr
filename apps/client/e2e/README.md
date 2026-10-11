@@ -51,7 +51,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
 - Spec strings: `card-front_tide_*`, `card-front_collective-intelligence_*`, `card-front_intergenerational_*`
 - `typography_long-label-200_*` — long front at `?e2eTextScale=2`
-- `typography` pad-band @ 320 (`long-label` default scale) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + scroll-to-end reachability
+- `typography` pad-band @ 320 (`long-label&e2eTextScale=1.2`) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + scroll-to-end reachability (1.2 forces the pad band on CI’s 4-line wrap; default scale often fits with no overflow)
 - Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 

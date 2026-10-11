@@ -120,8 +120,10 @@ async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
  * With `frontNeedsScroll` vs outer `frontFaceH`, scroll stays disabled while the
  * last line is clipped. Assert scroll is enabled and scroll-to-end reachability.
  *
- * Proof (local): long-label @ 320 — fails with frontFaceH mutation (overflowY
- * hidden); passes on the PR (overflowY auto + reachable).
+ * Proof: long-label @ 320 with e2eTextScale=1.2 — fails with frontFaceH mutation
+ * (overflowY hidden); passes on the PR (overflowY auto + reachable).
+ * Scale 1.2 is required: default scale fits in ≤4 lines on CI (no pad overflow),
+ * while local system fonts can wrap to 5 and land in-band by accident.
  */
 async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
   await expect
@@ -282,11 +284,12 @@ test.describe('typography', () => {
     });
   });
 
-  // PRR B1 @ 3a5ca4d: pad-band case locks frontNeedsScroll vs frontContentFaceH.
+  // PRR B1: pad-band case locks frontNeedsScroll vs frontContentFaceH.
   test('long-label pad-band scrollport at 320', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== '320x568', 'B2 pad band is sized for 320 facePad');
-    // Default scale: content lands in frontContentFaceH < content ≤ frontFaceH (~30px).
-    await openApp(page, 'canonicalConcept=long-label');
+    // 1.2 lands 4-line CI wrap in frontContentFaceH < content ≤ frontFaceH (~30px).
+    // Default scale fits without overflow on CI (4 lines); local 5-line wrap is not portable.
+    await openApp(page, 'canonicalConcept=long-label&e2eTextScale=1.2');
     const title = cardFrontTitle(page);
     await expect(title).toBeVisible();
     await expect(title).toHaveAttribute(
