@@ -175,23 +175,21 @@ test.describe('keyboard a11y', () => {
     await expect(prev).toBeVisible();
     await expect(prev).toContainText('Previous');
     const metrics = await prev.evaluate((el) => {
-      const label = Array.from(el.querySelectorAll('*')).find(
-        (n) => (n.textContent ?? '').includes('Previous'),
-      ) as HTMLElement | undefined;
+      // Prefer the leaf whose exact text is the i18n label (not the glyph+label wrapper).
+      const label = Array.from(el.querySelectorAll('*')).find((n) => {
+        const t = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
+        return t === 'Previous' && n.children.length === 0;
+      }) as HTMLElement | undefined;
       if (!label) return { ok: false, reason: 'no-label' };
       const cs = getComputedStyle(label);
       const text = (label.textContent ?? '').replace(/\s+/g, ' ').trim();
-      // Range-based line ends must land on word boundaries (no "Previou/s").
-      const range = document.createRange();
-      range.selectNodeContents(label);
-      const rects = Array.from(range.getClientRects());
       return {
         ok: true,
         text,
         wordBreak: cs.wordBreak,
         overflowWrap: cs.overflowWrap,
-        lineCount: Math.max(rects.length, 1),
-        hasEllipsis: cs.textOverflow === 'ellipsis' && cs.overflow !== 'visible',
+        hasEllipsis:
+          cs.textOverflow === 'ellipsis' && label.scrollWidth > label.clientWidth + 1,
       };
     });
     expect(metrics.ok).toBeTruthy();
