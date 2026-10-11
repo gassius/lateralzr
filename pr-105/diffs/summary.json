@@ -948,35 +948,38 @@
   },
   {
     "file": "logo_lockup-on-orange_1280x800_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.0093974609375,
+    "percent": 0.93974609375,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 0
+    "mismatchedPixels": 38492
   },
   {
     "file": "logo_lockup-on-orange_320x568_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.033061454665492956,
+    "percent": 3.3061454665492955,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
+    "status": "over-threshold",
+    "mismatchedPixels": 24037,
+    "diffImage": "logo_lockup-on-orange_320x568_en.diff.png"
   },
   {
     "file": "logo_lockup-on-orange_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.0252916514764856,
+    "percent": 2.52916514764856,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
+    "status": "over-threshold",
+    "mismatchedPixels": 33300,
+    "diffImage": "logo_lockup-on-orange_390x844_en.diff.png"
   },
   {
     "file": "logo_lockup-on-orange_430x932_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.02401562032138936,
+    "percent": 2.401562032138936,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
+    "status": "over-threshold",
+    "mismatchedPixels": 38498,
+    "diffImage": "logo_lockup-on-orange_430x932_en.diff.png"
   },
   {
     "file": "status_loading_1280x800_en.png",
@@ -1075,10 +1078,11 @@
   },
   {
     "file": "typography_long-label-200_430x932_en.png",
-    "ratio": 0.000024952590078850183,
-    "percent": 0.0024952590078850183,
+    "ratio": 0.15202427887014672,
+    "percent": 15.202427887014672,
     "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 40
+    "status": "over-threshold",
+    "mismatchedPixels": 243701,
+    "diffImage": "typography_long-label-200_430x932_en.diff.png"
   }
 ]
