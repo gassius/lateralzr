@@ -57,8 +57,10 @@ async function assertPatternClear200AndCapture(
   await expect(cardFrontPattern(page)).toBeAttached();
 
   // AD #95: resting-state proof (scrollTop 0) — do not scroll before capture.
-  await page.locator('[data-testid="card-front-scroll"]').evaluate((el) => {
-    (el as HTMLElement).scrollTop = 0;
+  // Scope via the interactive title: behind-stack also mounts card-front-scroll.
+  await title.evaluate((el) => {
+    const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
+    if (scroll) scroll.scrollTop = 0;
   });
 
   const overlap = await page.evaluate(() => {
