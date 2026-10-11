@@ -19,7 +19,6 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  Easing,
   runOnJS,
   runOnUI,
   useAnimatedStyle,
