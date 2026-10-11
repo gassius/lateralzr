@@ -129,6 +129,33 @@ test.describe('status screens', () => {
 
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'en' });
+
+    // PRR B1 — still-offline: Retry keeps the line; card stays (force refetch fail).
+    let failNextRelationships = true;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      if (failNextRelationships) {
+        failNextRelationships = false;
+        await route.abort('failed');
+        return;
+      }
+      await route.fallback();
+    });
+    await retry.click();
+    await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i, {
+      timeout: 2_000,
+    });
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+
+    // PRR B1 — restore network, click Retry, assert refetch + line clears ≤2 s.
+    // Click before setOnline can unmount Retry; setOffline(false) lets the POST complete
+    // if CDP offline would otherwise block it.
+    const refetch = page.waitForRequest(
+      (req) =>
+        req.url().includes('/api/concepts/relationships') && req.method() === 'POST',
+    );
+    await Promise.all([refetch, retry.click(), context.setOffline(false)]);
+    await expect(page.getByTestId('deck-status-line')).toHaveCount(0, { timeout: 2_000 });
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
   });
 
   test('offline status line ES', async ({ page, context }, testInfo) => {

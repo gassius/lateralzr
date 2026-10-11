@@ -70,6 +70,11 @@ export function DeckStatusLine({
         accessibilityLiveRegion="polite"
         testID="deck-status-line"
       >
+        {/*
+          One nowrap unit (dot + copy + Retry). AD #104: at 390 ES, Reintentar must
+          stay on the same row as Sin conexión — never orphan beside laterality.
+          ≥48 px hit via hitSlop (not minWidth, which forced the wrap).
+        */}
         <View style={styles.offlineRow}>
           <View
             style={styles.dot}
@@ -77,7 +82,7 @@ export function DeckStatusLine({
             importantForAccessibility="no"
           />
           <Text
-            style={[styles.copy, textStyle('meta')]}
+            style={[styles.copy, styles.offlineCopy, textStyle('meta')]}
             accessibilityRole="text"
             accessibilityLabel={offlineLabel}
           >
@@ -133,10 +138,14 @@ const styles = StyleSheet.create({
     color: color.mutedOnShell,
     textAlign: 'left',
   },
+  offlineCopy: {
+    flexShrink: 1,
+  },
   offlineRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
+    flexShrink: 1,
     gap: 6,
   },
   dot: {
@@ -144,12 +153,14 @@ const styles = StyleSheet.create({
     height: OFFLINE_DOT_SIZE,
     borderRadius: OFFLINE_DOT_SIZE / 2,
     backgroundColor: color.mutedOnShell,
+    flexShrink: 0,
   },
   retryHit: {
-    minWidth: RETRY_HIT,
-    minHeight: RETRY_HIT,
+    // Touch ≥48 px comes from hitSlop; intrinsic width follows the label so ES
+    // "Reintentar" stays on one row with "Sin conexión" at 390 (AD #104).
     justifyContent: 'center',
     alignItems: 'flex-start',
+    flexShrink: 0,
   },
   retryPressed: {
     opacity: 0.85,

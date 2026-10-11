@@ -114,6 +114,8 @@ describe('resolveIsConnected', () => {
 describe('offline timing tokens', () => {
   it('debounces offline under the 2 s acceptance ceiling', () => {
     assert.ok(OFFLINE_DEBOUNCE_MS > 0);
+    // Pin a real budget so 1999 ms cannot silently eat the 2 s AC headroom (PRR m1).
+    assert.ok(OFFLINE_DEBOUNCE_MS <= 500);
     assert.ok(OFFLINE_DEBOUNCE_MS < OFFLINE_STATUS_MAX_MS);
     assert.equal(OFFLINE_STATUS_MAX_MS, 2000);
   });
