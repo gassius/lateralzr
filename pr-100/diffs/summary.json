@@ -409,11 +409,11 @@
   },
   {
     "file": "card-front_short-label_1280x800_en.png",
-    "ratio": 0.01558984375,
-    "percent": 1.558984375,
+    "ratio": 0.016397216796875,
+    "percent": 1.6397216796874998,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 63856,
+    "mismatchedPixels": 67163,
     "diffImage": "card-front_short-label_1280x800_en.diff.png"
   },
   {
@@ -463,11 +463,11 @@
   },
   {
     "file": "card-front_short-label_430x932_en.png",
-    "ratio": 0.05925491566024553,
-    "percent": 5.925491566024553,
+    "ratio": 0.05647332568120571,
+    "percent": 5.647332568120571,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 94988,
+    "mismatchedPixels": 90529,
     "diffImage": "card-front_short-label_430x932_en.diff.png"
   },
   {
@@ -553,11 +553,11 @@
   },
   {
     "file": "laterality-bar_grade-1_390x844_en.png",
-    "ratio": 0.05819890023089075,
-    "percent": 5.819890023089075,
+    "ratio": 0.0553750455705432,
+    "percent": 5.53750455705432,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 76627,
+    "mismatchedPixels": 72909,
     "diffImage": "laterality-bar_grade-1_390x844_en.diff.png"
   },
   {
@@ -589,11 +589,11 @@
   },
   {
     "file": "laterality-bar_grade-3_1280x800_en.png",
-    "ratio": 0.01558984375,
-    "percent": 1.558984375,
+    "ratio": 0.016397216796875,
+    "percent": 1.6397216796874998,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 63856,
+    "mismatchedPixels": 67163,
     "diffImage": "laterality-bar_grade-3_1280x800_en.diff.png"
   },
   {
@@ -643,11 +643,11 @@
   },
   {
     "file": "laterality-bar_grade-3_430x932_en.png",
-    "ratio": 0.05925491566024553,
-    "percent": 5.925491566024553,
+    "ratio": 0.05647332568120571,
+    "percent": 5.647332568120571,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 94988,
+    "mismatchedPixels": 90529,
     "diffImage": "laterality-bar_grade-3_430x932_en.diff.png"
   },
   {
@@ -769,11 +769,11 @@
   },
   {
     "file": "laterality-sheet_open_1280x800_en.png",
-    "ratio": 0.008269775390625,
-    "percent": 0.8269775390624999,
+    "ratio": 0.007578125,
+    "percent": 0.7578125,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 33873
+    "mismatchedPixels": 31040
   },
   {
     "file": "laterality-sheet_open_1280x800_es.png",
