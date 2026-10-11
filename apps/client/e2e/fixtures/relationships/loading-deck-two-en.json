@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "data": {
+    "start": {
+      "id": 601,
+      "label": "horizon"
+    },
+    "nodes": [
+      {
+        "id": 601,
+        "label": "horizon",
+        "shortDescription": "The line where earth and sky appear to meet.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 0
+      },
+      {
+        "id": 602,
+        "label": "meridian",
+        "shortDescription": "A great circle of constant longitude.",
+        "complexity": 2,
+        "wikiUrl": null,
+        "mediaUrl": null,
+        "media": [],
+        "locale": "en",
+        "degree": 1
+      }
+    ],
+    "edges": [
+      {
+        "id": 610,
+        "from": 601,
+        "to": 602,
+        "strength": 0.8,
+        "laterality": 3
+      }
+    ],
+    "meta": {
+      "depth": 2,
+      "limit": 12,
+      "minStrength": 0,
+      "hasMore": true,
+      "locale": "en",
+      "laterality": 3
+    }
+  }
+}

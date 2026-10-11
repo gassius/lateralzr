@@ -5,6 +5,7 @@ import {
   flipCoachContextReady,
   getDiscoveryCoachingSession,
   reduceDiscoveryCoaching,
+  resetDiscoveryCoachingSession,
   scheduleCoachOffer,
   setDiscoveryCoachingSession,
   shouldAnimateCoachPeek,
@@ -48,6 +49,8 @@ export function useDiscoveryCoaching({
   noteInteraction: () => void;
   noteSwiped: () => void;
   noteFlipped: () => void;
+  /** App menu “Replay gesture tips”: reset session state and re-arm timers. */
+  replayGestureTips: () => void;
 } {
   const [state, setState] = useState<DiscoveryCoachingState>(getDiscoveryCoachingSession);
   const reduceMotion = useReducedMotion();
@@ -69,6 +72,12 @@ export function useDiscoveryCoaching({
   const noteFlipped = useCallback(() => {
     commitEvent({ type: 'flipped' }, setState);
   }, []);
+
+  const replayGestureTips = useCallback(() => {
+    resetDiscoveryCoachingSession(cardIndex);
+    setState(getDiscoveryCoachingSession());
+    setIdleEpoch((n) => n + 1);
+  }, [cardIndex]);
 
   useEffect(() => {
     return scheduleCoachOffer(swipeCoachContextReady(state, view), SWIPE_COACH_IDLE_MS, () => {
@@ -92,5 +101,6 @@ export function useDiscoveryCoaching({
     noteInteraction,
     noteSwiped,
     noteFlipped,
+    replayGestureTips,
   };
 }

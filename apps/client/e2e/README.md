@@ -40,12 +40,14 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 4. Create `e2e/specs/<screen>.spec.ts`. Use `openApp(page, query)` then `capture(page, testInfo, { screen, state, locale })`.
 5. Add the spec only when the UI exists — do not leave always-skipped placeholders.
 
-### Logo / status (Lz-23 / Lz-35)
+### Logo / status (Lz-23 / Lz-35 / Lz-36)
 
 - `logo_lockup-on-orange_*` — animated intro lockup on orange at boot (same as main; held for `MIN_INTRO_LOGO_MS`)
 - Empty-deck error still shows the static lockup on orange (asserted in `logo.spec.ts`)
 - `status_loading-initial_*` — quiet silhouette + `findingStart` after intro (delayed first fetch)
-- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
+- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck (Lz-36)
+- Back from that loading face returns to the last concept (no route change; history untouched)
+- Next card replaces loading via settle (`motion.swipeSettleMs` 260 / RM 150)
 
 ### Typography (Lz-22)
 
@@ -77,9 +79,13 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 - `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es
 
+### App menu (Lz-32)
+
+- `app-menu_open_*` — sheet open from ellipsis, en + es (Replay row only)
+- `app-menu_open-200_*` — ES at 200% text, 320 + 390
+
 ### Pending screens (add when UI ships)
 
-- App menu open
 - Language / complexity / motion / about pickers
 - Coaching tooltip steps
 - Offline line

@@ -74,6 +74,7 @@ The Client E2E suite (`pnpm e2e` in `apps/client`) opens these same params again
 | `canonicalConcept=diagram&onlyWithMedia=true` | Back with diagram (edges/labels); opens diagram card directly |
 | `canonicalConcept=transparent&onlyWithMedia=true` | Back with transparent PNG |
 | `canonicalConcept=loading-deck` | Single-card deck for delayed load-more → loading status capture |
+| `canonicalConcept=loading-deck-two` | Two-card deck for Lz-36 back-from-loading at index N>0 |
 | `laterality=1\|3\|5` | Laterality bar grades |
 | `locale=es` (+ mushroom / Psicodélicos / long-label) | Spanish front/back |
 
