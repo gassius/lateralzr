@@ -80,6 +80,19 @@ test.describe('card back', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
   });
 
+  // Art-director: scroll + min-28% band under large text — one viewport is enough.
+  test('with photo at 200% e2e text scale', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% media-back capture');
+    await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true&e2eTextScale=2');
+    await expect(visibleText(page, 'Psychedelics')).toBeVisible();
+    await flipCard(page);
+    await expect(cardBackMedia(page)).toBeVisible();
+    const description = page.locator('[data-testid="card-back-description"]:visible').first();
+    const fontSize = await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+    expect(fontSize).toBeGreaterThanOrEqual(34);
+    await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200', locale: 'en' });
+  });
+
   test('with diagram (direct deep link)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=diagram&onlyWithMedia=true');
     // Front title may wrap with \\n; match the unwrapped aria-label.
