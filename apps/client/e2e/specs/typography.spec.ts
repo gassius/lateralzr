@@ -117,15 +117,13 @@ async function assertLongLabel200TitleReachable(title: Locator): Promise<void> {
  * B1/B2 (#95 PRR): content in the pad band
  * `frontContentFaceH < content ≤ frontFaceH` (~2·facePad).
  *
- * With `frontNeedsScroll` vs outer `frontFaceH`, scroll stays disabled while the
- * last line is clipped. Assert scroll is enabled and scroll-to-end reachability.
+ * Uses test-only `?e2ePadBand=1` (short title + one facePad bottom bump) so the
+ * band does not depend on font-fragile long-label metrics. With
+ * `frontNeedsScroll` vs outer `frontFaceH`, scroll stays disabled in this band.
  *
- * Proof: long-label @ 320 with e2eTextScale=1.2 — fails with frontFaceH mutation
- * (overflowY hidden); passes on the PR (overflowY auto + reachable).
- * Scale 1.2 is required: default scale fits in ≤4 lines on CI (no pad overflow),
- * while local system fonts can wrap to 5 and land in-band by accident.
+ * Proof (local): fails with frontFaceH mutation (overflowY hidden); passes on PR.
  */
-async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
+async function assertFrontPadBandReachable(title: Locator): Promise<void> {
   await expect
     .poll(
       async () => {
@@ -136,7 +134,10 @@ async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
           m.scrollHeight <= m.faceHeight + 0.5
         );
       },
-      { timeout: 5_000 },
+      {
+        timeout: 8_000,
+        message: 'e2ePadBand content never entered frontContentFaceH < content ≤ frontFaceH',
+      },
     )
     .toBe(true);
 
@@ -144,36 +145,31 @@ async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
     const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
     if (!scroll) {
       return {
-        ok: false,
         scrollHeight: 0,
         clientHeight: 0,
         faceHeight: 0,
-        titleBottom: 0,
-        scrollBottom: 0,
         overflowY: '',
-        clippedAtRest: false,
+        endBelowFold: false,
       };
     }
     scroll.scrollTop = 0;
     const face = scroll.parentElement;
-    const titleBox = el.getBoundingClientRect();
-    const scrollBox = scroll.getBoundingClientRect();
     const faceH = face?.getBoundingClientRect().height ?? 0;
+    const end = scroll.querySelector('[data-testid="card-front-pad-band-end"]');
+    const endBox = end?.getBoundingClientRect();
+    const scrollBox = scroll.getBoundingClientRect();
     return {
-      ok: true,
       scrollHeight: scroll.scrollHeight,
       clientHeight: scroll.clientHeight,
       faceHeight: faceH,
-      titleBottom: titleBox.bottom,
-      scrollBottom: scrollBox.bottom,
       overflowY: getComputedStyle(scroll).overflowY,
-      clippedAtRest: titleBox.bottom > scrollBox.bottom + 1,
+      endBelowFold: endBox != null && endBox.bottom > scrollBox.bottom + 1,
     };
   });
 
   expect(rest.scrollHeight).toBeGreaterThan(rest.clientHeight + 0.5);
   expect(rest.scrollHeight).toBeLessThanOrEqual(rest.faceHeight + 0.5);
-  expect(rest.clippedAtRest, 'last title line must clip at scrollTop 0 in the pad band').toBe(
+  expect(rest.endBelowFold, 'pad-band end marker must sit below the fold at scrollTop 0').toBe(
     true,
   );
   // B2: comparing to outer faceH leaves scroll disabled in this band.
@@ -184,20 +180,24 @@ async function assertFrontPadBandTitleReachable(title: Locator): Promise<void> {
   const reachable = await title.evaluate((el) => {
     const scroll = el.closest('[data-testid="card-front-scroll"]') as HTMLElement | null;
     if (!scroll) {
-      return { ok: false, titleBottom: 0, scrollBottom: 0 };
+      return { ok: false, endBottom: 0, scrollBottom: 0 };
     }
     scroll.scrollTop = scroll.scrollHeight;
-    const titleBottom = el.getBoundingClientRect().bottom;
+    const end = scroll.querySelector('[data-testid="card-front-pad-band-end"]');
+    if (!end) {
+      return { ok: false, endBottom: 0, scrollBottom: 0 };
+    }
+    const endBottom = end.getBoundingClientRect().bottom;
     const scrollBottom = scroll.getBoundingClientRect().bottom;
     return {
-      ok: titleBottom <= scrollBottom + 1,
-      titleBottom,
+      ok: endBottom <= scrollBottom + 1,
+      endBottom,
       scrollBottom,
     };
   });
   expect(
     reachable.ok,
-    `pad-band last line not reachable after scroll (titleBottom=${reachable.titleBottom}, scrollBottom=${reachable.scrollBottom})`,
+    `pad-band end not reachable after scroll (endBottom=${reachable.endBottom}, scrollBottom=${reachable.scrollBottom})`,
   ).toBe(true);
 }
 
@@ -284,19 +284,16 @@ test.describe('typography', () => {
     });
   });
 
-  // PRR B1: pad-band case locks frontNeedsScroll vs frontContentFaceH.
-  test('long-label pad-band scrollport at 320', async ({ page }, testInfo) => {
+  // PRR B1 @ 3a5ca4d: pad-band case locks frontNeedsScroll vs frontContentFaceH.
+  test('pad-band scrollport at 320 via e2ePadBand', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== '320x568', 'B2 pad band is sized for 320 facePad');
-    // 1.2 lands 4-line CI wrap in frontContentFaceH < content ≤ frontFaceH (~30px).
-    // Default scale fits without overflow on CI (4 lines); local 5-line wrap is not portable.
-    await openApp(page, 'canonicalConcept=long-label&e2eTextScale=1.2');
+    // Short title + test-only contentFace+facePad minHeight → stable mid-band.
+    await openApp(page, 'canonicalConcept=mushroom&e2ePadBand=1');
     const title = cardFrontTitle(page);
     await expect(title).toBeVisible();
-    await expect(title).toHaveAttribute(
-      'aria-label',
-      /extraordinarily elaborate multidisciplinary conceptual framework/i,
-    );
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.getByTestId('card-front-pad-band-end')).toBeAttached();
 
-    await assertFrontPadBandTitleReachable(title);
+    await assertFrontPadBandReachable(title);
   });
 });

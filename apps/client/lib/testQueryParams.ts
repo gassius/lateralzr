@@ -14,6 +14,12 @@ export type JourneyTestParams = {
    * (1 = descending, 2 = ascending, 3 = edge). Maps to index 0–2.
    */
   patternVariant?: PatternVariantIndex;
+  /**
+   * Test-only (#95 B2): grow the front column into the pad band
+   * `frontContentFaceH < content ≤ frontFaceH` so `frontNeedsScroll` is covered
+   * without depending on font-fragile title metrics.
+   */
+  e2ePadBand?: boolean;
 };
 
 export type JourneyFetchOptions = {
@@ -102,6 +108,7 @@ export function parseJourneyTestParams(
     const params = new URLSearchParams(raw);
     const complexity = parseComplexityParam(params.get('complexity'));
     const patternVariant = parsePatternVariantParam(params.get('patternVariant'));
+    const e2ePadBand = parseBooleanFlag(params.get('e2ePadBand'));
     return {
       localizedConcept: trimOrUndefined(params.get('localizedConcept')),
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
@@ -109,6 +116,7 @@ export function parseJourneyTestParams(
       ...(complexity != null ? { complexity } : {}),
       laterality: parseLateralityParam(params.get('laterality')),
       ...(patternVariant != null ? { patternVariant } : {}),
+      ...(e2ePadBand ? { e2ePadBand: true } : {}),
     };
   } catch {
     return { onlyWithMedia: false };

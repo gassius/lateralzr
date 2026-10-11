@@ -347,7 +347,14 @@ export function ConceptCard({
           height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
         }
       : null;
-  const patternVariantOverride = readJourneyTestParams().patternVariant ?? null;
+  const journeyTestParams = readJourneyTestParams();
+  const patternVariantOverride = journeyTestParams.patternVariant ?? null;
+  /**
+   * Test-only `?e2ePadBand=1`: force content height to contentFace + facePad so it
+   * lands in frontContentFaceH < content ≤ frontFaceH (B2 band), font-independent.
+   */
+  const e2ePadBandExtra =
+    journeyTestParams.e2ePadBand && frontContentFaceH > 0 ? facePad : 0;
   const frontBottomSpacerMinH =
     frontContentFaceH > 0 && frontTopSpacerH != null
       ? conceptFrontTitleBottomSpacerMinHeight(
@@ -356,6 +363,8 @@ export function ConceptCard({
           frontTopSpacerH,
         )
       : CONCEPT_FRONT_TITLE_BOTTOM_RESERVE;
+  const frontScrollMinH =
+    frontContentFaceH > 0 ? frontContentFaceH + e2ePadBandExtra : 0;
 
   const front = (
     <View
@@ -375,7 +384,7 @@ export function ConceptCard({
         style={styles.frontScroll}
         contentContainerStyle={[
           styles.frontScrollContent,
-          frontContentFaceH > 0 ? { minHeight: frontContentFaceH } : null,
+          frontScrollMinH > 0 ? { minHeight: frontScrollMinH } : null,
         ]}
         scrollEnabled={frontNeedsScroll}
         showsVerticalScrollIndicator={false}
@@ -383,7 +392,12 @@ export function ConceptCard({
         testID="card-front-scroll"
       >
         <View
-          style={styles.frontColumn}
+          style={[
+            styles.frontColumn,
+            e2ePadBandExtra > 0 && frontScrollMinH > 0
+              ? { minHeight: frontScrollMinH }
+              : null,
+          ]}
           onLayout={(event) => {
             const next = event.nativeEvent.layout.height;
             setFrontContentH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
@@ -474,6 +488,12 @@ export function ConceptCard({
               { minHeight: frontBottomSpacerMinH },
             ]}
           />
+          {e2ePadBandExtra > 0 ? (
+            <View
+              testID={exposeFrontTitleTestId ? 'card-front-pad-band-end' : undefined}
+              style={{ width: 1, height: 1, opacity: 0 }}
+            />
+          ) : null}
         </View>
       </ScrollView>
       {coachHint ? (
