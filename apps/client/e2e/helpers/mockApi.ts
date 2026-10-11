@@ -35,6 +35,18 @@ function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): s
   const canonicalKey = canonical.toLowerCase();
 
   if (
+    canonicalKey === 'loading-deck-two' ||
+    startKey === 'loading-deck-two' ||
+    startKey === 'meridian'
+  ) {
+    // Two-card deck so Lz-36 back-from-loading can assert N>0 (not N-1).
+    // `meridian` is the second card; later calls are the delayed load-more payload.
+    const deck =
+      callIndex <= 1 ? 'loading-deck-two-en.json' : 'loading-more-en.json';
+    return readJson(deck);
+  }
+
+  if (
     canonicalKey === 'loading-deck' ||
     startKey === 'loading-deck' ||
     startKey === 'horizon' ||
@@ -177,9 +189,12 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
     const canonicalKey = (body.canonicalStart ?? '').trim().toLowerCase();
     const isLoadingDeck =
       canonicalKey === 'loading-deck' ||
+      canonicalKey === 'loading-deck-two' ||
       startKey === 'loading-deck' ||
+      startKey === 'loading-deck-two' ||
       startKey === 'horizon' ||
-      startKey === 'horizonte';
+      startKey === 'horizonte' ||
+      startKey === 'meridian';
 
     if (relationshipsCalls === 1 && delayFirstMs > 0) {
       await new Promise((r) => setTimeout(r, delayFirstMs));

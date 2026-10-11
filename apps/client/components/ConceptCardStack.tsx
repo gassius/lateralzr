@@ -32,11 +32,14 @@ import {
   initialPrefersReducedMotion,
   swipeCommitDirection,
   swipeCommitDurationMs,
-  swipeEnterShiftPx,
   swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
 import { clampComplexity } from '@/lib/complexityStorage';
-import { settleIntentAfterLoadingClear } from '@/lib/deckSlotState';
+import { deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
+import {
+  resolveNavSettleIntent,
+  returnOverlayIndexForEndLoading,
+} from '@/lib/deckSlotState';
 import {
   coachMessageKey,
   SWIPE_COACH_PEEK_PX,
@@ -303,16 +306,15 @@ export function ConceptCardStack({
   // Layout effect: reset gesture + enter state before paint so the new top card never flashes with the
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
   useLayoutEffect(() => {
-    let intent = navIntentRef.current;
-    navIntentRef.current = null;
-
     // Lz-36: loading → concept without a swipe intent (append settle, or back cleared pending).
-    if (!intent && wasDeckStatusRef.current && !showDeckStatus) {
-      intent = settleIntentAfterLoadingClear({
-        previousIndex: loadingClearPrevIndexRef.current,
-        nextIndex: currentIndex,
-      });
-    }
+    const intent = resolveNavSettleIntent({
+      navIntent: navIntentRef.current,
+      wasDeckStatus: wasDeckStatusRef.current,
+      showDeckStatus,
+      prevIndex: loadingClearPrevIndexRef.current,
+      index: currentIndex,
+    });
+    navIntentRef.current = null;
 
     wasDeckStatusRef.current = showDeckStatus;
     loadingClearPrevIndexRef.current = currentIndex;
@@ -347,8 +349,8 @@ export function ConceptCardStack({
         enterOpacity.value = 1;
       } else {
         const forward = intent === 'forward';
-        const shift = swipeEnterShiftPx(false, forward);
-        const duration = swipeCommitDurationMs(false);
+        const shift = deckSettleEnterShiftPx(false, forward);
+        const duration = deckSettleDurationMs(false);
         enterX.value = shift;
         enterOpacity.value = 0;
         enterX.value = withTiming(0, { duration, easing: SWIPE_EASING });
@@ -400,7 +402,14 @@ export function ConceptCardStack({
     if (ctx) trackSwipe('right', ctx);
     // Lz-36: back from end-of-deck loading has no return-overlay peer — settle the revealed card.
     // Normal backtrack: gesture already animated the previous card; skip enter replay.
-    navIntentRef.current = showDeckStatusRef.current ? 'backward' : 'backwardGesture';
+    navIntentRef.current = resolveNavSettleIntent({
+      navIntent: null,
+      wasDeckStatus: wasDeckStatusRef.current,
+      showDeckStatus: showDeckStatusRef.current,
+      prevIndex: loadingClearPrevIndexRef.current,
+      index: currentIndexRef.current,
+      commitFromStatus: showDeckStatusRef.current,
+    });
     onSwipeRight();
   }, [analyticsContextForIndex, noteSwiped, onSwipeRight]);
 
@@ -709,8 +718,14 @@ export function ConceptCardStack({
   const showBehindNext =
     !showDeckStatus && behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
   const prevIndex = currentIndex - 1;
+  // Under the loading silhouette the resting underlay is the current last card (not N-1).
+  const restingUnderlayIndex = showDeckStatus
+    ? returnOverlayIndexForEndLoading(currentIndex)
+    : prevIndex >= 0
+      ? prevIndex
+      : -1;
   const returnOverlayIndex =
-    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : prevIndex >= 0 ? prevIndex : -1;
+    returnOverlayLockedIndex !== null ? returnOverlayLockedIndex : restingUnderlayIndex;
   // Never mount return-overlay under the loading face at rest (Lz-36 back uses slide/fade + settle).
   const showReturnOverlay =
     !showDeckStatus &&

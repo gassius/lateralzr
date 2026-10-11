@@ -14,7 +14,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
-import { planBackFromEndLoading } from '@/lib/deckSlotState';
+import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import {
@@ -447,18 +447,17 @@ export default function HomeScreen() {
 
   const onSwipeRight = useCallback(() => {
     // Lz-36: back from end-of-deck loading returns to the same last card — do not
-    // pop history / walk index.
-    if (pendingEndDeckLoadRef.current) {
-      const plan = planBackFromEndLoading(currentIndexRef.current);
-      pendingEndDeckLoadRef.current = false;
-      setPendingEndDeckLoad(false);
-      if (plan.nextIndex !== currentIndexRef.current) {
-        currentIndexRef.current = plan.nextIndex;
-        setCurrentIndex(plan.nextIndex);
-      }
-      return;
+    // pop history / walk index (see reduceSwipeRight).
+    const next = reduceSwipeRight({
+      index: currentIndexRef.current,
+      pending: pendingEndDeckLoadRef.current,
+    });
+    pendingEndDeckLoadRef.current = next.pending;
+    setPendingEndDeckLoad(next.pending);
+    if (next.index !== currentIndexRef.current) {
+      currentIndexRef.current = next.index;
+      setCurrentIndex(next.index);
     }
-    setCurrentIndex((i) => Math.max(i - 1, 0));
   }, []);
 
   const prefetchComplexityTree = useCallback(
@@ -660,7 +659,12 @@ export default function HomeScreen() {
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
-  const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
+  const deckSlotState = resolveDeckSlotState({
+    isLastCard,
+    pendingEndDeckLoad,
+    loadMoreError,
+  });
+  const showDeckLoading = deckSlotState !== 'card';
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
 
   // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
@@ -677,7 +681,7 @@ export default function HomeScreen() {
   const deckStatusMessage =
     showInitialLoading
       ? t('findingStart')
-      : isLastCard && pendingEndDeckLoad && !loadMoreError
+      : deckSlotState === 'loading'
         ? t('loadingMoreIdeas')
         : null;
 
