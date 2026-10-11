@@ -914,11 +914,11 @@
   },
   {
     "file": "logo_lockup-on-orange_390x844_en.png",
-    "ratio": 0.0252916514764856,
-    "percent": 2.52916514764856,
+    "ratio": 0.025292410985538947,
+    "percent": 2.5292410985538947,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 33300,
+    "mismatchedPixels": 33301,
     "diffImage": "logo_lockup-on-orange_390x844_en.diff.png"
   },
   {
@@ -941,11 +941,11 @@
   },
   {
     "file": "status_loading_320x568_en.png",
-    "ratio": 0.6211198833626761,
-    "percent": 62.11198833626761,
+    "ratio": 0.6209397007042253,
+    "percent": 62.093970070422536,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 451579,
+    "mismatchedPixels": 451448,
     "diffImage": "status_loading_320x568_en.diff.png"
   },
   {
