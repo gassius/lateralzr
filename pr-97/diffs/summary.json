@@ -409,11 +409,11 @@
   },
   {
     "file": "card-front_short-label_1280x800_en.png",
-    "ratio": 0.01641357421875,
-    "percent": 1.641357421875,
+    "ratio": 0.015606201171875,
+    "percent": 1.5606201171875,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 67230,
+    "mismatchedPixels": 63923,
     "diffImage": "card-front_short-label_1280x800_en.diff.png"
   },
   {
@@ -445,11 +445,11 @@
   },
   {
     "file": "card-front_short-label_390x844_en.png",
-    "ratio": 0.058195102685624014,
-    "percent": 5.819510268562402,
+    "ratio": 0.055367450480009725,
+    "percent": 5.536745048000973,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 76622,
+    "mismatchedPixels": 72899,
     "diffImage": "card-front_short-label_390x844_en.diff.png"
   },
   {
@@ -517,11 +517,11 @@
   },
   {
     "file": "laterality-bar_grade-1_1280x800_en.png",
-    "ratio": 0.01641357421875,
-    "percent": 1.641357421875,
+    "ratio": 0.015606201171875,
+    "percent": 1.5606201171875,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 67230,
+    "mismatchedPixels": 63923,
     "diffImage": "laterality-bar_grade-1_1280x800_en.diff.png"
   },
   {
@@ -589,11 +589,11 @@
   },
   {
     "file": "laterality-bar_grade-3_1280x800_en.png",
-    "ratio": 0.01641357421875,
-    "percent": 1.641357421875,
+    "ratio": 0.015606201171875,
+    "percent": 1.5606201171875,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 67230,
+    "mismatchedPixels": 63923,
     "diffImage": "laterality-bar_grade-3_1280x800_en.diff.png"
   },
   {
@@ -643,11 +643,11 @@
   },
   {
     "file": "laterality-bar_grade-3_430x932_en.png",
-    "ratio": 0.05637039624713045,
-    "percent": 5.637039624713045,
+    "ratio": 0.059150738596666336,
+    "percent": 5.9150738596666335,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 90364,
+    "mismatchedPixels": 94821,
     "diffImage": "laterality-bar_grade-3_430x932_en.diff.png"
   },
   {
@@ -821,11 +821,11 @@
   },
   {
     "file": "laterality-sheet_open_430x932_en.png",
-    "ratio": 0.04779419103702964,
-    "percent": 4.779419103702964,
+    "ratio": 0.050217087533686,
+    "percent": 5.0217087533686,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 76616,
+    "mismatchedPixels": 80500,
     "diffImage": "laterality-sheet_open_430x932_en.diff.png"
   },
   {
