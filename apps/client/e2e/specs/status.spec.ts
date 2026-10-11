@@ -147,19 +147,21 @@ test.describe('status screens', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
     // PRR B1 — click Retry (refetch), restore network, Offline/Retry clear ≤2 s.
-    // Load-more may briefly reuse the slot ("Loading more ideas"), so do not require
-    // deck-status-line count 0 — only that Offline copy and Retry are gone.
+    // Do not use not.toContainText on deck-status-line: when the slot unmounts,
+    // Playwright treats a missing node as failure. Assert Offline/Retry locators
+    // reach count 0 instead (load-more copy in the slot is fine).
     const refetch = page.waitForRequest(
       (req) =>
         req.url().includes('/api/concepts/relationships') && req.method() === 'POST',
     );
     await retry.click();
-    await context.setOffline(false);
     await refetch;
-    await expect(page.getByTestId('deck-status-line')).not.toContainText(/Offline/i, {
-      timeout: 2_000,
-    });
-    await expect(page.getByTestId('deck-status-retry')).toHaveCount(0);
+    await context.setOffline(false);
+    await page.waitForFunction(() => navigator.onLine === true);
+    await expect(page.getByTestId('deck-status-retry')).toHaveCount(0, { timeout: 2_000 });
+    await expect(page.getByTestId('deck-status-line').filter({ hasText: /Offline/i })).toHaveCount(
+      0,
+    );
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
   });
 

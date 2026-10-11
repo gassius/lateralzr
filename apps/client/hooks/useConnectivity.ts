@@ -53,6 +53,12 @@ export function useConnectivity(): {
         return;
       }
 
+      // NetInfo can lag with isConnected:false after Playwright/DevTools leave offline
+      // while navigator.onLine is already true — do not bounce Offline again.
+      if (readNavigatorOnline() === true) {
+        return;
+      }
+
       if (connectedRef.current === false && offlineTimerRef.current == null) {
         dispatch({ type: 'setOffline' });
         return;
@@ -62,6 +68,11 @@ export function useConnectivity(): {
       if (offlineTimerRef.current != null) return;
       offlineTimerRef.current = setTimeout(() => {
         offlineTimerRef.current = null;
+        // Re-check navigator: an online event may have won during the debounce.
+        if (readNavigatorOnline() === true) {
+          connectedRef.current = true;
+          return;
+        }
         dispatch({ type: 'setOffline' });
       }, OFFLINE_DEBOUNCE_MS);
     },
