@@ -17,7 +17,7 @@ type NavItem = {
   action: CardAction;
   labelKey: MessageKey;
   testID: string;
-  /** Optional short glyph shown above the i18n label. */
+  /** Optional short glyph shown beside the i18n label. */
   glyph: string;
 };
 
@@ -36,6 +36,8 @@ type AccessibleNavRowProps = {
   /** Modal sheet open — all disabled. */
   sheetOpen: boolean;
   onAction: (action: CardAction) => void;
+  /** Measured row height (grows when the row wraps to 3+2). */
+  onHeightChange?: (height: number) => void;
 };
 
 export function AccessibleNavRow({
@@ -43,6 +45,7 @@ export function AccessibleNavRow({
   showDeckStatus,
   sheetOpen,
   onAction,
+  onHeightChange,
 }: AccessibleNavRowProps) {
   useLayoutEffect(() => {
     if (Platform.OS === 'web') ensureA11yFocusRingStyles();
@@ -58,6 +61,9 @@ export function AccessibleNavRow({
     <View
       style={styles.row}
       testID="accessible-nav-row"
+      onLayout={(e) => {
+        onHeightChange?.(e.nativeEvent.layout.height);
+      }}
     >
       {NAV_ITEMS.map((item) => {
         const label = t(item.labelKey);
@@ -80,26 +86,27 @@ export function AccessibleNavRow({
             {({ pressed }) => (
               <>
                 {pressed && !disabled ? <View style={styles.pressedTint} pointerEvents="none" /> : null}
-                <Text
-                  style={[
-                    styles.glyph,
-                    textStyle('label'),
-                    disabled ? styles.labelDisabled : null,
-                  ]}
-                  accessibilityElementsHidden
-                >
-                  {item.glyph}
-                </Text>
-                <Text
-                  style={[
-                    styles.label,
-                    textStyle('label'),
-                    disabled ? styles.labelDisabled : null,
-                  ]}
-                  numberOfLines={3}
-                >
-                  {label}
-                </Text>
+                <View style={styles.buttonInner} pointerEvents="none">
+                  <Text
+                    style={[
+                      styles.glyph,
+                      textStyle('label'),
+                      disabled ? styles.labelDisabled : null,
+                    ]}
+                    accessibilityElementsHidden
+                  >
+                    {item.glyph}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.label,
+                      textStyle('label'),
+                      disabled ? styles.labelDisabled : null,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </View>
               </>
             )}
           </Pressable>
@@ -114,23 +121,37 @@ const styles = StyleSheet.create({
     minHeight: ACCESSIBLE_NAV_ROW_MIN_HEIGHT,
     width: '100%',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'stretch',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingHorizontal: layout.screenGutter,
-    gap: 4,
+    columnGap: 4,
+    rowGap: 4,
   },
   button: {
-    flex: 1,
-    minWidth: 0,
+    // Three targets per line → 3+2 when five don't fit (320 / 200%).
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: '30%',
+    maxWidth: '33.33%',
     minHeight: ACCESSIBLE_NAV_TARGET_PX,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 4,
     backgroundColor: 'transparent',
-    paddingHorizontal: 2,
-    paddingVertical: 4,
-    overflow: 'hidden',
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    overflow: 'visible',
     position: 'relative',
+  },
+  buttonInner: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    columnGap: 4,
+    rowGap: 2,
+    maxWidth: '100%',
   },
   pressedTint: {
     ...StyleSheet.absoluteFillObject,
@@ -142,11 +163,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     textAlign: 'center',
+    flexShrink: 0,
   },
   label: {
     color: color.paper,
     textAlign: 'center',
-    // 14/500 from textStyle('label'); allow wrap at 200% instead of truncating.
+    // 14/500 from textStyle('label'); wrap on word boundaries only — never mid-word / ellipsis.
+    flexShrink: 1,
+    ...(Platform.OS === 'web'
+      ? ({
+          wordBreak: 'normal',
+          overflowWrap: 'normal',
+          hyphens: 'none',
+        } as object)
+      : null),
   },
   labelDisabled: {
     // Keep disabled Previous readable as part of the row (not 0.35 petrol fade).

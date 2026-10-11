@@ -265,7 +265,7 @@ describe('keyEstablishesKeyboardModality / accessibleNavChromeReserve', () => {
 });
 
 describe('focus ring tokens', () => {
-  it('declares 2px ring + 2px gap with Paper on shell and Ink on orange', () => {
+  it('declares 2px ring + 2px gap; card + nav use Paper on petrol shell', () => {
     assert.equal(A11Y_FOCUS_RING.widthPx, 2);
     assert.equal(A11Y_FOCUS_RING.offsetPx, 2);
     assert.equal(A11Y_FOCUS_RING.onShell, '#F5F1E8');
@@ -273,9 +273,11 @@ describe('focus ring tokens', () => {
     const css = a11yFocusRingCss();
     assert.match(css, /card-a11y-surface"\]:focus-visible/);
     assert.match(css, /a11y-nav-next"\]:focus-visible/);
-    assert.match(css, /outline: 2px solid #172126/);
+    // Ring sits in the gap on petrol — Paper only (Ink would be invisible).
     assert.match(css, /outline: 2px solid #F5F1E8/);
-    assert.match(css, /outline-offset: 2px/);  });
+    assert.doesNotMatch(css, /card-a11y-surface[\s\S]*outline: 2px solid #172126/);
+    assert.match(css, /outline-offset: 2px/);
+  });
 });
 
 describe('CARD_ACCESSIBILITY_ACTION_DEFS (Lz-43 labels, no device SR)', () => {
@@ -332,6 +334,37 @@ describe('component wiring kills surviving a11y mutations', () => {
     assert.match(rowSrc, /isCardActionDisabled/);
   });
 
+  it('nav Pressable disabled prop is pinned to a11y.disabled (not forced false)', () => {
+    // Surviving mutation: `const disabled = false;` — Pressable.disabled must track the gate.
+    assert.match(rowSrc, /const disabled = a11y\.disabled;/);
+    assert.match(rowSrc, /disabled=\{disabled\}/);
+    assert.equal(rowSrc.includes('const disabled = false;'), false);
+    assert.equal(rowSrc.includes('disabled={false}'), false);
+  });
+
+  it('card surface passes accessibilityActions (survives prop-removal mutation)', () => {
+    assert.match(
+      stackSrc,
+      /accessibilityActions=\{surfaceIsButton \? accessibilityActions : undefined\}/,
+    );
+    assert.match(
+      stackSrc,
+      /onAccessibilityAction=\{surfaceIsButton \? onAccessibilityAction : undefined\}/,
+    );
+  });
+
+  it('onAccessibilityAction dispatches to runAction after resolveRunnable', () => {
+    // Surviving mutation: handler returns without calling runAction.
+    const handler = stackSrc.match(
+      /const onAccessibilityAction = useCallback\(\s*\(event: AccessibilityActionEvent\) => \{([\s\S]*?)\},\s*\[actionGate, runAction\]/,
+    );
+    assert.ok(handler, 'onAccessibilityAction callback missing');
+    const body = handler![1];
+    assert.match(body, /resolveRunnableAccessibilityAction/);
+    assert.match(body, /runAction\(action\)/);
+    assert.equal(/if \(action == null\) return;\s*\}/.test(body), false);
+  });
+
   it('runAction and a11y dispatch go through canRunCardAction / resolveRunnable', () => {
     assert.match(stackSrc, /if \(!canRunCardAction\(action, actionGate\(\)\)\) return/);
     assert.match(stackSrc, /resolveRunnableAccessibilityAction/);
@@ -353,5 +386,13 @@ describe('component wiring kills surviving a11y mutations', () => {
     assert.match(cardSrc, /wikiWebKeyProps/);
     assert.match(cardSrc, /key !== 'Enter'/);
     assert.match(cardSrc, /openWiki\(\)/);
+  });
+
+  it('nav row wraps (flexWrap) and keeps whole-word label CSS', () => {
+    assert.match(rowSrc, /flexWrap:\s*'wrap'/);
+    assert.match(rowSrc, /flexBasis:\s*'30%'/);
+    assert.match(rowSrc, /wordBreak:\s*'normal'/);
+    assert.match(rowSrc, /overflowWrap:\s*'normal'/);
+    assert.equal(rowSrc.includes('numberOfLines'), false);
   });
 });

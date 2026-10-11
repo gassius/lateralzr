@@ -110,6 +110,8 @@ test.describe('keyboard a11y', () => {
     });
     expect(cardOutline.style === 'solid' || cardOutline.width === '2px').toBeTruthy();
     expect(parseFloat(cardOutline.width)).toBeGreaterThanOrEqual(2);
+    // Paper on petrol shell (#F5F1E8) — Ink is invisible there.
+    expect(cardOutline.color.replace(/\s/g, '')).toMatch(/245,241,232|#?f5f1e8/i);
 
     const nextBtn = page.getByTestId('a11y-nav-next');
     await nextBtn.focus();
@@ -135,7 +137,11 @@ test.describe('keyboard a11y', () => {
   for (const locale of ['en', 'es'] as const) {
     test(`assistive nav row capture (${locale})`, async ({ page }, testInfo) => {
       const vp = testInfo.project.name;
-      test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
+      // Row-on: 320/390 (prior) + 430/1280 (AD round 2).
+      test.skip(
+        vp !== '320x568' && vp !== '390x844' && vp !== '430x932' && vp !== '1280x800',
+        'AD row-on viewports only',
+      );
       await openApp(page, `canonicalConcept=mushroom&locale=${locale}`);
       await page.keyboard.press('Tab');
       await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
@@ -149,7 +155,7 @@ test.describe('keyboard a11y', () => {
 
     test(`assistive nav row at 200% (${locale})`, async ({ page }, testInfo) => {
       const vp = testInfo.project.name;
-      test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
+      test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 @ 200%');
       await openApp(page, `canonicalConcept=mushroom&locale=${locale}&e2eTextScale=2`);
       await page.keyboard.press('Tab');
       await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
@@ -160,6 +166,82 @@ test.describe('keyboard a11y', () => {
       });
     });
   }
+
+  test('EN 320: Previous stays whole; no mid-word split or ellipsis', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== '320x568', 'AD EN 320×100% gate');
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.keyboard.press('Tab');
+    const prev = page.getByTestId('a11y-nav-previous');
+    await expect(prev).toBeVisible();
+    await expect(prev).toContainText('Previous');
+    const metrics = await prev.evaluate((el) => {
+      const label = Array.from(el.querySelectorAll('*')).find(
+        (n) => (n.textContent ?? '').includes('Previous'),
+      ) as HTMLElement | undefined;
+      if (!label) return { ok: false, reason: 'no-label' };
+      const cs = getComputedStyle(label);
+      const text = (label.textContent ?? '').replace(/\s+/g, ' ').trim();
+      // Range-based line ends must land on word boundaries (no "Previou/s").
+      const range = document.createRange();
+      range.selectNodeContents(label);
+      const rects = Array.from(range.getClientRects());
+      return {
+        ok: true,
+        text,
+        wordBreak: cs.wordBreak,
+        overflowWrap: cs.overflowWrap,
+        lineCount: Math.max(rects.length, 1),
+        hasEllipsis: cs.textOverflow === 'ellipsis' && cs.overflow !== 'visible',
+      };
+    });
+    expect(metrics.ok).toBeTruthy();
+    expect(metrics.text).toBe('Previous');
+    expect(metrics.wordBreak === 'normal' || metrics.wordBreak === 'keep-all').toBeTruthy();
+    expect(metrics.hasEllipsis).toBeFalsy();
+  });
+
+  test('ES 320×200%: labels stay whole words; laterality reachable via scroll', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== '320x568', 'AD ES 320×200% gate');
+    await openApp(page, 'canonicalConcept=mushroom&locale=es&e2eTextScale=2');
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
+
+    for (const [testId, needle] of [
+      ['a11y-nav-previous', 'Anterior'],
+      ['a11y-nav-next', 'Siguiente'],
+      ['a11y-nav-flip', 'Girar'],
+      ['a11y-nav-complexity-up', 'Más complejo'],
+      ['a11y-nav-complexity-down', 'Más sencillo'],
+    ] as const) {
+      const btn = page.getByTestId(testId);
+      await expect(btn).toContainText(needle);
+      const truncated = await btn.evaluate((el, expected) => {
+        const full = expected as string;
+        const text = (el.textContent ?? '').replace(/\s+/g, ' ');
+        if (!text.includes(full)) return 'missing-full-label';
+        const label = Array.from(el.querySelectorAll('*')).find((n) =>
+          (n.textContent ?? '').includes(full.split(' ')[0]!),
+        ) as HTMLElement | undefined;
+        if (!label) return 'no-label-node';
+        const cs = getComputedStyle(label);
+        if (cs.textOverflow === 'ellipsis' && label.scrollWidth > label.clientWidth + 1) {
+          return 'ellipsis-truncation';
+        }
+        // Soft mid-word breaks insert U+00AD / show hyphenation artifacts.
+        if ((label.textContent ?? '').includes('\u00AD')) return 'soft-hyphen';
+        return null;
+      }, needle);
+      expect(truncated, `${testId} truncated/broken`).toBeNull();
+    }
+
+    const laterality = page.getByTestId('laterality-control');
+    await expect(laterality).toBeVisible();
+    // If below the fold, practice-column scroll must be able to reveal it.
+    await laterality.scrollIntoViewIfNeeded();
+    await expect(laterality).toBeInViewport();
+  });
 
   test('focused card + nav button captures', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
-import { accessibleNavChromeReserve } from '@/lib/cardActions';
+import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -110,6 +110,7 @@ export default function HomeScreen() {
   const lateralityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
+  const [accessibleNavHeight, setAccessibleNavHeight] = useState<number>(ACCESSIBLE_NAV_ROW_MIN_HEIGHT);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -744,79 +745,105 @@ export default function HomeScreen() {
           }}
         />
       ) : null}
-      <View
-        style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
-        testID="practice-column"
-        importantForAccessibility={lateralitySheetOpen ? 'no-hide-descendants' : 'auto'}
-      >
-        <View
-          style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
-          testID="card-laterality-group"
-        >
-          <ConceptCardStack
-            ref={cardStackRef}
-            concepts={concepts}
-            currentIndex={currentIndex}
-            complexity={complexity}
-            onSwipeLeft={onSwipeLeft}
-            onSwipeRight={onSwipeRight}
-            onSwipeForwardVertical={onSwipeForwardVertical}
-            availableHeight={
-              cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-              accessibleNavChromeReserve(accessibleNavVisible)
-            }
-            preloadedMediaUrls={preloadedMediaUrls}
-            showDeckLoading={showDeckLoading}
-            showInitialLoading={showInitialLoading}
-            loadMoreError={loadMoreError}
-            onRetryLoadMore={retryLoadMore}
-            sheetOpen={lateralitySheetOpen}
-          />
-          {accessibleNavVisible ? (
-            <AccessibleNavRow
+      {(() => {
+        const cardLateralityGroup = (
+          <View
+            style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
+            testID="card-laterality-group"
+          >
+            <ConceptCardStack
+              ref={cardStackRef}
+              concepts={concepts}
               currentIndex={currentIndex}
-              showDeckStatus={showDeckLoading}
+              complexity={complexity}
+              onSwipeLeft={onSwipeLeft}
+              onSwipeRight={onSwipeRight}
+              onSwipeForwardVertical={onSwipeForwardVertical}
+              availableHeight={
+                cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
+                (accessibleNavVisible ? accessibleNavHeight : 0)
+              }
+              preloadedMediaUrls={preloadedMediaUrls}
+              showDeckLoading={showDeckLoading}
+              showInitialLoading={showInitialLoading}
+              loadMoreError={loadMoreError}
+              onRetryLoadMore={retryLoadMore}
               sheetOpen={lateralitySheetOpen}
-              onAction={(action) => {
-                cardStackRef.current?.runAction(action);
-              }}
             />
-          ) : null}
-          <LateralityControl
-            laterality={laterality}
-            swapping={lateralitySwap != null}
-            onSelectLaterality={onSelectLaterality}
-            onHeightChange={setLateralityControlHeight}
-            onPressLabel={openLateralitySheet}
-            labelRef={lateralityLabelRef}
-            statusSlot={
-              deckStatusMessage != null ? (
-                <DeckStatusLine message={deckStatusMessage} />
-              ) : undefined
-            }
-          />
-          {complexityCue ? (
-            <View
-              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-              pointerEvents="none"
-            >
-              <ComplexityCue
-                grade={complexityCue.grade}
-                token={complexityCue.token}
-                holdMs={complexityCue.holdMs}
-                onHidden={dismissComplexityCue}
+            {accessibleNavVisible ? (
+              <AccessibleNavRow
+                currentIndex={currentIndex}
+                showDeckStatus={showDeckLoading}
+                sheetOpen={lateralitySheetOpen}
+                onHeightChange={setAccessibleNavHeight}
+                onAction={(action) => {
+                  cardStackRef.current?.runAction(action);
+                }}
               />
-            </View>
-          ) : showSessionComplexityMark ? (
-            <View
-              style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-              pointerEvents="none"
+            ) : null}
+            <LateralityControl
+              laterality={laterality}
+              swapping={lateralitySwap != null}
+              onSelectLaterality={onSelectLaterality}
+              onHeightChange={setLateralityControlHeight}
+              onPressLabel={openLateralitySheet}
+              labelRef={lateralityLabelRef}
+              statusSlot={
+                deckStatusMessage != null ? (
+                  <DeckStatusLine message={deckStatusMessage} />
+                ) : undefined
+              }
+            />
+            {complexityCue ? (
+              <View
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                pointerEvents="none"
+              >
+                <ComplexityCue
+                  grade={complexityCue.grade}
+                  token={complexityCue.token}
+                  holdMs={complexityCue.holdMs}
+                  onHidden={dismissComplexityCue}
+                />
+              </View>
+            ) : showSessionComplexityMark ? (
+              <View
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                pointerEvents="none"
+              >
+                <ComplexitySessionMark grade={complexity} />
+              </View>
+            ) : null}
+          </View>
+        );
+        const a11yHide = lateralitySheetOpen ? 'no-hide-descendants' : 'auto';
+        // Scroll only when the assistive row is on (wrap 3+2) so laterality stays reachable.
+        // Keep a plain View for the default gesture shell so shared captures stay unchanged.
+        if (accessibleNavVisible) {
+          return (
+            <ScrollView
+              style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
+              contentContainerStyle={{ minHeight: usableHeight }}
+              testID="practice-column"
+              importantForAccessibility={a11yHide}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+              showsVerticalScrollIndicator
             >
-              <ComplexitySessionMark grade={complexity} />
-            </View>
-          ) : null}
-        </View>
-      </View>
+              {cardLateralityGroup}
+            </ScrollView>
+          );
+        }
+        return (
+          <View
+            style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
+            testID="practice-column"
+            importantForAccessibility={a11yHide}
+          >
+            {cardLateralityGroup}
+          </View>
+        );
+      })()}
       <LateralitySheet
         visible={lateralitySheetOpen}
         laterality={laterality}

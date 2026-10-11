@@ -248,12 +248,10 @@ export function a11yFocusRingCss(): string {
 [data-testid="a11y-nav-complexity-down"]:focus-visible,
 [data-testid="a11y-nav-flip"]:focus-visible,
 [data-testid="a11y-nav-complexity-up"]:focus-visible,
-[data-testid="a11y-nav-next"]:focus-visible {
-  outline: ${w}px solid ${A11Y_FOCUS_RING.onShell} !important;
-  outline-offset: ${o}px;
-}
+[data-testid="a11y-nav-next"]:focus-visible,
 [data-testid="card-a11y-surface"]:focus-visible {
-  outline: ${w}px solid ${A11Y_FOCUS_RING.onOrangeOrLight} !important;
+  /* Ring paints in the 2px gap on petrol shell — Paper, not Ink. */
+  outline: ${w}px solid ${A11Y_FOCUS_RING.onShell} !important;
   outline-offset: ${o}px;
 }
 `.trim();
