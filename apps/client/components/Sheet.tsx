@@ -224,6 +224,8 @@ export function Sheet({
               accessibilityRole="header"
               accessibilityLabel={title}
               testID={titleTestID}
+              // Hold invisible until header column width is known (m1: avoid 24×scale first paint).
+              style={titleWidth > 0 ? undefined : styles.titlePending}
               {...webTitleFocusProps}
             >
               <Text
@@ -310,6 +312,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: color.ink,
+  },
+  titlePending: {
+    opacity: 0,
   },
   /** Honour layout `\n` / `-\n`; never let the engine bare-split a word (Lz-31 ES). */
   titleWrap: {
