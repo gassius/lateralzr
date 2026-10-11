@@ -2,18 +2,26 @@ import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Platform } from 'react-native';
 import {
   keyEstablishesKeyboardModality,
+  shouldClearKeyboardModalityOnPointer,
+  shouldQueryScreenReaderForNav,
   shouldShowAccessibleNavRow,
 } from '@/lib/cardActions';
 
 /**
  * Optional assistive nav row: visible only when a screen reader is on or the
  * user is in keyboard modality (web focus-visible / key navigation).
+ * On web, screen-reader probing is skipped — RN-web always reports enabled.
  */
 export function useAccessibleNavVisible(): boolean {
   const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
   const [keyboardModality, setKeyboardModality] = useState(false);
 
   useEffect(() => {
+    if (!shouldQueryScreenReaderForNav(Platform.OS)) {
+      setScreenReaderEnabled(false);
+      return;
+    }
+
     let mounted = true;
     void AccessibilityInfo.isScreenReaderEnabled().then((enabled) => {
       if (mounted) setScreenReaderEnabled(enabled);
@@ -28,24 +36,30 @@ export function useAccessibleNavVisible(): boolean {
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (keyEstablishesKeyboardModality(event.key)) {
         setKeyboardModality(true);
       }
     };
-    const clearKeyboardModality = () => {
+    const onPointerOrTouch = (event: Event) => {
+      const row = document.querySelector('[data-testid="accessible-nav-row"]');
+      if (!shouldClearKeyboardModalityOnPointer(event.target, row)) {
+        return;
+      }
       setKeyboardModality(false);
     };
 
     window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('pointerdown', clearKeyboardModality, true);
-    window.addEventListener('touchstart', clearKeyboardModality, true);
+    window.addEventListener('pointerdown', onPointerOrTouch, true);
+    window.addEventListener('touchstart', onPointerOrTouch, true);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('pointerdown', clearKeyboardModality, true);
-      window.removeEventListener('touchstart', clearKeyboardModality, true);
+      window.removeEventListener('pointerdown', onPointerOrTouch, true);
+      window.removeEventListener('touchstart', onPointerOrTouch, true);
     };
   }, []);
 

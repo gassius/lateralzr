@@ -43,9 +43,13 @@ import {
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
+  buildCardAccessibilityActions,
   canRunCardAction,
-  CARD_ACCESSIBILITY_ACTION_DEFS,
-  cardActionFromAccessibilityName,
+  cardSurfaceIsAccessibleButton,
+  cardWebTabIndex,
+  ensureA11yFocusRingStyles,
+  resolveRunnableAccessibilityAction,
+  shouldHandleCardSurfaceKey,
   cardActionFromKey,
   complexityDirectionForAction,
   type CardAction,
@@ -585,45 +589,65 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   useImperativeHandle(ref, () => ({ runAction }), [runAction]);
 
+  const activeLocale = getActiveLocale();
   const accessibilityActions = useMemo(
-    () =>
-      CARD_ACCESSIBILITY_ACTION_DEFS.map((def) => ({
-        name: def.name,
-        label: t(def.labelKey),
-      })),
-    // Locale changes via t(); recompute when index/deck changes labels stay same keys.
-    [currentIndex, showDeckStatus],
+    () => buildCardAccessibilityActions(t),
+    // Labels must refresh when the catalog locale switches.
+    [activeLocale, currentIndex, showDeckStatus],
   );
 
   const onAccessibilityAction = useCallback(
     (event: AccessibilityActionEvent) => {
-      const action = cardActionFromAccessibilityName(event.nativeEvent.actionName);
+      const action = resolveRunnableAccessibilityAction(
+        event.nativeEvent.actionName,
+        actionGate(),
+      );
       if (action == null) return;
       runAction(action);
     },
-    [runAction],
+    [actionGate, runAction],
   );
 
   const onCardKeyDown = useCallback(
     (event: NativeSyntheticEvent<{ key: string }>) => {
+      const domEvent = event as unknown as {
+        target?: EventTarget | null;
+        currentTarget?: EventTarget | null;
+        preventDefault?: () => void;
+      };
+      // Nested controls (back-face Wikipedia link) must keep Enter/Space.
+      if (!shouldHandleCardSurfaceKey(domEvent.target, domEvent.currentTarget)) {
+        return;
+      }
       const key = event.nativeEvent.key;
       const action = cardActionFromKey(key);
       if (action == null) return;
-      // RN-web SyntheticEvent may expose preventDefault.
-      const native = event as unknown as { preventDefault?: () => void };
-      native.preventDefault?.();
+      domEvent.preventDefault?.();
       runAction(action);
     },
     [runAction],
   );
 
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web') ensureA11yFocusRingStyles();
+  }, []);
+
   const webCardFocusProps =
     Platform.OS === 'web'
       ? ({
-          tabIndex: showDeckStatus || sheetOpen ? -1 : 0,
+          tabIndex: cardWebTabIndex({
+            sheetOpen,
+            showDeckStatus,
+            currentIndex,
+          }),
           onKeyDown: onCardKeyDown,
         } as Record<string, unknown>)
       : {};
+
+  const surfaceIsButton = cardSurfaceIsAccessibleButton({
+    showDeckStatus,
+    flipped,
+  });
 
   const cancelCoachPeek = () => {
     'worklet';
@@ -912,16 +936,14 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             <View
               style={styles.a11ySurface}
               testID="card-a11y-surface"
-              accessible={!showDeckStatus}
-              accessibilityRole="button"
+              accessible={surfaceIsButton}
+              accessibilityRole={surfaceIsButton ? 'button' : undefined}
               accessibilityLabel={
-                showDeckStatus
-                  ? undefined
-                  : concepts[currentIndex]?.concept
+                surfaceIsButton ? concepts[currentIndex]?.concept : undefined
               }
-              accessibilityHint={showDeckStatus ? undefined : t('actionTurn')}
-              accessibilityActions={showDeckStatus ? undefined : accessibilityActions}
-              onAccessibilityAction={showDeckStatus ? undefined : onAccessibilityAction}
+              accessibilityHint={surfaceIsButton ? t('actionTurn') : undefined}
+              accessibilityActions={surfaceIsButton ? accessibilityActions : undefined}
+              onAccessibilityAction={surfaceIsButton ? onAccessibilityAction : undefined}
               accessibilityState={{
                 disabled: showDeckStatus || sheetOpen,
               }}
