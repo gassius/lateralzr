@@ -36,3 +36,10 @@ export function cardBackTitle(page: Page): Locator {
 export function cardFrontTitle(page: Page): Locator {
   return page.locator('[data-testid="card-front-title"]:visible').first();
 }
+
+/**
+ * Interactive front-of-stack pattern layer only (same expose flag as the title).
+ */
+export function cardFrontPattern(page: Page): Locator {
+  return page.locator('[data-testid="card-front-pattern"]').first();
+}

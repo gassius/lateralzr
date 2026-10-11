@@ -24,6 +24,12 @@ export function cardPadding(width: number): number {
     : layout.cardPadding;
 }
 
+/**
+ * Fallback face width before the first onLayout (letterboxed preview content
+ * ~301 + 20 px padding each side). Used for title measure + pattern scaling.
+ */
+export const CARD_FACE_FALLBACK_WIDTH = 341;
+
 /** Subdued cast shadow — no dark halo on shell `#082D3D` (Critiquito / `shadow.card`). */
 export const CARD_SHADOW = {
   shadowColor: shadow.card.color,
