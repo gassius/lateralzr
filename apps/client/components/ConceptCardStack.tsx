@@ -1,5 +1,22 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { AppState, type AppStateStatus, Platform, StyleSheet, View } from 'react-native';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  AppState,
+  type AccessibilityActionEvent,
+  type AppStateStatus,
+  type NativeSyntheticEvent,
+  Platform,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
@@ -26,6 +43,18 @@ import {
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
+  buildCardAccessibilityActions,
+  canRunCardAction,
+  cardSurfaceIsAccessibleButton,
+  cardWebTabIndex,
+  ensureA11yFocusRingStyles,
+  resolveRunnableAccessibilityAction,
+  shouldHandleCardSurfaceKey,
+  cardActionFromKey,
+  complexityDirectionForAction,
+  type CardAction,
+} from '@/lib/cardActions';
+import {
   SWIPE_EASING,
   SWIPE_RETURN_MS,
   cardSwipeFrontTransform,
@@ -50,6 +79,11 @@ import { getActiveLocale, t } from '@/lib/i18n';
 import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
 import { displayMediaUrl } from '@/lib/remoteImage';
 
+export type ConceptCardStackHandle = {
+  /** Run a non-swipe action through the same commit path as gestures. */
+  runAction: (action: CardAction) => void;
+};
+
 type ConceptCardStackProps = {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -67,6 +101,8 @@ type ConceptCardStackProps = {
   showInitialLoading?: boolean;
   loadMoreError: boolean;
   onRetryLoadMore: () => void;
+  /** Ignore keyboard / a11y card actions while a sheet is open. */
+  sheetOpen?: boolean;
   /** Lz-32: bind app-menu Replay to the coaching hook’s reset+refresh. */
   onReplayGestureTipsReady?: (replay: () => void) => void;
 };
@@ -76,7 +112,7 @@ const PAN_ACTIVE_OFFSET = 18;
 const BEHIND_PEEK_OFFSCREEN_X = -4096;
 const CARD_ASPECT = 1.4;
 
-export function ConceptCardStack({
+export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardStackProps>(function ConceptCardStack({
   concepts,
   currentIndex,
   complexity,
@@ -89,8 +125,9 @@ export function ConceptCardStack({
   showInitialLoading = false,
   loadMoreError,
   onRetryLoadMore,
+  sheetOpen = false,
   onReplayGestureTipsReady,
-}: ConceptCardStackProps) {
+}, ref) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const enterX = useSharedValue(0);
@@ -149,6 +186,11 @@ export function ConceptCardStack({
   useEffect(() => {
     flippedRef.current = flipped;
   }, [flipped]);
+
+  const sheetOpenRef = useRef(sheetOpen);
+  useEffect(() => {
+    sheetOpenRef.current = sheetOpen;
+  }, [sheetOpen]);
 
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
@@ -469,6 +511,179 @@ export function ConceptCardStack({
     if (next !== i) setBehindLockedIndex(next);
   }, [concepts.length]);
 
+  const actionGate = useCallback(
+    () => ({
+      currentIndex: currentIndexRef.current,
+      sheetOpen: sheetOpenRef.current,
+      animating: swipeAnimating.value,
+      showDeckStatus: showDeckStatusRef.current,
+    }),
+    [swipeAnimating],
+  );
+
+  /** Animate then call the same commit* helpers gestures use (respects Lz-34 RM). */
+  const animateThenCommit = useCallback(
+    (kind: 'next' | 'previous' | 'complexityUp' | 'complexityDown') => {
+      if (swipeAnimating.value) return;
+      swipeAnimating.value = true;
+      coachPeekX.value = 0;
+      flipPeek.value = 0;
+      const rm = reduceMotion;
+      const commitMs = swipeCommitDurationMs(rm);
+      const slide = swipeShouldSlideOutOnCommit(rm);
+
+      if (kind === 'previous') {
+        lockReturnOverlayIndexForRightCommit();
+        if (!slide) {
+          translateX.value = 0;
+          translateY.value = 0;
+          frontCommitOpacity.value = 1;
+          peerCommitOpacity.value = 0;
+          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (finished) runOnJS(commitSwipeRight)();
+          });
+          return;
+        }
+        const w = Math.max(1, cardWidthSV.value);
+        translateX.value = withTiming(w, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          if (finished) runOnJS(commitSwipeRight)();
+        });
+        return;
+      }
+
+      lockBehindIndexForLeftCommit();
+      if (kind === 'next') {
+        if (!slide) {
+          translateX.value = 0;
+          translateY.value = 0;
+          frontCommitOpacity.value = 1;
+          peerCommitOpacity.value = 0;
+          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (finished) runOnJS(commitSwipeLeft)();
+          });
+          return;
+        }
+        const w = Math.max(1, cardWidthSV.value);
+        translateX.value = withTiming(-(w + 120), { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          if (finished) runOnJS(commitSwipeLeft)();
+        });
+        return;
+      }
+
+      const vertical = complexityDirectionForAction(kind);
+      if (!slide) {
+        translateX.value = 0;
+        translateY.value = 0;
+        frontCommitOpacity.value = 1;
+        peerCommitOpacity.value = 0;
+        frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+        peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          if (finished) runOnJS(commitSwipeVertical)(vertical);
+        });
+        return;
+      }
+      const h = Math.max(1, cardHeightSV.value);
+      const target = vertical === 'up' ? -(h + 140) : h + 140;
+      translateY.value = withTiming(target, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+        if (finished) runOnJS(commitSwipeVertical)(vertical);
+      });
+    },
+    [
+      commitSwipeLeft,
+      commitSwipeRight,
+      commitSwipeVertical,
+      lockBehindIndexForLeftCommit,
+      lockReturnOverlayIndexForRightCommit,
+      reduceMotion,
+      cardWidthSV,
+      cardHeightSV,
+      coachPeekX,
+      flipPeek,
+      frontCommitOpacity,
+      peerCommitOpacity,
+      swipeAnimating,
+      translateX,
+      translateY,
+    ],
+  );
+
+  const runAction = useCallback(
+    (action: CardAction) => {
+      if (!canRunCardAction(action, actionGate())) return;
+      noteInteraction();
+      if (action === 'flip') {
+        toggleFlip();
+        return;
+      }
+      animateThenCommit(action);
+    },
+    [actionGate, animateThenCommit, noteInteraction, toggleFlip],
+  );
+
+  useImperativeHandle(ref, () => ({ runAction }), [runAction]);
+
+  const activeLocale = getActiveLocale();
+  const accessibilityActions = useMemo(
+    () => buildCardAccessibilityActions(t),
+    // Labels must refresh when the catalog locale switches.
+    [activeLocale, currentIndex, showDeckStatus],
+  );
+
+  const onAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      const action = resolveRunnableAccessibilityAction(
+        event.nativeEvent.actionName,
+        actionGate(),
+      );
+      if (action == null) return;
+      runAction(action);
+    },
+    [actionGate, runAction],
+  );
+
+  const onCardKeyDown = useCallback(
+    (event: NativeSyntheticEvent<{ key: string }>) => {
+      const domEvent = event as unknown as {
+        target?: EventTarget | null;
+        currentTarget?: EventTarget | null;
+        preventDefault?: () => void;
+      };
+      // Nested controls (back-face Wikipedia link) must keep Enter/Space.
+      if (!shouldHandleCardSurfaceKey(domEvent.target, domEvent.currentTarget)) {
+        return;
+      }
+      const key = event.nativeEvent.key;
+      const action = cardActionFromKey(key);
+      if (action == null) return;
+      domEvent.preventDefault?.();
+      runAction(action);
+    },
+    [runAction],
+  );
+
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web') ensureA11yFocusRingStyles();
+  }, []);
+
+  const webCardFocusProps =
+    Platform.OS === 'web'
+      ? ({
+          tabIndex: cardWebTabIndex({
+            sheetOpen,
+            showDeckStatus,
+            currentIndex,
+          }),
+          onKeyDown: onCardKeyDown,
+        } as Record<string, unknown>)
+      : {};
+
+  const surfaceIsButton = cardSurfaceIsAccessibleButton({
+    showDeckStatus,
+    flipped,
+  });
+
   const cancelCoachPeek = () => {
     'worklet';
     coachPeekX.value = 0;
@@ -779,26 +994,43 @@ export function ConceptCardStack({
             key={showDeckStatus ? `deck-${deckStatusVariant}-${currentIndex}` : 'front-card'}
             style={[styles.frontWrap, frontAnimatedStyle]}
           >
-            {showDeckStatus ? (
-              deckStatusVariant === 'loading' ? (
-                <LoadingCard />
+            <View
+              style={styles.a11ySurface}
+              testID="card-a11y-surface"
+              accessible={surfaceIsButton}
+              accessibilityRole={surfaceIsButton ? 'button' : undefined}
+              accessibilityLabel={
+                surfaceIsButton ? concepts[currentIndex]?.concept : undefined
+              }
+              accessibilityHint={surfaceIsButton ? t('actionTurn') : undefined}
+              accessibilityActions={surfaceIsButton ? accessibilityActions : undefined}
+              onAccessibilityAction={surfaceIsButton ? onAccessibilityAction : undefined}
+              accessibilityState={{
+                disabled: showDeckStatus || sheetOpen,
+              }}
+              {...webCardFocusProps}
+            >
+              {showDeckStatus ? (
+                deckStatusVariant === 'loading' ? (
+                  <LoadingCard />
+                ) : (
+                  <DeckStatusCard variant="error" onRetry={onRetryLoadMore} />
+                )
               ) : (
-                <DeckStatusCard variant="error" onRetry={onRetryLoadMore} />
-              )
-            ) : (
-              <ConceptCardForIndex
-                concepts={concepts}
-                currentIndex={currentIndex}
-                flipped={flipped}
-                reduceMotion={reduceMotion}
-                preloadedMediaUrls={preloadedMediaUrls}
-                coachHint={coach ? t(coachMessageKey(coach)) : null}
-                animateCoachAppear={peekEnabled}
-                flipPeek={flipPeek}
-                exposeFrontTitleTestId
-                onBackInteractivePress={noteBackInteractivePress}
-              />
-            )}
+                <ConceptCardForIndex
+                  concepts={concepts}
+                  currentIndex={currentIndex}
+                  flipped={flipped}
+                  reduceMotion={reduceMotion}
+                  preloadedMediaUrls={preloadedMediaUrls}
+                  coachHint={coach ? t(coachMessageKey(coach)) : null}
+                  animateCoachAppear={peekEnabled}
+                  flipPeek={flipPeek}
+                  exposeFrontTitleTestId
+                  onBackInteractivePress={noteBackInteractivePress}
+                />
+              )}
+            </View>
           </Animated.View>
 
           {showReturnOverlay ? (
@@ -820,7 +1052,7 @@ export function ConceptCardStack({
       </View>
     </View>
   );
-}
+});
 
 function ConceptCardForIndex({
   concepts,
@@ -899,6 +1131,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 2,
+  },
+  a11ySurface: {
+    ...StyleSheet.absoluteFillObject,
   },
   returnOverlay: {
     position: 'absolute',
