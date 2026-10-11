@@ -54,41 +54,54 @@ test.describe('laterality bar', () => {
     await relationshipsWithFive;
   });
 
-  test('label wraps without truncation at 200% text on 320-wide chrome', async ({ page }, testInfo) => {
-    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en&e2eTextScale=2');
-    const label = page.getByTestId('laterality-label');
-    await expect(label).toBeVisible();
-    const text = await label.innerText();
-    expect(text).toMatch(/Laterality/);
-    expect(text).toMatch(/Abstract bridge/);
-    expect(text).not.toMatch(/\.\.\.|…/);
-    const truncated = await label.evaluate((el) => {
-      const style = getComputedStyle(el);
-      return (
-        style.textOverflow === 'ellipsis' ||
-        el.scrollWidth > el.clientWidth + 1
+  for (const locale of ['en', 'es'] as const) {
+    const labelParts =
+      locale === 'es'
+        ? { prefix: /Lateralidad/, grade: /Puente abstracto/ }
+        : { prefix: /Laterality/, grade: /Abstract bridge/ };
+
+    test(`label wraps without truncation at 200% text (${locale})`, async ({
+      page,
+    }, testInfo) => {
+      await openApp(
+        page,
+        `canonicalConcept=mushroom&laterality=3&locale=${locale}&e2eTextScale=2`,
       );
-    });
-    expect(truncated).toBe(false);
+      const label = page.getByTestId('laterality-label');
+      await expect(label).toBeVisible();
+      const text = await label.innerText();
+      expect(text).toMatch(labelParts.prefix);
+      expect(text).toMatch(labelParts.grade);
+      expect(text).not.toMatch(/\.\.\.|…/);
+      const truncated = await label.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return (
+          style.textOverflow === 'ellipsis' ||
+          el.scrollWidth > el.clientWidth + 1
+        );
+      });
+      expect(truncated).toBe(false);
 
-    // Chevron must ride the last wrapped line (not a mid-stack orphan).
-    const chevron = page.getByTestId('laterality-label-chevron');
-    await expect(chevron).toBeVisible();
-    const labelBox = await label.boundingBox();
-    const chevronBox = await chevron.boundingBox();
-    expect(labelBox, 'laterality-label box').toBeTruthy();
-    expect(chevronBox, 'laterality-label-chevron box').toBeTruthy();
-    if (!labelBox || !chevronBox) throw new Error('missing label/chevron boxes');
-    expect(labelBox.height).toBeGreaterThan(chevronBox.height * 1.5);
-    const chevronMidY = chevronBox.y + chevronBox.height / 2;
-    const labelMidY = labelBox.y + labelBox.height / 2;
-    // Last-line placement: chevron centre sits below the label's vertical mid.
-    expect(chevronMidY).toBeGreaterThan(labelMidY);
+      // Chevron must ride the last wrapped line (not a mid-stack orphan).
+      // ES "Lateralidad · Puente abstracto" is the longer label — most likely to wrap at 320×200%.
+      const chevron = page.getByTestId('laterality-label-chevron');
+      await expect(chevron).toBeVisible();
+      const labelBox = await label.boundingBox();
+      const chevronBox = await chevron.boundingBox();
+      expect(labelBox, 'laterality-label box').toBeTruthy();
+      expect(chevronBox, 'laterality-label-chevron box').toBeTruthy();
+      if (!labelBox || !chevronBox) throw new Error('missing label/chevron boxes');
+      expect(labelBox.height).toBeGreaterThan(chevronBox.height * 1.5);
+      const chevronMidY = chevronBox.y + chevronBox.height / 2;
+      const labelMidY = labelBox.y + labelBox.height / 2;
+      // Last-line placement: chevron centre sits below the label's vertical mid.
+      expect(chevronMidY).toBeGreaterThan(labelMidY);
 
-    await capture(page, testInfo, {
-      screen: 'laterality-bar',
-      state: 'wrap-200',
-      locale: 'en',
+      await capture(page, testInfo, {
+        screen: 'laterality-bar',
+        state: 'wrap-200',
+        locale,
+      });
     });
-  });
+  }
 });
