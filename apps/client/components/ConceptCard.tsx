@@ -47,17 +47,23 @@ import {
 } from '@/lib/cardLayout';
 import { conceptKey } from '@/lib/conceptDeck';
 import {
+  CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
+  CONCEPT_FRONT_TITLE_MAX_LINES,
   CONCEPT_FRONT_TITLE_MIN_ON_ORANGE,
   CONCEPT_FRONT_TITLE_TEXT_ALIGN,
   NATIVE_TITLE_MEASURE_FALLBACK_MS,
   applyNativeTitleTextLayoutOnce,
+  conceptFrontTitleBlockHeight,
+  conceptFrontTitleBottomSpacerMinHeight,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
+  conceptFrontTitleOverflowTopSpacerHeight,
   conceptFrontTitleRenderedSize,
   conceptFrontTitleTopSpacerHeight,
+  conceptFrontTitleViewportBlockHeight,
   getCachedNativeTitleLayout,
   layoutConceptFrontTitle,
   measureConceptFrontTitleWidth,
@@ -251,7 +257,15 @@ export function ConceptCard({
   const frontTitleColor = titleColor(
     conceptFrontTitleRenderedSize(frontTitleLayout.fontSize, measureFontScale),
   );
-  const frontNeedsScroll = frontFaceH > 0 && frontContentH > frontFaceH + 0.5;
+  /**
+   * Scroll viewport ≈ face box minus padding. Spacer math and scroll-enable
+   * must use this (not outer face height) so a band of ~2·facePad does not
+   * leave overflow clipped with scrolling disabled (B2 / #95).
+   */
+  const frontContentFaceH =
+    frontFaceH > 0 ? Math.max(0, frontFaceH - facePad * 2) : 0;
+  const frontNeedsScroll =
+    frontContentFaceH > 0 && frontContentH > frontContentFaceH + 0.5;
   const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
@@ -321,11 +335,18 @@ export function ConceptCard({
   const patternFaceWidth = faceWidth > 0 ? faceWidth : CARD_FACE_FALLBACK_WIDTH;
   const patternFaceHeight = frontFaceH > 0 ? frontFaceH : Math.round(patternFaceWidth * (560 / 358));
   const titleLineCount = conceptFrontTitleLineCount(frontTitleLayout.displayText);
-  const titleBlockH = titleLineCount * displayLineHeight;
-  /** Prefer lower-middle anchor; shrink so long titles rise and never clip. */
+  const titleBlockH = conceptFrontTitleBlockHeight(frontTitleLayout, e2eScale);
+  const titleViewportH = conceptFrontTitleViewportBlockHeight(frontTitleLayout, e2eScale);
+  /**
+   * AD #95: when overflowFallback exceeds max lines, size the top spacer so the
+   * initial viewport shows at most 4 whole title lines; face scrolls for the rest.
+   * ≤4 lines keep the lower-middle anchor against the full block height.
+   */
   const frontTopSpacerH =
-    frontFaceH > 0
-      ? conceptFrontTitleTopSpacerHeight(frontFaceH, titleBlockH)
+    frontContentFaceH > 0
+      ? titleLineCount > CONCEPT_FRONT_TITLE_MAX_LINES
+        ? conceptFrontTitleOverflowTopSpacerHeight(frontContentFaceH, titleViewportH)
+        : conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
    * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
@@ -341,7 +362,24 @@ export function ConceptCard({
           height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
         }
       : null;
-  const patternVariantOverride = readJourneyTestParams().patternVariant ?? null;
+  const journeyTestParams = readJourneyTestParams();
+  const patternVariantOverride = journeyTestParams.patternVariant ?? null;
+  /**
+   * Test-only `?e2ePadBand=1`: force content height to contentFace + facePad so it
+   * lands in frontContentFaceH < content ≤ frontFaceH (B2 band), font-independent.
+   */
+  const e2ePadBandExtra =
+    journeyTestParams.e2ePadBand && frontContentFaceH > 0 ? facePad : 0;
+  const frontBottomSpacerMinH =
+    frontContentFaceH > 0 && frontTopSpacerH != null
+      ? conceptFrontTitleBottomSpacerMinHeight(
+          frontContentFaceH,
+          titleBlockH,
+          frontTopSpacerH,
+        )
+      : CONCEPT_FRONT_TITLE_BOTTOM_RESERVE;
+  const frontScrollMinH =
+    frontContentFaceH > 0 ? frontContentFaceH + e2ePadBandExtra : 0;
 
   const front = (
     <View
@@ -361,7 +399,7 @@ export function ConceptCard({
         style={styles.frontScroll}
         contentContainerStyle={[
           styles.frontScrollContent,
-          frontFaceH > 0 ? { minHeight: frontFaceH } : null,
+          frontScrollMinH > 0 ? { minHeight: frontScrollMinH } : null,
         ]}
         scrollEnabled={frontNeedsScroll}
         showsVerticalScrollIndicator={false}
@@ -369,7 +407,12 @@ export function ConceptCard({
         testID="card-front-scroll"
       >
         <View
-          style={styles.frontColumn}
+          style={[
+            styles.frontColumn,
+            e2ePadBandExtra > 0 && frontScrollMinH > 0
+              ? { minHeight: frontScrollMinH }
+              : null,
+          ]}
           onLayout={(event) => {
             const next = event.nativeEvent.layout.height;
             setFrontContentH((prev) => (Math.abs(prev - next) < 0.5 ? prev : next));
@@ -454,7 +497,18 @@ export function ConceptCard({
           >
             {frontTitleLayout.displayText}
           </Text>
-          <View style={styles.frontTitleBottomSpacer} />
+          <View
+            style={[
+              styles.frontTitleBottomSpacer,
+              { minHeight: frontBottomSpacerMinH },
+            ]}
+          />
+          {e2ePadBandExtra > 0 ? (
+            <View
+              testID={exposeFrontTitleTestId ? 'card-front-pad-band-end' : undefined}
+              style={{ width: 1, height: 1, opacity: 0 }}
+            />
+          ) : null}
         </View>
       </ScrollView>
       {coachHint ? (
@@ -885,10 +939,9 @@ const styles = StyleSheet.create({
     width: 4096,
     zIndex: -1,
   },
-  /** Room below short titles; long titles grow into this then the face scrolls. */
+  /** Room below short titles; long titles collapse minHeight then the face scrolls. */
   frontTitleBottomSpacer: {
     flexGrow: 1,
-    minHeight: 48,
     width: '100%',
   },
   conceptNameFront: {

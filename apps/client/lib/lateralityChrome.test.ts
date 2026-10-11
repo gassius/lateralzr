@@ -12,6 +12,7 @@ import {
   lateralityCardGap,
   lateralityChromeReserve,
   MIN_CARD_AREA_HEIGHT,
+  STATUS_SLOT_MIN_WIDTH,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
 
@@ -89,5 +90,11 @@ describe('laterality chrome grouping', () => {
   it('pins the minimum row width to WEB_PHONE_MIN_WIDTH', () => {
     assert.equal(WEB_PHONE_MIN_WIDTH, 320);
     assert.equal(LATERALITY_BAR_MIN_ROW_WIDTH, WEB_PHONE_MIN_WIDTH);
+  });
+
+  it('pins a status-slot minimum that word-wraps meta at 200% text', () => {
+    // Longest EN/ES status word ≈ 8 glyphs; meta×2 ≈ 26px → ~120px floor.
+    assert.equal(STATUS_SLOT_MIN_WIDTH, 120);
+    assert.ok(STATUS_SLOT_MIN_WIDTH * 2 + 8 <= LATERALITY_BAR_MIN_ROW_WIDTH);
   });
 });

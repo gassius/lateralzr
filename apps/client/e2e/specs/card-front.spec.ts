@@ -26,7 +26,7 @@ test.describe('card front', () => {
 
     // Art director §7.3 / Lz-26: ≤4 lines by shrinking toward 24; long titles rise
     // from the lower-middle anchor so "framework" is never clipped at 100% text.
-    // 320 EN lands at ~24 px / 4 lines; 390 ~29 px / 4 lines.
+    // 320 EN lands at ~24 px / ≤4 lines when width allows; else face scrolls.
     const lines = text.split('\n').filter((line) => line.trim().length > 0);
     expect(text.replace(/\n/g, '')).toMatch(/framework/i);
     expect(lines.length).toBeLessThanOrEqual(4);

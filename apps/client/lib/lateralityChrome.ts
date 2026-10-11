@@ -26,6 +26,14 @@ export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
 /** Narrowest phone chrome the bar must fit (WEB_PHONE_MIN_WIDTH / iPhone SE). */
 export const LATERALITY_BAR_MIN_ROW_WIDTH = 320;
 
+/**
+ * Minimum width for the Lz-35 status slot on the laterality label row.
+ * Keeps meta copy word-wrapping (not one glyph per line) at 200% text;
+ * when status + label cannot share one row, the row wraps and status stacks above.
+ * ~longest status word at meta×2 ("starting" / "Buscando").
+ */
+export const STATUS_SLOT_MIN_WIDTH = 120;
+
 /** Top inset on the card stack (above the card, not in the card–row gap). */
 export const CARD_STACK_PADDING_TOP = 8;
 

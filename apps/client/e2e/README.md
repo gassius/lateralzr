@@ -40,9 +40,16 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 4. Create `e2e/specs/<screen>.spec.ts`. Use `openApp(page, query)` then `capture(page, testInfo, { screen, state, locale })`.
 5. Add the spec only when the UI exists — do not leave always-skipped placeholders.
 
+### Logo / status (Lz-23 / Lz-35)
+
+- `logo_lockup-on-orange_*` — animated intro lockup on orange at boot (same as main; held for `MIN_INTRO_LOGO_MS`)
+- Empty-deck error still shows the static lockup on orange (asserted in `logo.spec.ts`)
+- `status_loading-initial_*` — quiet silhouette + `findingStart` after intro (delayed first fetch)
+- `status_loading_*` — quiet silhouette + `loadingMoreIdeas` at end-of-deck
+
 ### Typography (Lz-22)
 
-- `typography_status-body_*` — DeckStatusCard loading caption at body scale (v3.3 `type.body`)
+- `typography_status-meta_*` — deck status line at meta scale (v3.3 `type.meta`, Lz-35)
 - `typography_large-text-200_*` — practice chrome with test-only `?e2eTextScale=2` (joint fontSize+lineHeight; full frame, not CSS zoom)
 
 ### Card front title (Lz-26)
@@ -51,6 +58,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
 - Spec strings: `card-front_tide_*`, `card-front_collective-intelligence_*`, `card-front_intergenerational_*`
 - `typography_long-label-200_*` — long front at `?e2eTextScale=2`
+- `typography` pad-band @ 320 (`?e2ePadBand=1` on short title) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + end-marker reachability
 - Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
@@ -62,7 +70,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
   - `card-front_pattern-01-descending_*` — `mushroom&patternVariant=1`
   - `card-front_pattern-02-ascending_*` — `tide&patternVariant=2`
   - `card-front_pattern-03-edge_*` — `mushroom&patternVariant=3`
-  - `card-front_pattern-clear-200_320x568_en` — long-label @ `e2eTextScale=2`; asserts no motif in title+16
+  - `card-front_pattern-clear-200_320x568_en` / `_es` — long-label @ `e2eTextScale=2`, resting scrollTop 0; asserts no motif in title+16
 - Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
 ### Laterality sheet (Lz-31)
