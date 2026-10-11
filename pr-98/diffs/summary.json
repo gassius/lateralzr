@@ -517,11 +517,11 @@
   },
   {
     "file": "laterality-bar_grade-1_1280x800_en.png",
-    "ratio": 0.01558984375,
-    "percent": 1.558984375,
+    "ratio": 0.016397216796875,
+    "percent": 1.6397216796874998,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 63856,
+    "mismatchedPixels": 67163,
     "diffImage": "laterality-bar_grade-1_1280x800_en.diff.png"
   },
   {
@@ -571,11 +571,11 @@
   },
   {
     "file": "laterality-bar_grade-1_430x932_en.png",
-    "ratio": 0.05647332568120571,
-    "percent": 5.647332568120571,
+    "ratio": 0.05925491566024553,
+    "percent": 5.925491566024553,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 90529,
+    "mismatchedPixels": 94988,
     "diffImage": "laterality-bar_grade-1_430x932_en.diff.png"
   },
   {
@@ -589,11 +589,11 @@
   },
   {
     "file": "laterality-bar_grade-3_1280x800_en.png",
-    "ratio": 0.01558984375,
-    "percent": 1.558984375,
+    "ratio": 0.016397216796875,
+    "percent": 1.6397216796874998,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 63856,
+    "mismatchedPixels": 67163,
     "diffImage": "laterality-bar_grade-3_1280x800_en.diff.png"
   },
   {
