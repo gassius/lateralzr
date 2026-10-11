@@ -58,17 +58,17 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
 /** About lockup width on paper (guide §5.3 / Lz-47). */
 export const ABOUT_LOGO_WIDTH = 160;
 
-/** v3.3: Language + About + Replay gesture tips. */
+/** Language + Complexity + About + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
   language: true,
-  complexity: false,
+  complexity: true,
   motion: false,
   about: true,
   replayTips: true,
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root' | 'language' | 'about';
+export type AppMenuView = 'root' | 'language' | 'complexity' | 'about';
 
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
@@ -96,8 +96,7 @@ export function appMenuRowA11yLabel(
   translate: (key: MessageKey) => string,
 ): string {
   const label = translate(row.labelKey);
-  const value =
-    row.value ?? (row.valueKey != null ? translate(row.valueKey) : null);
+  const value = row.value ?? (row.valueKey != null ? translate(row.valueKey) : null);
   if (value == null) return label;
   return `${label}, ${value}`;
 }

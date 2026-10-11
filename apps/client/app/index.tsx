@@ -751,6 +751,26 @@ export default function HomeScreen() {
     [announceComplexity, prefetchComplexityTree],
   );
 
+  /**
+   * Menu Complexity picker (Lz-45): same state as vertical swipe, but keep the
+   * current card — do not advance currentIndex.
+   */
+  const onSelectComplexity = useCallback(
+    (grade: number) => {
+      const next = clampComplexity(grade);
+      if (next === complexityRef.current) {
+        void persistComplexity(next);
+        void prefetchComplexityTree(next);
+        return;
+      }
+      complexityRef.current = next;
+      setComplexity(next);
+      void persistComplexity(next);
+      void prefetchComplexityTree(next);
+    },
+    [prefetchComplexityTree],
+  );
+
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
   /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
   const deckSlotState = resolveDeckSlotState({
@@ -970,6 +990,8 @@ export default function HomeScreen() {
         onReplayGestureTips={onReplayGestureTips}
         locale={locale}
         onSelectLocale={onSelectLocale}
+        currentComplexity={complexity}
+        onSelectComplexity={onSelectComplexity}
         returnFocusRef={appMenuTriggerRef}
       />
     </View>

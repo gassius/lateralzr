@@ -29,6 +29,12 @@ import {
   type AppMenuView,
 } from '@/lib/appMenu';
 import { readAppVersion } from '@/lib/appVersion';
+import { complexityCueText } from '@/lib/complexityFeedback';
+import {
+  COMPLEXITY_MENU_ROW_MIN_HEIGHT,
+  complexityMenuCommitValue,
+  complexityMenuRows,
+} from '@/lib/complexityMenu';
 import {
   localeDisplayKey,
   SUPPORTED_LOCALES,
@@ -57,6 +63,10 @@ type AppMenuSheetProps = {
   locale: AppLocale;
   /** Persist + apply a new locale; keep current card/history. */
   onSelectLocale: (locale: AppLocale) => void;
+  /** Current complexity grade (1–5); drives the Complexity row value + picker. */
+  currentComplexity: number;
+  /** Persist + apply grade for the next move; must not advance the deck. */
+  onSelectComplexity: (grade: number) => void;
   returnFocusRef?: RefObject<ViewType | null>;
   features?: AppMenuFeatures;
 };
@@ -91,7 +101,7 @@ function ChevronLeft({ stroke }: { stroke: string }) {
   );
 }
 
-function LanguageRadio({ checked }: { checked: boolean }) {
+function MenuRadio({ checked }: { checked: boolean }) {
   return (
     <View
       style={[
@@ -210,8 +220,8 @@ function AppMenuAboutView({ onBack }: { onBack: () => void }) {
 }
 
 /**
- * General app menu sheet (guide §12.2). Language picker (Lz-44) + About (Lz-47)
- * + Replay tips; later rows (Lz-45…46) plug into the same row model.
+ * General app menu sheet (guide §12.2). Language (Lz-44), Complexity (Lz-45),
+ * About (Lz-47), and Replay tips share one sheet with in-sheet views.
  */
 export function AppMenuSheet({
   visible,
@@ -219,30 +229,47 @@ export function AppMenuSheet({
   onReplayGestureTips,
   locale,
   onSelectLocale,
+  currentComplexity,
+  onSelectComplexity,
   returnFocusRef,
   features = DEFAULT_APP_MENU_FEATURES,
 }: AppMenuSheetProps) {
   const [view, setView] = useState<AppMenuView>('root');
   const languageRowRef = useRef<ViewType | null>(null);
+  const complexityRowRef = useRef<ViewType | null>(null);
   const languageBackRef = useRef<ViewType | null>(null);
+  const complexityValue = complexityCueText(currentComplexity);
+  const pickerRows = useMemo(
+    () => complexityMenuRows(currentComplexity),
+    [currentComplexity],
+  );
 
   const rows = useMemo(
     () =>
       withAppMenuRowPress(visibleAppMenuRows(features), {
         language: () => setView('language'),
+        complexity: () => setView('complexity'),
         about: () => setView('about'),
         replayTips: () => {
           onReplayGestureTips();
           onDismiss();
         },
       }).map((row) => {
-        if (row.key !== 'language') return row;
-        return {
-          ...row,
-          valueKey: localeDisplayKey(locale),
-        };
+        if (row.key === 'language') {
+          return {
+            ...row,
+            valueKey: localeDisplayKey(locale),
+          };
+        }
+        if (row.key === 'complexity') {
+          return {
+            ...row,
+            value: complexityValue,
+          };
+        }
+        return row;
       }),
-    [features, locale, onDismiss, onReplayGestureTips],
+    [complexityValue, features, locale, onDismiss, onReplayGestureTips],
   );
 
   useEffect(() => {
@@ -265,19 +292,28 @@ export function AppMenuSheet({
     if (row.opensView && row.key === 'language') {
       setView('language');
     }
+    if (row.opensView && row.key === 'complexity') {
+      setView('complexity');
+    }
     if (row.opensView && row.key === 'about') {
       setView('about');
     }
   };
 
   const goBackToRoot = () => {
+    const returnRef = view === 'complexity' ? complexityRowRef : languageRowRef;
     setView('root');
-    // Best-effort: return focus to the Language row after the view swaps.
-    requestAnimationFrame(() => focusSheetHost(languageRowRef));
+    requestAnimationFrame(() => focusSheetHost(returnRef));
   };
 
   const sheetTitle =
-    view === 'language' ? t('menuLanguage') : view === 'about' ? t('menuAbout') : t('menuTitle');
+    view === 'language'
+      ? t('menuLanguage')
+      : view === 'complexity'
+        ? t('menuComplexity')
+        : view === 'about'
+          ? t('menuAbout')
+          : t('menuTitle');
 
   return (
     <Sheet
@@ -288,6 +324,9 @@ export function AppMenuSheet({
       titleTestID="app-menu-title"
       closeTestID="app-menu-close"
       returnFocusRef={returnFocusRef}
+      onBack={view === 'complexity' ? goBackToRoot : undefined}
+      backAccessibilityLabel={t('menuTitle')}
+      backTestID="app-menu-back"
     >
       {view === 'root' ? (
         <View style={styles.list} testID="app-menu-rows">
@@ -297,7 +336,13 @@ export function AppMenuSheet({
               row={row}
               showDivider={index > 0}
               onPress={() => onRowPress(row)}
-              rowRef={row.key === 'language' ? languageRowRef : undefined}
+              rowRef={
+                row.key === 'language'
+                  ? languageRowRef
+                  : row.key === 'complexity'
+                    ? complexityRowRef
+                    : undefined
+              }
             />
           ))}
         </View>
@@ -313,7 +358,7 @@ export function AppMenuSheet({
               onPress={goBackToRoot}
               accessibilityRole="button"
               accessibilityLabel={t('back')}
-              testID="app-menu-back"
+              testID="app-menu-language-back"
               style={({ pressed }) => [styles.backRow, pressed ? styles.rowPressed : null]}
             >
               <Text style={[styles.backLabel, textStyle('row')]}>{t('back')}</Text>
@@ -337,7 +382,7 @@ export function AppMenuSheet({
                     pressed ? styles.rowPressed : null,
                   ]}
                 >
-                  <LanguageRadio checked={checked} />
+                  <MenuRadio checked={checked} />
                   <Text
                     style={[
                       styles.languageRowLabel,
@@ -352,6 +397,45 @@ export function AppMenuSheet({
             })}
           </View>
         </View>
+      ) : null}
+      {view === 'complexity' ? (
+        <ScrollView
+          style={styles.pickerList}
+          contentContainerStyle={styles.pickerListContent}
+          keyboardShouldPersistTaps="handled"
+          testID="app-menu-complexity-rows"
+        >
+          {pickerRows.map((row) => (
+            <Pressable
+              key={row.grade}
+              onPress={() => {
+                onSelectComplexity(complexityMenuCommitValue(row.grade));
+                setView('root');
+                requestAnimationFrame(() => focusSheetHost(complexityRowRef));
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: row.checked }}
+              accessibilityLabel={row.a11yLabel}
+              testID={`app-menu-complexity-row-${row.grade}`}
+              style={({ pressed }) => [
+                styles.pickerRow,
+                row.checked ? styles.pickerRowSelected : null,
+                pressed ? styles.rowPressed : null,
+              ]}
+            >
+              <MenuRadio checked={row.checked} />
+              <Text
+                style={[
+                  styles.pickerRowLabel,
+                  textStyle('row'),
+                  row.checked ? styles.pickerRowLabelSelected : null,
+                ]}
+              >
+                {row.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       ) : null}
       {view === 'about' ? <AppMenuAboutView onBack={() => setView('root')} /> : null}
     </Sheet>
@@ -484,6 +568,36 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   aboutBackLabel: {
+    color: color.ink,
+  },
+  /** Match LateralitySheet radio list geometry. */
+  pickerList: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  pickerListContent: {
+    paddingBottom: 8,
+    gap: 4,
+    flexGrow: 1,
+  },
+  pickerRow: {
+    minHeight: COMPLEXITY_MENU_ROW_MIN_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  pickerRowSelected: {
+    backgroundColor: color.selectedSoft,
+  },
+  pickerRowLabel: {
+    flex: 1,
+    color: color.ink,
+  },
+  pickerRowLabelSelected: {
     color: color.ink,
   },
 });
