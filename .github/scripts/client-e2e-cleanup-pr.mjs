@@ -30,6 +30,13 @@ function sh(cmd, cwd) {
   execSync(cmd, { cwd, stdio: 'inherit', env: process.env });
 }
 
+/** Rewrite apps/client/vercel.json so Vercel never builds previews from this orphan. */
+function ensureOrphanVercelJson(workRoot) {
+  const dest = path.join(workRoot, 'apps', 'client', 'vercel.json');
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, '{"git":{"deploymentEnabled":false}}\n');
+}
+
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-cleanup-'));
 const remote = `https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git`;
 
@@ -57,14 +64,19 @@ if (fs.existsSync(legacy)) {
   removed = true;
 }
 
+// Preserve/rewrite disable file — orphan pushes must never wipe it.
+ensureOrphanVercelJson(work);
+
 if (!removed) {
   console.log(`No ${prDirName}/ (or legacy) folder on orphan branch.`);
-  process.exit(0);
 }
 
 sh('git add -A', work);
+const commitMsg = removed
+  ? `chore(e2e): remove ${prDirName} after PR #${pr.number} closed`
+  : 'chore(e2e): restore apps/client/vercel.json on e2e-screenshots';
 try {
-  sh(`git commit -m "chore(e2e): remove ${prDirName} after PR #${pr.number} closed"`, work);
+  sh(`git commit -m "${commitMsg}"`, work);
 } catch {
   console.log('Nothing to commit after cleanup.');
   process.exit(0);
