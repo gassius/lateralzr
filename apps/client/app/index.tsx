@@ -15,6 +15,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
+import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import {
@@ -450,9 +451,18 @@ export default function HomeScreen() {
   }, []);
 
   const onSwipeRight = useCallback(() => {
-    pendingEndDeckLoadRef.current = false;
-    setPendingEndDeckLoad(false);
-    setCurrentIndex((i) => Math.max(i - 1, 0));
+    // Lz-36: back from end-of-deck loading returns to the same last card — do not
+    // pop history / walk index (see reduceSwipeRight).
+    const next = reduceSwipeRight({
+      index: currentIndexRef.current,
+      pending: pendingEndDeckLoadRef.current,
+    });
+    pendingEndDeckLoadRef.current = next.pending;
+    setPendingEndDeckLoad(next.pending);
+    if (next.index !== currentIndexRef.current) {
+      currentIndexRef.current = next.index;
+      setCurrentIndex(next.index);
+    }
   }, []);
 
   const prefetchComplexityTree = useCallback(
@@ -669,8 +679,13 @@ export default function HomeScreen() {
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
-  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true. */
-  const showDeckLoading = isLastCard && (loadMoreError || pendingEndDeckLoad);
+  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
+  const deckSlotState = resolveDeckSlotState({
+    isLastCard,
+    pendingEndDeckLoad,
+    loadMoreError,
+  });
+  const showDeckLoading = deckSlotState !== 'card';
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
 
   const menuChromeHeight = practiceMenuChromeHeight();
@@ -690,7 +705,7 @@ export default function HomeScreen() {
   const deckStatusMessage =
     showInitialLoading
       ? t('findingStart')
-      : isLastCard && pendingEndDeckLoad && !loadMoreError
+      : deckSlotState === 'loading'
         ? t('loadingMoreIdeas')
         : null;
 
