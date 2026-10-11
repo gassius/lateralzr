@@ -55,17 +55,20 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
   { key: 'replayTips', labelKey: 'menuReplayTips', opensView: false },
 ] as const;
 
-/** v3.3: Language + Replay gesture tips. */
+/** About lockup width on paper (guide §5.3 / Lz-47). */
+export const ABOUT_LOGO_WIDTH = 160;
+
+/** v3.3: Language + About + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
   language: true,
   complexity: false,
   motion: false,
-  about: false,
+  about: true,
   replayTips: true,
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root' | 'language';
+export type AppMenuView = 'root' | 'language' | 'about';
 
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
