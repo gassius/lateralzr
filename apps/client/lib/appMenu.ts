@@ -79,6 +79,14 @@ export function appMenuRowShowsChevron(row: Pick<AppMenuRowDef, 'opensView'>): b
   return row.opensView === true;
 }
 
+/** AC: opening the language picker moves focus into the view (Back control). */
+export function focusLanguagePickerOnOpen<T>(
+  focus: (ref: { current: T | null }) => void,
+  backRef: { current: T | null },
+): void {
+  focus(backRef);
+}
+
 /** Screen-reader label: “Name” or “Name, value”. */
 export function appMenuRowA11yLabel(
   row: AppMenuRowDef,

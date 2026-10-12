@@ -54,7 +54,7 @@ import {
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
-import { loadStoredLocale, persistLocale } from '@/lib/localeStorage';
+import { loadStoredLocale, persistLocale, selectLocale } from '@/lib/localeStorage';
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_MAX_WIDTH,
@@ -695,12 +695,16 @@ export default function HomeScreen() {
   }, []);
 
   const onSelectLocale = useCallback((next: AppLocale) => {
-    setActiveLocale(next);
-    setLocale(next);
-    void persistLocale(next);
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      document.title = t('webTitle');
-    }
+    selectLocale(next, {
+      setActive: (locale) => {
+        setActiveLocale(locale);
+        setLocale(locale);
+        if (Platform.OS === 'web' && typeof document !== 'undefined') {
+          document.title = t('webTitle');
+        }
+      },
+      persist: persistLocale,
+    });
   }, []);
 
   const dismissComplexityCue = useCallback(() => {

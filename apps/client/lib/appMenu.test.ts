@@ -7,6 +7,7 @@ import {
   appMenuRowA11yLabel,
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
+  focusLanguagePickerOnOpen,
   visibleAppMenuRows,
   withAppMenuRowPress,
   type AppMenuFeatures,
@@ -116,6 +117,19 @@ describe('appMenuRowA11yLabel value field', () => {
       ),
       `${t('menuLanguage')}, Español`,
     );
+  });
+});
+
+describe('focusLanguagePickerOnOpen', () => {
+  it('moves focus onto the Back host (not the Language row)', () => {
+    const focused: unknown[] = [];
+    const backRef = { current: { id: 'back' } };
+    const languageRowRef = { current: { id: 'language-row' } };
+    focusLanguagePickerOnOpen((ref) => {
+      focused.push(ref);
+    }, backRef);
+    assert.deepEqual(focused, [backRef]);
+    assert.notEqual(focused[0], languageRowRef);
   });
 });
 
