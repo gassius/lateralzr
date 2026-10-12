@@ -33,6 +33,7 @@ export const MESSAGE_KEYS = [
   'lateralitySheetTitle',
   'lateralitySheetHelper',
   'close',
+  'back',
   'openMenu',
   'menuTitle',
   'menuLanguage',
@@ -94,6 +95,7 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     lateralitySheetTitle: 'Laterality',
     lateralitySheetHelper: 'How far should the next move reach?',
     close: 'Close',
+    back: 'Back',
     openMenu: 'Open menu',
     menuTitle: 'Menu',
     menuLanguage: 'Language',
@@ -150,6 +152,7 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     lateralitySheetTitle: 'Lateralidad',
     lateralitySheetHelper: '¿Hasta dónde debe llegar el siguiente paso?',
     close: 'Cerrar',
+    back: 'Atrás',
     openMenu: 'Abrir menú',
     menuTitle: 'Menú',
     menuLanguage: 'Idioma',
@@ -209,17 +212,28 @@ export function getActiveLocale(): AppLocale {
 
 /**
  * Pure locale preference resolution (no platform APIs).
- * Order: explicit URL override → default (`en`).
- * Device/browser locale is never used so Spanish devices still default to English
- * unless `?locale=` (or an explicit urlLocale) selects another supported locale.
+ * Order: explicit stored choice → URL `?locale=` → device/browser → default (`en`).
  */
 export function resolveLocalePreference(options?: {
+  storedLocale?: string | null;
   urlLocale?: string | null;
+  deviceLocale?: string | null;
 }): AppLocale {
+  const fromStored = normalizeLocaleTag(options?.storedLocale);
+  if (fromStored) return fromStored;
+
   const fromUrl = normalizeLocaleTag(options?.urlLocale);
   if (fromUrl) return fromUrl;
 
+  const fromDevice = normalizeLocaleTag(options?.deviceLocale);
+  if (fromDevice) return fromDevice;
+
   return DEFAULT_LOCALE;
+}
+
+/** Message key for the display name of a supported locale. */
+export function localeDisplayKey(locale: AppLocale): MessageKey {
+  return locale === 'es' ? 'languageEs' : 'languageEn';
 }
 
 export function t(key: MessageKey, vars?: Record<string, string>): string {

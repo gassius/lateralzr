@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +32,12 @@ import {
   shouldKeepSessionComplexityMark,
 } from '@/lib/complexityFeedback';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
-import { getActiveLocale, t } from '@/lib/i18n';
+import {
+  getActiveLocale,
+  setActiveLocale,
+  t,
+  type AppLocale,
+} from '@/lib/i18n';
 import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
@@ -49,6 +54,7 @@ import {
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
+import { loadStoredLocale, persistLocale, selectLocale } from '@/lib/localeStorage';
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_MAX_WIDTH,
@@ -118,6 +124,8 @@ export default function HomeScreen() {
   const [accessibleNavHeight, setAccessibleNavHeight] = useState<number>(ACCESSIBLE_NAV_ROW_MIN_HEIGHT);
   const appMenuTriggerRef = useRef<View | null>(null);
   const replayGestureTipsRef = useRef<() => void>(() => {});
+  /** React state mirrors activeLocale so menu / chrome re-render on pick. */
+  const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -178,8 +186,16 @@ export default function HomeScreen() {
   }, [currentIndex]);
 
   useEffect(() => {
-    applyResolvedLocale();
-    setLocaleReady(true);
+    let cancelled = false;
+    void loadStoredLocale().then((stored) => {
+      if (cancelled) return;
+      const hydrated = applyResolvedLocale({ storedLocale: stored });
+      setLocale(hydrated);
+      setLocaleReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -678,6 +694,19 @@ export default function HomeScreen() {
     replayGestureTipsRef.current();
   }, []);
 
+  const onSelectLocale = useCallback((next: AppLocale) => {
+    selectLocale(next, {
+      setActive: (locale) => {
+        setActiveLocale(locale);
+        setLocale(locale);
+        if (Platform.OS === 'web' && typeof document !== 'undefined') {
+          document.title = t('webTitle');
+        }
+      },
+      persist: persistLocale,
+    });
+  }, []);
+
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
   }, []);
@@ -939,6 +968,8 @@ export default function HomeScreen() {
         visible={appMenuOpen}
         onDismiss={dismissAppMenu}
         onReplayGestureTips={onReplayGestureTips}
+        locale={locale}
+        onSelectLocale={onSelectLocale}
         returnFocusRef={appMenuTriggerRef}
       />
     </View>
