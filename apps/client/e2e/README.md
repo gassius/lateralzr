@@ -121,7 +121,9 @@ Also see [baselines/README.md](./baselines/README.md).
 
 `.github/workflows/client-e2e.yml`:
 
-1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact. The job always reports (required check). Path filter (`dorny/paths-filter`) skips capture when the PR does not touch `apps/client/**` or E2E workflow/config. Draft client PRs run a 390px / English subset (mapped specs or a fixed smoke set). Ready PRs and `main` run the full matrix. Expo `dist/` and Playwright browsers are cached.
+1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact. The job always reports (required check). Path filter (`dorny/paths-filter`) skips capture when the PR does not touch `apps/client/**` or E2E workflow/config. Draft client PRs run a 390px / English subset (mapped specs or a fixed smoke set). The full viewport/locale matrix starts when the PR has the `run-full-screenshots` label (and on push to `main`); the full run posts its own check, **Client E2E full screenshots**, on the commit it tested. Expo `dist/` and Playwright browsers are cached.
+
+   > **Pending CI:** The label-triggered full run and the **Client E2E full screenshots** check are pending a CI change. Today the full matrix still runs on `ready_for_review`.
 2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script from **`pull_request.base.sha` only** (never head / merge SHA); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment. Same publish path for subset and full capture runs.
 3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`. Full-run publish layout is unchanged.
 

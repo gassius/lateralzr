@@ -227,7 +227,42 @@ Every agent comment starts with `### Agent: <name>` as the first line.
 
 Before 2026-09-30, Engineer Supervisor and Pull Request Reviewer actions appear as `gassius`. The `### Agent:` header is then the only attribution.
 
-Only Carlos (`gassius`) merges PRs. Agents never merge, enable auto-merge, or mark PRs Ready unless Carlos asks.
+Only Carlos (`gassius`) merges PRs. Agents never merge or enable auto-merge. **Implementer agents never mark a PR ready.** Only the Engineer Supervisor marks a PR ready, and only when every required control is green on the current head and Carlos can merge right away.
+
+### Engineer Supervisor review and ready flow
+
+1. The Engineer Supervisor approves tickets into Ready and briefs the Lateralzr Cursor Project.
+2. The Project launches a fresh implementer agent per ticket.
+3. The implementer opens a **DRAFT** PR and reports back to the Project.
+4. The Project tells the Engineer Supervisor.
+5. The Engineer Supervisor drives the draft to ready (labels, full E2E, reviews), notifies Carlos when it is ready to merge, and updates the board after Carlos merges.
+
+#### Labels
+
+- **`run-full-screenshots`**: The Engineer Supervisor adds this once checks are green. It starts the full E2E screenshot run. Any new push removes the label, so the full run happens once per green commit.
+- **`review-requested:code`** (always) and **`review-requested:design`** (client UI PRs only): Added only after **`Client E2E full screenshots`** is green on the current head. In the same step the Engineer Supervisor pings each reviewer, and re-pings if a label is still present after 30 minutes. There are no automatic reviews.
+
+#### Checks
+
+- Drafts run the 390px English subset, which reports the required check **`Client E2E screenshots`**.
+- The full run posts its own check, **`Client E2E full screenshots`**, on the commit it tested.
+
+> **Pending CI:** The label-triggered full run and the **`Client E2E full screenshots`** check are pending a CI change. Today the full matrix still runs on `ready_for_review`.
+
+#### Code review (`gasnet-pr-reviewer`)
+
+- Starts only on the `review-requested:code` label **plus** a ping, with required checks green.
+- First round: reads only the diff and relies on CI; posts all findings in that one round (blockers, then in-PR minors; no backlog). Checks that new or changed logic has a test that fails when the code breaks.
+- Re-check: only changes since the last reviewed commit, and only open findings.
+- One review (Approve or Request changes) on that commit; the reviewer removes its label (or the Engineer Supervisor does) and sends the verdict to the Engineer Supervisor.
+- Never starts reviews on its own, never marks ready, and never moves tickets.
+
+#### Design review (`gasnet-art-director`)
+
+- Client UI PRs only. Starts on the `review-requested:design` label **plus** a ping, after **`Client E2E full screenshots`** is green on the current commit.
+- First round covers only screenshots that changed against `baselines/`; a re-check covers only what changed since the last reviewed commit.
+- One review, Approve or Request changes, with severities blocker, worth fixing, or minor; removes its label (or the Engineer Supervisor does) and sends the verdict to the Engineer Supervisor.
+- Never marks ready or moves tickets.
 
 ## Code Quality
 
