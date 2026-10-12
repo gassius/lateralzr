@@ -253,7 +253,7 @@ Only Carlos (`gassius`) merges PRs. Agents never merge or enable auto-merge. **I
 
 - Starts only on the `review-requested:code` label **plus** a ping, with required checks green.
 - First round: reads only the diff and relies on CI; posts all findings in that one round (blockers, then in-PR minors; no backlog). Checks that new or changed logic has a test that fails when the code breaks.
-- Re-check: only changes since the last reviewed commit, and only open findings.
+- Re-check: only changes since the last reviewed commit, and only open findings; the reviewer adds nothing new unless something is clearly broken.
 - One review (Approve or Request changes) on that commit; the reviewer removes its label (or the Engineer Supervisor does) and sends the verdict to the Engineer Supervisor.
 - Never starts reviews on its own, never marks ready, and never moves tickets.
 
