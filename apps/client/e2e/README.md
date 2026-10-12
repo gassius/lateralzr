@@ -85,10 +85,14 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `app-menu_open_*` — sheet open from ellipsis, en + es (Replay row only)
 - `app-menu_open-200_*` — ES at 200% text, 320 + 390
 
+### Coach tips (Lz-48 §12.3)
+
+- `coach_tip-tap_320x568_es` / `coach_tip-swipe_320x568_es` / `coach_tip-complexity_320x568_es` — Spanish sequence at 320
+- `coach_tip-tap-reduced_320x568_es` — tipTap with app Motion=Reduced
+
 ### Pending screens (add when UI ships)
 
 - Language / complexity / motion / about pickers
-- Coaching tooltip steps
 - “No next idea” empty state
 - End-of-deck (non-loading) if distinct from `status_loading`
 
