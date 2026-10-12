@@ -375,7 +375,7 @@ Enrichment lives in `app/Services/Enrichment/*`. There is no live-HTTP `smoke` g
 
 CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests.
 
-The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots.
+The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots. Draft client PRs capture a 390px English subset (touched screens when we can map them, otherwise a small smoke set). The full viewport/locale matrix runs on `ready_for_review`, on pushes while the PR is ready, and on push to `main`.
 
 This project emphasizes test-driven development. New features should include unit tests for business logic and feature tests for API endpoints.
 

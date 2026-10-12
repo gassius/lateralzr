@@ -121,8 +121,8 @@ Also see [baselines/README.md](./baselines/README.md).
 
 `.github/workflows/client-e2e.yml`:
 
-1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact.
-2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script from **`pull_request.base.sha` only** (never head / merge SHA); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment.
-3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`.
+1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact. The job always reports (required check). Path filter (`dorny/paths-filter`) skips capture when the PR does not touch `apps/client/**` or E2E workflow/config. Draft client PRs run a 390px / English subset (mapped specs or a fixed smoke set). Ready PRs and `main` run the full matrix. Expo `dist/` and Playwright browsers are cached.
+2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script from **`pull_request.base.sha` only** (never head / merge SHA); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment. Same publish path for subset and full capture runs.
+3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`. Full-run publish layout is unchanged.
 
 Cleanup: `.github/workflows/client-e2e-cleanup.yml` removes `pr-<n>/` when the PR closes (cleanup script also from **base** SHA only).
