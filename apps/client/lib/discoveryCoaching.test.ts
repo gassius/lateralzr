@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   coachContextReady,
   coachMessageKey,
@@ -307,7 +309,8 @@ describe('shouldAnimateCoachPeek', () => {
   });
 
   it('coaching hook gates tip fade with useReducedMotion (RM → instant)', () => {
-    const src = readFileSync(new URL('../hooks/useDiscoveryCoaching.ts', import.meta.url), 'utf8');
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(path.join(here, '../hooks/useDiscoveryCoaching.ts'), 'utf8');
     assert.match(src, /useReducedMotion\(\)/);
     assert.match(src, /animateAppear:\s*!reduceMotion/);
   });
