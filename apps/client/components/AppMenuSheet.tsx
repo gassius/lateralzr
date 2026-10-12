@@ -15,7 +15,9 @@ import { Sheet } from '@/components/Sheet';
 import { aboutViewContent } from '@/lib/aboutView';
 import {
   ABOUT_LOGO_WIDTH,
+  APP_MENU_ROW_LABEL_FLEX_SHRINK,
   APP_MENU_ROW_MIN_HEIGHT,
+  APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
   APP_MENU_VALUE_LINE_HEIGHT,
   appMenuRowA11yLabel,
@@ -140,15 +142,17 @@ function AppMenuRow({
         testID={`app-menu-row-${row.key}`}
         style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
       >
-        <Text style={[styles.rowLabel, textStyle('row')]}>{t(row.labelKey)}</Text>
-        {valueText ? (
-          <Text
-            style={styles.rowValue}
-            testID={`app-menu-row-value-${row.key}`}
-          >
-            {valueText}
-          </Text>
-        ) : null}
+        <View style={styles.rowTextCluster} testID={`app-menu-row-text-${row.key}`}>
+          <Text style={[styles.rowLabel, textStyle('row')]}>{t(row.labelKey)}</Text>
+          {valueText ? (
+            <Text
+              style={styles.rowValue}
+              testID={`app-menu-row-value-${row.key}`}
+            >
+              {valueText}
+            </Text>
+          ) : null}
+        </View>
         {showChevron ? (
           <View testID={`app-menu-row-chevron-${row.key}`} accessible={false}>
             <ChevronRight stroke={color.mutedOnPaper} />
@@ -444,17 +448,38 @@ const styles = StyleSheet.create({
   rowPressed: {
     opacity: 0.88,
   },
-  rowLabel: {
-    flex: 1,
+  /**
+   * Label+value wrap as a unit; chevron stays centred on the row.
+   * When the row is narrow, the value stacks under the label (left-aligned).
+   */
+  rowTextCluster: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
     minWidth: 0,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 12,
+    rowGap: 2,
+  },
+  rowLabel: {
+    flexGrow: 0,
+    flexShrink: APP_MENU_ROW_LABEL_FLEX_SHRINK,
     color: color.ink,
+    // Web: never soft-break inside a Spanish word (Compleji/dad).
+    ...(Platform.OS === 'web'
+      ? ({ wordBreak: 'normal', overflowWrap: 'normal', hyphens: 'none' } as const)
+      : null),
   },
   rowValue: {
+    flexGrow: 1,
+    flexShrink: APP_MENU_ROW_VALUE_FLEX_SHRINK,
+    minWidth: 0,
     color: color.mutedOnPaper,
     fontSize: APP_MENU_VALUE_FONT_SIZE,
     lineHeight: APP_MENU_VALUE_LINE_HEIGHT,
     fontWeight: '400',
-    flexShrink: 1,
   },
   divider: {
     height: StyleSheet.hairlineWidth,

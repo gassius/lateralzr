@@ -7,6 +7,13 @@ export const APP_MENU_ROW_MIN_HEIGHT = 56;
 export const APP_MENU_VALUE_FONT_SIZE = 15;
 export const APP_MENU_VALUE_LINE_HEIGHT = Math.round(APP_MENU_VALUE_FONT_SIZE * 1.4);
 
+/**
+ * Label must not shrink (AD Lz-45): prevents mid-word breaks like Compleji/dad
+ * at 320×200% ES. Value yields width first, then wraps under the label.
+ */
+export const APP_MENU_ROW_LABEL_FLEX_SHRINK = 0;
+export const APP_MENU_ROW_VALUE_FLEX_SHRINK = 1;
+
 export type AppMenuRowKey =
   | 'language'
   | 'complexity'

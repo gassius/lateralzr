@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   ABOUT_LOGO_WIDTH,
+  APP_MENU_ROW_LABEL_FLEX_SHRINK,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_ORDER,
+  APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
   appMenuRowA11yLabel,
   appMenuRowShowsChevron,
@@ -173,6 +175,12 @@ describe('app menu metrics', () => {
   it('pins row min height 56 and value size 15', () => {
     assert.equal(APP_MENU_ROW_MIN_HEIGHT, 56);
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
+  });
+
+  it('keeps label unshrinkable so ES words never break mid-glyph (AD Lz-45)', () => {
+    assert.equal(APP_MENU_ROW_LABEL_FLEX_SHRINK, 0);
+    assert.equal(APP_MENU_ROW_VALUE_FLEX_SHRINK, 1);
+    assert.ok(APP_MENU_ROW_VALUE_FLEX_SHRINK > APP_MENU_ROW_LABEL_FLEX_SHRINK);
   });
 
   it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + About + Replay', () => {

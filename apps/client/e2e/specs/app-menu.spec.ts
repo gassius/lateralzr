@@ -46,6 +46,22 @@ test.describe('app menu', () => {
     });
   });
 
+  // AD: Complexity picker radios for Lz-31 parity review.
+  for (const locale of ['en', 'es'] as const) {
+    test(`complexity picker (${locale})`, async ({ page }, testInfo) => {
+      await openApp(page, `canonicalConcept=mushroom&locale=${locale}`);
+      await openAppMenu(page);
+      await page.getByTestId('app-menu-row-complexity').click();
+      await expect(page.getByTestId('app-menu-complexity-rows')).toBeVisible();
+      await expect(page.getByTestId('app-menu-complexity-row-1')).toBeVisible();
+      await capture(page, testInfo, {
+        screen: 'app-menu',
+        state: 'complexity-picker',
+        locale,
+      });
+    });
+  }
+
   test('opening Language picker moves focus into the view', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     await openAppMenu(page);
