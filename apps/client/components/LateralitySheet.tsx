@@ -1,6 +1,7 @@
 import { useMemo, type RefObject } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type View as ViewType } from 'react-native';
 import { Sheet } from '@/components/Sheet';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { t } from '@/lib/i18n';
 import {
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
@@ -48,6 +49,7 @@ export function LateralitySheet({
   returnFocusRef,
 }: LateralitySheetProps) {
   const rows = useMemo(() => lateralitySheetRows(laterality), [laterality]);
+  const reduceMotion = useReducedMotion();
 
   return (
     <Sheet
@@ -59,6 +61,7 @@ export function LateralitySheet({
       titleTestID="laterality-sheet-title"
       closeTestID="laterality-sheet-close"
       returnFocusRef={returnFocusRef}
+      reduceMotion={reduceMotion}
     >
       <ScrollView
         style={styles.list}

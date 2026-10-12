@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { SWIPE_COACH_IDLE_MS } from '../../lib/discoveryCoaching';
 import { capture, swipeForward } from '../helpers/capture';
 import { cardFrontTitle } from '../helpers/locators';
-import { openApp } from '../helpers/preparePage';
+import { openApp, preserveStorageAcrossNextLoad, settleAfterNavigation } from '../helpers/preparePage';
 
 async function openAppMenu(page: Page): Promise<void> {
   await page.getByTestId('app-menu-trigger').click();
@@ -119,34 +119,37 @@ test.describe('app menu', () => {
       ).toBe(1);
 
       // Value stacks under the label, left-aligned (only when wrapped).
-      const stacked = await page.evaluate(() => {
-        const label = document.querySelector(
-          '[data-testid="app-menu-row-label-complexity"]',
-        ) as HTMLElement | null;
-        const value = document.querySelector(
-          '[data-testid="app-menu-row-value-complexity"]',
-        ) as HTMLElement | null;
-        if (!label || !value) return null;
-        const lr = label.getBoundingClientRect();
-        const vr = value.getBoundingClientRect();
-        return {
-          valueTop: vr.top,
-          labelBottom: lr.bottom,
-          valueLeft: vr.left,
-          labelLeft: lr.left,
-          stacked: vr.top >= lr.bottom - 2,
-          leftAligned: Math.abs(vr.left - lr.left) <= 2,
-        };
+      const stackedRows = await page.evaluate(() => {
+        const keys = ['complexity', 'motion'] as const;
+        return keys.map((key) => {
+          const label = document.querySelector(
+            `[data-testid="app-menu-row-label-${key}"]`,
+          ) as HTMLElement | null;
+          const value = document.querySelector(
+            `[data-testid="app-menu-row-value-${key}"]`,
+          ) as HTMLElement | null;
+          if (!label || !value) return { key, ok: false };
+          const lr = label.getBoundingClientRect();
+          const vr = value.getBoundingClientRect();
+          return {
+            key,
+            labelText: (label.textContent ?? '').trim(),
+            valueText: (value.textContent ?? '').trim(),
+            stacked: vr.top >= lr.bottom - 2,
+            leftAligned: Math.abs(vr.left - lr.left) <= 2,
+          };
+        });
       });
-      expect(stacked, 'complexity label/value mounted').not.toBeNull();
-      expect(
-        stacked!.stacked,
-        `Complejidad 2 should stack under the label (${JSON.stringify(stacked)})`,
-      ).toBe(true);
-      expect(
-        stacked!.leftAligned,
-        `stacked value should be left-aligned (${JSON.stringify(stacked)})`,
-      ).toBe(true);
+      for (const row of stackedRows) {
+        expect(row.stacked, `${row.key} value should stack (${JSON.stringify(row)})`).toBe(true);
+        expect(
+          row.leftAligned,
+          `${row.key} stacked value should be left-aligned (${JSON.stringify(row)})`,
+        ).toBe(true);
+      }
+      const motion = stackedRows.find((r) => r.key === 'motion');
+      expect(motion?.labelText).toBe('Movimiento');
+      expect(motion?.valueText).toBe('Según el sistema');
     }
 
     await capture(page, testInfo, {
@@ -191,6 +194,22 @@ test.describe('app menu', () => {
       });
     });
   }
+
+  test('picking Reduced updates the Motion row and persists after reload', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-motion').click();
+    await expect(page.getByTestId('app-menu-motion-row-reduced')).toBeVisible();
+    await page.getByTestId('app-menu-motion-row-reduced').click();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
+
+    await preserveStorageAcrossNextLoad(page);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page);
+    await openAppMenu(page);
+    await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
+  });
 
   test('opening Language picker moves focus into the view', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');

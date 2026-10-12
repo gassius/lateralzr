@@ -3,6 +3,18 @@ import type { MessageKey } from '@/lib/i18n';
 
 const STORAGE_KEY = 'lateralzr.motionPreference';
 
+type MotionStorageDriver = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+};
+
+let driver: MotionStorageDriver = AsyncStorage;
+
+/** Tests inject an in-memory map so Node can run without `window`. */
+export function useMotionStorageDriver(next: MotionStorageDriver | null): void {
+  driver = next ?? AsyncStorage;
+}
+
 /** In-app Motion preference (Lz-46). No haptics. */
 export type MotionPreference = 'system' | 'reduced' | 'full';
 
@@ -38,7 +50,7 @@ export function motionPreferenceLabelKey(pref: MotionPreference): MessageKey {
 
 export async function loadStoredMotionPreference(): Promise<MotionPreference> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const raw = await driver.getItem(STORAGE_KEY);
     if (raw == null || raw.trim() === '') return DEFAULT_MOTION_PREFERENCE;
     return parseMotionPreference(raw);
   } catch {
@@ -49,7 +61,7 @@ export async function loadStoredMotionPreference(): Promise<MotionPreference> {
 export async function persistMotionPreference(value: MotionPreference): Promise<void> {
   try {
     const pref = isMotionPreference(value) ? value : DEFAULT_MOTION_PREFERENCE;
-    await AsyncStorage.setItem(STORAGE_KEY, pref);
+    await driver.setItem(STORAGE_KEY, pref);
   } catch {
     // ignore persistence failures
   }

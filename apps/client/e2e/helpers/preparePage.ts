@@ -43,6 +43,11 @@ export async function preparePage(page: Page, mock?: MockOptions): Promise<Conso
   await page.clock.install({ time: new Date(FIXED_CLOCK_ISO) });
   await page.addInitScript(() => {
     try {
+      // Opt-in preserve for persist-across-reload e2e (Lz-46 Motion).
+      if (sessionStorage.getItem('e2e-keep-storage') === '1') {
+        sessionStorage.removeItem('e2e-keep-storage');
+        return;
+      }
       localStorage.clear();
       sessionStorage.clear();
     } catch {
@@ -50,6 +55,13 @@ export async function preparePage(page: Page, mock?: MockOptions): Promise<Conso
     }
   });
   return bucket;
+}
+
+/** Keep localStorage through the next document load (skips e2e clear once). */
+export async function preserveStorageAcrossNextLoad(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    sessionStorage.setItem('e2e-keep-storage', '1');
+  });
 }
 
 export async function disableMotionCss(page: Page): Promise<void> {

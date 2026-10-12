@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, Platform } from 'react-native';
+import { useMotionPreference } from '@/hooks/motionPreferenceContext';
 import type { MotionPreference } from '@/lib/motionStorage';
 import {
   initialPrefersReducedMotion,
@@ -9,15 +10,16 @@ import {
 
 /**
  * Live reduced-motion flag: OS AccessibilityInfo + web matchMedia, gated by
- * optional in-app Motion preference (`appPref` from Lz-46).
+ * the in-app Motion preference (Lz-46 context, or an explicit `appPref` override).
  *
  * First paint uses `initialPrefersReducedMotion` (optimistic ON when unknown).
- * OS / web reduce-motion always wins over Full. When `appPref` is omitted
- * (Lz-34 consumers before menu hydration), only OS/web apply.
+ * OS / web reduce-motion always wins over Full.
  *
  * Shared gate for flip, swipe, sheets (Lz-31), pulse, coaching, cues.
  */
-export function useReducedMotion(appPref?: MotionPreference): boolean {
+export function useReducedMotion(appPrefOverride?: MotionPreference): boolean {
+  const contextPref = useMotionPreference();
+  const appPref = appPrefOverride ?? contextPref;
   const [os, setOs] = useState(initialPrefersReducedMotion);
   const [web, setWeb] = useState<boolean | null>(() => readWebPrefersReducedMotion());
 

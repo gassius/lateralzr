@@ -19,6 +19,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useConnectivity } from '@/hooks/useConnectivity';
+import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
@@ -874,6 +875,7 @@ export default function HomeScreen() {
   }
 
   return (
+    <MotionPreferenceProvider value={motionPreference}>
     <View
       style={[
         styles.mainRoot,
@@ -1025,6 +1027,7 @@ export default function HomeScreen() {
         onMotionPreferenceChange={onMotionPreferenceChange}
       />
     </View>
+    </MotionPreferenceProvider>
   );
 }
 
