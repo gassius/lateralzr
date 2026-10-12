@@ -1,11 +1,27 @@
 [
   {
+    "file": "app-menu_complexity-picker_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
     "file": "app-menu_open_390x844_en.png",
-    "ratio": 0.13696150808117633,
-    "percent": 13.696150808117633,
+    "ratio": 0.07363971928545389,
+    "percent": 7.363971928545389,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 180329,
+    "mismatchedPixels": 96957,
     "diffImage": "app-menu_open_390x844_en.diff.png"
+  },
+  {
+    "file": "laterality-sheet_open_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
   }
 ]
