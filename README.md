@@ -375,9 +375,7 @@ Enrichment lives in `app/Services/Enrichment/*`. There is no live-HTTP `smoke` g
 
 CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests.
 
-The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots. Draft client PRs capture a 390px English subset (touched screens when we can map them, otherwise a small smoke set). The full viewport/locale matrix starts when the PR has the `run-full-screenshots` label (and on push to `main`). The full run posts its own check, **Client E2E full screenshots**, on the commit it tested.
-
-> **Pending CI:** The label-triggered full run and the **Client E2E full screenshots** check are pending a CI change. Today the full matrix still runs on `ready_for_review`.
+The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots. Client PRs (draft or ready) capture a 390px English subset (touched screens when we can map them, otherwise a small smoke set). Draft vs ready does not change what runs. The full viewport/locale matrix starts when the `run-full-screenshots` label is added (and on push to `main`); that run posts its own check, **Client E2E full screenshots**, on the commit it tested. A new push removes the label. Other labels do not start, re-run, or cancel a Client E2E run.
 
 This project emphasizes test-driven development. New features should include unit tests for business logic and feature tests for API endpoints.
 

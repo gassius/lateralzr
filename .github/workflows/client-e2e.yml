@@ -4,14 +4,16 @@
 #
 # pull_request always runs so "Client E2E screenshots" can be a required check.
 # Non-client PRs succeed quickly without capture/publish (job is not skipped).
-# Draft client PRs capture a 390px / English subset (touched screens, else smoke).
-# Full matrix: ready_for_review, synchronize while not draft, push to main.
+# Client PRs (draft or ready) capture a 390px / English subset on every push.
+# Full matrix: labeled with run-full-screenshots (posts "Client E2E full
+# screenshots"), push to main, or workflow_dispatch. Other labels do not start,
+# re-run, or cancel a run (gate job has no concurrency).
 
 name: Client E2E
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main, master]
     paths:
@@ -39,13 +41,89 @@ permissions:
   contents: read
 
 jobs:
-  client-e2e:
-    name: Client E2E screenshots
+  # No concurrency — other-label labeled events must not cancel an in-progress full run.
+  gate:
+    name: Client E2E gate
     runs-on: ubuntu-latest
-    # Cancel superseded *test* runs for the same PR/ref. Never put concurrency on
-    # the publish job — an in-flight push to e2e-screenshots must not be cut off.
+    outputs:
+      proceed: ${{ steps.decide.outputs.proceed }}
+      run_full: ${{ steps.decide.outputs.run_full }}
+      check_name: ${{ steps.decide.outputs.check_name }}
+      concurrency_group: ${{ steps.decide.outputs.concurrency_group }}
+    steps:
+      - name: Decide whether to run capture
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          LABEL_NAME: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ] && [ "${EVENT_ACTION}" = "labeled" ]; then
+            if [ "${LABEL_NAME}" = "run-full-screenshots" ]; then
+              echo "proceed=true" >> "$GITHUB_OUTPUT"
+              echo "run_full=true" >> "$GITHUB_OUTPUT"
+              echo "check_name=Client E2E full screenshots" >> "$GITHUB_OUTPUT"
+              echo "concurrency_group=client-e2e-full-pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+              echo "Labeled run-full-screenshots → full matrix check"
+              exit 0
+            fi
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "run_full=false" >> "$GITHUB_OUTPUT"
+            echo "check_name=" >> "$GITHUB_OUTPUT"
+            echo "concurrency_group=" >> "$GITHUB_OUTPUT"
+            echo "Ignoring label '${LABEL_NAME}' (no start / re-run / cancel)"
+            exit 0
+          fi
+
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+          echo "run_full=false" >> "$GITHUB_OUTPUT"
+          echo "check_name=Client E2E screenshots" >> "$GITHUB_OUTPUT"
+          if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "" ]; then
+            echo "concurrency_group=client-e2e-pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          else
+            echo "concurrency_group=client-e2e-${REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Any new push drops the one-shot full-run label so the next full run is explicit.
+  clear-run-full-screenshots-label:
+    name: Clear run-full-screenshots label
+    if: github.event_name == 'pull_request' && github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Remove run-full-screenshots if present
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/label-del.json -w "%{http_code}" -X DELETE \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels/run-full-screenshots" || true)"
+          if [ "${code}" = "204" ] || [ "${code}" = "404" ]; then
+            echo "Label clear HTTP ${code}"
+            exit 0
+          fi
+          echo "::error::Unexpected HTTP ${code} removing run-full-screenshots"
+          cat /tmp/label-del.json || true
+          exit 1
+
+  client-e2e:
+    name: ${{ needs.gate.outputs.check_name }}
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # Cancel superseded *test* runs for the same PR/ref within the same tier.
+    # Full-label runs use client-e2e-full-pr-N; subset uses client-e2e-pr-N — they
+    # do not cancel each other. Never put concurrency on the publish job.
     concurrency:
-      group: client-e2e-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+      group: ${{ needs.gate.outputs.concurrency_group }}
       cancel-in-progress: true
     permissions:
       contents: read
@@ -83,7 +161,7 @@ jobs:
         working-directory: .
         env:
           EVENT_NAME: ${{ github.event_name }}
-          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          RUN_FULL: ${{ needs.gate.outputs.run_full }}
           CLIENT_CHANGED: ${{ github.event_name != 'pull_request' && 'true' || steps.filter.outputs.client }}
           CLIENT_FILES: ${{ github.event_name == 'pull_request' && steps.filter.outputs.client_files || '[]' }}
         run: |
@@ -95,7 +173,7 @@ jobs:
         if: steps.plan.outputs.should_run != 'true'
         working-directory: .
         run: |
-          echo "Client E2E screenshots: nothing to capture for this PR."
+          echo "${{ needs.gate.outputs.check_name }}: nothing to capture for this PR."
           echo "Required check reports success without Playwright / publish / sticky comment."
 
       - name: Assert no GitHub write credentials in git config
@@ -274,10 +352,11 @@ jobs:
   # Scripts are fetched from the PR base SHA only (trusted), never from head / merge SHA.
   client-e2e-publish:
     name: Client E2E PR comment
-    needs: client-e2e
+    needs: [gate, client-e2e]
     if: >-
       github.event_name == 'pull_request'
       && always()
+      && needs.gate.outputs.proceed == 'true'
       && needs.client-e2e.result != 'cancelled'
       && needs.client-e2e.outputs.should_run == 'true'
     runs-on: ubuntu-latest
@@ -367,8 +446,11 @@ jobs:
   # Push events use github.sha of the trusted main commit (not a pull_request write path).
   client-e2e-baselines:
     name: Client E2E baselines
-    needs: client-e2e
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: [gate, client-e2e]
+    if: >-
+      github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      && needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

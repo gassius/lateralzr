@@ -244,10 +244,8 @@ Only Carlos (`gassius`) merges PRs. Agents never merge or enable auto-merge. **I
 
 #### Checks
 
-- Drafts run the 390px English subset, which reports the required check **`Client E2E screenshots`**.
-- The full run posts its own check, **`Client E2E full screenshots`**, on the commit it tested.
-
-> **Pending CI:** The label-triggered full run and the **`Client E2E full screenshots`** check are pending a CI change. Today the full matrix still runs on `ready_for_review`.
+- Every PR reports the required check **`Client E2E screenshots`**: client PRs (draft or ready) run the 390px English subset; non-client PRs finish skipped-green. Draft vs ready does not change what runs.
+- Adding the **`run-full-screenshots`** label starts the full viewport/locale matrix. That run posts its own check, **`Client E2E full screenshots`**, on the commit it tested. Other labels do not start, re-run, or cancel a Client E2E run. A new push removes the label.
 
 #### Code review (`gasnet-pr-reviewer`)
 
