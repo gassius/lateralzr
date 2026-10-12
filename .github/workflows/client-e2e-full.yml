@@ -1,0 +1,220 @@
+# Full viewport/locale Client E2E matrix. Called only when the PR is labeled
+# run-full-screenshots. Lives in a reusable workflow so other label events in
+# client-e2e.yml do not create a skipped "Client E2E full screenshots" check
+# (which would replace a prior green result on the same commit).
+
+name: Client E2E full
+
+on:
+  workflow_call:
+    inputs:
+      strict_baselines:
+        description: 'Fail on baseline diffs when true'
+        required: false
+        type: string
+        default: 'false'
+    outputs:
+      should_run:
+        description: Whether Playwright capture ran
+        value: ${{ jobs.client-e2e-full.outputs.should_run }}
+
+permissions:
+  contents: read
+
+jobs:
+  client-e2e-full:
+    name: Client E2E full screenshots
+    runs-on: ubuntu-latest
+    concurrency:
+      group: client-e2e-full-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    outputs:
+      should_run: ${{ steps.plan.outputs.should_run }}
+    defaults:
+      run:
+        working-directory: apps/client
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Detect client-related paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ github.token }}
+          filters: |
+            client:
+              - 'apps/client/**'
+              - '.github/workflows/client-e2e.yml'
+              - '.github/workflows/client-e2e-full.yml'
+              - '.github/scripts/client-e2e-*.mjs'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
+              - '.npmrc'
+          list-files: json
+
+      - name: Plan E2E tier (full)
+        id: plan
+        working-directory: .
+        env:
+          EVENT_NAME: pull_request
+          RUN_FULL: 'true'
+          CLIENT_CHANGED: ${{ steps.filter.outputs.client }}
+          CLIENT_FILES: ${{ steps.filter.outputs.client_files }}
+        run: |
+          set -euo pipefail
+          node --test .github/scripts/client-e2e-plan.test.mjs
+          node .github/scripts/client-e2e-plan.mjs
+
+      - name: Skip capture (no client-related paths)
+        if: steps.plan.outputs.should_run != 'true'
+        working-directory: .
+        run: |
+          echo "Client E2E full screenshots: nothing to capture for this PR."
+
+      - name: Assert no GitHub write credentials in git config
+        if: steps.plan.outputs.should_run == 'true'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          if git config --get http.https://github.com/.extraheader; then
+            echo "::error::git http.https://github.com/.extraheader must be empty in the test job"
+            exit 1
+          fi
+          echo "OK: no http.https://github.com/.extraheader"
+
+      - name: Install pnpm
+        if: steps.plan.outputs.should_run == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        if: steps.plan.outputs.should_run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: steps.plan.outputs.should_run == 'true'
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        if: steps.plan.outputs.should_run == 'true'
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json', 'pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Install Playwright system deps (cache hit)
+        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Cache Expo web export
+        if: steps.plan.outputs.should_run == 'true'
+        uses: actions/cache@v4
+        id: expo-web-cache
+        with:
+          path: apps/client/dist
+          key: expo-web-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/package.json', 'apps/client/app.json', 'apps/client/tsconfig.json', 'apps/client/metro.config.js', 'apps/client/*.config.*') }}-${{ hashFiles('apps/client/app/**', 'apps/client/components/**', 'apps/client/lib/**', 'apps/client/hooks/**', 'apps/client/constants/**', 'apps/client/assets/**', 'apps/client/theme/**') }}
+
+      - name: Confirm cached Expo web export
+        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit == 'true'
+        run: test -f dist/index.html
+
+      - name: Build Expo web export (no GTM)
+        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit != 'true'
+        env:
+          EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
+        run: pnpm build
+
+      - name: Sync orphan e2e-screenshots:baselines/ (read-only)
+        if: steps.plan.outputs.should_run == 'true'
+        working-directory: apps/client
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TMP=$(mktemp -d)
+          CLONE="${TMP}/orphan"
+          if git clone --depth=1 --branch e2e-screenshots --single-branch \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "${CLONE}"; then
+            if [ -d "${CLONE}/baselines" ] && find "${CLONE}/baselines" -maxdepth 1 -name '*.png' | grep -q .; then
+              mkdir -p e2e/baselines
+              find e2e/baselines -maxdepth 1 -name '*.png' -delete
+              cp -a "${CLONE}/baselines/." e2e/baselines/
+              echo "Using orphan baselines:"
+              find e2e/baselines -maxdepth 1 -name '*.png' | wc -l
+            else
+              echo "Orphan baselines/ empty; keeping in-repo demo seeds."
+            fi
+          else
+            echo "Orphan branch e2e-screenshots missing; keeping in-repo demo seeds."
+          fi
+          rm -rf "${TMP}"
+
+      - name: Run Playwright E2E (full matrix)
+        if: steps.plan.outputs.should_run == 'true'
+        env:
+          CI: 'true'
+          E2E_PORT: '4173'
+          E2E_STRICT_BASELINES: ${{ inputs.strict_baselines == 'true' && '1' || '0' }}
+        run: pnpm e2e
+
+      - name: Smoke stability (--repeat-each=2) + pixel-identical captures
+        if: steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
+        env:
+          CI: 'true'
+          E2E_PORT: '4173'
+        run: |
+          set -euo pipefail
+          pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
+          for pass in 1 2; do
+            rm -rf "e2e/screenshots/repeat-${pass}"
+            E2E_SHOT_SUBDIR="repeat-${pass}" \
+              pnpm exec playwright test -c e2e/playwright.config.ts \
+                e2e/specs/card-front.spec.ts e2e/specs/laterality-bar.spec.ts \
+                --project=390x844 -g "short label|grade 3"
+          done
+          node e2e/scripts/assert-repeat-identical.mjs \
+            e2e/screenshots/repeat-1 \
+            e2e/screenshots/repeat-2
+
+      - name: Stage flat artifact tree
+        if: always() && steps.plan.outputs.should_run == 'true'
+        working-directory: apps/client
+        env:
+          ARTIFACT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/e2e-artifact/screenshots /tmp/e2e-artifact/playwright-report
+          if [ -d e2e/screenshots ]; then cp -a e2e/screenshots/. /tmp/e2e-artifact/screenshots/; fi
+          if [ -d e2e/playwright-report ]; then cp -a e2e/playwright-report/. /tmp/e2e-artifact/playwright-report/; fi
+          if [ -z "${ARTIFACT_HEAD_SHA}" ]; then
+            echo "::error::ARTIFACT_HEAD_SHA empty; cannot stamp artifact"
+            exit 1
+          fi
+          printf '%s' "${ARTIFACT_HEAD_SHA}" > /tmp/e2e-artifact/artifact-head-sha.txt
+          echo "Stamped artifact-head-sha.txt=${ARTIFACT_HEAD_SHA}"
+          find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
+
+      - name: Upload screenshots, diffs, and report
+        if: always() && steps.plan.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-e2e-screenshots
+          path: /tmp/e2e-artifact
+          if-no-files-found: warn
+          retention-days: 14

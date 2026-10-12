@@ -2,23 +2,23 @@
 # Security: the test job is contents:read + persist-credentials:false and never
 # receives a write token. Privileged jobs only download artifacts (no pnpm/expo).
 #
-# pull_request always runs so "Client E2E screenshots" can be a required check.
-# Non-client PRs succeed quickly without capture/publish (job is not skipped).
-# Client PRs (draft or ready) capture a 390px / English subset on every push.
-# Full matrix: labeled with run-full-screenshots (posts "Client E2E full
-# screenshots"), push to main, or workflow_dispatch. Other labels do not start,
-# re-run, or cancel a run (gate job has no concurrency).
+# Every workflow run reports required check "Client E2E screenshots" (static job
+# name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
+# quick pass-through success on labeled/unlabeled for any label.
+# Full matrix: labeled run-full-screenshots → reusable workflow posts
+# "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
 name: Client E2E
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main, master]
     paths:
       - 'apps/client/**'
       - '.github/workflows/client-e2e.yml'
+      - '.github/workflows/client-e2e-full.yml'
       - '.github/scripts/client-e2e-*.mjs'
       - 'pnpm-lock.yaml'
       - 'package.json'
@@ -41,17 +41,17 @@ permissions:
   contents: read
 
 jobs:
-  # No concurrency — other-label labeled events must not cancel an in-progress full run.
+  # No concurrency — label events must not cancel an in-progress capture/full run.
   gate:
     name: Client E2E gate
     runs-on: ubuntu-latest
     outputs:
-      proceed: ${{ steps.decide.outputs.proceed }}
+      mode: ${{ steps.decide.outputs.mode }}
       run_full: ${{ steps.decide.outputs.run_full }}
-      check_name: ${{ steps.decide.outputs.check_name }}
-      concurrency_group: ${{ steps.decide.outputs.concurrency_group }}
+      screenshots_concurrency_group: ${{ steps.decide.outputs.screenshots_concurrency_group }}
+      screenshots_cancel: ${{ steps.decide.outputs.screenshots_cancel }}
     steps:
-      - name: Decide whether to run capture
+      - name: Decide capture vs pass-through
         id: decide
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -59,37 +59,38 @@ jobs:
           LABEL_NAME: ${{ github.event.label.name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REF_NAME: ${{ github.ref }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" = "pull_request" ] && [ "${EVENT_ACTION}" = "labeled" ]; then
-            if [ "${LABEL_NAME}" = "run-full-screenshots" ]; then
+          if [ "${EVENT_NAME}" = "pull_request" ] && { [ "${EVENT_ACTION}" = "labeled" ] || [ "${EVENT_ACTION}" = "unlabeled" ]; }; then
+            if [ "${EVENT_ACTION}" = "labeled" ] && [ "${LABEL_NAME}" = "run-full-screenshots" ]; then
               {
-                echo "proceed=true"
+                echo "mode=passthrough"
                 echo "run_full=true"
-                echo "check_name=Client E2E full screenshots"
-                echo "concurrency_group=client-e2e-full-pr-${PR_NUMBER}"
+                echo "screenshots_concurrency_group=client-e2e-passthrough-${RUN_ID}"
+                echo "screenshots_cancel=false"
               } >> "$GITHUB_OUTPUT"
-              echo "Labeled run-full-screenshots → full matrix check"
+              echo "Labeled run-full-screenshots → pass-through required check + full matrix job"
               exit 0
             fi
             {
-              echo "proceed=false"
+              echo "mode=passthrough"
               echo "run_full=false"
-              echo "check_name="
-              echo "concurrency_group="
+              echo "screenshots_concurrency_group=client-e2e-passthrough-${RUN_ID}"
+              echo "screenshots_cancel=false"
             } >> "$GITHUB_OUTPUT"
-            echo "Ignoring label '${LABEL_NAME}' (no start / re-run / cancel)"
+            echo "Label event '${EVENT_ACTION}'/'${LABEL_NAME}' → pass-through required check only"
             exit 0
           fi
 
           {
-            echo "proceed=true"
+            echo "mode=capture"
             echo "run_full=false"
-            echo "check_name=Client E2E screenshots"
+            echo "screenshots_cancel=true"
             if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "" ]; then
-              echo "concurrency_group=client-e2e-pr-${PR_NUMBER}"
+              echo "screenshots_concurrency_group=client-e2e-pr-${PR_NUMBER}"
             else
-              echo "concurrency_group=client-e2e-${REF_NAME}"
+              echo "screenshots_concurrency_group=client-e2e-${REF_NAME}"
             fi
           } >> "$GITHUB_OUTPUT"
 
@@ -120,32 +121,41 @@ jobs:
           cat /tmp/label-del.json || true
           exit 1
 
+  # Required check — static name, never skipped (pass-through or capture).
   client-e2e:
-    name: ${{ needs.gate.outputs.check_name }}
+    name: Client E2E screenshots
     needs: gate
-    if: needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
-    # Cancel superseded *test* runs for the same PR/ref within the same tier.
-    # Full-label runs use client-e2e-full-pr-N; subset uses client-e2e-pr-N — they
-    # do not cancel each other. Never put concurrency on the publish job.
     concurrency:
-      group: ${{ needs.gate.outputs.concurrency_group }}
-      cancel-in-progress: true
+      group: ${{ needs.gate.outputs.screenshots_concurrency_group }}
+      cancel-in-progress: ${{ needs.gate.outputs.screenshots_cancel == 'true' }}
     permissions:
       contents: read
     outputs:
-      should_run: ${{ steps.plan.outputs.should_run }}
+      should_run: ${{ steps.passthrough.outputs.should_run || steps.plan.outputs.should_run || 'false' }}
     defaults:
       run:
         working-directory: apps/client
     steps:
+      - name: Pass-through required check
+        id: passthrough
+        if: needs.gate.outputs.mode == 'passthrough'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          {
+            echo "should_run=false"
+          } >> "$GITHUB_OUTPUT"
+          echo "Client E2E screenshots: pass-through success (no capture this event)."
+
       - uses: actions/checkout@v4
+        if: needs.gate.outputs.mode == 'capture'
         with:
           persist-credentials: false
 
       - name: Detect client-related paths
         id: filter
-        if: github.event_name == 'pull_request'
+        if: needs.gate.outputs.mode == 'capture' && github.event_name == 'pull_request'
         uses: dorny/paths-filter@v3
         with:
           token: ${{ github.token }}
@@ -153,6 +163,7 @@ jobs:
             client:
               - 'apps/client/**'
               - '.github/workflows/client-e2e.yml'
+              - '.github/workflows/client-e2e-full.yml'
               - '.github/scripts/client-e2e-*.mjs'
               - 'pnpm-lock.yaml'
               - 'package.json'
@@ -164,10 +175,11 @@ jobs:
 
       - name: Plan E2E tier
         id: plan
+        if: needs.gate.outputs.mode == 'capture'
         working-directory: .
         env:
           EVENT_NAME: ${{ github.event_name }}
-          RUN_FULL: ${{ needs.gate.outputs.run_full }}
+          RUN_FULL: 'false'
           CLIENT_CHANGED: ${{ github.event_name != 'pull_request' && 'true' || steps.filter.outputs.client }}
           CLIENT_FILES: ${{ github.event_name == 'pull_request' && steps.filter.outputs.client_files || '[]' }}
         run: |
@@ -176,14 +188,14 @@ jobs:
           node .github/scripts/client-e2e-plan.mjs
 
       - name: Skip capture (no client-related paths)
-        if: steps.plan.outputs.should_run != 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run != 'true'
         working-directory: .
         run: |
-          echo "${{ needs.gate.outputs.check_name }}: nothing to capture for this PR."
+          echo "Client E2E screenshots: nothing to capture for this PR."
           echo "Required check reports success without Playwright / publish / sticky comment."
 
       - name: Assert no GitHub write credentials in git config
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         working-directory: .
         run: |
           set -euo pipefail
@@ -194,23 +206,23 @@ jobs:
           echo "OK: no http.https://github.com/.extraheader"
 
       - name: Install pnpm
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         working-directory: .
         run: pnpm install --frozen-lockfile
 
       - name: Cache Playwright browsers
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         uses: actions/cache@v4
         id: playwright-cache
         with:
@@ -218,15 +230,15 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json', 'pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
-        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Install Playwright system deps (cache hit)
-        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
       - name: Cache Expo web export
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         uses: actions/cache@v4
         id: expo-web-cache
         with:
@@ -234,17 +246,17 @@ jobs:
           key: expo-web-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/package.json', 'apps/client/app.json', 'apps/client/tsconfig.json', 'apps/client/metro.config.js', 'apps/client/*.config.*') }}-${{ hashFiles('apps/client/app/**', 'apps/client/components/**', 'apps/client/lib/**', 'apps/client/hooks/**', 'apps/client/constants/**', 'apps/client/assets/**', 'apps/client/theme/**') }}
 
       - name: Confirm cached Expo web export
-        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit == 'true'
         run: test -f dist/index.html
 
       - name: Build Expo web export (no GTM)
-        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit != 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit != 'true'
         env:
           EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
         run: pnpm build
 
       - name: Sync orphan e2e-screenshots:baselines/ (read-only)
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         working-directory: apps/client
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -273,7 +285,7 @@ jobs:
           rm -rf "${TMP}"
 
       - name: Run Playwright E2E
-        if: steps.plan.outputs.should_run == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
@@ -305,7 +317,7 @@ jobs:
           pnpm exec playwright test "${args[@]}"
 
       - name: Smoke stability (--repeat-each=2) + pixel-identical captures
-        if: steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
+        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
@@ -325,7 +337,7 @@ jobs:
             e2e/screenshots/repeat-2
 
       - name: Stage flat artifact tree
-        if: always() && steps.plan.outputs.should_run == 'true'
+        if: always() && needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         working-directory: apps/client
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -346,7 +358,7 @@ jobs:
           find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
 
       - name: Upload screenshots, diffs, and report
-        if: always() && steps.plan.outputs.should_run == 'true'
+        if: always() && needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: client-e2e-screenshots
@@ -354,17 +366,32 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  # Caller name is NOT the check name — when skipped on other labels, prior
+  # "Client E2E full screenshots" results on the commit are preserved.
+  start-full-screenshots:
+    name: Start Client E2E full screenshots
+    needs: gate
+    if: needs.gate.outputs.run_full == 'true'
+    uses: ./.github/workflows/client-e2e-full.yml
+    with:
+      strict_baselines: ${{ github.event.inputs.strict_baselines || 'false' }}
+
   # Write token: artifact only. No actions/checkout of the PR tree; no pnpm/expo.
   # Scripts are fetched from the PR base SHA only (trusted), never from head / merge SHA.
   client-e2e-publish:
     name: Client E2E PR comment
-    needs: [gate, client-e2e]
+    needs: [gate, client-e2e, start-full-screenshots]
     if: >-
       github.event_name == 'pull_request'
       && always()
-      && needs.gate.outputs.proceed == 'true'
-      && needs.client-e2e.result != 'cancelled'
-      && needs.client-e2e.outputs.should_run == 'true'
+      && (
+        (needs.gate.outputs.mode == 'capture'
+          && needs.client-e2e.result != 'cancelled'
+          && needs.client-e2e.outputs.should_run == 'true')
+        || (needs.gate.outputs.run_full == 'true'
+          && needs.start-full-screenshots.result == 'success'
+          && needs.start-full-screenshots.outputs.should_run == 'true')
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -456,7 +483,7 @@ jobs:
     if: >-
       github.event_name == 'push'
       && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-      && needs.gate.outputs.proceed == 'true'
+      && needs.gate.outputs.mode == 'capture'
     runs-on: ubuntu-latest
     permissions:
       contents: write
