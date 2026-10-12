@@ -55,6 +55,14 @@ This document provides context and guidelines for AI agents working on the Later
 - **Expo MCP**: Registered in [`.cursor/mcp.json`](../.cursor/mcp.json) as remote server `https://mcp.expo.dev/mcp` (OAuth in Cursor Settings → Tools & MCP). Local capabilities (screenshots, tap automation, DevTools) need `expo-mcp` and `pnpm start:mcp` from `apps/client` (`EXPO_UNSTABLE_MCP_SERVER=1`). Docs: https://docs.expo.dev/mcp.md · https://docs.expo.dev/agents/cursor.md.
 - When working under `apps/client`, prefer Expo Skills + Expo MCP over inventing APIs or package versions from training data.
 
+### Cursor Cloud Agents
+- This VM has no systemd. Docker uses the `fuse-overlayfs` storage driver and legacy iptables. The environment start script launches `dockerd` when `docker info` fails, then runs `./sail up -d`.
+- After MySQL accepts connections, start migrates and seeds only when `concepts` is empty. The seed is the local admin plus a small graph, so `GET /api/hello` and `POST /api/concepts/relationships` work without Ollama. Ollama is not installed here.
+- API: `http://127.0.0.1` (port 80). Filament: `http://127.0.0.1/admin` with the local user from the README (`test@lateralzr.com`). Expo web is already running at `http://127.0.0.1:8081`.
+- Node 20.20.2 (the `.nvmrc` major) and pnpm 9.15.0 are on `PATH` ahead of the image Node 22. Client checks: `pnpm --filter client test` and `pnpm --filter client exec tsc --noEmit`. API checks stay on Sail: `./sail test` and `./sail pint --test`.
+- The environment install runs host `composer install` once so `./vendor/bin/sail` exists. After that, keep using `./sail` for `artisan`, Composer, Pint, and PHPUnit. `DB_HOST=mysql` does not resolve on the host.
+- Browsers that open the client as `http://127.0.0.1:8081` are a different CORS origin from `localhost`. Start adds `http://127.0.0.1:8081` to `CORS_ALLOWED_ORIGINS` in `.env` when it is missing.
+
 ## Laravel Conventions to Follow
 
 ### Controllers
