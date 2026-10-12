@@ -147,7 +147,7 @@ jobs:
         id: expo-web-cache
         with:
           path: apps/client/dist
-          key: expo-web-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/package.json', 'apps/client/app.json', 'apps/client/tsconfig.json') }}-${{ hashFiles('apps/client/app/**', 'apps/client/components/**', 'apps/client/lib/**', 'apps/client/hooks/**', 'apps/client/constants/**', 'apps/client/assets/**', 'apps/client/theme/**') }}
+          key: expo-web-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/package.json', 'apps/client/app.json', 'apps/client/tsconfig.json', 'apps/client/metro.config.js', 'apps/client/*.config.*') }}-${{ hashFiles('apps/client/app/**', 'apps/client/components/**', 'apps/client/lib/**', 'apps/client/hooks/**', 'apps/client/constants/**', 'apps/client/assets/**', 'apps/client/theme/**') }}
 
       - name: Confirm cached Expo web export
         if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit == 'true'
