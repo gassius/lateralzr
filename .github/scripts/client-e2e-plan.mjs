@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /**
- * Decide Client E2E skip / draft-subset / full-matrix from changed paths + event.
+ * Decide Client E2E skip / PR-subset / full-matrix from changed paths + event.
  * Used by .github/workflows/client-e2e.yml so the required check always reports.
+ *
+ * Pull requests always use the 390px EN subset (draft vs ready does not matter).
+ * Full matrix: push, workflow_dispatch, or an explicit runFull (label trigger).
  */
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -73,14 +76,15 @@ const SUBSET_SKIP_SPECS = new Set(['e2e/specs/locale-es.spec.ts']);
 /**
  * @param {{
  *   eventName: string,
- *   isDraft: boolean,
  *   clientChanged: boolean,
  *   changedFiles: string[],
+ *   runFull?: boolean,
  * }} input
  */
 export function planClientE2e(input) {
   const eventName = input.eventName || '';
   const isPr = eventName === 'pull_request';
+  const runFull = Boolean(input.runFull);
 
   if (isPr && !input.clientChanged) {
     return {
@@ -94,7 +98,7 @@ export function planClientE2e(input) {
     };
   }
 
-  if (!isPr || !input.isDraft) {
+  if (!isPr || runFull) {
     return {
       shouldRun: true,
       mode: 'full',
@@ -162,9 +166,9 @@ const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(pro
 if (invokedDirectly) {
   const plan = planClientE2e({
     eventName: process.env.EVENT_NAME || '',
-    isDraft: process.env.IS_DRAFT === 'true',
     clientChanged: process.env.CLIENT_CHANGED === 'true',
     changedFiles: parseChangedFiles(process.env.CLIENT_FILES || ''),
+    runFull: process.env.RUN_FULL === 'true',
   });
   writeGitHubOutput(plan);
 }

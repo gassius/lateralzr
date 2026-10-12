@@ -14,7 +14,6 @@ describe('planClientE2e', () => {
   it('skips when a PR touches no client or E2E paths', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
-      isDraft: true,
       clientChanged: false,
       changedFiles: ['README.md', 'app/Models/Concept.php'],
     });
@@ -23,10 +22,9 @@ describe('planClientE2e', () => {
     assert.equal(plan.runStability, false);
   });
 
-  it('uses a 390px English subset for a draft PR that touches a mapped screen', () => {
+  it('uses a 390px English subset for a PR that touches a mapped screen', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
-      isDraft: true,
       clientChanged: true,
       changedFiles: ['apps/client/components/ConceptCard.tsx'],
     });
@@ -39,10 +37,21 @@ describe('planClientE2e', () => {
     assert.equal(plan.runStability, false);
   });
 
-  it('falls back to the fixed smoke set when draft changes are not mappable to a screen', () => {
+  it('uses the subset for ready PRs too (draft vs ready does not change the plan)', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
-      isDraft: true,
+      clientChanged: true,
+      changedFiles: ['apps/client/components/ConceptCard.tsx'],
+      runFull: false,
+    });
+    assert.equal(plan.mode, 'subset');
+    assert.equal(plan.project, '390x844');
+    assert.equal(plan.runStability, false);
+  });
+
+  it('falls back to the fixed smoke set when PR changes are not mappable to a screen', () => {
+    const plan = planClientE2e({
+      eventName: 'pull_request',
       clientChanged: true,
       changedFiles: ['apps/client/e2e/helpers/preparePage.ts', '.github/workflows/client-e2e.yml'],
     });
@@ -53,10 +62,9 @@ describe('planClientE2e', () => {
     assert.equal(plan.grepInvert, EN_GREP_INVERT);
   });
 
-  it('does not run Spanish-only specs in the draft subset', () => {
+  it('does not run Spanish-only specs in the PR subset', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
-      isDraft: true,
       clientChanged: true,
       changedFiles: ['apps/client/e2e/specs/locale-es.spec.ts'],
     });
@@ -65,12 +73,12 @@ describe('planClientE2e', () => {
     assert.equal(plan.grep, SMOKE_GREP);
   });
 
-  it('runs the full matrix on a ready PR', () => {
+  it('runs the full matrix when runFull is set (label trigger)', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
-      isDraft: false,
       clientChanged: true,
       changedFiles: ['apps/client/components/ConceptCard.tsx'],
+      runFull: true,
     });
     assert.equal(plan.shouldRun, true);
     assert.equal(plan.mode, 'full');
@@ -81,10 +89,20 @@ describe('planClientE2e', () => {
     assert.equal(plan.runStability, true);
   });
 
+  it('still skips non-client PRs even when runFull is set', () => {
+    const plan = planClientE2e({
+      eventName: 'pull_request',
+      clientChanged: false,
+      changedFiles: ['README.md'],
+      runFull: true,
+    });
+    assert.equal(plan.shouldRun, false);
+    assert.equal(plan.mode, 'skip');
+  });
+
   it('runs the full matrix on push to main', () => {
     const plan = planClientE2e({
       eventName: 'push',
-      isDraft: false,
       clientChanged: true,
       changedFiles: ['apps/client/app/index.tsx'],
     });
@@ -95,7 +113,6 @@ describe('planClientE2e', () => {
   it('runs the full matrix on workflow_dispatch', () => {
     const plan = planClientE2e({
       eventName: 'workflow_dispatch',
-      isDraft: false,
       clientChanged: true,
       changedFiles: [],
     });
