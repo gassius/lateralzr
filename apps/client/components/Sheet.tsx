@@ -21,6 +21,7 @@ import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
 import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
+import { resolveSheetHardwareBack } from '@/lib/sheetBack';
 import { focusSheetHost } from '@/lib/sheetFocus';
 import {
   initialSheetTitleMeasureState,
@@ -42,6 +43,16 @@ export type SheetProps = {
   children: ReactNode;
   /** Optional helper line under the title (Laterality sheet). */
   helper?: string;
+  /**
+   * When set, Android hardware back prefers this over dismiss, and a header
+   * back control is shown (in-sheet nested views). Escape still dismisses.
+   */
+  onBack?: () => void;
+  /** a11y label for the back control (defaults to title of the parent view). */
+  backAccessibilityLabel?: string;
+  backTestID?: string;
+  /** Optional ref on the header back control (focus host for nested views). */
+  backRef?: RefObject<ViewType | null>;
   testID?: string;
   titleTestID?: string;
   closeTestID?: string;
@@ -62,6 +73,10 @@ export function Sheet({
   title,
   helper,
   children,
+  onBack,
+  backAccessibilityLabel,
+  backTestID,
+  backRef,
   testID = 'sheet',
   titleTestID = 'sheet-title',
   closeTestID = 'sheet-close',
@@ -173,17 +188,22 @@ export function Sheet({
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (resolveSheetHardwareBack(onBack != null) === 'nestedBack') {
+        onBack?.();
+        return true;
+      }
       onDismiss();
       return true;
     });
     return () => sub.remove();
-  }, [visible, onDismiss]);
+  }, [visible, onDismiss, onBack]);
 
   useEffect(() => {
     if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        // Nested views: Escape dismisses the whole sheet (close), not back.
         onDismiss();
       }
     };
@@ -234,6 +254,21 @@ export function Sheet({
       <Animated.View style={[styles.panel, panelStyle]} testID={`${testID}-panel`}>
         <View style={styles.handle} accessible={false} testID={`${testID}-handle`} />
         <View style={styles.header}>
+          {onBack ? (
+            <Pressable
+              ref={backRef}
+              onPress={onBack}
+              accessibilityRole="button"
+              accessibilityLabel={backAccessibilityLabel ?? t('menuTitle')}
+              testID={backTestID ?? `${testID}-back`}
+              style={({ pressed }) => [styles.backBtn, pressed ? styles.closePressed : null]}
+              hitSlop={4}
+            >
+              <Text style={styles.backGlyph} accessible={false}>
+                ‹
+              </Text>
+            </Pressable>
+          ) : null}
           <View
             style={styles.headerText}
             onLayout={(event) => {
@@ -355,6 +390,21 @@ const styles = StyleSheet.create({
   },
   helper: {
     color: color.mutedOnPaper,
+  },
+  backBtn: {
+    width: layout.recommendedTouchTarget,
+    height: layout.recommendedTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -4,
+    marginLeft: -8,
+  },
+  backGlyph: {
+    color: color.ink,
+    fontSize: 32,
+    fontWeight: '400',
+    lineHeight: 36,
+    marginTop: -4,
   },
   closeBtn: {
     width: layout.recommendedTouchTarget,

@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   ABOUT_LOGO_WIDTH,
+  APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT,
+  APP_MENU_ROW_LABEL_FLEX_SHRINK,
+  APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_ORDER,
+  APP_MENU_ROW_VALUE_FLEX_GROW,
+  APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
   appMenuRowA11yLabel,
   appMenuRowShowsChevron,
@@ -16,19 +21,19 @@ import {
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
-  it('v3.3 defaults to Language + About + Replay gesture tips', () => {
+  it('defaults to Language + Complexity + About + Replay gesture tips', () => {
     const rows = visibleAppMenuRows();
-    assert.equal(rows.length, 3);
-    assert.equal(rows[0]!.key, 'language');
-    assert.equal(rows[0]!.labelKey, 'menuLanguage');
+    assert.equal(rows.length, 4);
+    assert.deepEqual(
+      rows.map((r) => r.key),
+      ['language', 'complexity', 'about', 'replayTips'],
+    );
     assert.equal(rows[0]!.opensView, true);
-    assert.equal(rows[1]!.key, 'about');
-    assert.equal(rows[1]!.labelKey, 'menuAbout');
     assert.equal(rows[1]!.opensView, true);
-    assert.equal(rows[1]!.valueKey, undefined);
-    assert.equal(rows[2]!.key, 'replayTips');
-    assert.equal(rows[2]!.labelKey, 'menuReplayTips');
-    assert.equal(rows[2]!.opensView, false);
+    assert.equal(rows[1]!.labelKey, 'menuComplexity');
+    assert.equal(rows[2]!.opensView, true);
+    assert.equal(rows[2]!.valueKey, undefined);
+    assert.equal(rows[3]!.opensView, false);
   });
 
   it('filters out disabled features and keeps fixed order', () => {
@@ -61,9 +66,11 @@ describe('appMenuRowShowsChevron', () => {
       assert.equal(appMenuRowShowsChevron(row), row.opensView);
     }
     const language = visibleAppMenuRows().find((r) => r.key === 'language')!;
+    const complexity = visibleAppMenuRows().find((r) => r.key === 'complexity')!;
     const about = visibleAppMenuRows().find((r) => r.key === 'about')!;
     const replay = visibleAppMenuRows().find((r) => r.key === 'replayTips')!;
     assert.equal(appMenuRowShowsChevron(language), true);
+    assert.equal(appMenuRowShowsChevron(complexity), true);
     assert.equal(appMenuRowShowsChevron(about), true);
     assert.equal(appMenuRowShowsChevron(replay), false);
   });
@@ -95,6 +102,23 @@ describe('appMenuRowA11yLabel', () => {
       `${t('menuLanguage')}, ${t('languageEn')}`,
     );
   });
+
+  it('prefers value over valueKey for interpolated complexity', () => {
+    const value = t('complexityGrade', { grade: '4' });
+    assert.equal(
+      appMenuRowA11yLabel(
+        {
+          key: 'complexity',
+          labelKey: 'menuComplexity',
+          valueKey: 'languageEn',
+          value,
+          opensView: true,
+        },
+        t,
+      ),
+      `${t('menuComplexity')}, ${value}`,
+    );
+  });
 });
 
 describe('withAppMenuRowPress', () => {
@@ -109,7 +133,7 @@ describe('withAppMenuRowPress', () => {
         replayCalls += 1;
       },
     });
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 4);
     rows.find((r) => r.key === 'about')!.onPress!();
     const replay = rows.find((r) => r.key === 'replayTips');
     assert.equal(typeof replay?.onPress, 'function');
@@ -156,10 +180,21 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
   });
 
-  it('matches DEFAULT_APP_MENU_FEATURES to Language + About + Replay scope', () => {
+  it('lets labels shrink for space-wrap but pins web minWidth to longest word (PRR B3)', () => {
+    assert.equal(APP_MENU_ROW_LABEL_FLEX_SHRINK, 1);
+    assert.equal(APP_MENU_ROW_VALUE_FLEX_SHRINK, 1);
+    assert.equal(APP_MENU_ROW_LABEL_MIN_WIDTH_WEB, 'min-content');
+  });
+
+  it('keeps values flush-right on a shared line and left-packed when wrapped (AD Lz-45)', () => {
+    assert.equal(APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT, 'space-between');
+    assert.equal(APP_MENU_ROW_VALUE_FLEX_GROW, 0);
+  });
+
+  it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + About + Replay', () => {
     assert.deepEqual(DEFAULT_APP_MENU_FEATURES, {
       language: true,
-      complexity: false,
+      complexity: true,
       motion: false,
       about: true,
       replayTips: true,

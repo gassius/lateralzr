@@ -7,6 +7,25 @@ export const APP_MENU_ROW_MIN_HEIGHT = 56;
 export const APP_MENU_VALUE_FONT_SIZE = 15;
 export const APP_MENU_VALUE_LINE_HEIGHT = Math.round(APP_MENU_VALUE_FONT_SIZE * 1.4);
 
+/**
+ * Label may shrink so multi-word ES copy wraps at spaces (PRR B3), but web
+ * `minWidth: min-content` keeps it at least as wide as its longest word so
+ * Compleji/dad never appears (AD Lz-45). Value still yields first, then stacks.
+ */
+export const APP_MENU_ROW_LABEL_FLEX_SHRINK = 1;
+export const APP_MENU_ROW_VALUE_FLEX_SHRINK = 1;
+
+/**
+ * Cluster uses space-between so the value sits flush-right beside the chevron
+ * when it shares the label's line (Lz-44). A lone wrapped value packs to the
+ * start (left-aligned stack) — do not flexGrow the value (that left-sticks copy).
+ */
+export const APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT = 'space-between' as const;
+export const APP_MENU_ROW_VALUE_FLEX_GROW = 0;
+
+/** Web-only: never narrower than the longest word in the label. */
+export const APP_MENU_ROW_LABEL_MIN_WIDTH_WEB = 'min-content' as const;
+
 export type AppMenuRowKey =
   | 'language'
   | 'complexity'
@@ -58,17 +77,17 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
 /** About lockup width on paper (guide §5.3 / Lz-47). */
 export const ABOUT_LOGO_WIDTH = 160;
 
-/** v3.3: Language + About + Replay gesture tips. */
+/** Language + Complexity + About + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
   language: true,
-  complexity: false,
+  complexity: true,
   motion: false,
   about: true,
   replayTips: true,
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root' | 'language' | 'about';
+export type AppMenuView = 'root' | 'language' | 'complexity' | 'about';
 
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
@@ -96,8 +115,7 @@ export function appMenuRowA11yLabel(
   translate: (key: MessageKey) => string,
 ): string {
   const label = translate(row.labelKey);
-  const value =
-    row.value ?? (row.valueKey != null ? translate(row.valueKey) : null);
+  const value = row.value ?? (row.valueKey != null ? translate(row.valueKey) : null);
   if (value == null) return label;
   return `${label}, ${value}`;
 }
