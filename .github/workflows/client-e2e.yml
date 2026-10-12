@@ -5,7 +5,8 @@
 # Every workflow run reports required check "Client E2E screenshots" (static job
 # name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
 # on labeled/unlabeled, pass-through mirrors the newest capture run on the head
-# SHA (success/failure; poll if still running; fail if none).
+# SHA (success/failure; poll if still running; fail on timeout if none).
+# Pass-through excludes its own GITHUB_RUN_ID / check-run id when selecting.
 # Full matrix: labeled run-full-screenshots → reusable workflow posts
 # "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
@@ -133,6 +134,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      actions: read
     outputs:
       should_run: ${{ steps.passthrough.outputs.should_run || steps.plan.outputs.should_run || 'false' }}
     defaults:
@@ -147,6 +149,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CURRENT_RUN_ID: ${{ github.run_id }}
+          # Hard cap so pass-through cannot wait on itself / a missing capture forever.
+          PASSTHROUGH_WAIT_SECONDS: '1200'
         run: |
           set -euo pipefail
           {
@@ -163,20 +167,30 @@ jobs:
             exit 1
           fi
 
-          # Poll until the newest capture run completes (or timeout).
-          deadline=$((SECONDS + 5400))
+          # Fetch exclude-self helper (pass-through job has no checkout).
+          script_dir="$(mktemp -d)"
+          gh api "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-passthrough.mjs?ref=${HEAD_SHA}" \
+            --jq '.content' | tr -d '\n' | base64 -d > "${script_dir}/client-e2e-passthrough.mjs"
+
+          # Job id == check-run id for GitHub Actions; exclude even if details_url is empty.
+          CURRENT_CHECK_RUN_ID="$(
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CURRENT_RUN_ID}/jobs" \
+              --jq '.jobs[] | select(.name == "Client E2E screenshots") | .id' \
+              | head -n1
+          )"
+          export CURRENT_CHECK_RUN_ID
+          echo "Excluding self run_id=${CURRENT_RUN_ID} check_run_id=${CURRENT_CHECK_RUN_ID:-unknown}"
+
+          wait_seconds="${PASSTHROUGH_WAIT_SECONDS}"
+          deadline=$((SECONDS + wait_seconds))
           while [ "${SECONDS}" -lt "${deadline}" ]; do
             mapfile -t candidates < <(
-              {
-                gh api --paginate \
-                  "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?check_name=Client%20E2E%20screenshots&per_page=100" \
-                  --jq '.check_runs[]'
-              } | jq -s -r --arg run "${CURRENT_RUN_ID}" '
-                  map(select((.details_url // .html_url // "") | contains("/actions/runs/" + $run + "/") | not))
-                  | sort_by(.started_at // "")
-                  | reverse
-                  | .[].id
-                '
+              gh api --paginate \
+                "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?check_name=Client%20E2E%20screenshots&per_page=100" \
+                --jq '[.check_runs[]]' \
+                | jq -s 'add // []' \
+                | CURRENT_RUN_ID="${CURRENT_RUN_ID}" CURRENT_CHECK_RUN_ID="${CURRENT_CHECK_RUN_ID:-}" \
+                  node "${script_dir}/client-e2e-passthrough.mjs" exclude-self-ids
             )
 
             capture_id=""
@@ -184,6 +198,10 @@ jobs:
             capture_conclusion=""
             for id in "${candidates[@]+"${candidates[@]}"}"; do
               [ -n "${id}" ] || continue
+              # Belt-and-suspenders: never mirror our own check-run.
+              if [ -n "${CURRENT_CHECK_RUN_ID:-}" ] && [ "${id}" = "${CURRENT_CHECK_RUN_ID}" ]; then
+                continue
+              fi
               job_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}" 2>/dev/null || true)"
               if [ -z "${job_json}" ]; then
                 continue
@@ -212,7 +230,8 @@ jobs:
                 capture_conclusion="${conclusion}"
                 break
               fi
-              # In-progress job with no identifying steps yet: wait rather than guess.
+              # In-progress job with no identifying steps yet: wait rather than guess
+              # (self already excluded by run id + check-run id).
               if [ "${status}" = "queued" ] || [ "${status}" = "in_progress" ] || [ "${status}" = "waiting" ]; then
                 capture_id="${id}"
                 capture_status="${status}"
@@ -242,7 +261,7 @@ jobs:
             sleep 20
           done
 
-          echo "::error::Timed out waiting for Client E2E screenshots capture on ${HEAD_SHA} (none completed successfully)"
+          echo "::error::Timed out after ${wait_seconds}s waiting for Client E2E screenshots capture on ${HEAD_SHA} (none completed successfully)"
           exit 1
 
       - name: Mark capture run
@@ -291,7 +310,7 @@ jobs:
           CLIENT_FILES: ${{ github.event_name == 'pull_request' && steps.filter.outputs.client_files || '[]' }}
         run: |
           set -euo pipefail
-          node --test .github/scripts/client-e2e-plan.test.mjs
+          node --test .github/scripts/client-e2e-plan.test.mjs .github/scripts/client-e2e-passthrough.test.mjs
           node .github/scripts/client-e2e-plan.mjs
 
       - name: Skip capture (no client-related paths)
