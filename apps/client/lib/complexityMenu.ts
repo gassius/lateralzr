@@ -43,3 +43,34 @@ export function complexityMenuRows(selected: number): ComplexityMenuRow[] {
 export function complexityMenuCommitValue(grade: number): number {
   return clampMenuComplexity(grade);
 }
+
+/** Deck fields the menu Complexity picker may touch (Lz-45). */
+export type MenuComplexityDeckState = {
+  complexity: number;
+  currentIndex: number;
+};
+
+/**
+ * Pure commit for menu Complexity selection.
+ * Clamps grade, never advances {@link MenuComplexityDeckState.currentIndex},
+ * and always persists/prefetches (including same-grade re-picks).
+ */
+export function applyMenuComplexitySelection(
+  state: MenuComplexityDeckState,
+  grade: number,
+): {
+  complexity: number;
+  currentIndex: number;
+  persist: true;
+  prefetch: true;
+  complexityChanged: boolean;
+} {
+  const complexity = clampMenuComplexity(grade);
+  return {
+    complexity,
+    currentIndex: state.currentIndex,
+    persist: true,
+    prefetch: true,
+    complexityChanged: complexity !== state.complexity,
+  };
+}

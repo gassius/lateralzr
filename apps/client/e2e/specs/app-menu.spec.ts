@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SWIPE_COACH_IDLE_MS } from '../../lib/discoveryCoaching';
 import { capture, swipeForward } from '../helpers/capture';
+import { cardFrontTitle } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 async function openAppMenu(page: Page): Promise<void> {
@@ -50,7 +51,34 @@ test.describe('app menu', () => {
     await openAppMenu(page);
     await page.getByTestId('app-menu-row-language').click();
     await expect(page.getByTestId('app-menu-language')).toBeVisible();
-    await expect(page.getByTestId('app-menu-language-focus')).toBeFocused();
+    // Shared Sheet header back (Language + Complexity).
+    await expect(page.getByTestId('app-menu-back')).toBeFocused();
+  });
+
+  test('Complexity header back returns to root without closing the sheet', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-complexity').click();
+    await expect(page.getByTestId('app-menu-complexity-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-back')).toBeVisible();
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-complexity-rows')).toHaveCount(0);
+    await expect(page.getByTestId('app-menu-row-complexity')).toBeVisible();
+  });
+
+  test('picking a Complexity grade keeps the current card', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    const title = cardFrontTitle(page);
+    await expect(title).toBeVisible();
+    const before = (await title.innerText()).trim();
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-complexity').click();
+    await page.getByTestId('app-menu-complexity-row-5').click();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await page.getByTestId('app-menu-close').click();
+    await expect(title).toHaveText(before);
   });
 
   test('Replay gesture tips restarts coaching from the current card', async ({ page }) => {

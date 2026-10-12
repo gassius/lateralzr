@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { setActiveLocale, t } from './i18n.ts';
 import {
+  applyMenuComplexitySelection,
   COMPLEXITY_MENU_ROW_MIN_HEIGHT,
   complexityMenuCommitValue,
   complexityMenuRows,
@@ -50,16 +51,48 @@ describe('complexityMenuRows', () => {
 });
 
 describe('complexityMenuCommitValue', () => {
-  it('returns the tapped grade (clamped) without advancing a deck index', () => {
+  it('returns the tapped grade clamped to 1–5', () => {
     assert.equal(complexityMenuCommitValue(5), 5);
     assert.equal(complexityMenuCommitValue(1), 1);
     assert.equal(complexityMenuCommitValue(0), 1);
     assert.equal(complexityMenuCommitValue(99), 5);
-    // Commit is pure grade math — callers must not bump currentIndex.
-    const beforeIndex = 2;
-    const afterIndex = beforeIndex;
     assert.equal(complexityMenuCommitValue(4), 4);
-    assert.equal(afterIndex, beforeIndex);
+  });
+});
+
+describe('applyMenuComplexitySelection', () => {
+  it('clamps grade, keeps currentIndex, and always persists/prefetches', () => {
+    const base = { complexity: 2, currentIndex: 3 };
+    const next = applyMenuComplexitySelection(base, 5);
+    assert.equal(next.complexity, 5);
+    assert.equal(next.currentIndex, 3);
+    assert.equal(next.currentIndex, base.currentIndex);
+    assert.equal(next.persist, true);
+    assert.equal(next.prefetch, true);
+    assert.equal(next.complexityChanged, true);
+  });
+
+  it('clamps out-of-range grades to 1–5', () => {
+    assert.equal(applyMenuComplexitySelection({ complexity: 3, currentIndex: 0 }, 0).complexity, 1);
+    assert.equal(applyMenuComplexitySelection({ complexity: 3, currentIndex: 0 }, 99).complexity, 5);
+  });
+
+  it('re-picking the same grade still saves (persist + prefetch) without changing index', () => {
+    const base = { complexity: 4, currentIndex: 7 };
+    const same = applyMenuComplexitySelection(base, 4);
+    assert.equal(same.complexity, 4);
+    assert.equal(same.complexityChanged, false);
+    assert.equal(same.persist, true);
+    assert.equal(same.prefetch, true);
+    assert.equal(same.currentIndex, 7);
+  });
+
+  it('never advances the card index even when complexity changes', () => {
+    for (const index of [0, 1, 4, 12]) {
+      const result = applyMenuComplexitySelection({ complexity: 1, currentIndex: index }, 5);
+      assert.equal(result.currentIndex, index);
+      assert.notEqual(result.complexity, 1);
+    }
   });
 });
 

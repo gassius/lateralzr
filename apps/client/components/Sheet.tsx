@@ -21,6 +21,7 @@ import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
 import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
+import { resolveSheetHardwareBack } from '@/lib/sheetBack';
 import { focusSheetHost } from '@/lib/sheetFocus';
 import {
   initialSheetTitleMeasureState,
@@ -43,13 +44,15 @@ export type SheetProps = {
   /** Optional helper line under the title (Laterality sheet). */
   helper?: string;
   /**
-   * When set, hardware back / Escape prefer this over dismiss, and a header
-   * back control is shown (in-sheet nested views such as Complexity).
+   * When set, Android hardware back prefers this over dismiss, and a header
+   * back control is shown (in-sheet nested views). Escape still dismisses.
    */
   onBack?: () => void;
   /** a11y label for the back control (defaults to title of the parent view). */
   backAccessibilityLabel?: string;
   backTestID?: string;
+  /** Optional ref on the header back control (focus host for nested views). */
+  backRef?: RefObject<ViewType | null>;
   testID?: string;
   titleTestID?: string;
   closeTestID?: string;
@@ -73,6 +76,7 @@ export function Sheet({
   onBack,
   backAccessibilityLabel,
   backTestID,
+  backRef,
   testID = 'sheet',
   titleTestID = 'sheet-title',
   closeTestID = 'sheet-close',
@@ -184,8 +188,8 @@ export function Sheet({
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (onBack) {
-        onBack();
+      if (resolveSheetHardwareBack(onBack != null) === 'nestedBack') {
+        onBack?.();
         return true;
       }
       onDismiss();
@@ -252,6 +256,7 @@ export function Sheet({
         <View style={styles.header}>
           {onBack ? (
             <Pressable
+              ref={backRef}
               onPress={onBack}
               accessibilityRole="button"
               accessibilityLabel={backAccessibilityLabel ?? t('menuTitle')}

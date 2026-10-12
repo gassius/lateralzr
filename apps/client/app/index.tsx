@@ -31,6 +31,7 @@ import {
   shouldAnnounceComplexity,
   shouldKeepSessionComplexityMark,
 } from '@/lib/complexityFeedback';
+import { applyMenuComplexitySelection } from '@/lib/complexityMenu';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import {
   getActiveLocale,
@@ -757,16 +758,20 @@ export default function HomeScreen() {
    */
   const onSelectComplexity = useCallback(
     (grade: number) => {
-      const next = clampComplexity(grade);
-      if (next === complexityRef.current) {
-        void persistComplexity(next);
-        void prefetchComplexityTree(next);
-        return;
+      const result = applyMenuComplexitySelection(
+        {
+          complexity: complexityRef.current,
+          currentIndex: currentIndexRef.current,
+        },
+        grade,
+      );
+      // Menu picker never advances the deck — only complexity may change.
+      if (result.complexityChanged) {
+        complexityRef.current = result.complexity;
+        setComplexity(result.complexity);
       }
-      complexityRef.current = next;
-      setComplexity(next);
-      void persistComplexity(next);
-      void prefetchComplexityTree(next);
+      void persistComplexity(result.complexity);
+      void prefetchComplexityTree(result.complexity);
     },
     [prefetchComplexityTree],
   );

@@ -237,12 +237,13 @@ export function AppMenuSheet({
   const [view, setView] = useState<AppMenuView>('root');
   const languageRowRef = useRef<ViewType | null>(null);
   const complexityRowRef = useRef<ViewType | null>(null);
-  const languageBackRef = useRef<ViewType | null>(null);
+  const sheetBackRef = useRef<ViewType | null>(null);
   const complexityValue = complexityCueText(currentComplexity);
   const pickerRows = useMemo(
     () => complexityMenuRows(currentComplexity),
     [currentComplexity],
   );
+  const nestedBack = view === 'language' || view === 'complexity';
 
   const rows = useMemo(
     () =>
@@ -277,9 +278,9 @@ export function AppMenuSheet({
   }, [visible]);
 
   useEffect(() => {
-    if (view !== 'language') return;
+    if (view !== 'language' && view !== 'complexity') return;
     const frame = requestAnimationFrame(() => {
-      focusLanguagePickerOnOpen(focusSheetHost, languageBackRef);
+      focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
     });
     return () => cancelAnimationFrame(frame);
   }, [view]);
@@ -324,9 +325,10 @@ export function AppMenuSheet({
       titleTestID="app-menu-title"
       closeTestID="app-menu-close"
       returnFocusRef={returnFocusRef}
-      onBack={view === 'complexity' ? goBackToRoot : undefined}
-      backAccessibilityLabel={t('menuTitle')}
+      onBack={nestedBack ? goBackToRoot : undefined}
+      backAccessibilityLabel={t('back')}
       backTestID="app-menu-back"
+      backRef={sheetBackRef}
     >
       {view === 'root' ? (
         <View style={styles.list} testID="app-menu-rows">
@@ -349,21 +351,6 @@ export function AppMenuSheet({
       ) : null}
       {view === 'language' ? (
         <View style={styles.languageView} testID="app-menu-language">
-          <View
-            ref={languageBackRef}
-            testID="app-menu-language-focus"
-            {...(Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {})}
-          >
-            <Pressable
-              onPress={goBackToRoot}
-              accessibilityRole="button"
-              accessibilityLabel={t('back')}
-              testID="app-menu-back"
-              style={({ pressed }) => [styles.backRow, pressed ? styles.rowPressed : null]}
-            >
-              <Text style={[styles.backLabel, textStyle('row')]}>{t('back')}</Text>
-            </Pressable>
-          </View>
           <View style={styles.languageList} testID="app-menu-language-rows">
             {SUPPORTED_LOCALES.map((option) => {
               const checked = option === locale;
@@ -475,17 +462,6 @@ const styles = StyleSheet.create({
   },
   languageView: {
     paddingBottom: 8,
-    gap: 8,
-  },
-  backRow: {
-    minHeight: 44,
-    justifyContent: 'center',
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-    paddingRight: 12,
-  },
-  backLabel: {
-    color: color.ink,
   },
   languageList: {
     gap: 4,
