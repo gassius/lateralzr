@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  ABOUT_LOGO_WIDTH,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_ORDER,
   APP_MENU_VALUE_FONT_SIZE,
@@ -15,15 +16,19 @@ import {
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
-  it('v3.3 defaults to Language + Replay gesture tips', () => {
+  it('v3.3 defaults to Language + About + Replay gesture tips', () => {
     const rows = visibleAppMenuRows();
-    assert.equal(rows.length, 2);
+    assert.equal(rows.length, 3);
     assert.equal(rows[0]!.key, 'language');
     assert.equal(rows[0]!.labelKey, 'menuLanguage');
     assert.equal(rows[0]!.opensView, true);
-    assert.equal(rows[1]!.key, 'replayTips');
-    assert.equal(rows[1]!.labelKey, 'menuReplayTips');
-    assert.equal(rows[1]!.opensView, false);
+    assert.equal(rows[1]!.key, 'about');
+    assert.equal(rows[1]!.labelKey, 'menuAbout');
+    assert.equal(rows[1]!.opensView, true);
+    assert.equal(rows[1]!.valueKey, undefined);
+    assert.equal(rows[2]!.key, 'replayTips');
+    assert.equal(rows[2]!.labelKey, 'menuReplayTips');
+    assert.equal(rows[2]!.opensView, false);
   });
 
   it('filters out disabled features and keeps fixed order', () => {
@@ -55,15 +60,21 @@ describe('appMenuRowShowsChevron', () => {
     for (const row of APP_MENU_ROW_ORDER) {
       assert.equal(appMenuRowShowsChevron(row), row.opensView);
     }
-    const language = visibleAppMenuRows()[0]!;
-    const replay = visibleAppMenuRows()[1]!;
+    const language = visibleAppMenuRows().find((r) => r.key === 'language')!;
+    const about = visibleAppMenuRows().find((r) => r.key === 'about')!;
+    const replay = visibleAppMenuRows().find((r) => r.key === 'replayTips')!;
     assert.equal(appMenuRowShowsChevron(language), true);
+    assert.equal(appMenuRowShowsChevron(about), true);
     assert.equal(appMenuRowShowsChevron(replay), false);
   });
 });
 
 describe('appMenuRowA11yLabel', () => {
   it('uses label alone when there is no value', () => {
+    assert.equal(
+      appMenuRowA11yLabel({ key: 'about', labelKey: 'menuAbout', opensView: true }, t),
+      t('menuAbout'),
+    );
     assert.equal(
       appMenuRowA11yLabel({ key: 'replayTips', labelKey: 'menuReplayTips', opensView: false }, t),
       t('menuReplayTips'),
@@ -89,15 +100,21 @@ describe('appMenuRowA11yLabel', () => {
 describe('withAppMenuRowPress', () => {
   it('binds onPress per row key without requiring sheet key switches', () => {
     let replayCalls = 0;
+    let aboutCalls = 0;
     const rows = withAppMenuRowPress(visibleAppMenuRows(), {
+      about: () => {
+        aboutCalls += 1;
+      },
       replayTips: () => {
         replayCalls += 1;
       },
     });
-    assert.equal(rows.length, 2);
+    assert.equal(rows.length, 3);
+    rows.find((r) => r.key === 'about')!.onPress!();
     const replay = rows.find((r) => r.key === 'replayTips');
     assert.equal(typeof replay?.onPress, 'function');
     replay!.onPress!();
+    assert.equal(aboutCalls, 1);
     assert.equal(replayCalls, 1);
   });
 });
@@ -139,13 +156,17 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
   });
 
-  it('matches DEFAULT_APP_MENU_FEATURES to §4.5 v3.3 scope (Language + Replay)', () => {
+  it('matches DEFAULT_APP_MENU_FEATURES to Language + About + Replay scope', () => {
     assert.deepEqual(DEFAULT_APP_MENU_FEATURES, {
       language: true,
       complexity: false,
       motion: false,
-      about: false,
+      about: true,
       replayTips: true,
     });
+  });
+
+  it('pins About lockup width at 160', () => {
+    assert.equal(ABOUT_LOGO_WIDTH, 160);
   });
 });

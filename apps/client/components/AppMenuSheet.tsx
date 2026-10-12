@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, type View as ViewType } from 'react-native';
-import Svg, { Polyline } from 'react-native-svg';
-import { Sheet } from '@/components/Sheet';
 import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type View as ViewType,
+} from 'react-native';
+import Constants from 'expo-constants';
+import Svg, { Polyline, SvgXml } from 'react-native-svg';
+import { LOGO_SVG_ON_PAPER } from '@/assets/images/logo/lateralzrLogoOnPaper';
+import { Sheet } from '@/components/Sheet';
+import { aboutViewContent } from '@/lib/aboutView';
+import {
+  ABOUT_LOGO_WIDTH,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_VALUE_FONT_SIZE,
   APP_MENU_VALUE_LINE_HEIGHT,
@@ -16,6 +28,7 @@ import {
   type AppMenuRowDef,
   type AppMenuView,
 } from '@/lib/appMenu';
+import { readAppVersion } from '@/lib/appVersion';
 import {
   localeDisplayKey,
   SUPPORTED_LOCALES,
@@ -24,11 +37,16 @@ import {
 } from '@/lib/i18n';
 import { LATERALITY_SHEET_ROW_MIN_HEIGHT } from '@/lib/lateralitySheet';
 import { focusSheetHost } from '@/lib/sheetFocus';
-import { color } from '@/theme/tokens';
+import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
 const RADIO_SIZE = 22;
 const RADIO_DOT = 8;
+
+/** viewBox from lateralzr-logo-on-paper.svg (includes clear space). */
+const ABOUT_LOGO_VB_W = 342.14209;
+const ABOUT_LOGO_VB_H = 310.62924;
+const ABOUT_LOGO_HEIGHT = ABOUT_LOGO_WIDTH * (ABOUT_LOGO_VB_H / ABOUT_LOGO_VB_W);
 
 type AppMenuSheetProps = {
   visible: boolean;
@@ -48,6 +66,21 @@ function ChevronRight({ stroke }: { stroke: string }) {
     <Svg width={20} height={20} viewBox="0 0 24 24" accessible={false}>
       <Polyline
         points="9 6 15 12 9 18"
+        fill="none"
+        stroke={stroke}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function ChevronLeft({ stroke }: { stroke: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" accessible={false}>
+      <Polyline
+        points="15 6 9 12 15 18"
         fill="none"
         stroke={stroke}
         strokeWidth={2}
@@ -116,9 +149,69 @@ function AppMenuRow({
   );
 }
 
+const webFocusProps =
+  Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {};
+
+function AppMenuAboutView({ onBack }: { onBack: () => void }) {
+  const content = aboutViewContent(t, readAppVersion(Constants.expoConfig?.version));
+  const textA11y = `${content.promise}, ${content.version}`;
+
+  return (
+    <ScrollView
+      style={styles.aboutScroll}
+      contentContainerStyle={styles.aboutContent}
+      keyboardShouldPersistTaps="handled"
+      testID="app-menu-about"
+    >
+      <View
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={content.logoLabel}
+        testID="app-menu-about-logo"
+        style={[styles.aboutLogo, { opacity: content.logoOpacity }]}
+        {...webFocusProps}
+      >
+        <SvgXml
+          xml={LOGO_SVG_ON_PAPER}
+          width={ABOUT_LOGO_WIDTH}
+          height={ABOUT_LOGO_HEIGHT}
+          accessible={false}
+        />
+      </View>
+      <View
+        accessible
+        accessibilityLabel={textA11y}
+        testID="app-menu-about-copy"
+        style={styles.aboutCopy}
+        {...webFocusProps}
+      >
+        <Text style={[styles.aboutPromise, textStyle('body')]} accessible={false}>
+          {content.promise}
+        </Text>
+        <Text style={[styles.aboutVersion, textStyle('meta')]} accessible={false}>
+          {content.version}
+        </Text>
+      </View>
+      <Pressable
+        onPress={onBack}
+        accessibilityRole="button"
+        accessibilityLabel={t('menuTitle')}
+        testID="app-menu-about-back"
+        style={({ pressed }) => [styles.aboutBack, pressed ? styles.rowPressed : null]}
+        hitSlop={4}
+      >
+        <ChevronLeft stroke={color.ink} />
+        <Text style={[styles.aboutBackLabel, textStyle('row')]} accessible={false}>
+          {t('menuTitle')}
+        </Text>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
 /**
- * General app menu sheet (guide §12.2). Language picker (Lz-44) + Replay tips;
- * later rows (Lz-45…47) plug into the same row model / in-sheet view state.
+ * General app menu sheet (guide §12.2). Language picker (Lz-44) + About (Lz-47)
+ * + Replay tips; later rows (Lz-45…46) plug into the same row model.
  */
 export function AppMenuSheet({
   visible,
@@ -137,6 +230,7 @@ export function AppMenuSheet({
     () =>
       withAppMenuRowPress(visibleAppMenuRows(features), {
         language: () => setView('language'),
+        about: () => setView('about'),
         replayTips: () => {
           onReplayGestureTips();
           onDismiss();
@@ -171,6 +265,9 @@ export function AppMenuSheet({
     if (row.opensView && row.key === 'language') {
       setView('language');
     }
+    if (row.opensView && row.key === 'about') {
+      setView('about');
+    }
   };
 
   const goBackToRoot = () => {
@@ -179,7 +276,8 @@ export function AppMenuSheet({
     requestAnimationFrame(() => focusSheetHost(languageRowRef));
   };
 
-  const sheetTitle = view === 'language' ? t('menuLanguage') : t('menuTitle');
+  const sheetTitle =
+    view === 'language' ? t('menuLanguage') : view === 'about' ? t('menuAbout') : t('menuTitle');
 
   return (
     <Sheet
@@ -255,12 +353,13 @@ export function AppMenuSheet({
           </View>
         </View>
       ) : null}
+      {view === 'about' ? <AppMenuAboutView onBack={() => setView('root')} /> : null}
     </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  /** Content-height list — do not stretch the short one-row sheet. */
+  /** Content-height list — do not stretch the short sheet. */
   list: {
     paddingBottom: 8,
   },
@@ -348,5 +447,43 @@ const styles = StyleSheet.create({
     height: RADIO_DOT,
     borderRadius: RADIO_DOT / 2,
     backgroundColor: color.ink,
+  },
+  aboutScroll: {
+    // Cancel Sheet body horizontal gutter so About owns 24 px padding.
+    marginHorizontal: -layout.screenGutter,
+    maxHeight: '100%',
+  },
+  aboutContent: {
+    padding: 24,
+    alignItems: 'center',
+    gap: 16,
+  },
+  aboutLogo: {
+    width: ABOUT_LOGO_WIDTH,
+    height: ABOUT_LOGO_HEIGHT,
+  },
+  aboutCopy: {
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  aboutPromise: {
+    color: color.ink,
+    textAlign: 'center',
+  },
+  aboutVersion: {
+    color: color.mutedOnPaper,
+    textAlign: 'center',
+  },
+  aboutBack: {
+    alignSelf: 'stretch',
+    minHeight: layout.recommendedTouchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  aboutBackLabel: {
+    color: color.ink,
   },
 });
