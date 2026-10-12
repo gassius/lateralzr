@@ -43,7 +43,7 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
 
-    // PRR B3: labels wrap at spaces and stay within the row (no horizontal overflow).
+    // PRR B3/B4: labels wrap at spaces (no horizontal overflow); Complejidad stays one line.
     if (vp === '320x568') {
       const fits = await page.evaluate(() => {
         const keys = ['language', 'complexity', 'about', 'replayTips'];
@@ -54,12 +54,16 @@ test.describe('app menu', () => {
           const label = document.querySelector(
             `[data-testid="app-menu-row-label-${key}"]`,
           ) as HTMLElement | null;
-          if (!row || !label) return { key, ok: false };
+          if (!row || !label) return { key, ok: false, lineCount: 0, text: '' };
+          const range = document.createRange();
+          range.selectNodeContents(label);
+          const lineCount = Array.from(range.getClientRects()).filter((r) => r.width > 0).length;
           return {
             key,
             ok: label.scrollWidth <= row.clientWidth + 1,
             scrollWidth: label.scrollWidth,
             rowWidth: row.clientWidth,
+            lineCount,
             text: (label.textContent ?? '').trim(),
           };
         });
@@ -69,7 +73,10 @@ test.describe('app menu', () => {
       }
       const complexity = fits.find((r) => r.key === 'complexity');
       expect(complexity?.text).toBe('Complejidad');
-      expect(complexity?.text.includes('Compleji')).toBe(false);
+      expect(
+        complexity?.lineCount,
+        `Complejidad must render on one line (${JSON.stringify(complexity)})`,
+      ).toBe(1);
     }
 
     await capture(page, testInfo, {
