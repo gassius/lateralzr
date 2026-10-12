@@ -358,7 +358,7 @@ export function AppMenuSheet({
               onPress={goBackToRoot}
               accessibilityRole="button"
               accessibilityLabel={t('back')}
-              testID="app-menu-language-back"
+              testID="app-menu-back"
               style={({ pressed }) => [styles.backRow, pressed ? styles.rowPressed : null]}
             >
               <Text style={[styles.backLabel, textStyle('row')]}>{t('back')}</Text>
