@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, Platform } from 'react-native';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { shouldQueryScreenReaderForNav } from '@/lib/cardActions';
 import {
   COACH_IDLE_MS,
   coachContextReady,
@@ -76,6 +77,11 @@ export function useDiscoveryCoaching({
   );
 
   useEffect(() => {
+    // RN-web always reports screen reader enabled — same gate as accessible nav (Lz-39).
+    if (!shouldQueryScreenReaderForNav(Platform.OS)) {
+      setScreenReaderEnabled(false);
+      return;
+    }
     let mounted = true;
     void AccessibilityInfo.isScreenReaderEnabled().then((enabled) => {
       if (mounted) setScreenReaderEnabled(enabled);

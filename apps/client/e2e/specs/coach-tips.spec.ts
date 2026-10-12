@@ -57,7 +57,7 @@ test.describe('coach tips (§12.3)', () => {
     const surface = page.getByTestId('card-a11y-surface');
     await surface.click();
     await surface.click();
-    await swipeForward(page, 'micelio');
+    await swipeForward(page, 'Micelio');
 
     await page.clock.fastForward(COACH_IDLE_MS);
     const hint = page.getByTestId('coach-hint');

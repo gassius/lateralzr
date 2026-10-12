@@ -314,6 +314,12 @@ describe('shouldAnimateCoachPeek', () => {
     assert.match(src, /useReducedMotion\(\)/);
     assert.match(src, /animateAppear:\s*!reduceMotion/);
   });
+
+  it('skips RN-web screen-reader probe so visual tips still show (Lz-39 gate)', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(path.join(here, '../hooks/useDiscoveryCoaching.ts'), 'utf8');
+    assert.match(src, /shouldQueryScreenReaderForNav/);
+  });
 });
 
 describe('coachMessageKey', () => {
