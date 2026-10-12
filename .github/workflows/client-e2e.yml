@@ -4,7 +4,8 @@
 #
 # Every workflow run reports required check "Client E2E screenshots" (static job
 # name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
-# quick pass-through success on labeled/unlabeled for any label.
+# on labeled/unlabeled, pass-through mirrors the newest capture run on the head
+# SHA (success/failure; poll if still running; fail if none).
 # Full matrix: labeled run-full-screenshots → reusable workflow posts
 # "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
@@ -131,6 +132,7 @@ jobs:
       cancel-in-progress: ${{ needs.gate.outputs.screenshots_cancel == 'true' }}
     permissions:
       contents: read
+      checks: read
     outputs:
       should_run: ${{ steps.passthrough.outputs.should_run || steps.plan.outputs.should_run || 'false' }}
     defaults:
@@ -141,12 +143,117 @@ jobs:
         id: passthrough
         if: needs.gate.outputs.mode == 'passthrough'
         working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           {
+            echo "<!-- client-e2e-mode:passthrough -->"
+            echo "### Client E2E screenshots (pass-through)"
+            echo "Mirroring newest capture run on \`${HEAD_SHA}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
             echo "should_run=false"
           } >> "$GITHUB_OUTPUT"
-          echo "Client E2E screenshots: pass-through success (no capture this event)."
+
+          if [ -z "${HEAD_SHA}" ]; then
+            echo "::error::HEAD_SHA empty; cannot mirror capture check"
+            exit 1
+          fi
+
+          # Poll until the newest capture run completes (or timeout).
+          deadline=$((SECONDS + 5400))
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            mapfile -t candidates < <(
+              {
+                gh api --paginate \
+                  "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs?check_name=Client%20E2E%20screenshots&per_page=100" \
+                  --jq '.check_runs[]'
+              } | jq -s -r --arg run "${CURRENT_RUN_ID}" '
+                  map(select((.details_url // .html_url // "") | contains("/actions/runs/" + $run + "/") | not))
+                  | sort_by(.started_at // "")
+                  | reverse
+                  | .[].id
+                '
+            )
+
+            capture_id=""
+            capture_status=""
+            capture_conclusion=""
+            for id in "${candidates[@]+"${candidates[@]}"}"; do
+              [ -n "${id}" ] || continue
+              job_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}" 2>/dev/null || true)"
+              if [ -z "${job_json}" ]; then
+                continue
+              fi
+              kind="$(jq -r '
+                (.steps // []) as $s
+                | if any($s[]; .name == "Pass-through required check") then "passthrough"
+                  elif any($s[]; .name == "Mark capture run") then "capture"
+                  elif any($s[]; .name == "Plan E2E tier") then "capture"
+                  else "unknown"
+                  end
+              ' <<<"${job_json}")"
+              summary="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${id}" --jq '.output.summary // ""' 2>/dev/null || true)"
+              case "${summary}" in
+                *client-e2e-mode:passthrough*) kind="passthrough" ;;
+                *client-e2e-mode:capture*) kind="capture" ;;
+              esac
+              if [ "${kind}" = "passthrough" ]; then
+                continue
+              fi
+              status="$(jq -r '.status' <<<"${job_json}")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"${job_json}")"
+              if [ "${kind}" = "capture" ]; then
+                capture_id="${id}"
+                capture_status="${status}"
+                capture_conclusion="${conclusion}"
+                break
+              fi
+              # In-progress job with no identifying steps yet: wait rather than guess.
+              if [ "${status}" = "queued" ] || [ "${status}" = "in_progress" ] || [ "${status}" = "waiting" ]; then
+                capture_id="${id}"
+                capture_status="${status}"
+                capture_conclusion=""
+                break
+              fi
+            done
+
+            if [ -z "${capture_id}" ]; then
+              echo "No capture run visible yet on ${HEAD_SHA}; waiting..."
+              sleep 20
+              continue
+            fi
+
+            echo "Newest capture check-run id=${capture_id} status=${capture_status} conclusion=${capture_conclusion:-none}"
+
+            if [ "${capture_status}" = "completed" ]; then
+              if [ "${capture_conclusion}" = "success" ]; then
+                echo "Mirroring capture success."
+                exit 0
+              fi
+              echo "::error::Mirroring capture conclusion=${capture_conclusion}"
+              exit 1
+            fi
+
+            echo "Capture still ${capture_status}; waiting..."
+            sleep 20
+          done
+
+          echo "::error::Timed out waiting for Client E2E screenshots capture on ${HEAD_SHA} (none completed successfully)"
+          exit 1
+
+      - name: Mark capture run
+        if: needs.gate.outputs.mode == 'capture'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          {
+            echo "<!-- client-e2e-mode:capture -->"
+            echo "### Client E2E screenshots (capture)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/checkout@v4
         if: needs.gate.outputs.mode == 'capture'
