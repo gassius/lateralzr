@@ -8,11 +8,15 @@ export const APP_MENU_VALUE_FONT_SIZE = 15;
 export const APP_MENU_VALUE_LINE_HEIGHT = Math.round(APP_MENU_VALUE_FONT_SIZE * 1.4);
 
 /**
- * Label must not shrink (AD Lz-45): prevents mid-word breaks like Compleji/dad
- * at 320×200% ES. Value yields width first, then wraps under the label.
+ * Label may shrink so multi-word ES copy wraps at spaces (PRR B3), but web
+ * `minWidth: min-content` keeps it at least as wide as its longest word so
+ * Compleji/dad never appears (AD Lz-45). Value still yields first, then stacks.
  */
-export const APP_MENU_ROW_LABEL_FLEX_SHRINK = 0;
+export const APP_MENU_ROW_LABEL_FLEX_SHRINK = 1;
 export const APP_MENU_ROW_VALUE_FLEX_SHRINK = 1;
+
+/** Web-only: never narrower than the longest word in the label. */
+export const APP_MENU_ROW_LABEL_MIN_WIDTH_WEB = 'min-content' as const;
 
 export type AppMenuRowKey =
   | 'language'

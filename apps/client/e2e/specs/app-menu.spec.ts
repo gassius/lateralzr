@@ -31,14 +31,47 @@ test.describe('app menu', () => {
     });
   }
 
-  // Art director: 200% text open captures at 320 and 390 in ES.
+  // Art director: 200% text open captures at 320 and 390 in ES (all rows visible).
   test('open at 200% text (es)', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;
     test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
     await openApp(page, 'canonicalConcept=mushroom&locale=es&e2eTextScale=2');
     await openAppMenu(page);
     await expect(page.getByTestId('app-menu')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-language')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-complexity')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
+
+    // PRR B3: labels wrap at spaces and stay within the row (no horizontal overflow).
+    if (vp === '320x568') {
+      const fits = await page.evaluate(() => {
+        const keys = ['language', 'complexity', 'about', 'replayTips'];
+        return keys.map((key) => {
+          const row = document.querySelector(
+            `[data-testid="app-menu-row-${key}"]`,
+          ) as HTMLElement | null;
+          const label = document.querySelector(
+            `[data-testid="app-menu-row-label-${key}"]`,
+          ) as HTMLElement | null;
+          if (!row || !label) return { key, ok: false };
+          return {
+            key,
+            ok: label.scrollWidth <= row.clientWidth + 1,
+            scrollWidth: label.scrollWidth,
+            rowWidth: row.clientWidth,
+            text: (label.textContent ?? '').trim(),
+          };
+        });
+      });
+      for (const row of fits) {
+        expect(row.ok, `${row.key} label overflows row (${JSON.stringify(row)})`).toBe(true);
+      }
+      const complexity = fits.find((r) => r.key === 'complexity');
+      expect(complexity?.text).toBe('Complejidad');
+      expect(complexity?.text.includes('Compleji')).toBe(false);
+    }
+
     await capture(page, testInfo, {
       screen: 'app-menu',
       state: 'open-200',

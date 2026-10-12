@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   ABOUT_LOGO_WIDTH,
   APP_MENU_ROW_LABEL_FLEX_SHRINK,
+  APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_ORDER,
   APP_MENU_ROW_VALUE_FLEX_SHRINK,
@@ -177,10 +178,10 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
   });
 
-  it('keeps label unshrinkable so ES words never break mid-glyph (AD Lz-45)', () => {
-    assert.equal(APP_MENU_ROW_LABEL_FLEX_SHRINK, 0);
+  it('lets labels shrink for space-wrap but pins web minWidth to longest word (PRR B3)', () => {
+    assert.equal(APP_MENU_ROW_LABEL_FLEX_SHRINK, 1);
     assert.equal(APP_MENU_ROW_VALUE_FLEX_SHRINK, 1);
-    assert.ok(APP_MENU_ROW_VALUE_FLEX_SHRINK > APP_MENU_ROW_LABEL_FLEX_SHRINK);
+    assert.equal(APP_MENU_ROW_LABEL_MIN_WIDTH_WEB, 'min-content');
   });
 
   it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + About + Replay', () => {

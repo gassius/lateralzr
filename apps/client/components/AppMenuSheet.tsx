@@ -16,6 +16,7 @@ import { aboutViewContent } from '@/lib/aboutView';
 import {
   ABOUT_LOGO_WIDTH,
   APP_MENU_ROW_LABEL_FLEX_SHRINK,
+  APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
@@ -143,7 +144,12 @@ function AppMenuRow({
         style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
       >
         <View style={styles.rowTextCluster} testID={`app-menu-row-text-${row.key}`}>
-          <Text style={[styles.rowLabel, textStyle('row')]}>{t(row.labelKey)}</Text>
+          <Text
+            style={[styles.rowLabel, textStyle('row')]}
+            testID={`app-menu-row-label-${row.key}`}
+          >
+            {t(row.labelKey)}
+          </Text>
           {valueText ? (
             <Text
               style={styles.rowValue}
@@ -467,9 +473,14 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: APP_MENU_ROW_LABEL_FLEX_SHRINK,
     color: color.ink,
-    // Web: never soft-break inside a Spanish word (Compleji/dad).
+    // Web: wrap at spaces, never mid-word; min-content ≥ longest word (PRR B3).
     ...(Platform.OS === 'web'
-      ? ({ wordBreak: 'normal', overflowWrap: 'normal', hyphens: 'none' } as const)
+      ? ({
+          wordBreak: 'normal',
+          overflowWrap: 'normal',
+          hyphens: 'none',
+          minWidth: APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
+        } as object)
       : null),
   },
   rowValue: {
