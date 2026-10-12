@@ -45,6 +45,14 @@ test.describe('app menu', () => {
     });
   });
 
+  test('opening Language picker moves focus into the view', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-language').click();
+    await expect(page.getByTestId('app-menu-language')).toBeVisible();
+    await expect(page.getByTestId('app-menu-language-focus')).toBeFocused();
+  });
+
   test('Replay gesture tips restarts coaching from the current card', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     const trigger = page.getByTestId('app-menu-trigger');

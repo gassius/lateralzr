@@ -16,25 +16,43 @@ function readWebLocaleParam(): string | null {
   }
 }
 
+/** Best-effort device/browser language tag (BCP-47). */
+export function readDeviceLocaleTag(): string | null {
+  if (Platform.OS === 'web') {
+    if (typeof navigator === 'undefined') return null;
+    return navigator.language ?? null;
+  }
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve app locale:
- * 1. Web `?locale=` override (when supported)
- * 2. Default (`en`)
- *
- * Device/browser locale is intentionally ignored so content and UI stay on `en`
- * unless the URL explicitly selects another supported locale.
+ * 1. Explicit stored choice
+ * 2. Web `?locale=` override (when supported)
+ * 3. Device/browser locale
+ * 4. Default (`en`)
  */
 export function resolveAppLocale(options?: {
+  storedLocale?: string | null;
   urlLocale?: string | null;
+  deviceLocale?: string | null;
 }): AppLocale {
   return resolveLocalePreference({
+    storedLocale: options?.storedLocale,
     urlLocale: options?.urlLocale ?? readWebLocaleParam(),
+    deviceLocale: options?.deviceLocale ?? readDeviceLocaleTag(),
   });
 }
 
 /** Apply resolved locale to the shared i18n catalog (call once at app start). */
 export function applyResolvedLocale(options?: {
+  storedLocale?: string | null;
   urlLocale?: string | null;
+  deviceLocale?: string | null;
 }): AppLocale {
   const locale = resolveAppLocale(options);
   setActiveLocale(locale);

@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { WebPhoneFrame } from '@/components/WebPhoneFrame';
 import { ensureGtmWebLoaded } from '@/lib/analytics';
 import { applyResolvedLocale } from '@/lib/locale';
+import { loadStoredLocale } from '@/lib/localeStorage';
 import { t } from '@/lib/i18n';
 import { color } from '@/theme/tokens';
 
@@ -34,6 +35,15 @@ function useWebDocumentTitle() {
     if (Platform.OS !== 'web' || typeof document === 'undefined') return;
     applyResolvedLocale();
     document.title = t('webTitle');
+    let cancelled = false;
+    void loadStoredLocale().then((stored) => {
+      if (cancelled) return;
+      applyResolvedLocale({ storedLocale: stored });
+      document.title = t('webTitle');
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 }
 
