@@ -4,11 +4,14 @@
 #
 # pull_request always runs so "Client E2E screenshots" can be a required check.
 # Non-client PRs succeed quickly without capture/publish (job is not skipped).
+# Draft client PRs capture a 390px / English subset (touched screens, else smoke).
+# Full matrix: ready_for_review, synchronize while not draft, push to main.
 
 name: Client E2E
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main, master]
     paths:
@@ -47,7 +50,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should_run: ${{ steps.filter.outputs.should_run }}
+      should_run: ${{ steps.plan.outputs.should_run }}
     defaults:
       run:
         working-directory: apps/client
@@ -58,40 +61,45 @@ jobs:
 
       - name: Detect client-related paths
         id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ github.token }}
+          filters: |
+            client:
+              - 'apps/client/**'
+              - '.github/workflows/client-e2e.yml'
+              - '.github/scripts/client-e2e-*.mjs'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - '.nvmrc'
+              - '.npmrc'
+          list-files: json
+
+      - name: Plan E2E tier
+        id: plan
         working-directory: .
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          CLIENT_CHANGED: ${{ github.event_name != 'pull_request' && 'true' || steps.filter.outputs.client }}
+          CLIENT_FILES: ${{ github.event_name == 'pull_request' && steps.filter.outputs.client_files || '[]' }}
         run: |
           set -euo pipefail
-          if [ "${EVENT_NAME}" != "pull_request" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "Non-PR event: run full client e2e"
-            exit 0
-          fi
-          # checkout@v4 for pull_request leaves the merge commit at HEAD; the
-          # PR head SHA is not in the shallow clone. Diff base…HEAD instead.
-          git fetch --no-tags --depth=1 origin "${BASE_SHA}"
-          CHANGED="$(git diff --name-only "${BASE_SHA}" HEAD)"
-          echo "Changed files:"
-          echo "${CHANGED}"
-          if printf '%s\n' "${CHANGED}" | grep -qE '^(apps/client/|\.github/workflows/client-e2e\.yml|\.github/scripts/client-e2e-|pnpm-lock\.yaml$|package\.json$|pnpm-workspace\.yaml$|turbo\.json$|\.nvmrc$|\.npmrc$)'; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "Client-related paths touched; running capture"
-          else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "No client-related paths; succeeding without capture/publish"
-          fi
+          node --test .github/scripts/client-e2e-plan.test.mjs
+          node .github/scripts/client-e2e-plan.mjs
 
       - name: Skip capture (no client-related paths)
-        if: steps.filter.outputs.should_run != 'true'
+        if: steps.plan.outputs.should_run != 'true'
         working-directory: .
         run: |
           echo "Client E2E screenshots: nothing to capture for this PR."
           echo "Required check reports success without Playwright / publish / sticky comment."
 
       - name: Assert no GitHub write credentials in git config
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         working-directory: .
         run: |
           set -euo pipefail
@@ -102,23 +110,23 @@ jobs:
           echo "OK: no http.https://github.com/.extraheader"
 
       - name: Install pnpm
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         uses: pnpm/action-setup@v4
 
       - name: Setup Node
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
           cache: 'pnpm'
 
       - name: Install dependencies
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         working-directory: .
         run: pnpm install --frozen-lockfile
 
       - name: Cache Playwright browsers
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         uses: actions/cache@v4
         id: playwright-cache
         with:
@@ -126,21 +134,33 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('apps/client/package.json', 'pnpm-lock.yaml') }}
 
       - name: Install Playwright Chromium
-        if: steps.filter.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install chromium --with-deps
 
       - name: Install Playwright system deps (cache hit)
-        if: steps.filter.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        if: steps.plan.outputs.should_run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm exec playwright install-deps chromium
 
+      - name: Cache Expo web export
+        if: steps.plan.outputs.should_run == 'true'
+        uses: actions/cache@v4
+        id: expo-web-cache
+        with:
+          path: apps/client/dist
+          key: expo-web-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml', 'apps/client/package.json', 'apps/client/app.json', 'apps/client/tsconfig.json', 'apps/client/metro.config.js', 'apps/client/*.config.*') }}-${{ hashFiles('apps/client/app/**', 'apps/client/components/**', 'apps/client/lib/**', 'apps/client/hooks/**', 'apps/client/constants/**', 'apps/client/assets/**', 'apps/client/theme/**') }}
+
+      - name: Confirm cached Expo web export
+        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit == 'true'
+        run: test -f dist/index.html
+
       - name: Build Expo web export (no GTM)
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit != 'true'
         env:
           EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
         run: pnpm build
 
       - name: Sync orphan e2e-screenshots:baselines/ (read-only)
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         working-directory: apps/client
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -169,15 +189,39 @@ jobs:
           rm -rf "${TMP}"
 
       - name: Run Playwright E2E
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
           E2E_STRICT_BASELINES: ${{ github.event.inputs.strict_baselines == 'true' && '1' || '0' }}
-        run: pnpm e2e
+          E2E_MODE: ${{ steps.plan.outputs.mode }}
+          E2E_PROJECT: ${{ steps.plan.outputs.project }}
+          E2E_GREP: ${{ steps.plan.outputs.grep }}
+          E2E_GREP_INVERT: ${{ steps.plan.outputs.grep_invert }}
+          E2E_SPECS: ${{ steps.plan.outputs.specs }}
+        run: |
+          set -euo pipefail
+          if [ "${E2E_MODE}" = "full" ]; then
+            pnpm e2e
+            exit 0
+          fi
+          args=(-c e2e/playwright.config.ts)
+          read -r -a specs <<< "${E2E_SPECS}"
+          args+=("${specs[@]}")
+          if [ -n "${E2E_PROJECT}" ]; then
+            args+=(--project "${E2E_PROJECT}")
+          fi
+          if [ -n "${E2E_GREP}" ]; then
+            args+=(--grep "${E2E_GREP}")
+          fi
+          if [ -n "${E2E_GREP_INVERT}" ]; then
+            args+=(--grep-invert "${E2E_GREP_INVERT}")
+          fi
+          echo "Subset Playwright args: ${args[*]}"
+          pnpm exec playwright test "${args[@]}"
 
       - name: Smoke stability (--repeat-each=2) + pixel-identical captures
-        if: steps.filter.outputs.should_run == 'true'
+        if: steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
@@ -197,7 +241,7 @@ jobs:
             e2e/screenshots/repeat-2
 
       - name: Stage flat artifact tree
-        if: always() && steps.filter.outputs.should_run == 'true'
+        if: always() && steps.plan.outputs.should_run == 'true'
         working-directory: apps/client
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -218,7 +262,7 @@ jobs:
           find /tmp/e2e-artifact/screenshots -name '*.png' | wc -l
 
       - name: Upload screenshots, diffs, and report
-        if: always() && steps.filter.outputs.should_run == 'true'
+        if: always() && steps.plan.outputs.should_run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: client-e2e-screenshots
