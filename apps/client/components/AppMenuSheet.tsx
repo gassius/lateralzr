@@ -15,9 +15,11 @@ import { Sheet } from '@/components/Sheet';
 import { aboutViewContent } from '@/lib/aboutView';
 import {
   ABOUT_LOGO_WIDTH,
+  APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT,
   APP_MENU_ROW_LABEL_FLEX_SHRINK,
   APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
   APP_MENU_ROW_MIN_HEIGHT,
+  APP_MENU_ROW_VALUE_FLEX_GROW,
   APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
   APP_MENU_VALUE_LINE_HEIGHT,
@@ -456,7 +458,8 @@ const styles = StyleSheet.create({
   },
   /**
    * Label+value wrap as a unit; chevron stays centred on the row.
-   * When the row is narrow, the value stacks under the label (left-aligned).
+   * space-between keeps the value flush-right on a shared line (Lz-44) and
+   * left-packs it when it wraps under the label (AD Lz-45 / open-200 320).
    */
   rowTextCluster: {
     flexGrow: 1,
@@ -465,6 +468,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT,
     alignItems: 'center',
     columnGap: 12,
     rowGap: 2,
@@ -484,7 +488,7 @@ const styles = StyleSheet.create({
       : null),
   },
   rowValue: {
-    flexGrow: 1,
+    flexGrow: APP_MENU_ROW_VALUE_FLEX_GROW,
     flexShrink: APP_MENU_ROW_VALUE_FLEX_SHRINK,
     minWidth: 0,
     color: color.mutedOnPaper,

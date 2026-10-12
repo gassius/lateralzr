@@ -15,6 +15,14 @@ export const APP_MENU_VALUE_LINE_HEIGHT = Math.round(APP_MENU_VALUE_FONT_SIZE * 
 export const APP_MENU_ROW_LABEL_FLEX_SHRINK = 1;
 export const APP_MENU_ROW_VALUE_FLEX_SHRINK = 1;
 
+/**
+ * Cluster uses space-between so the value sits flush-right beside the chevron
+ * when it shares the label's line (Lz-44). A lone wrapped value packs to the
+ * start (left-aligned stack) — do not flexGrow the value (that left-sticks copy).
+ */
+export const APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT = 'space-between' as const;
+export const APP_MENU_ROW_VALUE_FLEX_GROW = 0;
+
 /** Web-only: never narrower than the longest word in the label. */
 export const APP_MENU_ROW_LABEL_MIN_WIDTH_WEB = 'min-content' as const;
 

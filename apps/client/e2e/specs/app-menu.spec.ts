@@ -23,6 +23,44 @@ test.describe('app menu', () => {
       await expect(page.getByTestId('app-menu-row-chevron-replayTips')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-handle')).toBeVisible();
 
+      // AD Lz-45: value flush-right beside the chevron (Lz-44 row metric), not after the label.
+      const layout = await page.evaluate(() => {
+        const label = document.querySelector(
+          '[data-testid="app-menu-row-label-language"]',
+        ) as HTMLElement | null;
+        const value = document.querySelector(
+          '[data-testid="app-menu-row-value-language"]',
+        ) as HTMLElement | null;
+        const chevron = document.querySelector(
+          '[data-testid="app-menu-row-chevron-language"]',
+        ) as HTMLElement | null;
+        if (!label || !value || !chevron) return null;
+        const lr = label.getBoundingClientRect();
+        const vr = value.getBoundingClientRect();
+        const cr = chevron.getBoundingClientRect();
+        return {
+          labelRight: lr.right,
+          valueLeft: vr.left,
+          valueRight: vr.right,
+          chevronLeft: cr.left,
+          sameLine: Math.abs(vr.top - lr.top) < 8,
+          gapToChevron: cr.left - vr.right,
+          gapFromLabel: vr.left - lr.right,
+        };
+      });
+      expect(layout, 'language label/value/chevron mounted').not.toBeNull();
+      expect(layout!.sameLine, `value should share the label line (${JSON.stringify(layout)})`).toBe(
+        true,
+      );
+      expect(
+        layout!.gapToChevron,
+        `value should sit flush-right beside chevron (${JSON.stringify(layout)})`,
+      ).toBeLessThan(20);
+      expect(
+        layout!.gapFromLabel,
+        `value must not sit immediately after the label (${JSON.stringify(layout)})`,
+      ).toBeGreaterThan(24);
+
       await capture(page, testInfo, {
         screen: 'app-menu',
         state: 'open',
@@ -77,6 +115,36 @@ test.describe('app menu', () => {
         complexity?.lineCount,
         `Complejidad must render on one line (${JSON.stringify(complexity)})`,
       ).toBe(1);
+
+      // Value stacks under the label, left-aligned (only when wrapped).
+      const stacked = await page.evaluate(() => {
+        const label = document.querySelector(
+          '[data-testid="app-menu-row-label-complexity"]',
+        ) as HTMLElement | null;
+        const value = document.querySelector(
+          '[data-testid="app-menu-row-value-complexity"]',
+        ) as HTMLElement | null;
+        if (!label || !value) return null;
+        const lr = label.getBoundingClientRect();
+        const vr = value.getBoundingClientRect();
+        return {
+          valueTop: vr.top,
+          labelBottom: lr.bottom,
+          valueLeft: vr.left,
+          labelLeft: lr.left,
+          stacked: vr.top >= lr.bottom - 2,
+          leftAligned: Math.abs(vr.left - lr.left) <= 2,
+        };
+      });
+      expect(stacked, 'complexity label/value mounted').not.toBeNull();
+      expect(
+        stacked!.stacked,
+        `Complejidad 2 should stack under the label (${JSON.stringify(stacked)})`,
+      ).toBe(true);
+      expect(
+        stacked!.leftAligned,
+        `stacked value should be left-aligned (${JSON.stringify(stacked)})`,
+      ).toBe(true);
     }
 
     await capture(page, testInfo, {

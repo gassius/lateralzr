@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   ABOUT_LOGO_WIDTH,
+  APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT,
   APP_MENU_ROW_LABEL_FLEX_SHRINK,
   APP_MENU_ROW_LABEL_MIN_WIDTH_WEB,
   APP_MENU_ROW_MIN_HEIGHT,
   APP_MENU_ROW_ORDER,
+  APP_MENU_ROW_VALUE_FLEX_GROW,
   APP_MENU_ROW_VALUE_FLEX_SHRINK,
   APP_MENU_VALUE_FONT_SIZE,
   appMenuRowA11yLabel,
@@ -182,6 +184,11 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_ROW_LABEL_FLEX_SHRINK, 1);
     assert.equal(APP_MENU_ROW_VALUE_FLEX_SHRINK, 1);
     assert.equal(APP_MENU_ROW_LABEL_MIN_WIDTH_WEB, 'min-content');
+  });
+
+  it('keeps values flush-right on a shared line and left-packed when wrapped (AD Lz-45)', () => {
+    assert.equal(APP_MENU_ROW_CLUSTER_JUSTIFY_CONTENT, 'space-between');
+    assert.equal(APP_MENU_ROW_VALUE_FLEX_GROW, 0);
   });
 
   it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + About + Replay', () => {
