@@ -4,9 +4,8 @@
 #
 # Every workflow run reports required check "Client E2E screenshots" (static job
 # name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
-# on labeled/unlabeled, pass-through mirrors the newest capture run on the head
-# SHA (success/failure; poll if still running; fail on timeout if none).
-# Pass-through excludes its own GITHUB_RUN_ID / check-run id when selecting.
+# on labeled/unlabeled, pass-through mirrors only completed/in-progress capture
+# runs on the head SHA (ignores every pass-through; ≤120s timeout).
 # Full matrix: labeled run-full-screenshots → reusable workflow posts
 # "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
@@ -149,8 +148,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CURRENT_RUN_ID: ${{ github.run_id }}
-          # Hard cap so pass-through cannot wait on itself / a missing capture forever.
-          PASSTHROUGH_WAIT_SECONDS: '1200'
+          # Hard cap: only wait on a real capture; never on other pass-throughs.
+          PASSTHROUGH_WAIT_SECONDS: '120'
         run: |
           set -euo pipefail
           {
@@ -167,7 +166,7 @@ jobs:
             exit 1
           fi
 
-          # Fetch exclude-self helper (pass-through job has no checkout).
+          # Fetch helper (pass-through job has no checkout).
           script_dir="$(mktemp -d)"
           gh api "repos/${GITHUB_REPOSITORY}/contents/.github/scripts/client-e2e-passthrough.mjs?ref=${HEAD_SHA}" \
             --jq '.content' | tr -d '\n' | base64 -d > "${script_dir}/client-e2e-passthrough.mjs"
@@ -179,7 +178,7 @@ jobs:
               | head -n1
           )"
           export CURRENT_CHECK_RUN_ID
-          echo "Excluding self run_id=${CURRENT_RUN_ID} check_run_id=${CURRENT_CHECK_RUN_ID:-unknown}"
+          echo "Excluding self run_id=${CURRENT_RUN_ID} check_run_id=${CURRENT_CHECK_RUN_ID:-unknown}; ignoring every pass-through"
 
           wait_seconds="${PASSTHROUGH_WAIT_SECONDS}"
           deadline=$((SECONDS + wait_seconds))
@@ -193,12 +192,9 @@ jobs:
                   node "${script_dir}/client-e2e-passthrough.mjs" exclude-self-ids
             )
 
-            capture_id=""
-            capture_status=""
-            capture_conclusion=""
+            classified='[]'
             for id in "${candidates[@]+"${candidates[@]}"}"; do
               [ -n "${id}" ] || continue
-              # Belt-and-suspenders: never mirror our own check-run.
               if [ -n "${CURRENT_CHECK_RUN_ID:-}" ] && [ "${id}" = "${CURRENT_CHECK_RUN_ID}" ]; then
                 continue
               fi
@@ -206,62 +202,57 @@ jobs:
               if [ -z "${job_json}" ]; then
                 continue
               fi
-              kind="$(jq -r '
-                (.steps // []) as $s
-                | if any($s[]; .name == "Pass-through required check") then "passthrough"
-                  elif any($s[]; .name == "Mark capture run") then "capture"
-                  elif any($s[]; .name == "Plan E2E tier") then "capture"
-                  else "unknown"
-                  end
-              ' <<<"${job_json}")"
               summary="$(gh api "repos/${GITHUB_REPOSITORY}/check-runs/${id}" --jq '.output.summary // ""' 2>/dev/null || true)"
-              case "${summary}" in
-                *client-e2e-mode:passthrough*) kind="passthrough" ;;
-                *client-e2e-mode:capture*) kind="capture" ;;
-              esac
-              if [ "${kind}" = "passthrough" ]; then
+              kind="$(
+                CLASSIFY_SUMMARY="${summary}" node "${script_dir}/client-e2e-passthrough.mjs" classify-job <<<"${job_json}"
+              )"
+              # Drop every pass-through and unknown — never wait on sibling label runs.
+              if [ "${kind}" != "capture" ]; then
+                echo "Skipping check-run id=${id} kind=${kind}"
                 continue
               fi
               status="$(jq -r '.status' <<<"${job_json}")"
               conclusion="$(jq -r '.conclusion // empty' <<<"${job_json}")"
-              if [ "${kind}" = "capture" ]; then
-                capture_id="${id}"
-                capture_status="${status}"
-                capture_conclusion="${conclusion}"
-                break
-              fi
-              # In-progress job with no identifying steps yet: wait rather than guess
-              # (self already excluded by run id + check-run id).
-              if [ "${status}" = "queued" ] || [ "${status}" = "in_progress" ] || [ "${status}" = "waiting" ]; then
-                capture_id="${id}"
-                capture_status="${status}"
-                capture_conclusion=""
-                break
-              fi
+              classified="$(
+                jq -c --argjson id "${id}" --arg kind "${kind}" --arg status "${status}" --arg conclusion "${conclusion}" \
+                  '. + [{id: $id, kind: $kind, status: $status, conclusion: (if $conclusion == "" then null else $conclusion end)}]' \
+                  <<<"${classified}"
+              )"
             done
 
-            if [ -z "${capture_id}" ]; then
-              echo "No capture run visible yet on ${HEAD_SHA}; waiting..."
-              sleep 20
-              continue
-            fi
+            target="$(
+              node "${script_dir}/client-e2e-passthrough.mjs" select-mirror-target <<<"${classified}"
+            )"
+            action="$(jq -r '.action' <<<"${target}")"
+            capture_id="$(jq -r '.id // empty' <<<"${target}")"
+            capture_status="$(jq -r '.status // empty' <<<"${target}")"
+            capture_conclusion="$(jq -r '.conclusion // empty' <<<"${target}")"
 
-            echo "Newest capture check-run id=${capture_id} status=${capture_status} conclusion=${capture_conclusion:-none}"
-
-            if [ "${capture_status}" = "completed" ]; then
-              if [ "${capture_conclusion}" = "success" ]; then
-                echo "Mirroring capture success."
+            case "${action}" in
+              success)
+                echo "Mirroring capture success from check-run id=${capture_id}."
                 exit 0
-              fi
-              echo "::error::Mirroring capture conclusion=${capture_conclusion}"
-              exit 1
-            fi
-
-            echo "Capture still ${capture_status}; waiting..."
-            sleep 20
+                ;;
+              failure)
+                echo "::error::Mirroring capture conclusion=${capture_conclusion} (check-run id=${capture_id})"
+                exit 1
+                ;;
+              wait)
+                echo "Capture check-run id=${capture_id} still ${capture_status}; waiting..."
+                sleep 5
+                ;;
+              none)
+                echo "No capture run visible yet on ${HEAD_SHA} (pass-through/unknown ignored); waiting..."
+                sleep 5
+                ;;
+              *)
+                echo "::error::Unexpected select-mirror-target action=${action}"
+                exit 1
+                ;;
+            esac
           done
 
-          echo "::error::Timed out after ${wait_seconds}s waiting for Client E2E screenshots capture on ${HEAD_SHA} (none completed successfully)"
+          echo "::error::Timed out after ${wait_seconds}s waiting for a completed Client E2E screenshots capture on ${HEAD_SHA} (ignored all pass-through runs)"
           exit 1
 
       - name: Mark capture run

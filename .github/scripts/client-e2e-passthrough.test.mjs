@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  classifyKind,
   classifyKindFromJobSteps,
   classifyKindFromSummary,
   isSelfCheckRun,
   listCaptureCandidates,
+  selectCaptureMirrorTarget,
+  stepActivelyRan,
 } from './client-e2e-passthrough.mjs';
 
 describe('isSelfCheckRun', () => {
@@ -81,7 +84,6 @@ describe('listCaptureCandidates', () => {
         html_url: null,
       },
     ];
-    // id 8 has empty URLs but is not self by checkRunId/runId → kept
     const ids = listCaptureCandidates(runs, self).map((r) => r.id);
     assert.deepEqual(ids, [9, 8]);
   });
@@ -101,19 +103,145 @@ describe('listCaptureCandidates', () => {
   });
 });
 
-describe('classifyKind', () => {
-  it('classifies capture and passthrough from steps and summary', () => {
+describe('stepActivelyRan / classifyKind', () => {
+  it('treats skipped and pending steps as inactive', () => {
+    assert.equal(stepActivelyRan({ name: 'x', conclusion: 'skipped', status: 'completed' }), false);
+    assert.equal(stepActivelyRan({ name: 'x', status: 'pending', conclusion: null }), false);
+    assert.equal(stepActivelyRan({ name: 'x', status: 'in_progress', conclusion: null }), true);
+    assert.equal(stepActivelyRan({ name: 'x', status: 'completed', conclusion: 'success' }), true);
+  });
+
+  it('does not classify capture as passthrough when Pass-through step is skipped', () => {
+    const captureSteps = [
+      { name: 'Pass-through required check', status: 'completed', conclusion: 'skipped' },
+      { name: 'Mark capture run', status: 'completed', conclusion: 'success' },
+      { name: 'Plan E2E tier', status: 'completed', conclusion: 'success' },
+    ];
+    assert.equal(classifyKindFromJobSteps(captureSteps), 'capture');
+    assert.equal(classifyKind({ steps: captureSteps, summary: null }), 'capture');
+  });
+
+  it('classifies in-progress pass-through even when Mark capture is still pending', () => {
+    const passthroughSteps = [
+      { name: 'Pass-through required check', status: 'in_progress', conclusion: null },
+      { name: 'Mark capture run', status: 'pending', conclusion: null },
+      { name: 'Plan E2E tier', status: 'pending', conclusion: null },
+    ];
+    assert.equal(classifyKindFromJobSteps(passthroughSteps), 'passthrough');
+  });
+
+  it('classifies completed pass-through when Mark capture stayed skipped', () => {
     assert.equal(
-      classifyKindFromJobSteps([{ name: 'Pass-through required check' }]),
+      classifyKindFromJobSteps([
+        { name: 'Pass-through required check', status: 'completed', conclusion: 'success' },
+        { name: 'Mark capture run', status: 'completed', conclusion: 'skipped' },
+      ]),
       'passthrough',
     );
-    assert.equal(classifyKindFromJobSteps([{ name: 'Mark capture run' }]), 'capture');
-    assert.equal(classifyKindFromJobSteps([{ name: 'Plan E2E tier' }]), 'capture');
-    assert.equal(classifyKindFromJobSteps([]), 'unknown');
+  });
+
+  it('prefers summary markers over ambiguous steps', () => {
+    assert.equal(
+      classifyKind({
+        summary: '<!-- client-e2e-mode:capture -->',
+        steps: [{ name: 'Pass-through required check', status: 'in_progress' }],
+      }),
+      'capture',
+    );
     assert.equal(
       classifyKindFromSummary('<!-- client-e2e-mode:passthrough -->\n'),
       'passthrough',
     );
-    assert.equal(classifyKindFromSummary('<!-- client-e2e-mode:capture -->'), 'capture');
+  });
+
+  it('returns unknown when no active identifying steps exist', () => {
+    assert.equal(classifyKindFromJobSteps([]), 'unknown');
+    assert.equal(
+      classifyKindFromJobSteps([
+        { name: 'Pass-through required check', status: 'pending', conclusion: null },
+        { name: 'Mark capture run', status: 'pending', conclusion: null },
+      ]),
+      'unknown',
+    );
+  });
+});
+
+describe('selectCaptureMirrorTarget', () => {
+  it('returns success immediately when a completed capture exists among pass-through noise', () => {
+    const target = selectCaptureMirrorTarget([
+      {
+        id: 1,
+        kind: 'passthrough',
+        status: 'in_progress',
+        conclusion: null,
+      },
+      {
+        id: 2,
+        kind: 'unknown',
+        status: 'queued',
+        conclusion: null,
+      },
+      {
+        id: 3,
+        kind: 'capture',
+        status: 'completed',
+        conclusion: 'success',
+      },
+      {
+        id: 4,
+        kind: 'passthrough',
+        status: 'in_progress',
+        conclusion: null,
+      },
+    ]);
+    assert.deepEqual(target, {
+      action: 'success',
+      id: 3,
+      status: 'completed',
+      conclusion: 'success',
+    });
+  });
+
+  it('ignores every pass-through and never waits on unknown', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 10, kind: 'passthrough', status: 'in_progress', conclusion: null },
+      { id: 11, kind: 'unknown', status: 'in_progress', conclusion: null },
+      { id: 12, kind: 'passthrough', status: 'queued', conclusion: null },
+    ]);
+    assert.deepEqual(target, { action: 'none' });
+  });
+
+  it('waits only on an in-progress capture when none completed yet', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 1, kind: 'passthrough', status: 'in_progress', conclusion: null },
+      { id: 2, kind: 'capture', status: 'in_progress', conclusion: null },
+    ]);
+    assert.deepEqual(target, {
+      action: 'wait',
+      id: 2,
+      status: 'in_progress',
+      conclusion: null,
+    });
+  });
+
+  it('mirrors capture failure', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 9, kind: 'capture', status: 'completed', conclusion: 'failure' },
+    ]);
+    assert.equal(target.action, 'failure');
+    assert.equal(target.conclusion, 'failure');
+  });
+
+  it('prefers completed success over a newer in-progress capture', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 5, kind: 'capture', status: 'in_progress', conclusion: null },
+      { id: 4, kind: 'capture', status: 'completed', conclusion: 'success' },
+    ]);
+    assert.deepEqual(target, {
+      action: 'success',
+      id: 4,
+      status: 'completed',
+      conclusion: 'success',
+    });
   });
 });
