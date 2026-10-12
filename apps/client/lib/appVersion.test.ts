@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { LOGO_SVG_ON_PAPER } from '../assets/images/logo/lateralzrLogoOnPaper.ts';
 import { ABOUT_LOGO_WIDTH } from './appMenu.ts';
+import { expoVersionFromAppJson, readAppVersion } from './appVersion.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const clientRoot = join(here, '..');
@@ -17,11 +18,15 @@ describe('Lz-47 About assets', () => {
     assert.equal(LOGO_SVG_ON_PAPER, disk);
   });
 
-  it('pins About lockup width and app.json version 1.0.0', () => {
+  it('pins About lockup width and reads version from app.json', () => {
     assert.equal(ABOUT_LOGO_WIDTH, 160);
     const appJson = JSON.parse(readFileSync(join(clientRoot, 'app.json'), 'utf8')) as {
       expo: { version: string };
     };
-    assert.equal(appJson.expo.version, '1.0.0');
+    const expectedVersion = appJson.expo.version;
+    assert.equal(typeof expectedVersion, 'string');
+    assert.ok(expectedVersion.length > 0);
+    assert.equal(expoVersionFromAppJson(), expectedVersion);
+    assert.equal(readAppVersion(), expectedVersion);
   });
 });

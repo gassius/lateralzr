@@ -8,9 +8,11 @@ import {
   View,
   type View as ViewType,
 } from 'react-native';
+import Constants from 'expo-constants';
 import Svg, { Polyline, SvgXml } from 'react-native-svg';
 import { LOGO_SVG_ON_PAPER } from '@/assets/images/logo/lateralzrLogoOnPaper';
 import { Sheet } from '@/components/Sheet';
+import { aboutViewContent } from '@/lib/aboutView';
 import {
   ABOUT_LOGO_WIDTH,
   APP_MENU_ROW_MIN_HEIGHT,
@@ -151,9 +153,8 @@ const webFocusProps =
   Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {};
 
 function AppMenuAboutView({ onBack }: { onBack: () => void }) {
-  const version = readAppVersion();
-  const promise = t('aboutPromise');
-  const textA11y = `${promise}, ${version}`;
+  const content = aboutViewContent(t, readAppVersion(Constants.expoConfig?.version));
+  const textA11y = `${content.promise}, ${content.version}`;
 
   return (
     <ScrollView
@@ -165,9 +166,9 @@ function AppMenuAboutView({ onBack }: { onBack: () => void }) {
       <View
         accessible
         accessibilityRole="image"
-        accessibilityLabel="Lateralzr"
+        accessibilityLabel={content.logoLabel}
         testID="app-menu-about-logo"
-        style={styles.aboutLogo}
+        style={[styles.aboutLogo, { opacity: content.logoOpacity }]}
         {...webFocusProps}
       >
         <SvgXml
@@ -185,10 +186,10 @@ function AppMenuAboutView({ onBack }: { onBack: () => void }) {
         {...webFocusProps}
       >
         <Text style={[styles.aboutPromise, textStyle('body')]} accessible={false}>
-          {promise}
+          {content.promise}
         </Text>
         <Text style={[styles.aboutVersion, textStyle('meta')]} accessible={false}>
-          {version}
+          {content.version}
         </Text>
       </View>
       <Pressable

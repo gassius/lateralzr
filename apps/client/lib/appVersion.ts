@@ -1,6 +1,15 @@
-import Constants from 'expo-constants';
+import appJson from '../app.json';
 
-/** App version from Expo config / app.json (About view). */
-export function readAppVersion(): string {
-  return Constants.expoConfig?.version ?? '1.0.0';
+/** `expo.version` from `apps/client/app.json` — About fallback and tests share this. */
+export function expoVersionFromAppJson(): string {
+  return appJson.expo.version;
+}
+
+/**
+ * App version shown on About. Prefer Expo config when present (pass
+ * `Constants.expoConfig?.version`); otherwise `app.json` so a bump cannot
+ * stale a hardcoded fallback.
+ */
+export function readAppVersion(expoVersion?: string): string {
+  return expoVersion ?? expoVersionFromAppJson();
 }
