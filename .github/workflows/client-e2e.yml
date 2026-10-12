@@ -63,29 +63,35 @@ jobs:
           set -euo pipefail
           if [ "${EVENT_NAME}" = "pull_request" ] && [ "${EVENT_ACTION}" = "labeled" ]; then
             if [ "${LABEL_NAME}" = "run-full-screenshots" ]; then
-              echo "proceed=true" >> "$GITHUB_OUTPUT"
-              echo "run_full=true" >> "$GITHUB_OUTPUT"
-              echo "check_name=Client E2E full screenshots" >> "$GITHUB_OUTPUT"
-              echo "concurrency_group=client-e2e-full-pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+              {
+                echo "proceed=true"
+                echo "run_full=true"
+                echo "check_name=Client E2E full screenshots"
+                echo "concurrency_group=client-e2e-full-pr-${PR_NUMBER}"
+              } >> "$GITHUB_OUTPUT"
               echo "Labeled run-full-screenshots → full matrix check"
               exit 0
             fi
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            echo "run_full=false" >> "$GITHUB_OUTPUT"
-            echo "check_name=" >> "$GITHUB_OUTPUT"
-            echo "concurrency_group=" >> "$GITHUB_OUTPUT"
+            {
+              echo "proceed=false"
+              echo "run_full=false"
+              echo "check_name="
+              echo "concurrency_group="
+            } >> "$GITHUB_OUTPUT"
             echo "Ignoring label '${LABEL_NAME}' (no start / re-run / cancel)"
             exit 0
           fi
 
-          echo "proceed=true" >> "$GITHUB_OUTPUT"
-          echo "run_full=false" >> "$GITHUB_OUTPUT"
-          echo "check_name=Client E2E screenshots" >> "$GITHUB_OUTPUT"
-          if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "" ]; then
-            echo "concurrency_group=client-e2e-pr-${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-          else
-            echo "concurrency_group=client-e2e-${REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
+          {
+            echo "proceed=true"
+            echo "run_full=false"
+            echo "check_name=Client E2E screenshots"
+            if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "" ]; then
+              echo "concurrency_group=client-e2e-pr-${PR_NUMBER}"
+            else
+              echo "concurrency_group=client-e2e-${REF_NAME}"
+            fi
+          } >> "$GITHUB_OUTPUT"
 
   # Any new push drops the one-shot full-run label so the next full run is explicit.
   clear-run-full-screenshots-label:
