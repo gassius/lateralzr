@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { motion } from '@/theme/tokens';
 import {
   FLIP_EASING,
@@ -10,6 +13,17 @@ import {
   flipDurationMs,
   flipUses3d,
 } from '@/lib/cardFlip';
+import { resolveReducedMotion } from '@/lib/reducedMotion';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const stackSrc = readFileSync(path.join(here, '../components/ConceptCardStack.tsx'), 'utf8');
+const cueSrc = readFileSync(path.join(here, '../components/ComplexityCue.tsx'), 'utf8');
+const coachSrc = readFileSync(path.join(here, '../hooks/useDiscoveryCoaching.ts'), 'utf8');
+const lateralitySheetSrc = readFileSync(
+  path.join(here, '../components/LateralitySheet.tsx'),
+  'utf8',
+);
+const hookSrc = readFileSync(path.join(here, '../hooks/useReducedMotion.ts'), 'utf8');
 
 describe('card flip tokens', () => {
   it('pins flip duration to motion.flipMs (360)', () => {
@@ -28,11 +42,33 @@ describe('flip duration / 3D gate', () => {
     assert.equal(flipUses3d(true), false);
   });
 
+  it('app Reduced preference selects the RM flip path when OS/web are off (PRR B1)', () => {
+    const reduceMotion = resolveReducedMotion({
+      os: false,
+      web: false,
+      appPref: 'reduced',
+    });
+    assert.equal(reduceMotion, true);
+    assert.equal(flipUses3d(reduceMotion), false);
+    assert.equal(flipDurationMs(reduceMotion), FLIP_REDUCED_MOTION_CROSSFADE_MS);
+  });
+
   it('FLIP_EASING is cubic ease-out', () => {
     assert.equal(FLIP_EASING(0), 0);
     assert.equal(FLIP_EASING(1), 1);
     assert.ok(FLIP_EASING(0.5) > 0.5);
     assert.ok(Math.abs(FLIP_EASING(0.5) - (1 - 0.5 ** 3)) < 1e-12);
+  });
+});
+
+describe('app-wide Motion preference wiring (PRR B1)', () => {
+  it('card stack, cue, coaching, Laterality sheet call useReducedMotion() (context)', () => {
+    assert.match(stackSrc, /useReducedMotion\(\)/);
+    assert.match(cueSrc, /useReducedMotion\(\)/);
+    assert.match(coachSrc, /useReducedMotion\(\)/);
+    assert.match(lateralitySheetSrc, /useReducedMotion\(\)/);
+    assert.match(lateralitySheetSrc, /reduceMotion=\{reduceMotion\}/);
+    assert.match(hookSrc, /useMotionPreference\(\)/);
   });
 });
 

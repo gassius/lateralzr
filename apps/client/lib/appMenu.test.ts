@@ -21,19 +21,22 @@ import {
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
-  it('defaults to Language + Complexity + About + Replay gesture tips', () => {
+  it('defaults to Language + Complexity + Motion + About + Replay gesture tips', () => {
     const rows = visibleAppMenuRows();
-    assert.equal(rows.length, 4);
+    assert.equal(rows.length, 5);
     assert.deepEqual(
       rows.map((r) => r.key),
-      ['language', 'complexity', 'about', 'replayTips'],
+      ['language', 'complexity', 'motion', 'about', 'replayTips'],
     );
     assert.equal(rows[0]!.opensView, true);
     assert.equal(rows[1]!.opensView, true);
     assert.equal(rows[1]!.labelKey, 'menuComplexity');
+    assert.equal(rows[2]!.key, 'motion');
+    assert.equal(rows[2]!.labelKey, 'menuMotion');
     assert.equal(rows[2]!.opensView, true);
-    assert.equal(rows[2]!.valueKey, undefined);
-    assert.equal(rows[3]!.opensView, false);
+    assert.equal(rows[3]!.opensView, true);
+    assert.equal(rows[3]!.valueKey, undefined);
+    assert.equal(rows[4]!.opensView, false);
   });
 
   it('filters out disabled features and keeps fixed order', () => {
@@ -67,10 +70,12 @@ describe('appMenuRowShowsChevron', () => {
     }
     const language = visibleAppMenuRows().find((r) => r.key === 'language')!;
     const complexity = visibleAppMenuRows().find((r) => r.key === 'complexity')!;
+    const motion = visibleAppMenuRows().find((r) => r.key === 'motion')!;
     const about = visibleAppMenuRows().find((r) => r.key === 'about')!;
     const replay = visibleAppMenuRows().find((r) => r.key === 'replayTips')!;
     assert.equal(appMenuRowShowsChevron(language), true);
     assert.equal(appMenuRowShowsChevron(complexity), true);
+    assert.equal(appMenuRowShowsChevron(motion), true);
     assert.equal(appMenuRowShowsChevron(about), true);
     assert.equal(appMenuRowShowsChevron(replay), false);
   });
@@ -133,7 +138,7 @@ describe('withAppMenuRowPress', () => {
         replayCalls += 1;
       },
     });
-    assert.equal(rows.length, 4);
+    assert.equal(rows.length, 5);
     rows.find((r) => r.key === 'about')!.onPress!();
     const replay = rows.find((r) => r.key === 'replayTips');
     assert.equal(typeof replay?.onPress, 'function');
@@ -191,11 +196,11 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_ROW_VALUE_FLEX_GROW, 0);
   });
 
-  it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + About + Replay', () => {
+  it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + Motion + About + Replay', () => {
     assert.deepEqual(DEFAULT_APP_MENU_FEATURES, {
       language: true,
       complexity: true,
-      motion: false,
+      motion: true,
       about: true,
       replayTips: true,
     });
@@ -203,5 +208,10 @@ describe('app menu metrics', () => {
 
   it('pins About lockup width at 160', () => {
     assert.equal(ABOUT_LOGO_WIDTH, 160);
+  });
+
+  it('labels Motion as Motion (not Motion & haptics)', () => {
+    assert.equal(t('menuMotion'), 'Motion');
+    assert.equal(t('menuMotion').includes('haptic'), false);
   });
 });

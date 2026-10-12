@@ -1,11 +1,13 @@
 /**
- * Shared reduced-motion gate (ClickUp Lz-34 / 869ff5gcb).
+ * Shared reduced-motion gate (ClickUp Lz-34 / 869ff5gcb + Lz-46).
  *
- * Pure helpers for first-paint + duration/branch decisions. React subscription
- * lives in `hooks/useReducedMotion`. Sheets (Lz-31) and other surfaces should
- * consume these rather than re-reading matchMedia / AccessibilityInfo.
+ * Pure helpers for first-paint + duration/branch decisions, plus in-app Motion
+ * preference resolution. React subscription lives in `hooks/useReducedMotion`.
+ * Sheets (Lz-31) and other surfaces should consume these rather than
+ * re-reading matchMedia / AccessibilityInfo.
  */
 
+import type { MotionPreference } from '@/lib/motionStorage';
 import { motion } from '@/theme/tokens';
 
 /** Opacity cross-fade under RM (token: motion.reducedMotionCrossfadeMs). */
@@ -16,6 +18,34 @@ export const SHEET_MS = motion.sheetMs;
 
 /** Control-state change duration (token: motion.controlMs). */
 export const CONTROL_MS = motion.controlMs;
+
+export type ResolveReducedMotionInput = {
+  /** Native AccessibilityInfo / OS reduce-motion flag. */
+  os: boolean;
+  /**
+   * Web `prefers-reduced-motion` matchMedia result.
+   * `null` when unavailable (native / no matchMedia).
+   */
+  web: boolean | null;
+  /** In-app Motion preference; omit / undefined treated as System. */
+  appPref?: MotionPreference | null;
+};
+
+/**
+ * Resolve whether the app should use reduced motion.
+ *
+ * - OS or web reduce-motion on → reduced always
+ * - else appPref Reduced → reduced
+ * - System or Full (or unset) → full motion
+ */
+export function resolveReducedMotion({
+  os,
+  web,
+  appPref,
+}: ResolveReducedMotionInput): boolean {
+  if (os || web === true) return true;
+  return appPref === 'reduced';
+}
 
 /**
  * Sync `matchMedia` on web. `null` on native / when matchMedia is missing

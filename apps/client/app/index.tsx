@@ -19,6 +19,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useConnectivity } from '@/hooks/useConnectivity';
+import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
@@ -39,6 +40,12 @@ import {
   t,
   type AppLocale,
 } from '@/lib/i18n';
+import {
+  DEFAULT_MOTION_PREFERENCE,
+  loadStoredMotionPreference,
+  persistMotionPreference,
+  type MotionPreference,
+} from '@/lib/motionStorage';
 import { remainingIntroMs } from '@/lib/introLogo';
 import {
   applyLateralityTreeSwap,
@@ -119,6 +126,8 @@ export default function HomeScreen() {
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [motionPreference, setMotionPreference] =
+    useState<MotionPreference>(DEFAULT_MOTION_PREFERENCE);
   const lateralityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
@@ -226,6 +235,16 @@ export default function HomeScreen() {
         }
       }
       setComplexityHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadStoredMotionPreference().then((stored) => {
+      if (!cancelled) setMotionPreference(stored);
     });
     return () => {
       cancelled = true;
@@ -687,6 +706,11 @@ export default function HomeScreen() {
     setAppMenuOpen(false);
   }, []);
 
+  const onMotionPreferenceChange = useCallback((pref: MotionPreference) => {
+    setMotionPreference(pref);
+    void persistMotionPreference(pref);
+  }, []);
+
   const onReplayGestureTipsReady = useCallback((replay: () => void) => {
     replayGestureTipsRef.current = replay;
   }, []);
@@ -851,6 +875,7 @@ export default function HomeScreen() {
   }
 
   return (
+    <MotionPreferenceProvider value={motionPreference}>
     <View
       style={[
         styles.mainRoot,
@@ -998,8 +1023,11 @@ export default function HomeScreen() {
         currentComplexity={complexity}
         onSelectComplexity={onSelectComplexity}
         returnFocusRef={appMenuTriggerRef}
+        motionPreference={motionPreference}
+        onMotionPreferenceChange={onMotionPreferenceChange}
       />
     </View>
+    </MotionPreferenceProvider>
   );
 }
 
