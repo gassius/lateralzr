@@ -34,6 +34,37 @@ export const COACH_HINT_RADIUS = 12;
 export const COACH_HINT_PADDING_V = 8;
 export const COACH_HINT_PADDING_H = 12;
 
+/**
+ * Minimum clear space between card bottom edge and tip chip (AD Lz-48).
+ * Tip sits in the shell gap above the Laterality label — never on the card.
+ */
+export const COACH_HINT_CARD_CLEARANCE_PX = 8;
+
+/** Tip dismiss control must meet the recommended touch target. */
+export const COACH_HINT_MIN_TOUCH_TARGET = 48;
+
+/** Reserve up to two lines so Complejidad tips fit without covering the card. */
+export const COACH_HINT_MAX_LINES = 2;
+
+/** In-flow tip band height (padding + lines) reserved above the laterality rail. */
+export function coachHintSlotHeight(lineCount: number = COACH_HINT_MAX_LINES): number {
+  const lines = Math.max(1, Math.min(COACH_HINT_MAX_LINES, Math.floor(lineCount)));
+  return COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT * lines;
+}
+
+/** Expand the single-line chip's hit area to {@link COACH_HINT_MIN_TOUCH_TARGET}. */
+export function coachHintHitSlop(): {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+} {
+  const visual = COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT;
+  const extra = Math.max(0, COACH_HINT_MIN_TOUCH_TARGET - visual);
+  const v = Math.ceil(extra / 2);
+  return { top: v, bottom: v, left: 0, right: 0 };
+}
+
 /** Rail over shell at 10% for the tip chip fill. */
 export const COACH_HINT_CHIP_RAIL_ALPHA = 0.1;
 

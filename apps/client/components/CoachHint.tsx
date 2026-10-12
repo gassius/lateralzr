@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   COACH_APPEAR_DURATION_MS,
+  coachHintHitSlop,
   COACH_HINT_OPACITY,
   COACH_HINT_PADDING_H,
   COACH_HINT_PADDING_V,
@@ -66,6 +67,7 @@ export function CoachHint({
         accessibilityRole="button"
         accessibilityLabel={text}
         disabled={onDismiss == null}
+        hitSlop={coachHintHitSlop()}
         style={[
           styles.chip,
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
@@ -94,6 +96,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   copy: {
-    textAlign: 'center',
+    textAlign: 'left',
   },
 });
