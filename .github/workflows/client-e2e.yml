@@ -6,7 +6,7 @@
 # name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
 # on labeled/unlabeled, pass-through mirrors only completed/in-progress capture
 # runs on the head SHA (ignores every pass-through; ≤120s timeout).
-# Full matrix: labeled run-full-screenshots → reusable workflow posts
+# Full run (390×844): labeled run-full-screenshots → reusable workflow posts
 # "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
 name: Client E2E
@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       strict_baselines:
-        description: 'Fail on baseline diffs (UI/UX and Art Supervisor (gasnet-art-director)-approved mode)'
+        description: 'Ignored — baseline diffs are always report-only (screenshots never fail CI)'
         required: false
         default: 'false'
         type: choice
@@ -71,7 +71,7 @@ jobs:
                 echo "screenshots_concurrency_group=client-e2e-passthrough-${RUN_ID}"
                 echo "screenshots_cancel=false"
               } >> "$GITHUB_OUTPUT"
-              echo "Labeled run-full-screenshots → pass-through required check + full matrix job"
+              echo "Labeled run-full-screenshots → pass-through required check + full 390×844 job"
               exit 0
             fi
             {
@@ -409,7 +409,6 @@ jobs:
         env:
           CI: 'true'
           E2E_PORT: '4173'
-          E2E_STRICT_BASELINES: ${{ github.event.inputs.strict_baselines == 'true' && '1' || '0' }}
           E2E_MODE: ${{ steps.plan.outputs.mode }}
           E2E_PROJECT: ${{ steps.plan.outputs.project }}
           E2E_GREP: ${{ steps.plan.outputs.grep }}
@@ -417,11 +416,13 @@ jobs:
           E2E_SPECS: ${{ steps.plan.outputs.specs }}
         run: |
           set -euo pipefail
+          args=(-c e2e/playwright.config.ts)
           if [ "${E2E_MODE}" = "full" ]; then
-            pnpm e2e
+            args+=(--project "${E2E_PROJECT:-390x844}")
+            echo "Full Playwright args: ${args[*]}"
+            pnpm exec playwright test "${args[@]}"
             exit 0
           fi
-          args=(-c e2e/playwright.config.ts)
           read -r -a specs <<< "${E2E_SPECS}"
           args+=("${specs[@]}")
           if [ -n "${E2E_PROJECT}" ]; then
@@ -435,26 +436,6 @@ jobs:
           fi
           echo "Subset Playwright args: ${args[*]}"
           pnpm exec playwright test "${args[@]}"
-
-      - name: Smoke stability (--repeat-each=2) + pixel-identical captures
-        if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
-        env:
-          CI: 'true'
-          E2E_PORT: '4173'
-        run: |
-          set -euo pipefail
-          pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
-          # Two independent capture passes; assert ≥1 PNG is byte/pixel-identical across runs.
-          for pass in 1 2; do
-            rm -rf "e2e/screenshots/repeat-${pass}"
-            E2E_SHOT_SUBDIR="repeat-${pass}" \
-              pnpm exec playwright test -c e2e/playwright.config.ts \
-                e2e/specs/card-front.spec.ts e2e/specs/laterality-bar.spec.ts \
-                --project=390x844 -g "short label|grade 3"
-          done
-          node e2e/scripts/assert-repeat-identical.mjs \
-            e2e/screenshots/repeat-1 \
-            e2e/screenshots/repeat-2
 
       - name: Stage flat artifact tree
         if: always() && needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true'

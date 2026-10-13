@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Decide Client E2E skip / PR-subset / full-matrix from changed paths + event.
+ * Decide Client E2E skip / PR-subset / full run from changed paths + event.
  * Used by .github/workflows/client-e2e.yml so the required check always reports.
  *
  * Pull requests always use the 390px EN subset (draft vs ready does not matter).
- * Full matrix: push, workflow_dispatch, or an explicit runFull (label trigger).
+ * Full run (single 390×844 project): push, workflow_dispatch, or runFull (label).
  */
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -106,11 +106,11 @@ export function planClientE2e(input) {
     return {
       shouldRun: true,
       mode: 'full',
-      project: '',
+      project: '390x844',
       grep: '',
       grepInvert: '',
       specs: [],
-      runStability: true,
+      runStability: false,
     };
   }
 

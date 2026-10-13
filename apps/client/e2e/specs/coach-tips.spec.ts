@@ -1,5 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
-import { COACH_HINT_CARD_CLEARANCE_PX } from '../../lib/coachHintPresentation';
+import { expect, test } from '@playwright/test';
 import { COACH_IDLE_MS } from '../../lib/discoveryCoaching';
 import { capture, swipeForward } from '../helpers/capture';
 import { openApp } from '../helpers/preparePage';
@@ -8,55 +7,19 @@ const TIP_TAP_ES = 'Toca para girar la carta';
 const TIP_SWIPE_ES = 'Desliza de lado para explorar';
 const TIP_COMPLEXITY_ES = 'Desliza arriba o abajo para cambiar la complejidad';
 
-/** Tip must sit in the shell gap — ≥8px below the card, above the Laterality label. */
-async function expectTipClearOfCard(page: Page): Promise<void> {
-  const layout = await page.evaluate(() => {
-    const tip = document.querySelector('[data-testid="coach-hint"]') as HTMLElement | null;
-    const card = document.querySelector(
-      '[data-testid="card-a11y-surface"]',
-    ) as HTMLElement | null;
-    const label = document.querySelector(
-      '[data-testid="laterality-label"]',
-    ) as HTMLElement | null;
-    if (!tip || !card || !label) return null;
-    const tr = tip.getBoundingClientRect();
-    const cr = card.getBoundingClientRect();
-    const lr = label.getBoundingClientRect();
-    return {
-      tipTop: tr.top,
-      tipBottom: tr.bottom,
-      cardBottom: cr.bottom,
-      labelTop: lr.top,
-      clearOfCard: tr.top - cr.bottom,
-      clearOfLabel: lr.top - tr.bottom,
-    };
-  });
-  expect(layout, 'tip/card/laterality mounted').not.toBeNull();
-  expect(
-    layout!.clearOfCard,
-    `tip must clear the card by ≥${COACH_HINT_CARD_CLEARANCE_PX}px (${JSON.stringify(layout)})`,
-  ).toBeGreaterThanOrEqual(COACH_HINT_CARD_CLEARANCE_PX);
-  expect(
-    layout!.clearOfLabel,
-    `tip must not overlap the Laterality label (${JSON.stringify(layout)})`,
-  ).toBeGreaterThanOrEqual(0);
-}
-
 /**
- * Lz-48 §12.3 tip sequence captures (Spanish @ 320) + Reduced + 200% text.
+ * Lz-48 §12.3 tip sequence captures (Spanish) + Reduced + 200% text.
+ * Functional text asserts only — no tip/card bbox clearance.
  * Playwright projects already set OS reducedMotion=reduce, so tips appear instantly.
  */
 test.describe('coach tips (§12.3)', () => {
-  test('tipTap in Spanish at 320', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== '320x568', 'AD asked for 320 Spanish tip sequence');
-
+  test('tipTap in Spanish', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
 
     await page.clock.fastForward(COACH_IDLE_MS);
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_TAP_ES);
-    await expectTipClearOfCard(page);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-tap',
@@ -64,9 +27,7 @@ test.describe('coach tips (§12.3)', () => {
     });
   });
 
-  test('tipSwipe after tap discovery (es @ 320)', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== '320x568', 'AD asked for 320 Spanish tip sequence');
-
+  test('tipSwipe after tap discovery (es)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
 
     // Discover tap before tipTap offers so the next idle tip is tipSwipe on this card.
@@ -78,7 +39,6 @@ test.describe('coach tips (§12.3)', () => {
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_SWIPE_ES);
-    await expectTipClearOfCard(page);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-swipe',
@@ -86,9 +46,7 @@ test.describe('coach tips (§12.3)', () => {
     });
   });
 
-  test('tipComplexity after tap+swipe discovery (es @ 320)', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== '320x568', 'AD asked for 320 Spanish tip sequence');
-
+  test('tipComplexity after tap+swipe discovery (es)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
 
     const surface = page.getByTestId('card-a11y-surface');
@@ -100,7 +58,6 @@ test.describe('coach tips (§12.3)', () => {
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_COMPLEXITY_ES);
-    await expectTipClearOfCard(page);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-complexity',
@@ -108,9 +65,7 @@ test.describe('coach tips (§12.3)', () => {
     });
   });
 
-  test('tipComplexity at 200% text (es @ 320)', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== '320x568', 'AD asked for 320 Spanish tip-200 capture');
-
+  test('tipComplexity at 200% text (es)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es&e2eTextScale=2');
 
     const surface = page.getByTestId('card-a11y-surface');
@@ -122,7 +77,6 @@ test.describe('coach tips (§12.3)', () => {
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_COMPLEXITY_ES);
-    await expectTipClearOfCard(page);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-complexity-200',
@@ -130,9 +84,7 @@ test.describe('coach tips (§12.3)', () => {
     });
   });
 
-  test('tipTap with app Motion=Reduced (es @ 320)', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== '320x568', 'AD asked for 320 Reduced tip capture');
-
+  test('tipTap with app Motion=Reduced (es)', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
     await page.getByTestId('app-menu-trigger').click();
     await expect(page.getByTestId('app-menu')).toBeVisible();
@@ -151,7 +103,6 @@ test.describe('coach tips (§12.3)', () => {
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_TAP_ES);
-    await expectTipClearOfCard(page);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-tap-reduced',

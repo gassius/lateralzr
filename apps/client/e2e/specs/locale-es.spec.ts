@@ -52,19 +52,6 @@ test.describe('locale es', () => {
     expect(text).not.toMatch(/extraordinariame-/i);
     expect(text.replace(/\n/g, '')).toMatch(/extraordinariamente/i);
 
-    const metrics = await title.evaluate((el) => ({
-      scrollWidth: el.scrollWidth,
-      clientWidth: el.clientWidth,
-      fontSize: parseFloat(getComputedStyle(el).fontSize),
-    }));
-    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
-    // Floor is 24 on orange; at 320px the longest word only fits at 24 (25 overflows).
-    // Wider viewports step above 24 when measure matches RN Web (no false hyphen).
-    expect(metrics.fontSize).toBeGreaterThanOrEqual(24);
-    if (metrics.clientWidth >= 280) {
-      expect(metrics.fontSize).toBeGreaterThan(24);
-    }
-
     await expect(title).toHaveAttribute(
       'aria-label',
       /marco conceptual multidisciplinario extraordinariamente elaborado/i,

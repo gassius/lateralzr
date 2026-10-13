@@ -73,7 +73,7 @@ describe('planClientE2e', () => {
     assert.equal(plan.grep, SMOKE_GREP);
   });
 
-  it('runs the full matrix when runFull is set (label trigger)', () => {
+  it('runs the full 390×844 suite when runFull is set (label trigger)', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',
       clientChanged: true,
@@ -82,11 +82,11 @@ describe('planClientE2e', () => {
     });
     assert.equal(plan.shouldRun, true);
     assert.equal(plan.mode, 'full');
-    assert.equal(plan.project, '');
+    assert.equal(plan.project, '390x844');
     assert.equal(plan.grep, '');
     assert.equal(plan.grepInvert, '');
     assert.deepEqual(plan.specs, []);
-    assert.equal(plan.runStability, true);
+    assert.equal(plan.runStability, false);
   });
 
   it('still skips non-client PRs even when runFull is set', () => {
@@ -100,23 +100,25 @@ describe('planClientE2e', () => {
     assert.equal(plan.mode, 'skip');
   });
 
-  it('runs the full matrix on push to main', () => {
+  it('runs the full 390×844 suite on push to main', () => {
     const plan = planClientE2e({
       eventName: 'push',
       clientChanged: true,
       changedFiles: ['apps/client/app/index.tsx'],
     });
     assert.equal(plan.mode, 'full');
-    assert.equal(plan.runStability, true);
+    assert.equal(plan.project, '390x844');
+    assert.equal(plan.runStability, false);
   });
 
-  it('runs the full matrix on workflow_dispatch', () => {
+  it('runs the full 390×844 suite on workflow_dispatch', () => {
     const plan = planClientE2e({
       eventName: 'workflow_dispatch',
       clientChanged: true,
       changedFiles: [],
     });
     assert.equal(plan.mode, 'full');
-    assert.equal(plan.runStability, true);
+    assert.equal(plan.project, '390x844');
+    assert.equal(plan.runStability, false);
   });
 });

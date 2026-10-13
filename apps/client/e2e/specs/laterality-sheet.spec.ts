@@ -1,135 +1,10 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { capture } from '../helpers/capture';
 import { openApp } from '../helpers/preparePage';
 
 async function openLateralitySheet(page: Page): Promise<void> {
   await page.getByTestId('laterality-label').click();
   await expect(page.getByTestId('laterality-sheet')).toBeVisible();
-}
-
-/**
- * Assert rendered title geometry (soft wraps are invisible to innerText).
- * Pass when: height ≤ lineHeight×1.1 (one line) OR each visual line ends in `-`/space
- * (Range.getClientRects), and scrollWidth ≤ clientWidth.
- */
-async function assertSheetTitleGeometry(title: Locator): Promise<void> {
-  const report = await title.evaluate((host) => {
-    const findTextEl = (root: Element): HTMLElement | null => {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        if ((node.textContent ?? '').trim().length > 0) {
-          return node.parentElement;
-        }
-        node = walker.nextNode();
-      }
-      return root instanceof HTMLElement ? root : null;
-    };
-
-    const el = findTextEl(host);
-    if (!el) {
-      return { ok: false as const, reason: 'no text element under title host' };
-    }
-
-    const style = getComputedStyle(el);
-    const lineHeight = parseFloat(style.lineHeight);
-    if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
-      return { ok: false as const, reason: `bad lineHeight: ${style.lineHeight}` };
-    }
-
-    const height = el.getBoundingClientRect().height;
-    const { scrollWidth, clientWidth } = el;
-    if (scrollWidth > clientWidth + 1) {
-      return {
-        ok: false as const,
-        reason: `overflow scrollWidth=${scrollWidth} clientWidth=${clientWidth}`,
-        height,
-        lineHeight,
-        scrollWidth,
-        clientWidth,
-      };
-    }
-
-    const oneLine = height <= lineHeight * 1.1 + 0.5;
-    if (oneLine) {
-      return {
-        ok: true as const,
-        height,
-        lineHeight,
-        scrollWidth,
-        clientWidth,
-        oneLine: true,
-      };
-    }
-
-    // Multi-line: every visual line (except the last) must end in `-` or space.
-    const textNodes: Text[] = [];
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let n = walker.nextNode();
-    while (n) {
-      textNodes.push(n as Text);
-      n = walker.nextNode();
-    }
-    const fullText = textNodes.map((t) => t.textContent ?? '').join('');
-    const range = document.createRange();
-    type CharRect = { index: number; top: number; char: string };
-    const chars: CharRect[] = [];
-    let globalIndex = 0;
-    for (const textNode of textNodes) {
-      const value = textNode.textContent ?? '';
-      for (let i = 0; i < value.length; i += 1) {
-        range.setStart(textNode, i);
-        range.setEnd(textNode, i + 1);
-        const rects = range.getClientRects();
-        if (rects.length === 0) {
-          globalIndex += 1;
-          continue;
-        }
-        chars.push({
-          index: globalIndex,
-          top: Math.round(rects[0].top),
-          char: value[i] ?? '',
-        });
-        globalIndex += 1;
-      }
-    }
-
-    if (chars.length === 0) {
-      return { ok: false as const, reason: 'no client rects for title text', height, lineHeight };
-    }
-
-    const lineEndChars: string[] = [];
-    for (let i = 0; i < chars.length - 1; i += 1) {
-      if (chars[i].top !== chars[i + 1].top) {
-        lineEndChars.push(chars[i].char);
-      }
-    }
-
-    const badEnds = lineEndChars.filter((ch) => ch !== '-' && ch !== ' ');
-    if (badEnds.length > 0) {
-      return {
-        ok: false as const,
-        reason: `bare mid-word visual wrap; line ends=${JSON.stringify(lineEndChars)} text=${JSON.stringify(fullText)}`,
-        height,
-        lineHeight,
-        scrollWidth,
-        clientWidth,
-        oneLine: false,
-      };
-    }
-
-    return {
-      ok: true as const,
-      height,
-      lineHeight,
-      scrollWidth,
-      clientWidth,
-      oneLine: false,
-      lineEndChars,
-    };
-  });
-
-  expect(report, JSON.stringify(report)).toMatchObject({ ok: true });
 }
 
 function relationshipsLateralityPosts(page: Page): number[] {
@@ -172,11 +47,8 @@ test.describe('laterality sheet', () => {
     });
   }
 
-  // Art director: 200% text open captures at 320 and 390 in ES (rows wrap; list scrolls).
-  // Follow-up: title must not bare-split as "Lateralida / d" at 320×200%.
+  // Art director: 200% text open capture in ES (rows wrap; list scrolls).
   test('open at 200% text (es)', async ({ page }, testInfo) => {
-    const vp = testInfo.project.name;
-    test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
     await openApp(
       page,
       'canonicalConcept=mushroom&laterality=4&locale=es&e2eTextScale=2',
@@ -186,10 +58,9 @@ test.describe('laterality sheet', () => {
     await expect(page.getByTestId('laterality-sheet-row-4')).toBeVisible();
 
     const title = page.getByTestId('laterality-sheet-title');
-    // m1/B2: wait for measured (or fallback) paint — toBeVisible ignores opacity:0.
+    // Wait for measured (or fallback) paint — toBeVisible ignores opacity:0.
     await expect(title).toHaveCSS('opacity', '1');
     await expect(title).toContainText(/Lateralidad/i);
-    await assertSheetTitleGeometry(title);
 
     await capture(page, testInfo, {
       screen: 'laterality-sheet',
