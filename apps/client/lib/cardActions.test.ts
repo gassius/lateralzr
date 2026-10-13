@@ -265,7 +265,7 @@ describe('keyEstablishesKeyboardModality / accessibleNavChromeReserve', () => {
 });
 
 describe('focus ring tokens', () => {
-  it('declares 2px ring + 2px gap; card + nav use Paper on petrol shell', () => {
+  it('declares 2px ring + 2px gap; shell Paper + sheet Ink (Lz-41)', () => {
     assert.equal(A11Y_FOCUS_RING.widthPx, 2);
     assert.equal(A11Y_FOCUS_RING.offsetPx, 2);
     assert.equal(A11Y_FOCUS_RING.onShell, '#F5F1E8');
@@ -273,9 +273,12 @@ describe('focus ring tokens', () => {
     const css = a11yFocusRingCss();
     assert.match(css, /card-a11y-surface"\]:focus-visible/);
     assert.match(css, /a11y-nav-next"\]:focus-visible/);
-    // Ring sits in the gap on petrol — Paper only (Ink would be invisible).
+    assert.match(css, /app-menu-trigger"\]:focus-visible/);
+    assert.match(css, /laterality-label"\]:focus-visible/);
+    assert.match(css, /laterality-sheet-close"\]:focus-visible/);
+    // Shell controls: Paper. Sheet controls: Ink.
     assert.match(css, /outline: 2px solid #F5F1E8/);
-    assert.doesNotMatch(css, /card-a11y-surface[\s\S]*outline: 2px solid #172126/);
+    assert.match(css, /outline: 2px solid #172126/);
     assert.match(css, /outline-offset: 2px/);
   });
 });

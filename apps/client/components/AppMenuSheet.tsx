@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import {
   Platform,
   Pressable,
@@ -147,14 +155,16 @@ function AppMenuRow({
   const valueText = row.value ?? (row.valueKey != null ? t(row.valueKey) : null);
 
   return (
-    <View ref={rowRef}>
+    <View>
       {showDivider ? <View style={styles.divider} testID={`app-menu-divider-${row.key}`} /> : null}
       <Pressable
+        ref={rowRef}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={a11y}
         testID={`app-menu-row-${row.key}`}
         style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+        {...webFocusProps}
       >
         <View style={styles.rowTextCluster} testID={`app-menu-row-text-${row.key}`}>
           <Text
@@ -311,12 +321,29 @@ export function AppMenuSheet({
     if (!visible) setView('root');
   }, [visible]);
 
-  // Nested Language / Complexity / Motion: move focus onto the header Back host.
-  // Synchronous layout effect (no rAF/timeout): Playwright's installed clock mocks
-  // requestAnimationFrame, so deferred focus never runs in e2e.
-  useLayoutEffect(() => {
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // Single focus-Back path (PRR B1): only when `view` enters a nested picker.
+  // Retries cover the back control mounting after the title swap — never wired
+  // through Sheet's open effect (unstable onBack must not restart animation).
+  useEffect(() => {
     if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
-    focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
+    let cancelled = false;
+    const focusBack = () => {
+      if (cancelled) return;
+      focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.querySelector<HTMLElement>('[data-testid="app-menu-back"]')?.focus?.();
+      }
+    };
+    const frame = requestAnimationFrame(focusBack);
+    const timers = [0, 48, 120].map((ms) => setTimeout(focusBack, ms));
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      for (const id of timers) clearTimeout(id);
+    };
   }, [view]);
 
   const onRowPress = (row: AppMenuRowDef) => {
@@ -338,24 +365,67 @@ export function AppMenuSheet({
     }
   };
 
-  const goBackToRoot = () => {
+  /** Stable so Sheet open/close effects never restart on parent re-renders (PRR B1). */
+  const goBackToRoot = useCallback(() => {
+    const current = viewRef.current;
     const returnRef =
-      view === 'complexity'
+      current === 'complexity'
         ? complexityRowRef
-        : view === 'motion'
+        : current === 'motion'
           ? motionRowRef
           : languageRowRef;
     setView('root');
     requestAnimationFrame(() => focusSheetHost(returnRef));
-  };
+  }, []);
 
-  const selectMotion = (pref: MotionPreference) => {
-    onMotionPreferenceChange?.(pref);
-    setView('root');
-    requestAnimationFrame(() => {
-      focusSheetHost(motionRowRef);
-    });
-  };
+  /**
+   * Focus Motion row after preference-driven re-render (fake-clock safe; no setTimeout).
+   * Hold across several rAF frames so a later reduceMotion remount cannot leave focus
+   * on the dialog title (first tabbable) when the selected radio unmounts.
+   */
+  const pendingMotionRowFocusRef = useRef(false);
+  const focusMotionMenuRow = useCallback(() => {
+    focusSheetHost(motionRowRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document
+        .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
+        ?.focus?.();
+    }
+  }, []);
+
+  const selectMotion = useCallback(
+    (pref: MotionPreference) => {
+      setView('root');
+      pendingMotionRowFocusRef.current = true;
+      onMotionPreferenceChange?.(pref);
+    },
+    [onMotionPreferenceChange],
+  );
+
+  useLayoutEffect(() => {
+    if (view !== 'root' || !pendingMotionRowFocusRef.current) return;
+    let frames = 0;
+    let raf = 0;
+    let cancelled = false;
+    const holdFrames = 45;
+    const tick = () => {
+      if (cancelled) return;
+      focusMotionMenuRow();
+      frames += 1;
+      if (frames >= holdFrames) {
+        pendingMotionRowFocusRef.current = false;
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    focusMotionMenuRow();
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      // Keep pending so a follow-up commit (motionPreference / reduceMotion) restarts hold.
+    };
+  }, [view, motionPreference, focusMotionMenuRow]);
 
   const sheetTitle =
     view === 'language'
@@ -486,6 +556,22 @@ export function AppMenuSheet({
               const checked = motionPreference === pref;
               const labelKey = motionPreferenceLabelKey(pref);
               const label = t(labelKey);
+              // RN-web radio Pressable does not commit on Space/Enter without a key handler.
+              const motionWebKeyProps =
+                Platform.OS === 'web'
+                  ? ({
+                      tabIndex: 0,
+                      onKeyDown: (event: {
+                        nativeEvent?: { key?: string };
+                        preventDefault?: () => void;
+                      }) => {
+                        const key = event.nativeEvent?.key;
+                        if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+                        event.preventDefault?.();
+                        selectMotion(pref);
+                      },
+                    } as Record<string, unknown>)
+                  : {};
               return (
                 <Pressable
                   key={pref}
@@ -499,6 +585,7 @@ export function AppMenuSheet({
                     checked ? styles.languageRowSelected : null,
                     pressed ? styles.rowPressed : null,
                   ]}
+                  {...motionWebKeyProps}
                 >
                   <MenuRadio checked={checked} />
                   <Text

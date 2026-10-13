@@ -1,5 +1,13 @@
 import { useMemo, type RefObject } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, type View as ViewType } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type View as ViewType,
+} from 'react-native';
 import { Sheet } from '@/components/Sheet';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { t } from '@/lib/i18n';
@@ -80,6 +88,10 @@ export function LateralitySheet({
             accessibilityState={{ checked: row.checked }}
             accessibilityLabel={row.a11yLabel}
             testID={`laterality-sheet-row-${row.grade}`}
+            // RN-web does not always emit aria-checked from accessibilityState (Lz-41 axe).
+            {...(Platform.OS === 'web'
+              ? ({ 'aria-checked': row.checked, tabIndex: 0 } as Record<string, unknown>)
+              : null)}
             style={({ pressed }) => [
               styles.row,
               row.checked ? styles.rowSelected : null,

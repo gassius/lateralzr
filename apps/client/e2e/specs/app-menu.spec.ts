@@ -109,6 +109,76 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
   });
 
+  // PRR B1: selecting a Motion preference must not steal focus back to header Back.
+  test('Tab to a Motion row, select it, and keep focus on the Motion menu row', async ({
+    page,
+  }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-motion').click();
+    await expect(page.getByTestId('app-menu-motion')).toBeVisible();
+
+    // Start from Back (known host), then Tab to Reduced (keyboard-only select).
+    const back = page.getByTestId('app-menu-back');
+    await expect(back).toBeVisible();
+    await back.focus();
+    await expect(back).toBeFocused();
+
+    let landedOnReduced = false;
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      const id = await page.evaluate(
+        () => (document.activeElement as HTMLElement | null)?.dataset?.testid ?? '',
+      );
+      if (id === 'app-menu-motion-row-reduced') {
+        landedOnReduced = true;
+        break;
+      }
+    }
+    expect(landedOnReduced, 'Tab should land on Reduced Motion row').toBeTruthy();
+
+    // Space activates role=radio; no click fallback (PRR).
+    await page.keyboard.press('Space');
+
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-back')).toHaveCount(0);
+    await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
+
+    // Consecutive rAF frames on the Motion row; arm after focus arrives, then
+    // reject on any leave (old unstable onBack). No sleep (PRR).
+    await page.waitForFunction(() => {
+      const targetTestId = 'app-menu-row-motion';
+      const needed = 30;
+      return new Promise<boolean>((resolve, reject) => {
+        let consecutive = 0;
+        let armed = false;
+        const tick = () => {
+          const onTarget =
+            (document.activeElement as HTMLElement | null)?.dataset?.testid ===
+            targetTestId;
+          if (!onTarget) {
+            if (armed) {
+              reject(
+                new Error(`focus left ${targetTestId} after ${consecutive} frames`),
+              );
+              return;
+            }
+            requestAnimationFrame(tick);
+            return;
+          }
+          armed = true;
+          consecutive += 1;
+          if (consecutive >= needed) {
+            resolve(true);
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    });
+  });
+
   test('opening Language picker moves focus into the view', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     await openAppMenu(page);

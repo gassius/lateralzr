@@ -1019,6 +1019,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               style={[styles.behindWrap, behindAnimatedStyle]}
               pointerEvents="none"
               accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             >
               <ConceptCardForIndex
                 concepts={concepts}
@@ -1078,6 +1080,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             <Animated.View
               style={[styles.returnOverlay, returnOverlayStyle]}
               pointerEvents="none"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             >
               <ConceptCardForIndex
                 concepts={concepts}
