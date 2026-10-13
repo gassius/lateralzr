@@ -169,30 +169,28 @@ shamefully-hoist=true
 - **resolution-mode=highest**: Always resolves to highest compatible version
 - **shamefully-hoist=true**: **Critical for expo-router** - hoists ALL packages to root node_modules
 
-**expo-router 6.0.24 + Metro bundler requirement**: Unlike Botore's simpler game app, Lateralzr uses expo-router which has a deep dependency tree (`@react-navigation/*`, `use-latest-callback`, `react-native-is-edge-to-edge`, etc.). Metro bundler needs direct access to ALL transitive dependencies. Botore's `auto-install-peers` alone is insufficient; `shamefully-hoist=true` is required for Vercel builds to succeed.
+**expo-router (SDK 57) + Metro bundler requirement**: Unlike Botore's simpler game app, Lateralzr uses expo-router with a deep Metro dependency tree. Metro needs direct access to transitive packages. Botore's `auto-install-peers` alone is insufficient; `shamefully-hoist=true` is required for Vercel builds to succeed.
 
 ## Dependencies
 
 ### Critical Build Dependencies
 
-The following dependencies are explicitly declared for Expo SDK 54 + expo-router compatibility:
+The following dependencies are explicitly declared for Expo SDK 57 + expo-router compatibility:
 
 ```json
 "@babel/runtime": "^7.25.0"
-"@expo/metro-runtime": "~6.1.2"
-"expo-modules-core": "~3.0.30"
-"@react-navigation/core": "^7.14.0"
-"use-latest-callback": "^0.2.4"
+"@expo/metro-runtime": "~57.0.16"
+"@expo/dom-webview": "~57.0.1"
 ```
 
 **Why explicit dependencies?**
 - **@babel/runtime**: Required by react-native-web (Botore also declares this explicitly)
-- **@expo/metro-runtime**: Required by Metro bundler and expo-router@6.0.23
-- **expo-modules-core**: SDK 54 runtime (tag: sdk-54)
-- **@react-navigation/core**: Ensures Metro can resolve navigation dependencies
-- **use-latest-callback**: expo-router navigation dependency
+- **@expo/metro-runtime**: Required by Metro bundler and expo-router
+- **@expo/dom-webview**: Peer for Expo CLI / log-box on SDK 57
 
-Even with `shamefully-hoist=true`, these packages must be declared in `apps/client/package.json` to ensure pnpm includes them in the install tree. Botore's simpler app (no expo-router) needs fewer explicit declarations.
+As of SDK 56+, application code imports navigation helpers from `expo-router/react-navigation` (not `@react-navigation/*`). `expo-modules-core` is provided by the `expo` package and must not be installed directly.
+
+Even with `shamefully-hoist=true`, packages Metro must resolve at build time should be declared in `apps/client/package.json` so pnpm includes them in the install tree.
 
 ## Testing the Deployment
 

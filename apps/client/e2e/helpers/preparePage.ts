@@ -78,20 +78,35 @@ export async function settleAfterNavigation(
     timeout: 15_000,
   });
   await disableMotionCss(page);
+  // Cap font/image waits: Expo Image SDK 57+ defaults loading="lazy", so
+  // off-screen deck peers never fire load/error and used to hang this settle.
   await page.evaluate(async () => {
+    const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T | void> =>
+      Promise.race([promise, new Promise<void>((resolve) => setTimeout(resolve, ms))]);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const fonts = (document as any).fonts;
     if (fonts?.ready) {
-      await fonts.ready;
+      await withTimeout(fonts.ready as Promise<unknown>, 3_000);
     }
-    const images = Array.from(document.images);
+
+    const images = Array.from(document.images).filter((img) => {
+      const src = img.currentSrc || img.getAttribute('src') || '';
+      if (!src) return false;
+      // Lazy images that have not started never emit load/error.
+      if (img.loading === 'lazy' && !img.complete) return false;
+      return true;
+    });
     await Promise.all(
       images.map((img) => {
         if (img.complete) return Promise.resolve();
-        return new Promise<void>((resolve) => {
-          img.addEventListener('load', () => resolve(), { once: true });
-          img.addEventListener('error', () => resolve(), { once: true });
-        });
+        return withTimeout(
+          new Promise<void>((resolve) => {
+            img.addEventListener('load', () => resolve(), { once: true });
+            img.addEventListener('error', () => resolve(), { once: true });
+          }),
+          5_000,
+        );
       }),
     );
   });

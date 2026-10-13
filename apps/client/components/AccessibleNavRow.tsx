@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   pressedTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: color.paper,
     opacity: 0.12,
   },
