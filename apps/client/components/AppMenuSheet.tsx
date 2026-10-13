@@ -518,6 +518,22 @@ export function AppMenuSheet({
               const checked = motionPreference === pref;
               const labelKey = motionPreferenceLabelKey(pref);
               const label = t(labelKey);
+              // RN-web radio Pressable does not commit on Space/Enter without a key handler.
+              const motionWebKeyProps =
+                Platform.OS === 'web'
+                  ? ({
+                      tabIndex: 0,
+                      onKeyDown: (event: {
+                        nativeEvent?: { key?: string };
+                        preventDefault?: () => void;
+                      }) => {
+                        const key = event.nativeEvent?.key;
+                        if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+                        event.preventDefault?.();
+                        selectMotion(pref);
+                      },
+                    } as Record<string, unknown>)
+                  : {};
               return (
                 <Pressable
                   key={pref}
@@ -531,6 +547,7 @@ export function AppMenuSheet({
                     checked ? styles.languageRowSelected : null,
                     pressed ? styles.rowPressed : null,
                   ]}
+                  {...motionWebKeyProps}
                 >
                   <MenuRadio checked={checked} />
                   <Text

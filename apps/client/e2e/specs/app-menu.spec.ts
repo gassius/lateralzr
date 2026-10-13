@@ -118,34 +118,55 @@ test.describe('app menu', () => {
     await page.getByTestId('app-menu-row-motion').click();
     await expect(page.getByTestId('app-menu-motion')).toBeVisible();
 
-    // Start from Back (known host), then Tab into a Motion preference row.
+    // Start from Back (known host), then Tab to Reduced (keyboard-only select).
     const back = page.getByTestId('app-menu-back');
     await expect(back).toBeVisible();
     await back.focus();
     await expect(back).toBeFocused();
 
-    let rowTestId: string | null = null;
+    let landedOnReduced = false;
     for (let i = 0; i < 8; i += 1) {
       await page.keyboard.press('Tab');
       const id = await page.evaluate(
         () => (document.activeElement as HTMLElement | null)?.dataset?.testid ?? '',
       );
-      if (id.startsWith('app-menu-motion-row-')) {
-        rowTestId = id;
+      if (id === 'app-menu-motion-row-reduced') {
+        landedOnReduced = true;
         break;
       }
     }
-    expect(rowTestId, 'Tab should land on a Motion preference row').toBeTruthy();
+    expect(landedOnReduced, 'Tab should land on Reduced Motion row').toBeTruthy();
 
-    await page.keyboard.press('Enter');
-    // RN-web Pressable may ignore Enter — click the focused row if still nested.
-    if ((await page.getByTestId('app-menu-motion').count()) > 0) {
-      await page.getByTestId(rowTestId!).click();
-    }
+    // Space activates role=radio; no click fallback (PRR).
+    await page.keyboard.press('Space');
 
     await expect(page.getByTestId('app-menu-rows')).toBeVisible();
     await expect(page.getByTestId('app-menu-back')).toHaveCount(0);
-    await expect(page.getByTestId('app-menu-row-motion')).toBeFocused();
+    await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
+
+    // Poll so a brief focus then steal (old unstable onBack) still fails.
+    const motionRow = page.getByTestId('app-menu-row-motion');
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const el = document.activeElement as HTMLElement | null;
+            return el?.dataset?.testid === 'app-menu-row-motion';
+          }),
+        {
+          message: 'focus must stay on Motion row after keyboard select',
+          timeout: 2_000,
+          intervals: [50, 100, 100, 200],
+        },
+      )
+      .toBe(true);
+    await expect
+      .poll(async () => motionRow.evaluate((el) => el === document.activeElement), {
+        message: 'focus must still be on Motion row on sustained check',
+        timeout: 1_000,
+        intervals: [50, 100, 200],
+      })
+      .toBe(true);
   });
 
   test('opening Language picker moves focus into the view', async ({ page }) => {
