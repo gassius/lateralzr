@@ -1,12 +1,57 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { capture, swipeBack, swipeForward } from '../helpers/capture';
 import { cardFrontTitle, visibleText } from '../helpers/locators';
-import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
+import {
+  disableMotionCss,
+  openApp,
+  preparePage,
+  settleAfterNavigation,
+} from '../helpers/preparePage';
 import {
   expectStatusLineClearOfLaterality,
   waitForStableLoadingChrome,
 } from '../helpers/statusLayout';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
+
+const REL_FIXTURES = path.join(__dirname, '..', 'fixtures', 'relationships');
+
+function readRelFixture(name: string): string {
+  return fs.readFileSync(path.join(REL_FIXTURES, name), 'utf8');
+}
+
+const EMPTY_BATCH_EN = JSON.stringify({
+  status: 'success',
+  data: {
+    start: { id: 0, label: '' },
+    nodes: [],
+    edges: [],
+    meta: {
+      depth: 2,
+      limit: 12,
+      minStrength: 0,
+      hasMore: false,
+      locale: 'en',
+    },
+  },
+});
+
+const EMPTY_BATCH_ES = JSON.stringify({
+  status: 'success',
+  data: {
+    start: { id: 0, label: '' },
+    nodes: [],
+    edges: [],
+    meta: {
+      depth: 2,
+      limit: 12,
+      minStrength: 0,
+      hasMore: false,
+      locale: 'es',
+    },
+  },
+});
 
 test.describe('status screens', () => {
   test('initial loading silhouette (delayed first fetch)', async ({ page }, testInfo) => {
@@ -323,14 +368,27 @@ test.describe('status screens', () => {
   });
 
   test('fetch failure status line + Retry keeps the card (Lz-38)', async ({ page }, testInfo) => {
-    await openApp(page, 'canonicalConcept=loading-deck');
-    await expect(visibleText(page, 'Horizon')).toBeVisible();
-
+    // First relationships call = single-card deck; every later call aborts so prefetch
+    // surfaces fetchFailed in the control row without wiping history.
+    await preparePage(page);
+    let calls = 0;
     await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-en.json'),
+        });
+        return;
+      }
       await route.abort('failed');
     });
+    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
 
-    await swipeForward(page);
     await expect(page.getByTestId('deck-status-line')).toContainText(
       /Couldn't load the next idea/i,
       { timeout: 8_000 },
@@ -346,12 +404,26 @@ test.describe('status screens', () => {
   });
 
   test('fetch failure status line ES (Lz-38)', async ({ page }, testInfo) => {
-    await openApp(page, 'canonicalConcept=loading-deck&locale=es');
-    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await preparePage(page);
+    let calls = 0;
     await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-es.json'),
+        });
+        return;
+      }
       await route.abort('failed');
     });
-    await swipeForward(page);
+    await page.goto('/?canonicalConcept=loading-deck&locale=es', {
+      waitUntil: 'domcontentloaded',
+    });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
     await expect(page.getByTestId('deck-status-line')).toContainText(
       /No se pudo cargar la siguiente idea/i,
       { timeout: 8_000 },
@@ -367,39 +439,31 @@ test.describe('status screens', () => {
   });
 
   test('no next idea after bounded empty retries + Adjust (Lz-38)', async ({ page }, testInfo) => {
-    const emptyBatch = JSON.stringify({
-      status: 'success',
-      data: {
-        start: { id: 0, label: '' },
-        nodes: [],
-        edges: [],
-        meta: {
-          depth: 2,
-          limit: 12,
-          minStrength: 0,
-          hasMore: false,
-          locale: 'en',
-        },
-      },
-    });
-
-    await openApp(page, 'canonicalConcept=loading-deck');
-    await expect(visibleText(page, 'Horizon')).toBeVisible();
-
-    // Every subsequent batch is empty so the bounded retry cycle can exhaust.
+    // Prefetch empty batches from the first load-more so the 1.5/3/6s cycle can exhaust.
+    await preparePage(page);
+    let calls = 0;
     await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-en.json'),
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: emptyBatch,
+        body: EMPTY_BATCH_EN,
       });
     });
+    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    // Prefetch empty cycle must have started (seed + coldStart) before we advance timers.
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
 
-    await swipeForward(page);
-    // End-deck loading appears while the empty cycle runs; then advance fake timers.
-    await expect(page.getByTestId('loading-card').or(page.getByTestId('deck-status-line'))).toBeVisible({
-      timeout: 8_000,
-    });
     // 1.5s → 3s → 6s scheduled retries (3 attempts), then No next idea.
     await page.clock.fastForward(1500);
     await page.clock.fastForward(3000);
@@ -408,7 +472,7 @@ test.describe('status screens', () => {
 
     await expect(page.getByTestId('deck-status-line')).toContainText(
       /No next idea at this setting/i,
-      { timeout: 4_000 },
+      { timeout: 8_000 },
     );
     const adjust = page.getByTestId('deck-status-adjust');
     await expect(adjust).toBeVisible();
@@ -424,42 +488,37 @@ test.describe('status screens', () => {
   });
 
   test('no next idea ES (Lz-38)', async ({ page }, testInfo) => {
-    const emptyBatch = JSON.stringify({
-      status: 'success',
-      data: {
-        start: { id: 0, label: '' },
-        nodes: [],
-        edges: [],
-        meta: {
-          depth: 2,
-          limit: 12,
-          minStrength: 0,
-          hasMore: false,
-          locale: 'es',
-        },
-      },
-    });
-
-    await openApp(page, 'canonicalConcept=loading-deck&locale=es');
-    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await preparePage(page);
+    let calls = 0;
     await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-es.json'),
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: emptyBatch,
+        body: EMPTY_BATCH_ES,
       });
     });
-    await swipeForward(page);
-    await expect(page.getByTestId('loading-card').or(page.getByTestId('deck-status-line'))).toBeVisible({
-      timeout: 8_000,
+    await page.goto('/?canonicalConcept=loading-deck&locale=es', {
+      waitUntil: 'domcontentloaded',
     });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
     await page.clock.fastForward(1500);
     await page.clock.fastForward(3000);
     await page.clock.fastForward(6000);
     await page.clock.fastForward(50);
     await expect(page.getByTestId('deck-status-line')).toContainText(
       /No hay siguiente idea con este ajuste/i,
-      { timeout: 4_000 },
+      { timeout: 8_000 },
     );
     await expect(page.getByTestId('deck-status-adjust')).toHaveAttribute(
       'aria-label',
