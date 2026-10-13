@@ -98,10 +98,16 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `coach_tip-tap_320x568_es` / `coach_tip-swipe_320x568_es` / `coach_tip-complexity_320x568_es` — Spanish sequence at 320
 - `coach_tip-tap-reduced_320x568_es` — tipTap with app Motion=Reduced
 
+### Status — Lz-38 loading / failure / missing-content
+
+- `status_neighbourhood-loading_*` — laterality swap held open; status in control row (en + es)
+- `status_fetch-failed_*` — load-more abort; `fetchFailed` + Retry; card stays
+- `status_no-next-idea_*` — empty batches exhaust 1.5/3/6 s backoff; `noNextIdea` + Adjust
+- New captures compare when orphan/demo baselines exist; otherwise `capture()` skips compare (report-only). Full matrix via Supervisor `run-full-screenshots`.
+
 ### Pending screens (add when UI ships)
 
 - Language / complexity / motion / about pickers
-- “No next idea” empty state
 - End-of-deck (non-loading) if distinct from `status_loading`
 
 Smoke runs on **all four** viewports (390×844, 320×568, 430×932, 1280×800).

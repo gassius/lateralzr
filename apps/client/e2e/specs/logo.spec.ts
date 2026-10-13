@@ -26,6 +26,6 @@ test.describe('logo assets', () => {
     await page.goto('/?canonicalConcept=mushroom', { waitUntil: 'domcontentloaded' });
     await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
     await expect(page.getByLabel('Lateralzr logo')).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByText(/tap to retry/i)).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByText(/^Retry$/i)).toBeVisible({ timeout: 8_000 });
   });
 });

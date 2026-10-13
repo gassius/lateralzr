@@ -24,7 +24,16 @@ import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
+import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
 import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
+import {
+  applyEmptyBatchToCycle,
+  conceptsUnchangedOnFetchFailure,
+  initialEmptyRetryCycle,
+  resetEmptyRetryCycleState,
+  type EmptyRetryCycleState,
+  type EmptyRetryResetReason,
+} from '@/lib/emptyBatchRetry';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import {
@@ -56,7 +65,6 @@ import {
   shouldPersistLateralityAfterSwap,
   type LateralityGrade,
 } from '@/lib/laterality';
-import { coachHintSlotHeight } from '@/lib/coachHintPresentation';
 import {
   cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
@@ -88,9 +96,6 @@ import {
  * cards to swipe to that you haven't opened yet, we already request more.
  */
 const UNVISITED_AHEAD_PREFETCH_AT = 2;
-
-const INITIAL_EMPTY_RETRY_MS = 1500;
-const MAX_EMPTY_RETRY_MS = 30_000;
 
 function firstSearchParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
@@ -138,18 +143,18 @@ export default function HomeScreen() {
   const replayGestureTipsRef = useRef<() => void>(() => {});
   /** React state mirrors activeLocale so menu / chrome re-render on pick. */
   const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
-  /** §12.3 tip chip — in-flow between card and Laterality, never on the card. */
+  /** §12.3 tip chip — shared messaging band above Laterality, never on the card. */
   const [coachTip, setCoachTip] = useState<{
     text: string;
     animateAppear: boolean;
     onDismiss: () => void;
   } | null>(null);
-  /** Measured tip band height; falls back to 2-line reserve until laid out. */
-  const [coachTipBandHeight, setCoachTipBandHeight] = useState(0);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
+  /** Lz-38: empty-batch cycle exhausted — status line + Adjust (not on the card). */
+  const [noNextIdea, setNoNextIdea] = useState(false);
   /** True only after the user swipes forward from the last card while waiting for more items. */
   const [pendingEndDeckLoad, setPendingEndDeckLoad] = useState(false);
   const {
@@ -173,7 +178,8 @@ export default function HomeScreen() {
   }, [offline]);
   const loadMoreInFlightRef = useRef(false);
   const fetchGenRef = useRef(0);
-  const emptyRetryDelayRef = useRef(INITIAL_EMPTY_RETRY_MS);
+  /** Bounded empty-retry cycle (Lz-38) — attempt count + exhausted flag. */
+  const emptyRetryCycleRef = useRef<EmptyRetryCycleState>(initialEmptyRetryCycle());
   const emptyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
   const pendingEndDeckLoadRef = useRef(false);
@@ -336,16 +342,22 @@ export default function HomeScreen() {
     [setComplexity],
   );
 
-  function clearEmptyRetry() {
+  function clearEmptyRetryTimer() {
     if (emptyRetryTimerRef.current != null) {
       clearTimeout(emptyRetryTimerRef.current);
       emptyRetryTimerRef.current = null;
     }
   }
 
+  function resetEmptyRetryCycle(reason: EmptyRetryResetReason) {
+    clearEmptyRetryTimer();
+    emptyRetryCycleRef.current = resetEmptyRetryCycleState(reason);
+    setNoNextIdea(false);
+  }
+
   useEffect(
     () => () => {
-      clearEmptyRetry();
+      clearEmptyRetryTimer();
     },
     [],
   );
@@ -357,8 +369,7 @@ export default function HomeScreen() {
     setLoadMoreError(false);
     pendingEndDeckLoadRef.current = false;
     setPendingEndDeckLoad(false);
-    clearEmptyRetry();
-    emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
+    resetEmptyRetryCycle('reload');
     try {
       const testParams = journeyTestParamsRef.current;
       const startOptions = journeyStartOptions(testParams);
@@ -396,7 +407,7 @@ export default function HomeScreen() {
   const loadMoreConcepts = useCallback(async () => {
     if (loadMoreInFlightRef.current) return;
 
-    clearEmptyRetry();
+    clearEmptyRetryTimer();
 
     const list = conceptsRef.current;
     if (list.length === 0) return;
@@ -453,17 +464,23 @@ export default function HomeScreen() {
       }
 
       if (plan.action !== 'append') {
-        const delay = emptyRetryDelayRef.current;
+        // Lz-38: bounded empty retry — 1.5s / 3s / 6s, then No next idea + Adjust.
+        const { cycle, decision } = applyEmptyBatchToCycle(emptyRetryCycleRef.current);
+        emptyRetryCycleRef.current = cycle;
+        if (decision.action === 'exhausted') {
+          pendingEndDeckLoadRef.current = false;
+          setPendingEndDeckLoad(false);
+          setNoNextIdea(true);
+          return;
+        }
         emptyRetryTimerRef.current = setTimeout(() => {
           emptyRetryTimerRef.current = null;
           void loadMoreConceptsRef.current();
-        }, delay);
-        emptyRetryDelayRef.current = Math.min(delay * 2, MAX_EMPTY_RETRY_MS);
+        }, decision.delayMs);
         return;
       }
 
-      emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
-      clearEmptyRetry();
+      resetEmptyRetryCycle('successfulAppend');
 
       const applied = applyAppendedBatch(conceptsRef.current, plan.add, pendingEndDeckLoadRef.current);
       conceptsRef.current = applied.concepts;
@@ -477,6 +494,13 @@ export default function HomeScreen() {
       reportRetrySucceeded();
     } catch {
       if (stillCurrent()) {
+        // Lz-38: failure never resets history — keep the walk, surface Retry in the row.
+        const preserved = conceptsUnchangedOnFetchFailure(
+          conceptsRef.current,
+          currentIndexRef.current,
+        );
+        conceptsRef.current = [...preserved.concepts];
+        currentIndexRef.current = preserved.currentIndex;
         if (!offlineRef.current) setLoadMoreError(true);
         reportRetryFailed();
       }
@@ -494,7 +518,7 @@ export default function HomeScreen() {
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);
-    emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
+    resetEmptyRetryCycle('manualRetry');
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
 
@@ -510,18 +534,29 @@ export default function HomeScreen() {
   useEffect(() => {
     if (offline) return;
     if (loading || concepts.length === 0) return;
-    if (loadMoreError) return;
+    if (loadMoreError || noNextIdea) return;
 
     const unvisitedAhead = concepts.length - 1 - currentIndex;
     if (unvisitedAhead > UNVISITED_AHEAD_PREFETCH_AT) return;
 
     void loadMoreConcepts();
-  }, [offline, loading, concepts.length, currentIndex, loadMoreError, loadMoreConcepts]);
+  }, [
+    offline,
+    loading,
+    concepts.length,
+    currentIndex,
+    loadMoreError,
+    noNextIdea,
+    loadMoreConcepts,
+  ]);
 
   const onSwipeLeft = useCallback(() => {
     const len = conceptsRef.current.length;
     const i = currentIndexRef.current;
     if (len === 0) return;
+    // Lz-38: manual forward swipe resets the empty-retry counter.
+    resetEmptyRetryCycle('manualForwardSwipe');
+    setLoadMoreError(false);
     if (i < len - 1) {
       pendingEndDeckLoadRef.current = false;
       setPendingEndDeckLoad(false);
@@ -628,6 +663,9 @@ export default function HomeScreen() {
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
     const token = ++lateralitySwapTokenRef.current;
     setLateralitySwap({ token });
+    // Lz-38: Laterality change resets the empty-retry counter.
+    resetEmptyRetryCycle('laterality');
+    setLoadMoreError(false);
 
     const current = conceptsRef.current[currentIndexRef.current];
     const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
@@ -704,6 +742,13 @@ export default function HomeScreen() {
     setLateralitySheetOpen(true);
   }, [lateralitySwap]);
 
+  /** Lz-38: Adjust opens the Laterality sheet and resets the empty-retry cycle. */
+  const onAdjustNoNextIdea = useCallback(() => {
+    resetEmptyRetryCycle('adjust');
+    setLoadMoreError(false);
+    openLateralitySheet();
+  }, [openLateralitySheet]);
+
   const dismissLateralitySheet = useCallback(() => {
     setLateralitySheetOpen(false);
   }, []);
@@ -750,7 +795,6 @@ export default function HomeScreen() {
         onDismiss: () => void;
       } | null,
     ) => {
-      if (tip == null) setCoachTipBandHeight(0);
       setCoachTip(tip);
     },
     [],
@@ -777,6 +821,9 @@ export default function HomeScreen() {
       const next = clampComplexity(previous + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
       setComplexity(next);
+      // Lz-38: Complexity change resets the empty-retry counter.
+      resetEmptyRetryCycle('complexity');
+      setLoadMoreError(false);
       if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
         announceComplexity(next, 'swipe');
       }
@@ -817,21 +864,26 @@ export default function HomeScreen() {
       if (result.complexityChanged) {
         complexityRef.current = result.complexity;
         setComplexity(result.complexity);
+        // Lz-38: Complexity change resets the empty-retry counter.
+        resetEmptyRetryCycle('complexity');
+        setLoadMoreError(false);
+        void persistComplexity(result.complexity);
+        void prefetchComplexityTree(result.complexity);
       }
-      void persistComplexity(result.complexity);
-      void prefetchComplexityTree(result.complexity);
     },
     [prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
-  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
+  /** Deck slot while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
   const deckSlotState = resolveDeckSlotState({
     isLastCard,
     pendingEndDeckLoad,
     loadMoreError,
+    noNextIdea,
   });
-  const showDeckLoading = deckSlotState !== 'card';
+  // Lz-38: only the loading face replaces the card; failure / no-next keep the card readable.
+  const showDeckLoading = deckSlotState === 'loading';
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
 
   const menuChromeHeight = practiceMenuChromeHeight();
@@ -848,15 +900,47 @@ export default function HomeScreen() {
   /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
   const showInitialLoading = prefsReady && introGateOpen && concepts.length === 0 && !error;
   const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
+  const chromeStatus = resolveDeckChromeStatus({
+    offline,
+    noNextIdea,
+    loadMoreError,
+    lateralitySwapping: lateralitySwap != null,
+    showInitialLoading,
+    showDeckLoading,
+  });
   const deckStatusMessage =
-    offline
-      ? null
-      : showInitialLoading
-        ? t('findingStart')
-        : deckSlotState === 'loading'
-          ? t('loadingMoreIdeas')
-          : null;
+    chromeStatus.kind === 'noNextIdea'
+      ? t('noNextIdea')
+      : chromeStatus.kind === 'fetchFailed'
+        ? t('fetchFailed')
+        : chromeStatus.kind === 'neighbourhoodLoading'
+          ? t('loadingLateralNeighborhood')
+          : chromeStatus.kind === 'findingStart'
+            ? t('findingStart')
+            : chromeStatus.kind === 'loadingMore'
+              ? t('loadingMoreIdeas')
+              : null;
+  const statusActionLabel =
+    chromeStatus.kind === 'offline' || chromeStatus.kind === 'fetchFailed'
+      ? t('retry')
+      : chromeStatus.kind === 'noNextIdea'
+        ? t('adjust')
+        : undefined;
+  const statusActionHandler =
+    chromeStatus.kind === 'offline'
+      ? onOfflineRetry
+      : chromeStatus.kind === 'fetchFailed'
+        ? retryLoadMore
+        : chromeStatus.kind === 'noNextIdea'
+          ? onAdjustNoNextIdea
+          : undefined;
+  const statusActionTestID =
+    chromeStatus.kind === 'noNextIdea' ? 'deck-status-adjust' : 'deck-status-retry';
   const showStatusSlot = offline || deckStatusMessage != null;
+  // AD #119: one message in the control region — hide coach tip on failure / no-next.
+  const suppressCoachTip =
+    chromeStatus.kind === 'fetchFailed' || chromeStatus.kind === 'noNextIdea';
+  const visibleCoachTip = suppressCoachTip ? null : coachTip;
 
   useEffect(() => {
     if (!showMainDeck) return;
@@ -892,7 +976,7 @@ export default function HomeScreen() {
         <LateralzrLogo animate={false} />
         <Text style={[styles.error, textStyle('body')]}>{error}</Text>
         <Pressable onPress={() => loadConcepts()} style={styles.retryBtn}>
-          <Text style={[styles.retryText, textStyle('row')]}>{t('tapToRetry')}</Text>
+          <Text style={[styles.retryText, textStyle('row')]}>{t('retry')}</Text>
         </Pressable>
       </View>
     );
@@ -924,11 +1008,29 @@ export default function HomeScreen() {
       ) : null}
       {(() => {
         const controlGap = lateralityCardGap(usableHeight);
-        const tipBand = coachTip
-          ? Math.max(coachTipBandHeight, coachHintSlotHeight())
-          : 0;
-        // Shrink the card by tip band + one flex gap so Laterality stays put (AD Lz-48).
-        const tipReserve = coachTip ? tipBand + controlGap : 0;
+        // AD #119: tip OR status share LateralityControl's messaging band —
+        // one fixed height, never stacked, never subtracted again from the card.
+        const messagingSlot = showStatusSlot ? (
+          <DeckStatusLine
+            message={deckStatusMessage}
+            offline={offline}
+            offlineLabel={t('offline')}
+            actionLabel={statusActionLabel}
+            onAction={statusActionHandler}
+            actionTestID={statusActionTestID}
+            shouldAnnounceOffline={shouldAnnounceOffline}
+            onOfflineAnnounced={consumeOfflineAnnounce}
+          />
+        ) : visibleCoachTip ? (
+          <View style={styles.coachTipSlot} testID="coach-tip-slot">
+            <CoachHint
+              text={visibleCoachTip.text}
+              animateAppear={visibleCoachTip.animateAppear}
+              surface="shell"
+              onDismiss={visibleCoachTip.onDismiss}
+            />
+          </View>
+        ) : undefined;
         const cardLateralityGroup = (
           <View
             style={[styles.cardLateralityGroup, { gap: controlGap }]}
@@ -944,14 +1046,12 @@ export default function HomeScreen() {
               onSwipeForwardVertical={onSwipeForwardVertical}
               availableHeight={
                 cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-                (accessibleNavVisible ? accessibleNavHeight : 0) -
-                tipReserve
+                (accessibleNavVisible ? accessibleNavHeight : 0)
               }
               preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
               showInitialLoading={showInitialLoading}
-              loadMoreError={loadMoreError}
-              onRetryLoadMore={retryLoadMore}
+              loadMoreError={loadMoreError || noNextIdea}
               sheetOpen={lateralitySheetOpen || appMenuOpen}
               onReplayGestureTipsReady={onReplayGestureTipsReady}
               onCoachTipChange={onCoachTipChange}
@@ -967,20 +1067,6 @@ export default function HomeScreen() {
                 }}
               />
             ) : null}
-            {coachTip ? (
-              <View
-                style={styles.coachTipSlot}
-                testID="coach-tip-slot"
-                onLayout={(e) => setCoachTipBandHeight(e.nativeEvent.layout.height)}
-              >
-                <CoachHint
-                  text={coachTip.text}
-                  animateAppear={coachTip.animateAppear}
-                  surface="shell"
-                  onDismiss={coachTip.onDismiss}
-                />
-              </View>
-            ) : null}
             <LateralityControl
               laterality={laterality}
               swapping={lateralitySwap != null}
@@ -988,29 +1074,11 @@ export default function HomeScreen() {
               onHeightChange={setLateralityControlHeight}
               onPressLabel={openLateralitySheet}
               labelRef={lateralityLabelRef}
-              statusSlot={
-                showStatusSlot ? (
-                  <DeckStatusLine
-                    message={deckStatusMessage}
-                    offline={offline}
-                    offlineLabel={t('offline')}
-                    retryLabel={t('retry')}
-                    onRetry={onOfflineRetry}
-                    shouldAnnounceOffline={shouldAnnounceOffline}
-                    onOfflineAnnounced={consumeOfflineAnnounce}
-                  />
-                ) : undefined
-              }
+              statusSlot={messagingSlot}
             />
             {complexityCue ? (
               <View
-                style={[
-                  styles.complexityCueSlot,
-                  {
-                    bottom:
-                      lateralityControlHeight + (coachTip ? tipBand + controlGap : 4),
-                  },
-                ]}
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
               >
                 <ComplexityCue
@@ -1020,7 +1088,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark && !coachTip ? (
+            ) : showSessionComplexityMark && !visibleCoachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
@@ -1127,11 +1195,11 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 20,
   },
-  /** §12.3 tip chip — in-flow between card and Laterality (flex gap ≥ 8px clear). */
+  /** Tip chip inside LateralityControl's shared messaging band. */
   coachTipSlot: {
     width: '100%',
-    paddingHorizontal: practiceScreenGutter(),
     alignItems: 'center',
+    justifyContent: 'center',
   },
   error: {
     color: color.ink,

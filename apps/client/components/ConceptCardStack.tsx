@@ -27,7 +27,6 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
-import { DeckStatusCard } from './DeckStatusCard';
 import { LoadingCard } from './LoadingCard';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -89,12 +88,12 @@ type ConceptCardStackProps = {
   onSwipeForwardVertical: (direction: 'up' | 'down') => void;
   availableHeight: number;
   preloadedMediaUrls: ReadonlySet<string>;
-  /** Loading / error deck card — only when user is at the true end and waiting (see HomeScreen). */
+  /** End-of-deck loading silhouette — only when waiting for more (see HomeScreen). */
   showDeckLoading: boolean;
   /** Initial empty-deck quiet silhouette (Lz-35) — shell + control stay up. */
   showInitialLoading?: boolean;
+  /** Lz-38: when true, keep the card face (failure/no-next live on DeckStatusLine). */
   loadMoreError: boolean;
-  onRetryLoadMore: () => void;
   /** Ignore keyboard / a11y card actions while a sheet is open. */
   sheetOpen?: boolean;
   /** Lz-32: bind app-menu Replay to the coaching hook’s reset+refresh. */
@@ -126,7 +125,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   showDeckLoading,
   showInitialLoading = false,
   loadMoreError,
-  onRetryLoadMore,
   sheetOpen = false,
   onReplayGestureTipsReady,
   onCoachTipChange,
@@ -216,12 +214,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   }, [cardAreaHeight, cardWidth, cardWidthSV, cardHeightSV]);
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
+  // Lz-38: fetch failure / no-next stay on the card face; only end-deck loading
+  // replaces the card with the quiet silhouette. Status copy lives on DeckStatusLine.
   const showDeckStatus = useMemo(
-    () => isLastCard && (showDeckLoading || loadMoreError),
+    () => isLastCard && showDeckLoading && !loadMoreError,
     [isLastCard, showDeckLoading, loadMoreError],
   );
-
-  const deckStatusVariant = loadMoreError ? 'error' : 'loading';
 
   const {
     coach,
@@ -1033,7 +1031,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           ) : null}
 
           <Animated.View
-            key={showDeckStatus ? `deck-${deckStatusVariant}-${currentIndex}` : 'front-card'}
+            key={showDeckStatus ? `deck-loading-${currentIndex}` : 'front-card'}
             style={[styles.frontWrap, frontAnimatedStyle]}
           >
             <View
@@ -1059,11 +1057,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               {...webCardFocusProps}
             >
               {showDeckStatus ? (
-                deckStatusVariant === 'loading' ? (
-                  <LoadingCard />
-                ) : (
-                  <DeckStatusCard variant="error" onRetry={onRetryLoadMore} />
-                )
+                <LoadingCard />
               ) : (
                 <ConceptCardForIndex
                   concepts={concepts}

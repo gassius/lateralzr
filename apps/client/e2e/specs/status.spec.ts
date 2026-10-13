@@ -1,12 +1,57 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { expect, test } from '@playwright/test';
 import { capture, swipeBack, swipeForward } from '../helpers/capture';
 import { cardFrontTitle, visibleText } from '../helpers/locators';
-import { disableMotionCss, openApp, preparePage } from '../helpers/preparePage';
+import {
+  disableMotionCss,
+  openApp,
+  preparePage,
+  settleAfterNavigation,
+} from '../helpers/preparePage';
 import {
   expectStatusLineClearOfLaterality,
   waitForStableLoadingChrome,
 } from '../helpers/statusLayout';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
+
+const REL_FIXTURES = path.join(__dirname, '..', 'fixtures', 'relationships');
+
+function readRelFixture(name: string): string {
+  return fs.readFileSync(path.join(REL_FIXTURES, name), 'utf8');
+}
+
+const EMPTY_BATCH_EN = JSON.stringify({
+  status: 'success',
+  data: {
+    start: { id: 0, label: '' },
+    nodes: [],
+    edges: [],
+    meta: {
+      depth: 2,
+      limit: 12,
+      minStrength: 0,
+      hasMore: false,
+      locale: 'en',
+    },
+  },
+});
+
+const EMPTY_BATCH_ES = JSON.stringify({
+  status: 'success',
+  data: {
+    start: { id: 0, label: '' },
+    nodes: [],
+    edges: [],
+    meta: {
+      depth: 2,
+      limit: 12,
+      minStrength: 0,
+      hasMore: false,
+      locale: 'es',
+    },
+  },
+});
 
 test.describe('status screens', () => {
   test('initial loading silhouette (delayed first fetch)', async ({ page }, testInfo) => {
@@ -275,5 +320,270 @@ test.describe('status screens', () => {
     await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
     // Front title must be card N (Meridian), not N-1 (Horizon) from an unguarded pop.
     await expect(cardFrontTitle(page)).toHaveText('Meridian');
+  });
+
+  for (const locale of ['en', 'es'] as const) {
+    const neighbourhoodCopy =
+      locale === 'es' ? /Cargando un vecindario nuevo/i : /Loading a new neighborhood/i;
+    const cardTitle = locale === 'es' ? 'Seta' : 'Mushroom';
+
+    test(`neighbourhood loading status stays in the control row (Lz-38) (${locale})`, async ({
+      page,
+    }, testInfo) => {
+      await openApp(page, `canonicalConcept=mushroom&laterality=1&locale=${locale}`, {
+        skipNetworkIdle: true,
+      });
+      await expect(visibleText(page, cardTitle)).toBeVisible();
+
+      // Hold the laterality-swap fetch open so the status line stays readable.
+      await page.route('**/api/concepts/relationships', async (route) => {
+        const body = (() => {
+          try {
+            return route.request().postDataJSON() as { laterality?: number };
+          } catch {
+            return {};
+          }
+        })();
+        if (body?.laterality === 5) {
+          // Hold open like delayLoadMoreMs — status line must stay while the card remains.
+          await new Promise((r) => setTimeout(r, 120_000));
+          await route.fallback();
+          return;
+        }
+        await route.fallback();
+      });
+
+      const rail = page.getByTestId('laterality-rail');
+      const box = await rail.boundingBox();
+      if (!box) throw new Error('laterality-rail has no bounding box');
+      await rail.click({
+        position: { x: Math.floor(box.width * 0.92), y: Math.floor(box.height / 2) },
+      });
+
+      await expect(page.getByTestId('deck-status-line')).toContainText(neighbourhoodCopy, {
+        timeout: 4_000,
+      });
+      // Current card stays readable — status is never on the card / never a modal.
+      await expect(visibleText(page, cardTitle)).toBeVisible();
+      await expect(page.getByTestId('loading-card')).toHaveCount(0);
+      await expectStatusLineClearOfLaterality(page);
+      await disableMotionCss(page);
+      await capture(page, testInfo, {
+        screen: 'status',
+        state: 'neighbourhood-loading',
+        locale,
+      });
+    });
+  }
+
+  test('fetch failure status line + Retry keeps the card (Lz-38)', async ({ page }, testInfo) => {
+    // First relationships call = single-card deck; every later call aborts so prefetch
+    // surfaces fetchFailed in the control row without wiping history.
+    await preparePage(page);
+    let calls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-en.json'),
+        });
+        return;
+      }
+      await route.abort('failed');
+    });
+    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
+
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /Couldn't load the next idea/i,
+      { timeout: 8_000 },
+    );
+    const retry = page.getByTestId('deck-status-retry');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveAttribute('aria-label', /Retry/i);
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'en' });
+  });
+
+  test('fetch failure status line ES (Lz-38)', async ({ page }, testInfo) => {
+    await preparePage(page);
+    let calls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-es.json'),
+        });
+        return;
+      }
+      await route.abort('failed');
+    });
+    await page.goto('/?canonicalConcept=loading-deck&locale=es', {
+      waitUntil: 'domcontentloaded',
+    });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No se pudo cargar la siguiente idea/i,
+      { timeout: 8_000 },
+    );
+    await expect(page.getByTestId('deck-status-retry')).toHaveAttribute(
+      'aria-label',
+      /Reintentar/i,
+    );
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'es' });
+  });
+
+  test('no next idea after bounded empty retries + Adjust (Lz-38)', async ({ page }, testInfo) => {
+    // Prefetch empty batches from the first load-more so the 1.5/3/6s cycle can exhaust.
+    await preparePage(page);
+    let calls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-en.json'),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: EMPTY_BATCH_EN,
+      });
+    });
+    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    // Prefetch empty cycle must have started (seed + coldStart) before we advance timers.
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
+
+    // 1.5s → 3s → 6s scheduled retries (3 attempts), then No next idea.
+    await page.clock.fastForward(1500);
+    await page.clock.fastForward(3000);
+    await page.clock.fastForward(6000);
+    await page.clock.fastForward(50);
+
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No next idea at this setting/i,
+      { timeout: 8_000 },
+    );
+    const adjust = page.getByTestId('deck-status-adjust');
+    await expect(adjust).toBeVisible();
+    await expect(adjust).toHaveAttribute('aria-label', /Adjust/i);
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'en' });
+
+    // Adjust resets the empty-retry cycle and opens the Laterality sheet (Lz-38 AC).
+    const callsBeforeAdjust = calls;
+    await adjust.click();
+    await expect(page.getByTestId('laterality-sheet')).toBeVisible({ timeout: 4_000 });
+    await page.getByTestId('laterality-sheet-row-5').click();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(callsBeforeAdjust);
+  });
+
+  test('no next idea: manual forward swipe resets and refetches (Lz-38)', async ({ page }) => {
+    await preparePage(page);
+    let calls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-en.json'),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: EMPTY_BATCH_EN,
+      });
+    });
+    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
+    await page.clock.fastForward(1500);
+    await page.clock.fastForward(3000);
+    await page.clock.fastForward(6000);
+    await page.clock.fastForward(50);
+    await expect(page.getByTestId('deck-status-adjust')).toBeVisible({ timeout: 8_000 });
+
+    const callsBeforeSwipe = calls;
+    await swipeForward(page);
+    // Manual forward swipe clears the cycle and kicks load-more again.
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(callsBeforeSwipe);
+    // End-deck loading may cover the face while the new empty cycle runs — history stays.
+    await expect(
+      page.getByTestId('loading-card').or(visibleText(page, 'Horizon')),
+    ).toBeVisible({ timeout: 4_000 });
+  });
+
+  test('no next idea ES (Lz-38)', async ({ page }, testInfo) => {
+    await preparePage(page);
+    let calls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      calls += 1;
+      if (calls === 1) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: readRelFixture('loading-deck-es.json'),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: EMPTY_BATCH_ES,
+      });
+    });
+    await page.goto('/?canonicalConcept=loading-deck&locale=es', {
+      waitUntil: 'domcontentloaded',
+    });
+    await settleAfterNavigation(page, { skipNetworkIdle: true });
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
+    await page.clock.fastForward(1500);
+    await page.clock.fastForward(3000);
+    await page.clock.fastForward(6000);
+    await page.clock.fastForward(50);
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No hay siguiente idea con este ajuste/i,
+      { timeout: 8_000 },
+    );
+    await expect(page.getByTestId('deck-status-adjust')).toHaveAttribute(
+      'aria-label',
+      /Ajustar/i,
+    );
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'es' });
   });
 });

@@ -22,7 +22,7 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
-  STATUS_SLOT_MIN_WIDTH,
+  CONTROL_MESSAGING_BAND_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
   clampLaterality,
@@ -48,8 +48,8 @@ type LateralityControlProps = {
   /** Host for focus restore when the sheet closes. */
   labelRef?: RefObject<ViewType | null>;
   /**
-   * In-flow left slot on the label row (Lz-35 status line).
-   * Sits beside the laterality label — never an absolute overlay over the rail.
+   * Full-width messaging band above the Laterality label (Lz-35 / Lz-38 / AD #119).
+   * Shared by coach tip OR deck status — never stacked, never beside the label.
    */
   statusSlot?: ReactNode;
 };
@@ -255,8 +255,15 @@ export function LateralityControl({
       accessibilityState={{ busy: swapping, disabled }}
       onLayout={onRootLayout}
     >
-      <View style={[styles.labelRow, statusSlot != null ? styles.labelRowWithStatus : null]}>
-        {statusSlot != null ? <View style={styles.statusSlot}>{statusSlot}</View> : null}
+      {/*
+        Shared tip/status messaging band (AD #119): one fixed height for every
+        state so tip and status never stack and the card frame never shifts.
+      */}
+      <View style={styles.statusBand} testID="laterality-status-band">
+        {statusSlot}
+      </View>
+
+      <View style={styles.labelRow}>
         <Pressable
           ref={labelRef}
           onPress={onPressLabel ?? (() => {})}
@@ -331,24 +338,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
     justifyContent: 'flex-start',
   },
+  statusBand: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minHeight: CONTROL_MESSAGING_BAND_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'stretch',
+  },
   labelRow: {
     minHeight: LATERALITY_LABEL_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'stretch',
-  },
-  labelRowWithStatus: {
-    justifyContent: 'flex-start',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  statusSlot: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: STATUS_SLOT_MIN_WIDTH,
-    minWidth: STATUS_SLOT_MIN_WIDTH,
-    justifyContent: 'center',
   },
   labelCluster: {
     flexDirection: 'row',
