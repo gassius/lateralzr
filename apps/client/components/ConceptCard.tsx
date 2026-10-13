@@ -623,19 +623,34 @@ export function ConceptCard({
           },
         } as Record<string, unknown>)
       : {};
+  // When the front is up the card surface is one button — do not mount a nested
+  // link (Lz-41 axe nested-interactive). Paint a non-interactive twin for flip.
   const backWiki = item.wikiUrl ? (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={t('wikipedia')}
-      onPressIn={onBackInteractivePress}
-      onPress={openWiki}
-      hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
-      style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
-      testID="card-back-wikipedia"
-      {...wikiWebKeyProps}
-    >
-      <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
-    </Pressable>
+    flipped ? (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={t('wikipedia')}
+        onPressIn={onBackInteractivePress}
+        onPress={openWiki}
+        hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
+        style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
+        testID="card-back-wikipedia"
+        {...wikiWebKeyProps}
+      >
+        <Text style={[styles.link, { fontSize: backLinkFontSize }]}>{t('wikipedia')}</Text>
+      </Pressable>
+    ) : (
+      <View
+        style={[styles.linkHit, { marginTop: rhythm.linkMarginTop }]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
+      >
+        <Text style={[styles.link, { fontSize: backLinkFontSize }]} accessible={false}>
+          {t('wikipedia')}
+        </Text>
+      </View>
+    )
   ) : null;
 
   const backCopy = (
@@ -764,9 +779,18 @@ export function ConceptCard({
         { borderRadius: radius },
         showMediaLayer ? null : { padding: facePad },
       ]}
+      // Label is also announced via the SR-only header below (accessible only).
       accessibilityLabel={t('aboutConcept', { concept: title })}
       testID={`card-back-${backLayout.mode}`}
     >
+      <Text
+        accessibilityRole="header"
+        accessibilityLabel={t('aboutConcept', { concept: title })}
+        style={styles.srOnlyAbout}
+        testID="card-back-about"
+      >
+        {t('aboutConcept', { concept: title })}
+      </Text>
       {backMediaLayer}
       <ScrollView
         style={styles.backScroll}
@@ -864,6 +888,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     alignSelf: 'center',
+  },
+  /** AT-only “About <concept>” (Lz-41); clipped so captures stay unchanged. */
+  srOnlyAbout: {
+    position: 'absolute',
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: 'hidden',
+    opacity: 0,
+    zIndex: 0,
   },
   eagerPreload: {
     position: 'absolute',

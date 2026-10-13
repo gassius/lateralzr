@@ -5,8 +5,12 @@
  * gestures (Lz-33). Action labels come from Lz-43 i18n keys.
  */
 
+import {
+  A11Y_PASS_FOCUS,
+  a11yPassFocusRingCss,
+} from '@/lib/a11yPass';
 import type { MessageKey } from '@/lib/i18n';
-import { color, layout } from '@/theme/tokens';
+import { layout } from '@/theme/tokens';
 
 /** Compact nav / a11y target size (guide §10 / layout.recommendedTouchTarget). */
 export const ACCESSIBLE_NAV_TARGET_PX = layout.recommendedTouchTarget;
@@ -231,30 +235,17 @@ export function accessibleNavChromeReserve(visible: boolean): number {
 
 /** Guide §6 focus ring: 2px stroke + 2px gap. Paper on shell; Ink on orange/light. */
 export const A11Y_FOCUS_RING = {
-  widthPx: 2,
-  offsetPx: 2,
-  onShell: color.paper,
-  onOrangeOrLight: color.ink,
+  widthPx: A11Y_PASS_FOCUS.widthPx,
+  offsetPx: A11Y_PASS_FOCUS.offsetPx,
+  onShell: A11Y_PASS_FOCUS.onShell,
+  onOrangeOrLight: A11Y_PASS_FOCUS.onPaperOrOrange,
 } as const;
 
 export const A11Y_FOCUS_STYLE_ID = 'lateralzr-a11y-focus-ring';
 
-/** Injected once on web for :focus-visible rings on nav buttons + card surface. */
+/** Injected once on web for :focus-visible rings (practice + sheets — Lz-41). */
 export function a11yFocusRingCss(): string {
-  const w = A11Y_FOCUS_RING.widthPx;
-  const o = A11Y_FOCUS_RING.offsetPx;
-  return `
-[data-testid="a11y-nav-previous"]:focus-visible,
-[data-testid="a11y-nav-complexity-down"]:focus-visible,
-[data-testid="a11y-nav-flip"]:focus-visible,
-[data-testid="a11y-nav-complexity-up"]:focus-visible,
-[data-testid="a11y-nav-next"]:focus-visible,
-[data-testid="card-a11y-surface"]:focus-visible {
-  /* Ring paints in the 2px gap on petrol shell — Paper, not Ink. */
-  outline: ${w}px solid ${A11Y_FOCUS_RING.onShell} !important;
-  outline-offset: ${o}px;
-}
-`.trim();
+  return a11yPassFocusRingCss();
 }
 
 export function ensureA11yFocusRingStyles(): void {

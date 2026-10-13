@@ -996,17 +996,16 @@ export default function HomeScreen() {
       ]}
     >
       <StatusBar style="light" />
-      {/* §4.5 / AD: ellipsis in its own petrol band above the card (not overlaid). */}
-      {APP_MENU_TRIGGER_ENABLED ? (
-        <View
-          style={[styles.menuChrome, { height: menuChromeHeight }]}
-          testID="app-menu-chrome"
-          pointerEvents="box-none"
-        >
-          <AppMenuTrigger ref={appMenuTriggerRef} onPress={openAppMenu} />
-        </View>
-      ) : null}
       {(() => {
+        const sheetOpen = lateralitySheetOpen || appMenuOpen;
+        const backgroundA11yHide = sheetOpen ? 'no-hide-descendants' : 'auto';
+        /** Web: inert background while a sheet is open (Lz-41). Native: a11y hide only. */
+        const backgroundInertProps =
+          Platform.OS === 'web' && sheetOpen
+            ? ({ inert: true, 'aria-hidden': true } as Record<string, unknown>)
+            : Platform.OS === 'web'
+              ? ({ inert: undefined, 'aria-hidden': undefined } as Record<string, unknown>)
+              : {};
         const controlGap = lateralityCardGap(usableHeight);
         // AD #119: tip OR status share LateralityControl's messaging band —
         // one fixed height, never stacked, never subtracted again from the card.
@@ -1098,33 +1097,64 @@ export default function HomeScreen() {
             ) : null}
           </View>
         );
-        const a11yHide =
-          lateralitySheetOpen || appMenuOpen ? 'no-hide-descendants' : 'auto';
-        // Scroll only when the assistive row is on (wrap 3+2) so laterality stays reachable.
-        // Keep a plain View for the default gesture shell so shared captures stay unchanged.
-        if (accessibleNavVisible) {
-          return (
-            <ScrollView
-              style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
-              contentContainerStyle={{ minHeight: usableHeight }}
-              testID="practice-column"
-              importantForAccessibility={a11yHide}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled
-              showsVerticalScrollIndicator
-            >
-              {cardLateralityGroup}
-            </ScrollView>
-          );
-        }
-        return (
+        // Lz-41 reading order: concept (practice column) before chrome controls.
+        // Spacer keeps the petrol band height; trigger is absolute so AT/DOM order
+        // is card → laterality → menu (visual layout unchanged).
+        const menuSpacer =
+          APP_MENU_TRIGGER_ENABLED ? (
+            <View
+              style={{ height: menuChromeHeight }}
+              pointerEvents="none"
+              accessible={false}
+              importantForAccessibility="no-hide-descendants"
+              testID="app-menu-chrome-spacer"
+              {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
+            />
+          ) : null;
+        const practiceColumn = accessibleNavVisible ? (
+          <ScrollView
+            style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
+            contentContainerStyle={{ minHeight: usableHeight }}
+            testID="practice-column"
+            importantForAccessibility={backgroundA11yHide}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            {...backgroundInertProps}
+          >
+            {cardLateralityGroup}
+          </ScrollView>
+        ) : (
           <View
             style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
             testID="practice-column"
-            importantForAccessibility={a11yHide}
+            importantForAccessibility={backgroundA11yHide}
+            {...backgroundInertProps}
           >
             {cardLateralityGroup}
           </View>
+        );
+        const menuChrome = APP_MENU_TRIGGER_ENABLED ? (
+          <View
+            style={[
+              styles.menuChrome,
+              styles.menuChromeAbsolute,
+              { height: menuChromeHeight, top: insets.top },
+            ]}
+            testID="app-menu-chrome"
+            pointerEvents={sheetOpen ? 'none' : 'box-none'}
+            importantForAccessibility={backgroundA11yHide}
+            {...backgroundInertProps}
+          >
+            <AppMenuTrigger ref={appMenuTriggerRef} onPress={openAppMenu} />
+          </View>
+        ) : null;
+        return (
+          <>
+            {menuSpacer}
+            {practiceColumn}
+            {menuChrome}
+          </>
         );
       })()}
       <LateralitySheet
@@ -1173,6 +1203,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     zIndex: 30,
+  },
+  /** Absolute so DOM/AT order can place concept before the menu (Lz-41). */
+  menuChromeAbsolute: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
   },
   /** Centred practice column for tablets / wide native; web phone frame already ≤430. */
   practiceColumn: {

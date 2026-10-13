@@ -245,6 +245,11 @@ export function LateralityControl({
       ? ({
           tabIndex: disabled ? -1 : 0,
           onKeyDown,
+          // RN-web adjustable → slider often omits aria-valuenow (Lz-41 axe).
+          'aria-valuemin': MIN_LATERALITY,
+          'aria-valuemax': MAX_LATERALITY,
+          'aria-valuenow': displayGrade,
+          'aria-valuetext': a11yText,
         } as Record<string, unknown>)
       : {};
 
@@ -351,16 +356,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'stretch',
+    // Let the 48 px label hit box overflow without growing chrome (Lz-41 axe target-size).
+    overflow: 'visible',
   },
   labelCluster: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
     gap: 6,
     flexGrow: 0,
     flexShrink: 1,
     maxWidth: '100%',
     marginLeft: 'auto',
+    // Layout box ≥48 for axe; negative margin keeps the 20 px label row rhythm (hitSlop alone is invisible to axe).
+    minHeight: layout.recommendedTouchTarget,
+    marginVertical: -Math.ceil(
+      (layout.recommendedTouchTarget - LATERALITY_LABEL_ROW_HEIGHT) / 2,
+    ),
   },
   labelText: {
     color: color.paper,

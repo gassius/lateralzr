@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -120,6 +120,7 @@ export function PatternLayer({
       testID={exposeTestId ? 'card-front-pattern' : undefined}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
+      {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
       // Expose variant for Critiquito / Playwright without affecting a11y tree.
       nativeID={exposeTestId ? `pattern-variant-${built.variant}` : undefined}
     >

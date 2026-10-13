@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   AccessibilityInfo,
   BackHandler,
@@ -17,12 +17,14 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { ensureA11yFocusRingStyles } from '@/lib/cardActions';
 import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
 import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
 import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
 import { resolveSheetHardwareBack } from '@/lib/sheetBack';
 import { focusSheetHost } from '@/lib/sheetFocus';
+import { trapSheetTabKey } from '@/lib/sheetFocusTrap';
 import {
   initialSheetTitleMeasureState,
   layoutSheetTitle,
@@ -99,6 +101,7 @@ export function Sheet({
   });
   const reduceMotion = reduceMotionProp ?? localReduceMotion;
   const titleRef = useRef<ViewType | null>(null);
+  const panelRef = useRef<ViewType | null>(null);
   const titleBaseStyle = textStyle('sheetTitle');
   /** e2eTextScale multiplies display size only; measure uses size × scale (#82). */
   const e2eScale = Math.max(
@@ -124,6 +127,10 @@ export function Sheet({
   reduceMotionRef.current = reduceMotion;
   returnFocusRefStable.current = returnFocusRef;
   onClosedRef.current = onClosed;
+
+  useLayoutEffect(() => {
+    if (Platform.OS === 'web') ensureA11yFocusRingStyles();
+  }, []);
 
   // Local OS check when uncontrolled. Prefer `reduceMotion` prop from
   // `useReducedMotion(appPref)` (Lz-46) so in-app Reduced applies immediately.
@@ -164,7 +171,14 @@ export function Sheet({
         duration,
         easing: Easing.out(Easing.cubic),
       });
-      const focusTimer = setTimeout(() => focusSheetHost(titleRef), Math.max(16, duration));
+      // Nested views prefer the back control; otherwise title (Lz-41 / Lz-32).
+      const focusTimer = setTimeout(() => {
+        if (onBack && backRef?.current) {
+          focusSheetHost(backRef);
+        } else {
+          focusSheetHost(titleRef);
+        }
+      }, Math.max(16, duration));
       return () => clearTimeout(focusTimer);
     }
 
@@ -192,7 +206,29 @@ export function Sheet({
         if (finished) runOnJS(finishClose)();
       },
     );
-  }, [visible, progress]);
+  }, [visible, progress, onBack, backRef]);
+
+  // When a nested view mounts the back control, move focus there (Language / Complexity).
+  useEffect(() => {
+    if (!visible || !onBack) return;
+    const frame = requestAnimationFrame(() => {
+      if (backRef?.current) {
+        focusSheetHost(backRef);
+      } else if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        const el = document.querySelector(
+          `[data-testid="${backTestID ?? `${testID}-back`}"]`,
+        ) as HTMLElement | null;
+        el?.focus?.();
+      }
+    });
+    const retry = setTimeout(() => {
+      if (backRef?.current) focusSheetHost(backRef);
+    }, 48);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(retry);
+    };
+  }, [visible, onBack, backRef, backTestID, testID]);
 
   useEffect(() => {
     if (!visible) return;
@@ -214,11 +250,19 @@ export function Sheet({
         event.preventDefault();
         // Nested views: Escape dismisses the whole sheet (close), not back.
         onDismiss();
+        return;
+      }
+      // Lz-41: keep Tab inside the panel (backdrop is not a Tab stop).
+      if (event.key === 'Tab') {
+        const panelNode =
+          (document.querySelector(`[data-testid="${testID}-panel"]`) as HTMLElement | null) ??
+          (panelRef.current as unknown as HTMLElement | null);
+        if (panelNode) trapSheetTabKey(panelNode, event);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [visible, onDismiss]);
+  }, [visible, onDismiss, testID]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: progress.value * SHEET_BACKDROP_ALPHA,
@@ -239,8 +283,15 @@ export function Sheet({
 
   if (!mounted) return null;
 
-  const webFocusProps =
+  const webTitleFocusProps =
     Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {};
+  /** Close / back are Tab stops; backdrop is click-only (Lz-41). */
+  const webControlFocusProps =
+    Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {};
+  const webBackdropFocusProps =
+    Platform.OS === 'web'
+      ? ({ tabIndex: -1, 'aria-hidden': true } as Record<string, unknown>)
+      : {};
 
   return (
     <View
@@ -249,18 +300,29 @@ export function Sheet({
       accessibilityViewIsModal
       importantForAccessibility="yes"
       pointerEvents="box-none"
+      // Web dialog semantics for axe / AT (native uses accessibilityViewIsModal).
+      {...(Platform.OS === 'web'
+        ? ({ role: 'dialog', 'aria-modal': true } as Record<string, unknown>)
+        : null)}
     >
       <Animated.View style={[styles.backdrop, backdropStyle]} pointerEvents="box-none">
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('close')}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
           onPress={onDismiss}
           style={StyleSheet.absoluteFill}
           testID={`${testID}-backdrop`}
+          {...webBackdropFocusProps}
         />
       </Animated.View>
 
-      <Animated.View style={[styles.panel, panelStyle]} testID={`${testID}-panel`}>
+      <Animated.View
+        ref={panelRef}
+        style={[styles.panel, panelStyle]}
+        testID={`${testID}-panel`}
+      >
         <View style={styles.handle} accessible={false} testID={`${testID}-handle`} />
         <View style={styles.header}>
           {onBack ? (
@@ -273,7 +335,7 @@ export function Sheet({
               style={({ pressed }) => [styles.backBtn, pressed ? styles.closePressed : null]}
               hitSlop={4}
               // Nested Language/Complexity/Motion views call focusSheetHost(backRef) on open.
-              {...webFocusProps}
+              {...webControlFocusProps}
             >
               <Text style={styles.backGlyph} accessible={false}>
                 ‹
@@ -297,7 +359,7 @@ export function Sheet({
               testID={titleTestID}
               // m1: hide until measured; B2: ~100ms fallback; AD: freeze width on first visible frame.
               style={titleHostOpacity === 1 ? undefined : styles.titlePending}
-              {...webFocusProps}
+              {...webTitleFocusProps}
             >
               <Text
                 style={[
@@ -328,6 +390,7 @@ export function Sheet({
             testID={closeTestID}
             style={({ pressed }) => [styles.closeBtn, pressed ? styles.closePressed : null]}
             hitSlop={4}
+            {...webControlFocusProps}
           >
             <Text style={styles.closeGlyph} accessible={false}>
               ×

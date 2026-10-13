@@ -312,11 +312,17 @@ export function AppMenuSheet({
   }, [visible]);
 
   // Nested Language / Complexity / Motion: move focus onto the header Back host.
-  // Synchronous layout effect (no rAF/timeout): Playwright's installed clock mocks
-  // requestAnimationFrame, so deferred focus never runs in e2e.
+  // Sync layout focus (main/#121: Playwright clock mocks rAF) plus one web querySelector
+  // pass so focus still wins if the ref host is not ready in the same commit.
   useLayoutEffect(() => {
     if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
     focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const el = document.querySelector(
+        '[data-testid="app-menu-back"]',
+      ) as HTMLElement | null;
+      el?.focus?.();
+    }
   }, [view]);
 
   const onRowPress = (row: AppMenuRowDef) => {
