@@ -144,29 +144,39 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-back')).toHaveCount(0);
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
 
-    // Poll so a brief focus then steal (old unstable onBack) still fails.
-    const motionRow = page.getByTestId('app-menu-row-motion');
-    await expect
-      .poll(
-        async () =>
-          page.evaluate(() => {
-            const el = document.activeElement as HTMLElement | null;
-            return el?.dataset?.testid === 'app-menu-row-motion';
-          }),
-        {
-          message: 'focus must stay on Motion row after keyboard select',
-          timeout: 2_000,
-          intervals: [50, 100, 100, 200],
-        },
-      )
-      .toBe(true);
-    await expect
-      .poll(async () => motionRow.evaluate((el) => el === document.activeElement), {
-        message: 'focus must still be on Motion row on sustained check',
-        timeout: 1_000,
-        intervals: [50, 100, 200],
-      })
-      .toBe(true);
+    // Consecutive rAF frames on the Motion row; arm after focus arrives, then
+    // reject on any leave (old unstable onBack). No sleep (PRR).
+    await page.waitForFunction(() => {
+      const targetTestId = 'app-menu-row-motion';
+      const needed = 30;
+      return new Promise<boolean>((resolve, reject) => {
+        let consecutive = 0;
+        let armed = false;
+        const tick = () => {
+          const onTarget =
+            (document.activeElement as HTMLElement | null)?.dataset?.testid ===
+            targetTestId;
+          if (!onTarget) {
+            if (armed) {
+              reject(
+                new Error(`focus left ${targetTestId} after ${consecutive} frames`),
+              );
+              return;
+            }
+            requestAnimationFrame(tick);
+            return;
+          }
+          armed = true;
+          consecutive += 1;
+          if (consecutive >= needed) {
+            resolve(true);
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+    });
   });
 
   test('opening Language picker moves focus into the view', async ({ page }) => {

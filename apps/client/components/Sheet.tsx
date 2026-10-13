@@ -309,7 +309,6 @@ export function Sheet({
               testID={backTestID ?? `${testID}-back`}
               style={({ pressed }) => [styles.backBtn, pressed ? styles.closePressed : null]}
               hitSlop={4}
-              // Nested Language/Complexity/Motion views call focusSheetHost(backRef) on open.
               {...webControlFocusProps}
             >
               <Text style={styles.backGlyph} accessible={false}>

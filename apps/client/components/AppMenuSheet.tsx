@@ -325,14 +325,25 @@ export function AppMenuSheet({
   viewRef.current = view;
 
   // Single focus-Back path (PRR B1): only when `view` enters a nested picker.
-  // Sync layout (main/#121: Playwright clock mocks rAF) + web querySelector — no
-  // deferred timers. Never wired through Sheet's open effect (unstable onBack).
-  useLayoutEffect(() => {
+  // Retries cover the back control mounting after the title swap — never wired
+  // through Sheet's open effect (unstable onBack must not restart animation).
+  useEffect(() => {
     if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
-    focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      document.querySelector<HTMLElement>('[data-testid="app-menu-back"]')?.focus?.();
-    }
+    let cancelled = false;
+    const focusBack = () => {
+      if (cancelled) return;
+      focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.querySelector<HTMLElement>('[data-testid="app-menu-back"]')?.focus?.();
+      }
+    };
+    const frame = requestAnimationFrame(focusBack);
+    const timers = [0, 48, 120].map((ms) => setTimeout(focusBack, ms));
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      for (const id of timers) clearTimeout(id);
+    };
   }, [view]);
 
   const onRowPress = (row: AppMenuRowDef) => {
@@ -367,27 +378,54 @@ export function AppMenuSheet({
     requestAnimationFrame(() => focusSheetHost(returnRef));
   }, []);
 
+  /**
+   * Focus Motion row after preference-driven re-render (fake-clock safe; no setTimeout).
+   * Hold across several rAF frames so a later reduceMotion remount cannot leave focus
+   * on the dialog title (first tabbable) when the selected radio unmounts.
+   */
+  const pendingMotionRowFocusRef = useRef(false);
+  const focusMotionMenuRow = useCallback(() => {
+    focusSheetHost(motionRowRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document
+        .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
+        ?.focus?.();
+    }
+  }, []);
+
   const selectMotion = useCallback(
     (pref: MotionPreference) => {
-      // Root rows remount after preference + view update — focus after commit.
       setView('root');
+      pendingMotionRowFocusRef.current = true;
       onMotionPreferenceChange?.(pref);
-      const focusMotionRow = () => {
-        focusSheetHost(motionRowRef);
-        if (Platform.OS === 'web' && typeof document !== 'undefined') {
-          document
-            .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
-            ?.focus?.();
-        }
-      };
-      requestAnimationFrame(() => {
-        focusMotionRow();
-        setTimeout(focusMotionRow, 0);
-        setTimeout(focusMotionRow, 48);
-      });
     },
     [onMotionPreferenceChange],
   );
+
+  useLayoutEffect(() => {
+    if (view !== 'root' || !pendingMotionRowFocusRef.current) return;
+    let frames = 0;
+    let raf = 0;
+    let cancelled = false;
+    const holdFrames = 45;
+    const tick = () => {
+      if (cancelled) return;
+      focusMotionMenuRow();
+      frames += 1;
+      if (frames >= holdFrames) {
+        pendingMotionRowFocusRef.current = false;
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    focusMotionMenuRow();
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      // Keep pending so a follow-up commit (motionPreference / reduceMotion) restarts hold.
+    };
+  }, [view, motionPreference, focusMotionMenuRow]);
 
   const sheetTitle =
     view === 'language'
