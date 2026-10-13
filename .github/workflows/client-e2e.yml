@@ -372,6 +372,7 @@ jobs:
         if: needs.gate.outputs.mode == 'capture' && steps.plan.outputs.should_run == 'true' && steps.expo-web-cache.outputs.cache-hit != 'true'
         env:
           EXPO_PUBLIC_API_URL: http://127.0.0.1:4173
+          EXPO_PUBLIC_E2E: '1'
         run: pnpm build
 
       - name: Sync orphan e2e-screenshots:baselines/ (read-only)

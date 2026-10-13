@@ -20,6 +20,12 @@ export type JourneyTestParams = {
    * without depending on font-fragile title metrics.
    */
   e2ePadBand?: boolean;
+  /**
+   * Test-only (Lz-40): hold the connector pulse at peak opacity for Critiquito /
+   * Playwright captures. Bypasses OS reduced-motion (E2E always sets reduce) and
+   * the live breath scheduler — geometry stays static; only fill-opacity is set.
+   */
+  e2ePulsePeak?: boolean;
 };
 
 export type JourneyFetchOptions = {
@@ -109,6 +115,7 @@ export function parseJourneyTestParams(
     const complexity = parseComplexityParam(params.get('complexity'));
     const patternVariant = parsePatternVariantParam(params.get('patternVariant'));
     const e2ePadBand = parseBooleanFlag(params.get('e2ePadBand'));
+    const e2ePulsePeak = parseBooleanFlag(params.get('e2ePulsePeak'));
     return {
       localizedConcept: trimOrUndefined(params.get('localizedConcept')),
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
@@ -117,6 +124,7 @@ export function parseJourneyTestParams(
       laterality: parseLateralityParam(params.get('laterality')),
       ...(patternVariant != null ? { patternVariant } : {}),
       ...(e2ePadBand ? { e2ePadBand: true } : {}),
+      ...(e2ePulsePeak ? { e2ePulsePeak: true } : {}),
     };
   } catch {
     return { onlyWithMedia: false };

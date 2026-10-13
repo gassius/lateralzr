@@ -1,10 +1,16 @@
 import { StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+import { useConnectorPulse } from '@/hooks/useConnectorPulse';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { connectorPulseAllowed } from '@/lib/connectorPulse';
+import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
   buildPatternSvgXml,
+  resolvePatternClearArea,
   type PatternRect,
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
+import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 type PatternLayerProps = {
   /** Concept key for stable variant assignment (`hash % 3`). */
@@ -25,11 +31,18 @@ type PatternLayerProps = {
   exposeTestId?: boolean;
   /** Test-only variant override (0–2). */
   variantOverride?: PatternVariantIndex | null;
+  /**
+   * Stack-level pulse gate (settled, not flipped/dragging/sheet/background).
+   * PatternLayer still applies RM + front-scroll locally.
+   */
+  pulseGateActive?: boolean;
+  /** Front-face ScrollView is scrolling — stops pulse within a frame. */
+  frontScrolling?: boolean;
 };
 
 /**
- * Card-front pattern master (Lz-25). Decorative only — no pointer events,
- * excluded from the accessibility tree. Front face only.
+ * Card-front pattern master (Lz-25) + optional connector breath (Lz-40).
+ * Decorative only — no pointer events, excluded from the accessibility tree.
  */
 export function PatternLayer({
   conceptKey,
@@ -39,18 +52,58 @@ export function PatternLayer({
   facePad,
   exposeTestId = false,
   variantOverride = null,
+  pulseGateActive = false,
+  frontScrolling = false,
 }: PatternLayerProps) {
-  if (faceWidth < 8 || faceHeight < 8) {
+  const reduceMotion = useReducedMotion();
+  // M1: `?e2ePulsePeak=1` is ignored outside test/dev builds (not production web).
+  const forcePeak = resolveE2ePulsePeak(readJourneyTestParams().e2ePulsePeak);
+  const ready = faceWidth >= 8 && faceHeight >= 8;
+
+  const built = ready
+    ? buildPatternSvgXml({
+        conceptKey,
+        titleFaceRect,
+        faceWidth,
+        faceHeight,
+        variantOverride,
+      })
+    : null;
+
+  const clearArea = ready
+    ? resolvePatternClearArea({
+        variant: built!.variant,
+        titleFaceRect,
+        faceWidth,
+        faceHeight,
+      })
+    : null;
+
+  const allowed =
+    ready &&
+    (forcePeak ||
+      connectorPulseAllowed({
+        settled: pulseGateActive,
+        frontShowing: true,
+        dragging: false,
+        scrolling: frontScrolling,
+        sheetOpen: false,
+        appActive: true,
+        reduceMotion,
+      }));
+
+  const pulse = useConnectorPulse({
+    allowed: Boolean(allowed),
+    xml: built?.xml ?? '',
+    variant: built?.variant ?? 0,
+    clearArea: clearArea ?? { x: 0, y: 0, width: 1, height: 1 },
+    conceptKey,
+    forcePeak,
+  });
+
+  if (!ready || built == null) {
     return null;
   }
-
-  const { xml, variant } = buildPatternSvgXml({
-    conceptKey,
-    titleFaceRect,
-    faceWidth,
-    faceHeight,
-    variantOverride,
-  });
 
   return (
     <View
@@ -68,10 +121,10 @@ export function PatternLayer({
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       // Expose variant for Critiquito / Playwright without affecting a11y tree.
-      nativeID={exposeTestId ? `pattern-variant-${variant}` : undefined}
+      nativeID={exposeTestId ? `pattern-variant-${built.variant}` : undefined}
     >
       <SvgXml
-        xml={xml}
+        xml={pulse.pulsedXml || built.xml}
         width={faceWidth}
         height={faceHeight}
         preserveAspectRatio="xMidYMid slice"

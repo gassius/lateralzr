@@ -58,6 +58,10 @@ const SCREEN_RULES = [
     match: /card-pattern\.spec|PatternLayer|assets\/images\/pattern/,
   },
   {
+    spec: 'e2e/specs/card-pulse.spec.ts',
+    match: /card-pulse\.spec|useConnectorPulse|connectorPulse|e2eFlags|PatternLayer/,
+  },
+  {
     spec: 'e2e/specs/keyboard-a11y.spec.ts',
     match: /keyboard-a11y\.spec|AccessibleNavRow/,
   },
