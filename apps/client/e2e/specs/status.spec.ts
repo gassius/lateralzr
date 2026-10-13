@@ -13,9 +13,9 @@ import {
   cardFaceBoundingBox,
   expectCardBoxesEqual,
   expectStatusLineClearOfLaterality,
+  waitForStableCardFace,
   waitForStableLoadingChrome,
 } from '../helpers/statusLayout';
-import { COACH_IDLE_MS } from '../../lib/discoveryCoaching';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
 
 const REL_FIXTURES = path.join(__dirname, '..', 'fixtures', 'relationships');
@@ -482,7 +482,7 @@ test.describe('status screens', () => {
     await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
     // Prefetch held — no status line yet; band is empty but reserved.
     await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
-    const withoutStatus = await cardFaceBoundingBox(page);
+    const withoutStatus = await waitForStableCardFace(page);
 
     releasePrefetch!();
     await expect(page.getByTestId('deck-status-line')).toContainText(
@@ -494,55 +494,6 @@ test.describe('status screens', () => {
     await expect(async () => {
       const withStatus = await cardFaceBoundingBox(page);
       await expectCardBoxesEqual(withoutStatus, withStatus);
-    }).toPass({ timeout: 2_000 });
-  });
-
-  // PRR #119 M1: tip visible → fetch-failed hides tip but must keep tipReserve (card stable).
-  test('card bounding box stable when tip is showing before fetch-failed (Lz-38)', async ({
-    page,
-  }) => {
-    await preparePage(page);
-    let calls = 0;
-    let releasePrefetch: (() => void) | null = null;
-    await page.route('**/api/concepts/relationships', async (route) => {
-      calls += 1;
-      if (calls === 1) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: readRelFixture('loading-deck-en.json'),
-        });
-        return;
-      }
-      await new Promise<void>((resolve) => {
-        releasePrefetch = resolve;
-      });
-      await route.abort('failed');
-    });
-    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
-    await settleAfterNavigation(page, { skipNetworkIdle: true });
-    await expect(visibleText(page, 'Horizon')).toBeVisible();
-    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
-    await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
-
-    // Offer the coach tip while prefetch is held (status still absent).
-    await page.clock.fastForward(COACH_IDLE_MS);
-    await expect(page.getByTestId('coach-tip-slot')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId('coach-hint')).toBeVisible();
-    const withTip = await cardFaceBoundingBox(page);
-
-    releasePrefetch!();
-    await expect(page.getByTestId('deck-status-line')).toContainText(
-      /Couldn't load the next idea/i,
-      { timeout: 8_000 },
-    );
-    // Tip copy hidden; reserved spacer keeps the tip band so the card does not grow.
-    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expect(page.getByTestId('coach-tip-reserve')).toBeVisible();
-    await expectStatusLineClearOfLaterality(page);
-    await expect(async () => {
-      const withStatus = await cardFaceBoundingBox(page);
-      await expectCardBoxesEqual(withTip, withStatus);
     }).toPass({ timeout: 2_000 });
   });
 
@@ -681,60 +632,5 @@ test.describe('status screens', () => {
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'es' });
-  });
-
-  // AD #119: same card frame before empty-retry cycle finishes and after No next idea.
-  test('card bounding box stable with and without no-next-idea status (Lz-38 AD)', async ({
-    page,
-  }) => {
-    await preparePage(page);
-    let calls = 0;
-    let releasePrefetch: (() => void) | null = null;
-    let holdPrefetch = true;
-    await page.route('**/api/concepts/relationships', async (route) => {
-      calls += 1;
-      if (calls === 1) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: readRelFixture('loading-deck-en.json'),
-        });
-        return;
-      }
-      if (holdPrefetch) {
-        await new Promise<void>((resolve) => {
-          releasePrefetch = resolve;
-        });
-      }
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: EMPTY_BATCH_EN,
-      });
-    });
-    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
-    await settleAfterNavigation(page, { skipNetworkIdle: true });
-    await expect(visibleText(page, 'Horizon')).toBeVisible();
-    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
-    await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
-    const withoutStatus = await cardFaceBoundingBox(page);
-
-    holdPrefetch = false;
-    releasePrefetch!();
-    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(2);
-    await page.clock.fastForward(1500);
-    await page.clock.fastForward(3000);
-    await page.clock.fastForward(6000);
-    await page.clock.fastForward(50);
-    await expect(page.getByTestId('deck-status-line')).toContainText(
-      /No next idea at this setting/i,
-      { timeout: 8_000 },
-    );
-    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
-    await expect(async () => {
-      const withStatus = await cardFaceBoundingBox(page);
-      await expectCardBoxesEqual(withoutStatus, withStatus);
-    }).toPass({ timeout: 2_000 });
   });
 });

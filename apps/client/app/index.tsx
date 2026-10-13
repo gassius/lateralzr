@@ -152,6 +152,12 @@ export default function HomeScreen() {
   } | null>(null);
   /** Measured tip band height; falls back to 2-line reserve until laid out. */
   const [coachTipBandHeight, setCoachTipBandHeight] = useState(0);
+  /**
+   * Last tipReserve (band + gap) while a tip was live. Kept across suppress so
+   * fetch-failed / no-next cannot drop the reserve if coaching clears coachTip
+   * (PRR #119 M1).
+   */
+  const tipReserveHoldRef = useRef(0);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1017,8 +1023,20 @@ export default function HomeScreen() {
         const tipBand = coachTip
           ? Math.max(coachTipBandHeight, coachHintSlotHeight())
           : 0;
-        // Shrink the card by tip band + one flex gap so Laterality stays put (AD Lz-48).
-        const tipReserve = coachTip ? tipBand + controlGap : 0;
+        const liveTipReserve = coachTip ? tipBand + controlGap : 0;
+        if (liveTipReserve > 0) {
+          tipReserveHoldRef.current = liveTipReserve;
+        } else if (!suppressCoachTip) {
+          tipReserveHoldRef.current = 0;
+        }
+        // Sticky hold while status suppresses the tip (even if coaching clears tip).
+        const tipReserve =
+          liveTipReserve > 0
+            ? liveTipReserve
+            : suppressCoachTip
+              ? tipReserveHoldRef.current
+              : 0;
+        const tipBandReserve = tipReserve > 0 ? Math.max(0, tipReserve - controlGap) : 0;
         const cardLateralityGroup = (
           <View
             style={[styles.cardLateralityGroup, { gap: controlGap }]}
@@ -1069,10 +1087,10 @@ export default function HomeScreen() {
                   onDismiss={visibleCoachTip.onDismiss}
                 />
               </View>
-            ) : coachTip && suppressCoachTip ? (
+            ) : suppressCoachTip && tipBandReserve > 0 ? (
               // Invisible stand-in so tipReserve + flex gap still hold Laterality.
               <View
-                style={[styles.coachTipSlot, { minHeight: tipBand }]}
+                style={[styles.coachTipSlot, { minHeight: tipBandReserve }]}
                 testID="coach-tip-reserve"
                 pointerEvents="none"
                 accessibilityElementsHidden
@@ -1107,7 +1125,7 @@ export default function HomeScreen() {
                   styles.complexityCueSlot,
                   {
                     bottom:
-                      lateralityControlHeight + (coachTip ? tipBand + controlGap : 4),
+                      lateralityControlHeight + (tipReserve > 0 ? tipReserve : 4),
                   },
                 ]}
                 pointerEvents="none"
@@ -1119,7 +1137,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark && !coachTip ? (
+            ) : showSessionComplexityMark && tipReserve === 0 ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"

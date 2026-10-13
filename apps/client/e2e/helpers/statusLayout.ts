@@ -115,6 +115,40 @@ export async function cardFaceBoundingBox(page: Page): Promise<Box> {
   return requireBox(pattern, 'card-front-pattern');
 }
 
+async function nextFrames(page: Page, count: number = 2): Promise<void> {
+  await page.evaluate((n) => {
+    return new Promise<void>((resolve) => {
+      let left = n;
+      const step = () => {
+        left -= 1;
+        if (left <= 0) resolve();
+        else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }, count);
+}
+
+/**
+ * Wait until tipReserve / availableHeight have been applied to the card face.
+ * Tip can paint a frame before the card shared-value height catches up — poll
+ * via rAF (not waitForTimeout) so Playwright fake clocks stay honest.
+ */
+export async function waitForStableCardFace(page: Page): Promise<Box> {
+  await expect(async () => {
+    const heights: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      await nextFrames(page, 2);
+      heights.push(Math.round((await cardFaceBoundingBox(page)).height));
+    }
+    expect(
+      new Set(heights).size,
+      `card-front-pattern height must settle (got ${heights.join(',')})`,
+    ).toBe(1);
+  }).toPass({ timeout: 3_000 });
+  return cardFaceBoundingBox(page);
+}
+
 /**
  * AD #119: card frame must be identical with and without a status line.
  * Compares rounded boxes so sub-pixel layout noise cannot flake.
