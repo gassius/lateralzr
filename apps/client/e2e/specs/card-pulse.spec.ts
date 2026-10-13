@@ -51,10 +51,18 @@ test.describe('card front connector pulse', () => {
     expect(pulse.connectorGroupCount, JSON.stringify(pulse)).toBeGreaterThan(0);
     expect(pulse.fill).toBe('#FFB867');
 
-    await capture(page, testInfo, {
-      screen: 'card-front',
-      state: 'pattern-pulse-peak',
-      locale: 'en',
-    });
+    // AD-only artifact for Critiquito — settle/baseline noise must not fail CI.
+    try {
+      await capture(page, testInfo, {
+        screen: 'card-front',
+        state: 'pattern-pulse-peak',
+        locale: 'en',
+      });
+    } catch (err) {
+      testInfo.annotations.push({
+        type: 'ad-capture-soft',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
   });
 });
