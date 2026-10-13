@@ -1,6 +1,8 @@
 # Lateralzr Expo client — agent context
 
-This is the **Expo / React Native** app client for Lateralzr (`apps/client` in the monorepo). Prefer mobile-first patterns, performance, and cross-platform compatibility. The app is shipped today as an Expo **web** export and is intended for native iOS/Android builds when needed.
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
+This is the **Expo / React Native** mobile client for Lateralzr (`apps/client` in the monorepo). Prefer mobile patterns, performance, and iOS/Android compatibility. The web export is a development/preview aid only — not a product target.
 
 ## Expo has changed — do not trust your training data
 
@@ -68,7 +70,7 @@ Example: `https://lateralzr-client.vercel.app/?canonicalConcept=mushroom&onlyWit
 Deterministic captures of the static web export live in [`e2e/`](./e2e/). Full local / CI / “add a screen” notes: [`e2e/README.md`](./e2e/README.md). Baseline approval: [`e2e/baselines/README.md`](./e2e/baselines/README.md).
 
 - Fixtures only (no live API): `e2e/fixtures/relationships/*.json` + `e2e/fixtures/images/*`
-- Viewports: 390×844 (primary), 320×568, 430×932, 1280×800
+- Viewport: **390×844** only (design / QA / E2E target)
 - CI: `.github/workflows/client-e2e.yml` → artifact + sticky PR comment
 - Pending screens (sheet, menu, pickers, offline, …) are listed in [`e2e/README.md`](./e2e/README.md) — add specs when UI ships, no always-skipped placeholders
 
@@ -105,4 +107,4 @@ Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never com
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `pnpm exec expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check available Expo Skills / MCP before adding dependencies.
-- Web preview uses a phone-frame layout on large viewports; preserve existing client patterns unless the task asks otherwise.
+- Web preview is phone-framed for convenience; design and test at **390×844**. Preserve existing client patterns unless the task asks otherwise.

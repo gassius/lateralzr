@@ -1,6 +1,8 @@
 # Vercel Deployment - Lateralzr Client (Expo Web)
 
-This document describes the Vercel deployment configuration for the Lateralzr Expo client as a static web application.
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
+This document describes the Vercel deployment configuration for the Lateralzr Expo **web preview** (static export). It is not a product target — production UX is the mobile app.
 
 ## Vercel Project Details
 
@@ -266,9 +268,13 @@ When ready to add a custom domain:
 
 ## Mobile Apps (iOS/Android)
 
-This deployment is **web-only**. The Expo client also supports:
-- **iOS**: Via Expo Go or native build
-- **Android**: Via Expo Go or native build
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target.
+
+This Vercel deployment hosts the **web preview only**. Product targets are:
+- **iOS**: Expo Go or native/EAS build
+- **Android**: Expo Go or native/EAS build
+
+Design, QA, and E2E target one phone viewport: **390×844**.
 
 Mobile apps use the same `EXPO_PUBLIC_API_URL` but typically connect to:
 - Local development: Auto-detected LAN IP via Metro

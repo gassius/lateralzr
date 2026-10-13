@@ -1,6 +1,8 @@
 # Expo web test URL params
 
-These query params are **test/dev tooling** for the Expo web client. They let testers and agents (for example Critiquito) open a specific starting concept, restrict the journey to cards that have media, and/or force the initial concept-label complexity. They are safe for public preview URLs: no secrets.
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
+These query params are **test/dev tooling** for the Expo **web preview** (not a product surface). They let testers and agents (for example Critiquito) open a specific starting concept, restrict the journey to cards that have media, and/or force the initial concept-label complexity. They are safe for public preview URLs: no secrets.
 
 Web preview: `https://lateralzr-client.vercel.app`
 

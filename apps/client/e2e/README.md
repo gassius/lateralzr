@@ -1,6 +1,8 @@
 # Client E2E (Playwright)
 
-Deterministic screenshots of the Expo **web** export (`pnpm build` → `dist/`), served as an SPA. API responses and media come from fixtures under `e2e/fixtures/` — no live backend.
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
+Deterministic screenshots of the Expo **web preview** export (`pnpm build` → `dist/`), served as an SPA for faster capture — not a product target. API responses and media come from fixtures under `e2e/fixtures/` — no live backend.
 
 ## Local run
 
@@ -30,7 +32,7 @@ Determinism helpers (always on): mocked API, fixed clock, `reducedMotion: reduce
 
 `<screen>_<state>_<viewport>_<locale>.png`
 
-Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x800_en.png`, `card-back_no-description_390x844_en.png`, `status_loading_390x844_en.png`, `logo_lockup-on-orange_390x844_en.png`.
+Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_390x844_en.png`, `card-back_no-description_390x844_en.png`, `status_loading_390x844_en.png`, `logo_lockup-on-orange_390x844_en.png`.
 
 ## Add a screen
 
@@ -61,8 +63,8 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 - `card-front_long-label_*` — wrap / shrink 32→24 / visible-hyphen front (`?canonicalConcept=long-label`)
 - Spec strings: `card-front_tide_*`, `card-front_collective-intelligence_*`, `card-front_intergenerational_*`
 - `typography_long-label-200_*` — long front at `?e2eTextScale=2`
-- `typography` pad-band @ 320 (`?e2ePadBand=1` on short title) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + end-marker reachability
-- Art-director check: `card-front_long-label_320x568_es` — no bare mid-word breaks; no hyphen when the word fits at 24
+- `typography` pad-band @ 390 (`?e2ePadBand=1` on short title) — B1/B2: content in `frontContentFaceH < content ≤ frontFaceH`; scroll enabled + end-marker reachability
+- Art-director check: `card-front_long-label_390x844_es` — no bare mid-word breaks; no hyphen when the word fits at 24
 - Ink colour fallback (<24 rendered) is covered by `lib/conceptFrontTitle.test.ts`
 
 ### Card front pattern (Lz-25)
@@ -73,7 +75,7 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
   - `card-front_pattern-01-descending_*` — `mushroom&patternVariant=1`
   - `card-front_pattern-02-ascending_*` — `tide&patternVariant=2`
   - `card-front_pattern-03-edge_*` — `mushroom&patternVariant=3`
-  - `card-front_pattern-clear-200_320x568_en` / `_es` — long-label @ `e2eTextScale=2`, resting scrollTop 0; asserts no motif in title+16
+  - `card-front_pattern-clear-200_390x844_en` / `_es` — long-label @ `e2eTextScale=2`, resting scrollTop 0; asserts no motif in title+16
 - Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
 ### Card front connector pulse (Lz-40)
@@ -91,26 +93,26 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 ### App menu (Lz-32)
 
 - `app-menu_open_*` — sheet open from ellipsis, en + es (Replay row only)
-- `app-menu_open-200_*` — ES at 200% text, 320 + 390
+- `app-menu_open-200_*` — ES at 200% text, 390×844
 
 ### Coach tips (Lz-48 §12.3)
 
-- `coach_tip-tap_320x568_es` / `coach_tip-swipe_320x568_es` / `coach_tip-complexity_320x568_es` — Spanish sequence at 320
-- `coach_tip-tap-reduced_320x568_es` — tipTap with app Motion=Reduced
+- `coach_tip-tap_390x844_es` / `coach_tip-swipe_390x844_es` / `coach_tip-complexity_390x844_es` — Spanish sequence at 390×844
+- `coach_tip-tap-reduced_390x844_es` — tipTap with app Motion=Reduced
 
 ### Status — Lz-38 loading / failure / missing-content
 
 - `status_neighbourhood-loading_*` — laterality swap held open; status in control row (en + es)
 - `status_fetch-failed_*` — load-more abort; `fetchFailed` + Retry; card stays
 - `status_no-next-idea_*` — empty batches exhaust 1.5/3/6 s backoff; `noNextIdea` + Adjust
-- New captures compare when orphan/demo baselines exist; otherwise `capture()` skips compare (report-only). Full matrix via Supervisor `run-full-screenshots`.
+- New captures compare when orphan/demo baselines exist; otherwise `capture()` skips compare (report-only). Full locale matrix via Supervisor `run-full-screenshots`.
 
 ### Pending screens (add when UI ships)
 
 - Language / complexity / motion / about pickers
 - End-of-deck (non-loading) if distinct from `status_loading`
 
-Smoke runs on **all four** viewports (390×844, 320×568, 430×932, 1280×800).
+Smoke runs on the single design/QA/E2E target: **390×844**.
 
 ## Design review (UI/UX and Art Supervisor (gasnet-art-director))
 
@@ -139,7 +141,7 @@ Also see [baselines/README.md](./baselines/README.md).
 
 `.github/workflows/client-e2e.yml`:
 
-1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact. The job always reports (required check). Path filter (`dorny/paths-filter`) skips capture when the PR does not touch `apps/client/**` or E2E workflow/config. Client PRs (draft or ready) run a 390px / English subset (mapped specs or a fixed smoke set); draft vs ready does not change the plan. Adding the `run-full-screenshots` label starts the full viewport/locale matrix and posts **Client E2E full screenshots** on the commit it tested (other labels are ignored and do not cancel in-progress runs). A synchronize event removes that label. Push to `main` / `workflow_dispatch` still run the full matrix. Expo `dist/` and Playwright browsers are cached.
+1. **Client E2E screenshots** — `contents: read`, `persist-credentials: false`, assert empty `http.https://github.com/.extraheader`, sync orphan baselines, build + test + upload artifact. The job always reports (required check). Path filter (`dorny/paths-filter`) skips capture when the PR does not touch `apps/client/**` or E2E workflow/config. Client PRs (draft or ready) run a 390×844 / English subset (mapped specs or a fixed smoke set); draft vs ready does not change the plan. Adding the `run-full-screenshots` label starts the full locale matrix and posts **Client E2E full screenshots** on the commit it tested (other labels are ignored and do not cancel in-progress runs). A synchronize event removes that label. Push to `main` / `workflow_dispatch` still run the full locale matrix. Expo `dist/` and Playwright browsers are cached. Design, QA, and E2E target one phone viewport: **390×844**.
 2. **Client E2E PR comment** (`pull_request` only) — write scopes; downloads artifact; fetches publish script from **`pull_request.base.sha` only** (never head / merge SHA); publishes to `e2e-screenshots:pr-<n>/` + short sticky comment. Same publish path for subset and full capture runs.
 3. **Client E2E baselines** (`push` to main) — write scopes; downloads artifact; publishes to `e2e-screenshots:baselines/`. Full-run publish layout is unchanged.
 

@@ -2,9 +2,11 @@
 
 This document provides context and guidelines for AI agents working on the Lateralzr API project.
 
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
 ## Project Overview
 
-**Lateralzr** is an API server designed to support an application that improves lateral thinking skills. The project is inspired by:
+**Lateralzr** is an API server designed to support a mobile app that improves lateral thinking skills. The project is inspired by:
 - **Edward de Bono's Lateral Thinking**: A method of problem-solving using indirect and creative approaches
 - **Brian Eno's Oblique Strategies**: A card set designed to break creative blocks by encouraging lateral thinking
 
@@ -12,7 +14,7 @@ This document provides context and guidelines for AI agents working on the Later
 
 1. Serve concepts and their lateralized relationships via REST API
 2. Use LLM integration (Laravel AI SDK) to generate concepts and relationships
-3. Provide a robust, testable API backend for a mobile/web frontend application
+3. Provide a robust, testable API backend for the Expo mobile client (iOS / Android; web preview only)
 4. Maintain high code quality through testing and Laravel best practices
 
 ## Architecture Decisions
@@ -49,7 +51,7 @@ This document provides context and guidelines for AI agents working on the Later
 - **Concept graph queue workers**: concept generation can spend more than 60 seconds in the LLM plus URL enrichment path. When processing these jobs manually, use `./sail artisan queue:work --queue=default --timeout=300`.
 
 ### Expo client
-- **Stack**: Expo SDK 57, React Native, TypeScript, Expo Router. Lives in **`apps/client`**. The client fetches concepts from the API and displays them as flip/swipe cards (web export today; native builds when needed).
+- **Stack**: Expo SDK 57, React Native, TypeScript, Expo Router. Lives in **`apps/client`**. The client is a mobile app (iOS / Android); the web build is preview-only. It fetches concepts from the API and displays them as flip/swipe cards. Design, QA, and E2E target **390×844**.
 - **Agent context**: Cursor/Codex read [`apps/client/AGENTS.md`](../apps/client/AGENTS.md). Claude Code imports it via `apps/client/CLAUDE.md` and `.claude/settings.json` (Expo plugin enabled).
 - **Expo Skills**: Install once per machine with `pnpm dlx skills add expo/skills` (or Cursor Remote Rule → `https://github.com/expo/skills.git`). Skills auto-apply on Expo-related prompts — see https://docs.expo.dev/skills.md.
 - **Expo MCP**: Registered in [`.cursor/mcp.json`](../.cursor/mcp.json) as remote server `https://mcp.expo.dev/mcp` (OAuth in Cursor Settings → Tools & MCP). Local capabilities (screenshots, tap automation, DevTools) need `expo-mcp` and `pnpm start:mcp` from `apps/client` (`EXPO_UNSTABLE_MCP_SERVER=1`). Docs: https://docs.expo.dev/mcp.md · https://docs.expo.dev/agents/cursor.md.
@@ -253,7 +255,7 @@ Only Carlos (`gassius`) merges PRs. Agents never merge or enable auto-merge. **I
 #### Checks
 
 - Every PR reports the required check **`Client E2E screenshots`**: client PRs (draft or ready) run the 390px English subset; non-client PRs finish skipped-green. Draft vs ready does not change what runs.
-- Adding the **`run-full-screenshots`** label starts the full viewport/locale matrix. That run posts its own check, **`Client E2E full screenshots`**, on the commit it tested. Other labels do not start, re-run, or cancel a Client E2E run. A new push removes the label.
+- Adding the **`run-full-screenshots`** label starts the full locale matrix. That run posts its own check, **`Client E2E full screenshots`**, on the commit it tested. Other labels do not start, re-run, or cancel a Client E2E run. A new push removes the label. Design, QA, and E2E target one phone viewport: **390×844**.
 
 #### Code review (`gasnet-pr-reviewer`)
 
