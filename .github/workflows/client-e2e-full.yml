@@ -8,12 +8,6 @@ name: Client E2E full
 
 on:
   workflow_call:
-    inputs:
-      strict_baselines:
-        description: 'Ignored — baseline diffs are always report-only'
-        required: false
-        type: string
-        default: 'false'
     outputs:
       should_run:
         description: Whether Playwright capture ran

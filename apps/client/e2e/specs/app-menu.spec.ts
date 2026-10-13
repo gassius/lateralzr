@@ -109,12 +109,13 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
   });
 
-  test('opening Language picker shows language options and back', async ({ page }) => {
+  test('opening Language picker moves focus into the view', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     await openAppMenu(page);
     await page.getByTestId('app-menu-row-language').click();
     await expect(page.getByTestId('app-menu-language')).toBeVisible();
-    await expect(page.getByTestId('app-menu-back')).toBeVisible();
+    // Shared Sheet header back (Language + Complexity + Motion) — focused on mount.
+    await expect(page.getByTestId('app-menu-back')).toBeFocused();
   });
 
   test('Complexity header back returns to root without closing the sheet', async ({ page }) => {

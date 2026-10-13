@@ -28,15 +28,6 @@ on:
       - '.nvmrc'
       - '.npmrc'
   workflow_dispatch:
-    inputs:
-      strict_baselines:
-        description: 'Ignored — baseline diffs are always report-only (screenshots never fail CI)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-          - 'false'
-          - 'true'
 
 permissions:
   contents: read
@@ -474,8 +465,6 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run_full == 'true'
     uses: ./.github/workflows/client-e2e-full.yml
-    with:
-      strict_baselines: ${{ github.event.inputs.strict_baselines || 'false' }}
 
   # Write token: artifact only. No actions/checkout of the PR tree; no pnpm/expo.
   # Scripts are fetched from the PR base SHA only (trusted), never from head / merge SHA.
