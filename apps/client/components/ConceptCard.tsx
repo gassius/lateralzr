@@ -667,6 +667,7 @@ export function ConceptCard({
               contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
               cachePolicy="memory-disk"
               priority="high"
+              loading="eager"
               transition={0}
               onLoad={(event) => {
                 const src = event.source;
@@ -693,6 +694,7 @@ export function ConceptCard({
               contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
               cachePolicy="memory-disk"
               priority="high"
+              loading="eager"
               transition={0}
               onLoad={(event) => {
                 const src = event.source;
@@ -800,6 +802,7 @@ export function ConceptCard({
           style={styles.eagerPreload}
           cachePolicy="memory-disk"
           priority="high"
+          loading="eager"
           transition={0}
           onLoad={(event) => {
             const src = event.source;
