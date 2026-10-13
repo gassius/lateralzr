@@ -27,8 +27,12 @@ import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoad
 import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
 import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
 import {
-  decideEmptyBatchRetry,
-  deckAfterFetchFailure,
+  applyEmptyBatchToCycle,
+  conceptsUnchangedOnFetchFailure,
+  initialEmptyRetryCycle,
+  resetEmptyRetryCycleState,
+  type EmptyRetryCycleState,
+  type EmptyRetryResetReason,
 } from '@/lib/emptyBatchRetry';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
@@ -177,8 +181,8 @@ export default function HomeScreen() {
   }, [offline]);
   const loadMoreInFlightRef = useRef(false);
   const fetchGenRef = useRef(0);
-  /** Empty batches observed in the current bounded-retry cycle (Lz-38). */
-  const emptyAttemptCountRef = useRef(0);
+  /** Bounded empty-retry cycle (Lz-38) — attempt count + exhausted flag. */
+  const emptyRetryCycleRef = useRef<EmptyRetryCycleState>(initialEmptyRetryCycle());
   const emptyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
   const pendingEndDeckLoadRef = useRef(false);
@@ -348,9 +352,9 @@ export default function HomeScreen() {
     }
   }
 
-  function resetEmptyRetryCycle() {
+  function resetEmptyRetryCycle(reason: EmptyRetryResetReason) {
     clearEmptyRetryTimer();
-    emptyAttemptCountRef.current = 0;
+    emptyRetryCycleRef.current = resetEmptyRetryCycleState(reason);
     setNoNextIdea(false);
   }
 
@@ -368,7 +372,7 @@ export default function HomeScreen() {
     setLoadMoreError(false);
     pendingEndDeckLoadRef.current = false;
     setPendingEndDeckLoad(false);
-    resetEmptyRetryCycle();
+    resetEmptyRetryCycle('reload');
     try {
       const testParams = journeyTestParamsRef.current;
       const startOptions = journeyStartOptions(testParams);
@@ -464,8 +468,8 @@ export default function HomeScreen() {
 
       if (plan.action !== 'append') {
         // Lz-38: bounded empty retry — 1.5s / 3s / 6s, then No next idea + Adjust.
-        const decision = decideEmptyBatchRetry(emptyAttemptCountRef.current);
-        emptyAttemptCountRef.current = decision.attemptCount;
+        const { cycle, decision } = applyEmptyBatchToCycle(emptyRetryCycleRef.current);
+        emptyRetryCycleRef.current = cycle;
         if (decision.action === 'exhausted') {
           pendingEndDeckLoadRef.current = false;
           setPendingEndDeckLoad(false);
@@ -479,7 +483,7 @@ export default function HomeScreen() {
         return;
       }
 
-      resetEmptyRetryCycle();
+      resetEmptyRetryCycle('successfulAppend');
 
       const applied = applyAppendedBatch(conceptsRef.current, plan.add, pendingEndDeckLoadRef.current);
       conceptsRef.current = applied.concepts;
@@ -494,10 +498,10 @@ export default function HomeScreen() {
     } catch {
       if (stillCurrent()) {
         // Lz-38: failure never resets history — keep the walk, surface Retry in the row.
-        const preserved = deckAfterFetchFailure({
-          concepts: conceptsRef.current,
-          currentIndex: currentIndexRef.current,
-        });
+        const preserved = conceptsUnchangedOnFetchFailure(
+          conceptsRef.current,
+          currentIndexRef.current,
+        );
         conceptsRef.current = [...preserved.concepts];
         currentIndexRef.current = preserved.currentIndex;
         if (!offlineRef.current) setLoadMoreError(true);
@@ -517,7 +521,7 @@ export default function HomeScreen() {
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);
-    resetEmptyRetryCycle();
+    resetEmptyRetryCycle('manualRetry');
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
 
@@ -554,7 +558,7 @@ export default function HomeScreen() {
     const i = currentIndexRef.current;
     if (len === 0) return;
     // Lz-38: manual forward swipe resets the empty-retry counter.
-    resetEmptyRetryCycle();
+    resetEmptyRetryCycle('manualForwardSwipe');
     setLoadMoreError(false);
     if (i < len - 1) {
       pendingEndDeckLoadRef.current = false;
@@ -663,7 +667,7 @@ export default function HomeScreen() {
     const token = ++lateralitySwapTokenRef.current;
     setLateralitySwap({ token });
     // Lz-38: Laterality change resets the empty-retry counter.
-    resetEmptyRetryCycle();
+    resetEmptyRetryCycle('laterality');
     setLoadMoreError(false);
 
     const current = conceptsRef.current[currentIndexRef.current];
@@ -743,7 +747,7 @@ export default function HomeScreen() {
 
   /** Lz-38: Adjust opens the Laterality sheet and resets the empty-retry cycle. */
   const onAdjustNoNextIdea = useCallback(() => {
-    resetEmptyRetryCycle();
+    resetEmptyRetryCycle('adjust');
     setLoadMoreError(false);
     openLateralitySheet();
   }, [openLateralitySheet]);
@@ -822,7 +826,7 @@ export default function HomeScreen() {
       complexityRef.current = next;
       setComplexity(next);
       // Lz-38: Complexity change resets the empty-retry counter.
-      resetEmptyRetryCycle();
+      resetEmptyRetryCycle('complexity');
       setLoadMoreError(false);
       if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
         announceComplexity(next, 'swipe');
@@ -865,7 +869,7 @@ export default function HomeScreen() {
         complexityRef.current = result.complexity;
         setComplexity(result.complexity);
         // Lz-38: Complexity change resets the empty-retry counter.
-        resetEmptyRetryCycle();
+        resetEmptyRetryCycle('complexity');
         setLoadMoreError(false);
         void persistComplexity(result.complexity);
         void prefetchComplexityTree(result.complexity);
@@ -972,7 +976,7 @@ export default function HomeScreen() {
         <LateralzrLogo animate={false} />
         <Text style={[styles.error, textStyle('body')]}>{error}</Text>
         <Pressable onPress={() => loadConcepts()} style={styles.retryBtn}>
-          <Text style={[styles.retryText, textStyle('row')]}>{t('tapToRetry')}</Text>
+          <Text style={[styles.retryText, textStyle('row')]}>{t('retry')}</Text>
         </Pressable>
       </View>
     );

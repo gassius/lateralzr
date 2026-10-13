@@ -26,38 +26,75 @@ export function decideEmptyBatchRetry(priorEmptyCount: number): EmptyBatchRetryD
   return { action: 'schedule', delayMs, attemptCount };
 }
 
-/** Reset triggers: Laterality / Complexity change, Adjust, manual forward swipe. */
-export function shouldResetEmptyRetryCounter(
-  reason:
-    | 'laterality'
-    | 'complexity'
-    | 'adjust'
-    | 'manualForwardSwipe'
-    | 'successfulAppend'
-    | 'manualRetry',
-): boolean {
-  switch (reason) {
-    case 'laterality':
-    case 'complexity':
-    case 'adjust':
-    case 'manualForwardSwipe':
-    case 'successfulAppend':
-    case 'manualRetry':
-      return true;
-    default:
-      return false;
-  }
+/** Reasons that clear the empty-retry counter (Lz-38 AC). */
+export const EMPTY_RETRY_RESET_REASONS = [
+  'laterality',
+  'complexity',
+  'adjust',
+  'manualForwardSwipe',
+  'successfulAppend',
+  'manualRetry',
+  'reload',
+] as const;
+
+export type EmptyRetryResetReason = (typeof EMPTY_RETRY_RESET_REASONS)[number];
+
+export type EmptyRetryCycleState = {
+  /** Empties observed in the current cycle. */
+  attemptCount: number;
+  /** True after the bounded cycle stops (No next idea). */
+  exhausted: boolean;
+};
+
+export function initialEmptyRetryCycle(): EmptyRetryCycleState {
+  return { attemptCount: 0, exhausted: false };
 }
 
 /**
- * Fetch failure keeps the walk intact — never clears concepts or index (Lz-38 AC).
+ * Apply an empty-batch outcome to the cycle.
+ * Returns the next cycle state plus whether to schedule a retry or stop.
  */
-export function deckAfterFetchFailure<T>(deck: {
-  concepts: readonly T[];
-  currentIndex: number;
-}): { concepts: readonly T[]; currentIndex: number } {
+export function applyEmptyBatchToCycle(cycle: EmptyRetryCycleState): {
+  cycle: EmptyRetryCycleState;
+  decision: EmptyBatchRetryDecision;
+} {
+  const decision = decideEmptyBatchRetry(cycle.attemptCount);
+  if (decision.action === 'exhausted') {
+    return {
+      cycle: { attemptCount: decision.attemptCount, exhausted: true },
+      decision,
+    };
+  }
   return {
-    concepts: deck.concepts,
-    currentIndex: deck.currentIndex,
+    cycle: { attemptCount: decision.attemptCount, exhausted: false },
+    decision,
+  };
+}
+
+/**
+ * Clear the empty-retry cycle. Only the documented reset reasons are accepted —
+ * unknown values throw so call sites stay honest.
+ */
+export function resetEmptyRetryCycleState(
+  reason: EmptyRetryResetReason,
+): EmptyRetryCycleState {
+  if (!(EMPTY_RETRY_RESET_REASONS as readonly string[]).includes(reason)) {
+    throw new Error(`unknown empty-retry reset reason: ${String(reason)}`);
+  }
+  return initialEmptyRetryCycle();
+}
+
+/**
+ * After a load-more network failure, keep the walk (concepts + index).
+ * Used so the catch path cannot accidentally clear history.
+ */
+export function conceptsUnchangedOnFetchFailure<T>(
+  concepts: readonly T[],
+  currentIndex: number,
+): { concepts: readonly T[]; currentIndex: number; historyCleared: false } {
+  return {
+    concepts,
+    currentIndex,
+    historyCleared: false,
   };
 }

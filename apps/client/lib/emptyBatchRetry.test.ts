@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  applyEmptyBatchToCycle,
+  conceptsUnchangedOnFetchFailure,
   decideEmptyBatchRetry,
-  deckAfterFetchFailure,
   EMPTY_RETRY_BACKOFF_MS,
+  EMPTY_RETRY_RESET_REASONS,
+  initialEmptyRetryCycle,
   MAX_EMPTY_RETRY_ATTEMPTS,
-  shouldResetEmptyRetryCounter,
+  resetEmptyRetryCycleState,
+  type EmptyRetryCycleState,
+  type EmptyRetryResetReason,
 } from './emptyBatchRetry.ts';
 
 describe('decideEmptyBatchRetry', () => {
@@ -35,37 +40,83 @@ describe('decideEmptyBatchRetry', () => {
     assert.equal(MAX_EMPTY_RETRY_ATTEMPTS, 3);
     assert.deepEqual([...EMPTY_RETRY_BACKOFF_MS], [1500, 3000, 6000]);
   });
+});
 
-  it('treats negative prior counts as a first attempt', () => {
-    assert.deepEqual(decideEmptyBatchRetry(-1), {
-      action: 'schedule',
-      delayMs: 1500,
-      attemptCount: 1,
+describe('applyEmptyBatchToCycle', () => {
+  it('walks the full 1.5/3/6 cycle then marks exhausted', () => {
+    let cycle = initialEmptyRetryCycle();
+    const delays: number[] = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      const step = applyEmptyBatchToCycle(cycle);
+      assert.equal(step.decision.action, 'schedule');
+      if (step.decision.action === 'schedule') delays.push(step.decision.delayMs);
+      cycle = step.cycle;
+      assert.equal(cycle.exhausted, false);
+      assert.equal(cycle.attemptCount, i + 1);
+    }
+
+    assert.deepEqual(delays, [1500, 3000, 6000]);
+
+    const done = applyEmptyBatchToCycle(cycle);
+    assert.equal(done.decision.action, 'exhausted');
+    assert.equal(done.cycle.exhausted, true);
+    assert.ok(done.cycle.attemptCount > MAX_EMPTY_RETRY_ATTEMPTS);
+  });
+});
+
+describe('resetEmptyRetryCycleState', () => {
+  const exhausted: EmptyRetryCycleState = { attemptCount: 4, exhausted: true };
+
+  for (const reason of EMPTY_RETRY_RESET_REASONS) {
+    it(`clears attemptCount and exhausted on ${reason}`, () => {
+      const next = resetEmptyRetryCycleState(reason);
+      assert.deepEqual(next, { attemptCount: 0, exhausted: false });
+      // Starting from an exhausted cycle, every AC reset reason must clear it.
+      assert.notDeepEqual(next, exhausted);
     });
+  }
+
+  it('requires Laterality, Complexity, Adjust, and manual forward swipe', () => {
+    const required: EmptyRetryResetReason[] = [
+      'laterality',
+      'complexity',
+      'adjust',
+      'manualForwardSwipe',
+    ];
+    for (const reason of required) {
+      assert.ok(
+        (EMPTY_RETRY_RESET_REASONS as readonly string[]).includes(reason),
+        `expected ${reason} in EMPTY_RETRY_RESET_REASONS`,
+      );
+      assert.deepEqual(resetEmptyRetryCycleState(reason), initialEmptyRetryCycle());
+    }
+  });
+
+  it('rejects unknown reset reasons so call sites stay honest', () => {
+    assert.throws(
+      () => resetEmptyRetryCycleState('silentLateralityReduction' as EmptyRetryResetReason),
+      /unknown empty-retry reset reason/,
+    );
   });
 });
 
-describe('shouldResetEmptyRetryCounter', () => {
-  it('resets on Laterality, Complexity, Adjust, and manual forward swipe', () => {
-    assert.equal(shouldResetEmptyRetryCounter('laterality'), true);
-    assert.equal(shouldResetEmptyRetryCounter('complexity'), true);
-    assert.equal(shouldResetEmptyRetryCounter('adjust'), true);
-    assert.equal(shouldResetEmptyRetryCounter('manualForwardSwipe'), true);
-  });
-
-  it('also resets after a successful append or manual Retry', () => {
-    assert.equal(shouldResetEmptyRetryCounter('successfulAppend'), true);
-    assert.equal(shouldResetEmptyRetryCounter('manualRetry'), true);
-  });
-});
-
-describe('deckAfterFetchFailure', () => {
-  it('never resets history (concepts or index)', () => {
+describe('conceptsUnchangedOnFetchFailure', () => {
+  it('keeps the same concepts reference and index (history never cleared)', () => {
     const concepts = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
-    const before = { concepts, currentIndex: 2 };
-    const after = deckAfterFetchFailure(before);
+    const after = conceptsUnchangedOnFetchFailure(concepts, 2);
+    assert.equal(after.historyCleared, false);
     assert.equal(after.concepts, concepts);
     assert.equal(after.currentIndex, 2);
-    assert.deepEqual(after.concepts, [{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+    assert.equal(after.concepts.length, 3);
+  });
+
+  it('fails if a buggy caller tried to wipe the deck', () => {
+    const concepts = [{ id: 'a' }, { id: 'b' }];
+    const after = conceptsUnchangedOnFetchFailure(concepts, 1);
+    // These assertions would fail if the helper returned [] / index 0 by mistake.
+    assert.notEqual(after.concepts.length, 0);
+    assert.notEqual(after.currentIndex, 0);
+    assert.equal(after.historyCleared, false);
   });
 });

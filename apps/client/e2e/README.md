@@ -92,9 +92,10 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 ### Status — Lz-38 loading / failure / missing-content
 
-- `status_neighbourhood-loading_*` — laterality swap held open; status in control row
+- `status_neighbourhood-loading_*` — laterality swap held open; status in control row (en + es)
 - `status_fetch-failed_*` — load-more abort; `fetchFailed` + Retry; card stays
 - `status_no-next-idea_*` — empty batches exhaust 1.5/3/6 s backoff; `noNextIdea` + Adjust
+- New captures compare when orphan/demo baselines exist; otherwise `capture()` skips compare (report-only). Full matrix via Supervisor `run-full-screenshots`.
 
 ### Pending screens (add when UI ships)
 
