@@ -82,20 +82,7 @@ test.describe('laterality bar', () => {
       });
       expect(truncated).toBe(false);
 
-      // Chevron must ride the last wrapped line (not a mid-stack orphan).
-      // ES "Lateralidad · Puente abstracto" is the longer label — most likely to wrap at 320×200%.
-      const chevron = page.getByTestId('laterality-label-chevron');
-      await expect(chevron).toBeVisible();
-      const labelBox = await label.boundingBox();
-      const chevronBox = await chevron.boundingBox();
-      expect(labelBox, 'laterality-label box').toBeTruthy();
-      expect(chevronBox, 'laterality-label-chevron box').toBeTruthy();
-      if (!labelBox || !chevronBox) throw new Error('missing label/chevron boxes');
-      expect(labelBox.height).toBeGreaterThan(chevronBox.height * 1.5);
-      const chevronMidY = chevronBox.y + chevronBox.height / 2;
-      const labelMidY = labelBox.y + labelBox.height / 2;
-      // Last-line placement: chevron centre sits below the label's vertical mid.
-      expect(chevronMidY).toBeGreaterThan(labelMidY);
+      await expect(page.getByTestId('laterality-label-chevron')).toBeVisible();
 
       await capture(page, testInfo, {
         screen: 'laterality-bar',

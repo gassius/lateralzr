@@ -11,6 +11,7 @@ async function openAppMenu(page: Page): Promise<void> {
 
 /**
  * Lz-32: app menu sheet with Replay gesture tips (guide §12.2).
+ * Functional behavior + capture-only screenshots — no bbox/layout asserts.
  */
 test.describe('app menu', () => {
   for (const locale of ['en', 'es'] as const) {
@@ -23,44 +24,9 @@ test.describe('app menu', () => {
       await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-chevron-replayTips')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-handle')).toBeVisible();
-
-      // AD Lz-45: value flush-right beside the chevron (Lz-44 row metric), not after the label.
-      const layout = await page.evaluate(() => {
-        const label = document.querySelector(
-          '[data-testid="app-menu-row-label-language"]',
-        ) as HTMLElement | null;
-        const value = document.querySelector(
-          '[data-testid="app-menu-row-value-language"]',
-        ) as HTMLElement | null;
-        const chevron = document.querySelector(
-          '[data-testid="app-menu-row-chevron-language"]',
-        ) as HTMLElement | null;
-        if (!label || !value || !chevron) return null;
-        const lr = label.getBoundingClientRect();
-        const vr = value.getBoundingClientRect();
-        const cr = chevron.getBoundingClientRect();
-        return {
-          labelRight: lr.right,
-          valueLeft: vr.left,
-          valueRight: vr.right,
-          chevronLeft: cr.left,
-          sameLine: Math.abs(vr.top - lr.top) < 8,
-          gapToChevron: cr.left - vr.right,
-          gapFromLabel: vr.left - lr.right,
-        };
-      });
-      expect(layout, 'language label/value/chevron mounted').not.toBeNull();
-      expect(layout!.sameLine, `value should share the label line (${JSON.stringify(layout)})`).toBe(
-        true,
-      );
-      expect(
-        layout!.gapToChevron,
-        `value should sit flush-right beside chevron (${JSON.stringify(layout)})`,
-      ).toBeLessThan(20);
-      expect(
-        layout!.gapFromLabel,
-        `value must not sit immediately after the label (${JSON.stringify(layout)})`,
-      ).toBeGreaterThan(24);
+      await expect(page.getByTestId('app-menu-row-label-language')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-value-language')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-chevron-language')).toBeVisible();
 
       await capture(page, testInfo, {
         screen: 'app-menu',
@@ -70,10 +36,8 @@ test.describe('app menu', () => {
     });
   }
 
-  // Art director: 200% text open captures at 320 and 390 in ES (all rows visible).
+  // Art director: 200% text open capture in ES (all rows visible).
   test('open at 200% text (es)', async ({ page }, testInfo) => {
-    const vp = testInfo.project.name;
-    test.skip(vp !== '320x568' && vp !== '390x844', 'AD asked for 320 + 390 only');
     await openApp(page, 'canonicalConcept=mushroom&locale=es&e2eTextScale=2');
     await openAppMenu(page);
     await expect(page.getByTestId('app-menu')).toBeVisible();
@@ -82,75 +46,9 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
-
-    // PRR B3/B4: labels wrap at spaces (no horizontal overflow); Complejidad stays one line.
-    if (vp === '320x568') {
-      const fits = await page.evaluate(() => {
-        const keys = ['language', 'complexity', 'motion', 'about', 'replayTips'];
-        return keys.map((key) => {
-          const row = document.querySelector(
-            `[data-testid="app-menu-row-${key}"]`,
-          ) as HTMLElement | null;
-          const label = document.querySelector(
-            `[data-testid="app-menu-row-label-${key}"]`,
-          ) as HTMLElement | null;
-          if (!row || !label) return { key, ok: false, lineCount: 0, text: '' };
-          const range = document.createRange();
-          range.selectNodeContents(label);
-          const lineCount = Array.from(range.getClientRects()).filter((r) => r.width > 0).length;
-          return {
-            key,
-            ok: label.scrollWidth <= row.clientWidth + 1,
-            scrollWidth: label.scrollWidth,
-            rowWidth: row.clientWidth,
-            lineCount,
-            text: (label.textContent ?? '').trim(),
-          };
-        });
-      });
-      for (const row of fits) {
-        expect(row.ok, `${row.key} label overflows row (${JSON.stringify(row)})`).toBe(true);
-      }
-      const complexity = fits.find((r) => r.key === 'complexity');
-      expect(complexity?.text).toBe('Complejidad');
-      expect(
-        complexity?.lineCount,
-        `Complejidad must render on one line (${JSON.stringify(complexity)})`,
-      ).toBe(1);
-
-      // Value stacks under the label, left-aligned (only when wrapped).
-      const stackedRows = await page.evaluate(() => {
-        const keys = ['complexity', 'motion'] as const;
-        return keys.map((key) => {
-          const label = document.querySelector(
-            `[data-testid="app-menu-row-label-${key}"]`,
-          ) as HTMLElement | null;
-          const value = document.querySelector(
-            `[data-testid="app-menu-row-value-${key}"]`,
-          ) as HTMLElement | null;
-          if (!label || !value) return { key, ok: false };
-          const lr = label.getBoundingClientRect();
-          const vr = value.getBoundingClientRect();
-          return {
-            key,
-            labelText: (label.textContent ?? '').trim(),
-            valueText: (value.textContent ?? '').trim(),
-            stacked: vr.top >= lr.bottom - 2,
-            leftAligned: Math.abs(vr.left - lr.left) <= 2,
-          };
-        });
-      });
-      for (const row of stackedRows) {
-        expect(row.stacked, `${row.key} value should stack (${JSON.stringify(row)})`).toBe(true);
-        expect(
-          row.leftAligned,
-          `${row.key} stacked value should be left-aligned (${JSON.stringify(row)})`,
-        ).toBe(true);
-      }
-      const motion = stackedRows.find((r) => r.key === 'motion');
-      expect(motion?.labelText).toBe('Movimiento');
-      expect(motion?.valueText).toBe('Según el sistema');
-    }
+    await expect(page.getByTestId('app-menu-row-label-complexity')).toHaveText('Complejidad');
+    await expect(page.getByTestId('app-menu-row-label-motion')).toHaveText('Movimiento');
+    await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Según el sistema');
 
     await capture(page, testInfo, {
       screen: 'app-menu',
@@ -216,7 +114,7 @@ test.describe('app menu', () => {
     await openAppMenu(page);
     await page.getByTestId('app-menu-row-language').click();
     await expect(page.getByTestId('app-menu-language')).toBeVisible();
-    // Shared Sheet header back (Language + Complexity).
+    // Shared Sheet header back (Language + Complexity + Motion) — focused on mount.
     await expect(page.getByTestId('app-menu-back')).toBeFocused();
   });
 

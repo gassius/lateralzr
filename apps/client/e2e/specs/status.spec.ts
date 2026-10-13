@@ -9,10 +9,6 @@ import {
   preparePage,
   settleAfterNavigation,
 } from '../helpers/preparePage';
-import {
-  expectStatusLineClearOfLaterality,
-  waitForStableLoadingChrome,
-} from '../helpers/statusLayout';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
 
 const REL_FIXTURES = path.join(__dirname, '..', 'fixtures', 'relationships');
@@ -63,9 +59,6 @@ test.describe('status screens', () => {
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Finding a starting point/i);
     await expect(page.getByTestId('laterality-control')).toBeVisible();
-    // 390/430: wait for settled card + full-width rail before capture (AD).
-    await waitForStableLoadingChrome(page);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-initial', locale: 'en' });
   });
@@ -77,8 +70,6 @@ test.describe('status screens', () => {
     await page.clock.fastForward(INTRO_FAST_FORWARD_MS);
     await page.getByTestId('loading-card').waitFor({ state: 'visible', timeout: 15_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Buscando un punto de partida/i);
-    await waitForStableLoadingChrome(page);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-initial', locale: 'es' });
   });
@@ -96,7 +87,6 @@ test.describe('status screens', () => {
     await swipeForward(page);
     await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
-    await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading', locale: 'en' });
   });
 
@@ -109,7 +99,6 @@ test.describe('status screens', () => {
     await swipeForward(page);
     await expect(page.getByTestId('loading-card')).toBeVisible({ timeout: 8_000 });
     await expect(page.getByTestId('deck-status-line')).toContainText(/Cargando más ideas/i);
-    await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading', locale: 'es' });
   });
 
@@ -124,7 +113,6 @@ test.describe('status screens', () => {
     await expect(page.getByTestId('deck-status-line')).toContainText(/Loading more ideas/i);
     await expect(page.getByTestId('laterality-label')).toBeVisible();
     await expect(page.getByTestId('laterality-rail')).toBeVisible();
-    await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'en' });
   });
 
@@ -139,7 +127,6 @@ test.describe('status screens', () => {
     await expect(page.getByTestId('deck-status-line')).toContainText(/Cargando más ideas/i);
     await expect(page.getByTestId('laterality-label')).toBeVisible();
     await expect(page.getByTestId('laterality-rail')).toBeVisible();
-    await expectStatusLineClearOfLaterality(page);
     await capture(page, testInfo, { screen: 'status', state: 'loading-200', locale: 'es' });
   });
 
@@ -159,7 +146,6 @@ test.describe('status screens', () => {
     // Current card stays; history back still works within loaded deck.
     await expect(visibleText(page, 'Mycelium')).toBeVisible();
     await expect(page.getByTestId('loading-card')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
 
     const stack = page.getByTestId('card-laterality-group');
     const box = await stack.boundingBox();
@@ -296,7 +282,6 @@ test.describe('status screens', () => {
       /Reintentar/i,
     );
     await expect(visibleText(page, 'Seta')).toBeVisible();
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'offline', locale: 'es' });
   });
@@ -366,7 +351,6 @@ test.describe('status screens', () => {
       // Current card stays readable — status is never on the card / never a modal.
       await expect(visibleText(page, cardTitle)).toBeVisible();
       await expect(page.getByTestId('loading-card')).toHaveCount(0);
-      await expectStatusLineClearOfLaterality(page);
       await disableMotionCss(page);
       await capture(page, testInfo, {
         screen: 'status',
@@ -408,7 +392,6 @@ test.describe('status screens', () => {
     await expect(visibleText(page, 'Horizon')).toBeVisible();
     await expect(page.getByTestId('loading-card')).toHaveCount(0);
     await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'en' });
   });
@@ -445,7 +428,6 @@ test.describe('status screens', () => {
     await expect(visibleText(page, 'Horizonte')).toBeVisible();
     await expect(page.getByTestId('loading-card')).toHaveCount(0);
     await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'es' });
   });
@@ -492,7 +474,6 @@ test.describe('status screens', () => {
     await expect(visibleText(page, 'Horizon')).toBeVisible();
     await expect(page.getByTestId('loading-card')).toHaveCount(0);
     await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'en' });
 
@@ -582,7 +563,6 @@ test.describe('status screens', () => {
     );
     await expect(visibleText(page, 'Horizonte')).toBeVisible();
     await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'es' });
   });

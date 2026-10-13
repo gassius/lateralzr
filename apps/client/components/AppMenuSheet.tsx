@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   Platform,
   Pressable,
@@ -311,12 +311,12 @@ export function AppMenuSheet({
     if (!visible) setView('root');
   }, [visible]);
 
-  useEffect(() => {
+  // Nested Language / Complexity / Motion: move focus onto the header Back host.
+  // Synchronous layout effect (no rAF/timeout): Playwright's installed clock mocks
+  // requestAnimationFrame, so deferred focus never runs in e2e.
+  useLayoutEffect(() => {
     if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
-    const frame = requestAnimationFrame(() => {
-      focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
-    });
-    return () => cancelAnimationFrame(frame);
+    focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
   }, [view]);
 
   const onRowPress = (row: AppMenuRowDef) => {

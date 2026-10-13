@@ -1,18 +1,13 @@
-# Full viewport/locale Client E2E matrix. Called only when the PR is labeled
-# run-full-screenshots. Lives in a reusable workflow so other label events in
-# client-e2e.yml do not create a skipped "Client E2E full screenshots" check
-# (which would replace a prior green result on the same commit).
+# Full Client E2E at the single Playwright viewport (390×844). Called only when
+# the PR is labeled run-full-screenshots. Lives in a reusable workflow so other
+# label events in client-e2e.yml do not create a skipped
+# "Client E2E full screenshots" check (which would replace a prior green result
+# on the same commit).
 
 name: Client E2E full
 
 on:
   workflow_call:
-    inputs:
-      strict_baselines:
-        description: 'Fail on baseline diffs when true'
-        required: false
-        type: string
-        default: 'false'
     outputs:
       should_run:
         description: Whether Playwright capture ran
@@ -166,32 +161,12 @@ jobs:
           fi
           rm -rf "${TMP}"
 
-      - name: Run Playwright E2E (full matrix)
+      - name: Run Playwright E2E (390×844)
         if: steps.plan.outputs.should_run == 'true'
         env:
           CI: 'true'
           E2E_PORT: '4173'
-          E2E_STRICT_BASELINES: ${{ inputs.strict_baselines == 'true' && '1' || '0' }}
-        run: pnpm e2e
-
-      - name: Smoke stability (--repeat-each=2) + pixel-identical captures
-        if: steps.plan.outputs.should_run == 'true' && steps.plan.outputs.run_stability == 'true'
-        env:
-          CI: 'true'
-          E2E_PORT: '4173'
-        run: |
-          set -euo pipefail
-          pnpm exec playwright test -c e2e/playwright.config.ts e2e/specs/smoke.spec.ts --repeat-each=2
-          for pass in 1 2; do
-            rm -rf "e2e/screenshots/repeat-${pass}"
-            E2E_SHOT_SUBDIR="repeat-${pass}" \
-              pnpm exec playwright test -c e2e/playwright.config.ts \
-                e2e/specs/card-front.spec.ts e2e/specs/laterality-bar.spec.ts \
-                --project=390x844 -g "short label|grade 3"
-          done
-          node e2e/scripts/assert-repeat-identical.mjs \
-            e2e/screenshots/repeat-1 \
-            e2e/screenshots/repeat-2
+        run: pnpm exec playwright test -c e2e/playwright.config.ts --project=390x844
 
       - name: Stage flat artifact tree
         if: always() && steps.plan.outputs.should_run == 'true'

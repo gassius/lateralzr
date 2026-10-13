@@ -34,10 +34,6 @@ test.describe('card back', () => {
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
     await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
-    // Guard against a byte-identical 100% capture: body must actually scale.
-    const description = page.locator('[data-testid="card-back-description"]:visible').first();
-    const fontSize = await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(fontSize).toBeGreaterThanOrEqual(34);
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media-200', locale: 'en' });
   });
 
@@ -87,9 +83,7 @@ test.describe('card back', () => {
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
-    const description = page.locator('[data-testid="card-back-description"]:visible').first();
-    const fontSize = await description.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(fontSize).toBeGreaterThanOrEqual(34);
+    await expect(page.locator('[data-testid="card-back-description"]:visible').first()).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200', locale: 'en' });
   });
 

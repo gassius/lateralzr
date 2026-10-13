@@ -239,7 +239,7 @@ export function Sheet({
 
   if (!mounted) return null;
 
-  const webTitleFocusProps =
+  const webFocusProps =
     Platform.OS === 'web' ? ({ tabIndex: 0 } as Record<string, unknown>) : {};
 
   return (
@@ -272,6 +272,8 @@ export function Sheet({
               testID={backTestID ?? `${testID}-back`}
               style={({ pressed }) => [styles.backBtn, pressed ? styles.closePressed : null]}
               hitSlop={4}
+              // Nested Language/Complexity/Motion views call focusSheetHost(backRef) on open.
+              {...webFocusProps}
             >
               <Text style={styles.backGlyph} accessible={false}>
                 ‹
@@ -295,7 +297,7 @@ export function Sheet({
               testID={titleTestID}
               // m1: hide until measured; B2: ~100ms fallback; AD: freeze width on first visible frame.
               style={titleHostOpacity === 1 ? undefined : styles.titlePending}
-              {...webTitleFocusProps}
+              {...webFocusProps}
             >
               <Text
                 style={[

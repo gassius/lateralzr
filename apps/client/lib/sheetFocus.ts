@@ -7,8 +7,9 @@ export function focusSheetHost(ref: RefObject<View | null> | null | undefined): 
   if (!node) return;
 
   if (Platform.OS === 'web') {
-    const el = node as unknown as { focus?: () => void };
-    el.focus?.();
+    const el = node as unknown as HTMLElement & { focus?: (opts?: FocusOptions) => void };
+    // Nested sheet Back / title hosts set tabIndex=0 so this is a real focus target.
+    el.focus?.({ preventScroll: true });
     return;
   }
 

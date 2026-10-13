@@ -18,7 +18,6 @@ export default defineConfig({
     ['html', { open: 'never', outputFolder: 'playwright-report' }],
   ],
   outputDir: 'test-results',
-  snapshotPathTemplate: '{testDir}/../baselines/{projectName}/{arg}{ext}',
   use: {
     ...devices['Desktop Chrome'],
     baseURL: BASE_URL,

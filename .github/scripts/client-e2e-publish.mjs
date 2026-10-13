@@ -222,7 +222,7 @@ function buildBody(published) {
     published
       ? `- Screenshots: [\`${ORPHAN_BRANCH}:${prDirName}/\`](${treeUrl})`
       : '- Screenshots: _(orphan publish skipped — use workflow artifact)_',
-    '- Baseline diffs: **report-only** (1% threshold); `E2E_STRICT_BASELINES=1` to fail',
+    '- Baseline diffs: **report-only** (1% threshold); screenshots never fail CI',
     '',
   ];
 
