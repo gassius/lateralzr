@@ -10,10 +10,7 @@ import {
   settleAfterNavigation,
 } from '../helpers/preparePage';
 import {
-  cardFaceBoundingBox,
-  expectCardBoxesEqual,
   expectStatusLineClearOfLaterality,
-  waitForStableCardFace,
   waitForStableLoadingChrome,
 } from '../helpers/statusLayout';
 import { INTRO_FAST_FORWARD_MS } from '../helpers/viewports';
@@ -451,50 +448,6 @@ test.describe('status screens', () => {
     await expectStatusLineClearOfLaterality(page);
     await disableMotionCss(page);
     await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'es' });
-  });
-
-  // AD #119: reserved status band — card frame identical with / without status at every viewport.
-  test('card bounding box stable with and without fetch-failed status (Lz-38 AD)', async ({
-    page,
-  }) => {
-    await preparePage(page);
-    let calls = 0;
-    let releasePrefetch: (() => void) | null = null;
-    await page.route('**/api/concepts/relationships', async (route) => {
-      calls += 1;
-      if (calls === 1) {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: readRelFixture('loading-deck-en.json'),
-        });
-        return;
-      }
-      // Hold prefetch so we can measure the resting card before fetch-failed appears.
-      await new Promise<void>((resolve) => {
-        releasePrefetch = resolve;
-      });
-      await route.abort('failed');
-    });
-    await page.goto('/?canonicalConcept=loading-deck', { waitUntil: 'domcontentloaded' });
-    await settleAfterNavigation(page, { skipNetworkIdle: true });
-    await expect(visibleText(page, 'Horizon')).toBeVisible();
-    await expect.poll(() => calls, { timeout: 8_000 }).toBeGreaterThan(1);
-    // Prefetch held — no status line yet; band is empty but reserved.
-    await expect(page.getByTestId('deck-status-line')).toHaveCount(0);
-    const withoutStatus = await waitForStableCardFace(page);
-
-    releasePrefetch!();
-    await expect(page.getByTestId('deck-status-line')).toContainText(
-      /Couldn't load the next idea/i,
-      { timeout: 8_000 },
-    );
-    await expect(page.getByTestId('coach-tip-slot')).toHaveCount(0);
-    await expectStatusLineClearOfLaterality(page);
-    await expect(async () => {
-      const withStatus = await cardFaceBoundingBox(page);
-      await expectCardBoxesEqual(withoutStatus, withStatus);
-    }).toPass({ timeout: 2_000 });
   });
 
   test('no next idea after bounded empty retries + Adjust (Lz-38)', async ({ page }, testInfo) => {

@@ -3,6 +3,7 @@
  * The control is part of the card composition — not a bezel-pinned footer.
  */
 
+import { coachHintSlotHeight } from './coachHintPresentation';
 import { layout, tallScreenMinHeight, type } from '@/theme/tokens';
 
 /** 48 px stepped-slider hit region (guide §10 / layout.recommendedTouchTarget). */
@@ -15,19 +16,28 @@ export const LATERALITY_RAIL_HEIGHT = layout.recommendedTouchTarget;
 export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 
 /**
- * Fixed status band above the Laterality label (Lz-38 AD).
- * Two meta lines at 13 × 1.4 → 18 × 2 = 36. Always reserved so a status
- * never steals height from the card ("Status never shifts the card").
+ * Status-only content height (two meta lines at 13 × 1.4 → 18 × 2 = 36).
+ * Tip chip needs a taller band — see {@link CONTROL_MESSAGING_BAND_HEIGHT}.
  */
 export const STATUS_BAND_LINE_HEIGHT = Math.round(type.meta * 1.4);
 export const STATUS_BAND_HEIGHT = STATUS_BAND_LINE_HEIGHT * 2;
 
 /**
- * Minimum control height: status band + label + rail.
- * Status band is always reserved (empty when idle) so card height is stable.
+ * Shared tip-or-status messaging band above the Laterality label (AD #119).
+ * One fixed height for every state: max(status 2-line, tip 2-line chip).
+ * Tip and status never stack — they share this band (not sum).
+ */
+export const CONTROL_MESSAGING_BAND_HEIGHT = Math.max(
+  STATUS_BAND_HEIGHT,
+  coachHintSlotHeight(),
+);
+
+/**
+ * Minimum control height: shared messaging band + label + rail.
+ * Band is always reserved (empty / tip / status) so the card frame never shifts.
  */
 export const LATERALITY_CONTROL_HEIGHT =
-  STATUS_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+  CONTROL_MESSAGING_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
 
 /** Comfortable tap target size (≥44). */
 export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;

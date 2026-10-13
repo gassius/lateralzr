@@ -65,7 +65,6 @@ import {
   shouldPersistLateralityAfterSwap,
   type LateralityGrade,
 } from '@/lib/laterality';
-import { coachHintSlotHeight } from '@/lib/coachHintPresentation';
 import {
   cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
@@ -144,20 +143,12 @@ export default function HomeScreen() {
   const replayGestureTipsRef = useRef<() => void>(() => {});
   /** React state mirrors activeLocale so menu / chrome re-render on pick. */
   const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
-  /** §12.3 tip chip — in-flow between card and Laterality, never on the card. */
+  /** §12.3 tip chip — shared messaging band above Laterality, never on the card. */
   const [coachTip, setCoachTip] = useState<{
     text: string;
     animateAppear: boolean;
     onDismiss: () => void;
   } | null>(null);
-  /** Measured tip band height; falls back to 2-line reserve until laid out. */
-  const [coachTipBandHeight, setCoachTipBandHeight] = useState(0);
-  /**
-   * Last tipReserve (band + gap) while a tip was live. Kept across suppress so
-   * fetch-failed / no-next cannot drop the reserve if coaching clears coachTip
-   * (PRR #119 M1).
-   */
-  const tipReserveHoldRef = useRef(0);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -804,7 +795,6 @@ export default function HomeScreen() {
         onDismiss: () => void;
       } | null,
     ) => {
-      if (tip == null) setCoachTipBandHeight(0);
       setCoachTip(tip);
     },
     [],
@@ -1018,25 +1008,29 @@ export default function HomeScreen() {
       ) : null}
       {(() => {
         const controlGap = lateralityCardGap(usableHeight);
-        // Reserve from coachTip (not visibleCoachTip): suppressing the tip on
-        // fetch-failed / no-next must not grow the card (PRR #119 M1).
-        const tipBand = coachTip
-          ? Math.max(coachTipBandHeight, coachHintSlotHeight())
-          : 0;
-        const liveTipReserve = coachTip ? tipBand + controlGap : 0;
-        if (liveTipReserve > 0) {
-          tipReserveHoldRef.current = liveTipReserve;
-        } else if (!suppressCoachTip) {
-          tipReserveHoldRef.current = 0;
-        }
-        // Sticky hold while status suppresses the tip (even if coaching clears tip).
-        const tipReserve =
-          liveTipReserve > 0
-            ? liveTipReserve
-            : suppressCoachTip
-              ? tipReserveHoldRef.current
-              : 0;
-        const tipBandReserve = tipReserve > 0 ? Math.max(0, tipReserve - controlGap) : 0;
+        // AD #119: tip OR status share LateralityControl's messaging band —
+        // one fixed height, never stacked, never subtracted again from the card.
+        const messagingSlot = showStatusSlot ? (
+          <DeckStatusLine
+            message={deckStatusMessage}
+            offline={offline}
+            offlineLabel={t('offline')}
+            actionLabel={statusActionLabel}
+            onAction={statusActionHandler}
+            actionTestID={statusActionTestID}
+            shouldAnnounceOffline={shouldAnnounceOffline}
+            onOfflineAnnounced={consumeOfflineAnnounce}
+          />
+        ) : visibleCoachTip ? (
+          <View style={styles.coachTipSlot} testID="coach-tip-slot">
+            <CoachHint
+              text={visibleCoachTip.text}
+              animateAppear={visibleCoachTip.animateAppear}
+              surface="shell"
+              onDismiss={visibleCoachTip.onDismiss}
+            />
+          </View>
+        ) : undefined;
         const cardLateralityGroup = (
           <View
             style={[styles.cardLateralityGroup, { gap: controlGap }]}
@@ -1052,8 +1046,7 @@ export default function HomeScreen() {
               onSwipeForwardVertical={onSwipeForwardVertical}
               availableHeight={
                 cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-                (accessibleNavVisible ? accessibleNavHeight : 0) -
-                tipReserve
+                (accessibleNavVisible ? accessibleNavHeight : 0)
               }
               preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
@@ -1074,29 +1067,6 @@ export default function HomeScreen() {
                 }}
               />
             ) : null}
-            {visibleCoachTip ? (
-              <View
-                style={styles.coachTipSlot}
-                testID="coach-tip-slot"
-                onLayout={(e) => setCoachTipBandHeight(e.nativeEvent.layout.height)}
-              >
-                <CoachHint
-                  text={visibleCoachTip.text}
-                  animateAppear={visibleCoachTip.animateAppear}
-                  surface="shell"
-                  onDismiss={visibleCoachTip.onDismiss}
-                />
-              </View>
-            ) : suppressCoachTip && tipBandReserve > 0 ? (
-              // Invisible stand-in so tipReserve + flex gap still hold Laterality.
-              <View
-                style={[styles.coachTipSlot, { minHeight: tipBandReserve }]}
-                testID="coach-tip-reserve"
-                pointerEvents="none"
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-              />
-            ) : null}
             <LateralityControl
               laterality={laterality}
               swapping={lateralitySwap != null}
@@ -1104,30 +1074,11 @@ export default function HomeScreen() {
               onHeightChange={setLateralityControlHeight}
               onPressLabel={openLateralitySheet}
               labelRef={lateralityLabelRef}
-              statusSlot={
-                showStatusSlot ? (
-                  <DeckStatusLine
-                    message={deckStatusMessage}
-                    offline={offline}
-                    offlineLabel={t('offline')}
-                    actionLabel={statusActionLabel}
-                    onAction={statusActionHandler}
-                    actionTestID={statusActionTestID}
-                    shouldAnnounceOffline={shouldAnnounceOffline}
-                    onOfflineAnnounced={consumeOfflineAnnounce}
-                  />
-                ) : undefined
-              }
+              statusSlot={messagingSlot}
             />
             {complexityCue ? (
               <View
-                style={[
-                  styles.complexityCueSlot,
-                  {
-                    bottom:
-                      lateralityControlHeight + (tipReserve > 0 ? tipReserve : 4),
-                  },
-                ]}
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
               >
                 <ComplexityCue
@@ -1137,7 +1088,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark && tipReserve === 0 ? (
+            ) : showSessionComplexityMark && !visibleCoachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
@@ -1244,11 +1195,11 @@ const styles = StyleSheet.create({
     zIndex: 20,
     elevation: 20,
   },
-  /** §12.3 tip chip — in-flow between card and Laterality (flex gap ≥ 8px clear). */
+  /** Tip chip inside LateralityControl's shared messaging band. */
   coachTipSlot: {
     width: '100%',
-    paddingHorizontal: practiceScreenGutter(),
     alignItems: 'center',
+    justifyContent: 'center',
   },
   error: {
     color: color.ink,

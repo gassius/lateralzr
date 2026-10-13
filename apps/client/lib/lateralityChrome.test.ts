@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { coachHintSlotHeight } from './coachHintPresentation.ts';
 import { layout, tallScreenMinHeight } from '../theme/tokens.ts';
 import {
   CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
+  CONTROL_MESSAGING_BAND_HEIGHT,
   LATERALITY_BAR_MIN_ROW_WIDTH,
   LATERALITY_CONTROL_HEIGHT,
   LATERALITY_LABEL_ROW_HEIGHT,
@@ -34,20 +36,23 @@ function cardAreaHeight(availableHeight: number, cardWidth: number): number {
 }
 
 describe('laterality chrome grouping', () => {
-  it('uses a status band + label row + 48px rail under the card', () => {
+  it('uses a shared messaging band + label row + 48px rail under the card', () => {
     assert.equal(STATUS_BAND_LINE_HEIGHT, 18);
     assert.equal(STATUS_BAND_HEIGHT, 36);
+    assert.equal(coachHintSlotHeight(), 56);
+    // Tip chip is taller than status — band = max(36, 56) = 56 (never sum).
+    assert.equal(CONTROL_MESSAGING_BAND_HEIGHT, 56);
     assert.equal(LATERALITY_LABEL_ROW_HEIGHT, 20);
     assert.equal(LATERALITY_RAIL_HEIGHT, 48);
-    // 36 + 20 + 48 — status band always reserved (AD #119: status never shifts card).
-    assert.equal(LATERALITY_CONTROL_HEIGHT, 104);
+    // 56 + 20 + 48 — tip and status share one band (AD #119: never stack).
+    assert.equal(LATERALITY_CONTROL_HEIGHT, 124);
     assert.equal(LATERALITY_STEP_SIZE, 48);
     assert.ok(LATERALITY_STEP_SIZE >= 44);
     // 390×844 usable height is already ≥ 800 → tall gap.
     assert.equal(lateralityCardGap(PHONE_HEIGHT), layout.cardToControlGapTall);
-    assert.equal(lateralityChromeReserve(PHONE_HEIGHT), 104 + 16);
+    assert.equal(lateralityChromeReserve(PHONE_HEIGHT), 124 + 16);
     assert.equal(lateralityCardGap(568), layout.cardToControlGap);
-    assert.equal(lateralityChromeReserve(568), 104 + 12);
+    assert.equal(lateralityChromeReserve(568), 124 + 12);
   });
 
   it('uses 12 px gap below tall-screen threshold and 16 px at ≥ 800', () => {
@@ -103,29 +108,37 @@ describe('laterality chrome grouping', () => {
     assert.ok(STATUS_SLOT_MIN_WIDTH * 2 + 8 <= LATERALITY_BAR_MIN_ROW_WIDTH);
   });
 
-  it('keeps chrome reserve identical when status fills the reserved band', () => {
-    // Empty band (idle) vs filled-to-capacity band — same control height → same card.
+  it('keeps chrome reserve identical for tip, status, or empty messaging band', () => {
+    // Empty / tip / status all fit inside CONTROL_MESSAGING_BAND_HEIGHT.
     const emptyBandControl =
+      CONTROL_MESSAGING_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+    const statusFilledControl =
       STATUS_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
-    const filledBandControl =
-      STATUS_BAND_LINE_HEIGHT * 2 + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+    const tipFilledControl =
+      coachHintSlotHeight() + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
     assert.equal(emptyBandControl, LATERALITY_CONTROL_HEIGHT);
-    assert.equal(filledBandControl, LATERALITY_CONTROL_HEIGHT);
+    assert.equal(tipFilledControl, LATERALITY_CONTROL_HEIGHT);
+    // Status content is shorter than the shared band — control height is still the band.
+    assert.ok(statusFilledControl < LATERALITY_CONTROL_HEIGHT);
     assert.equal(
       lateralityChromeReserve(844, emptyBandControl),
-      lateralityChromeReserve(844, filledBandControl),
+      lateralityChromeReserve(844, tipFilledControl),
     );
     assert.equal(
       cardStackAvailableHeight(844, emptyBandControl),
-      cardStackAvailableHeight(844, filledBandControl),
+      cardStackAvailableHeight(844, tipFilledControl),
     );
 
-    // Contrast: growing past the band (old squeezed multi-line status) must shrink the card.
-    const overflowControl = emptyBandControl + STATUS_BAND_LINE_HEIGHT;
-    assert.notEqual(overflowControl, emptyBandControl);
+    // Contrast: stacking tip + status (old bug) must shrink the card vs shared band.
+    const stackedControl =
+      STATUS_BAND_HEIGHT +
+      coachHintSlotHeight() +
+      LATERALITY_LABEL_ROW_HEIGHT +
+      LATERALITY_RAIL_HEIGHT;
+    assert.notEqual(stackedControl, emptyBandControl);
     assert.notEqual(
       cardStackAvailableHeight(844, emptyBandControl),
-      cardStackAvailableHeight(844, overflowControl),
+      cardStackAvailableHeight(844, stackedControl),
     );
   });
 });

@@ -22,7 +22,7 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
-  STATUS_BAND_HEIGHT,
+  CONTROL_MESSAGING_BAND_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
   clampLaterality,
@@ -48,9 +48,8 @@ type LateralityControlProps = {
   /** Host for focus restore when the sheet closes. */
   labelRef?: RefObject<ViewType | null>;
   /**
-   * Full-width status band above the Laterality label (Lz-35 / Lz-38).
-   * Never shares a row with the label — neighbourhood-loading, fetch-failed,
-   * and no-next-idea all use this reserved band.
+   * Full-width messaging band above the Laterality label (Lz-35 / Lz-38 / AD #119).
+   * Shared by coach tip OR deck status — never stacked, never beside the label.
    */
   statusSlot?: ReactNode;
 };
@@ -257,9 +256,8 @@ export function LateralityControl({
       onLayout={onRootLayout}
     >
       {/*
-        Full-width status band above the Laterality label (AD #119).
-        Always reserves STATUS_BAND_HEIGHT so fetch-failed / no-next never
-        shrink the card; empty when idle.
+        Shared tip/status messaging band (AD #119): one fixed height for every
+        state so tip and status never stack and the card frame never shifts.
       */}
       <View style={styles.statusBand} testID="laterality-status-band">
         {statusSlot}
@@ -343,7 +341,7 @@ const styles = StyleSheet.create({
   statusBand: {
     alignSelf: 'stretch',
     width: '100%',
-    minHeight: STATUS_BAND_HEIGHT,
+    minHeight: CONTROL_MESSAGING_BAND_HEIGHT,
     justifyContent: 'center',
     alignItems: 'stretch',
   },

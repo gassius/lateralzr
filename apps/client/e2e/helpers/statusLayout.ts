@@ -130,8 +130,8 @@ async function nextFrames(page: Page, count: number = 2): Promise<void> {
 }
 
 /**
- * Wait until tipReserve / availableHeight have been applied to the card face.
- * Tip can paint a frame before the card shared-value height catches up — poll
+ * Wait until availableHeight has been applied to the card face.
+ * Layout can paint a frame before the card shared-value height catches up — poll
  * via rAF (not waitForTimeout) so Playwright fake clocks stay honest.
  */
 export async function waitForStableCardFace(page: Page): Promise<Box> {
