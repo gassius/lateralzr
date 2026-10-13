@@ -130,6 +130,15 @@
     "mismatchedPixels": 0
   },
   {
+    "file": "card-front_pattern-clear-200_390x844_en.png",
+    "ratio": 0.0852381820391299,
+    "percent": 8.52381820391299,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 112228,
+    "diffImage": "card-front_pattern-clear-200_390x844_en.diff.png"
+  },
+  {
     "file": "card-front_pattern-pulse-peak_390x844_en.png",
     "ratio": 0,
     "percent": 0,
