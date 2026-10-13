@@ -3,6 +3,7 @@ import { SvgXml } from 'react-native-svg';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { connectorPulseAllowed } from '@/lib/connectorPulse';
+import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
   buildPatternSvgXml,
   resolvePatternClearArea,
@@ -55,7 +56,8 @@ export function PatternLayer({
   frontScrolling = false,
 }: PatternLayerProps) {
   const reduceMotion = useReducedMotion();
-  const forcePeak = Boolean(readJourneyTestParams().e2ePulsePeak);
+  // M1: `?e2ePulsePeak=1` is ignored outside test/dev builds (not production web).
+  const forcePeak = resolveE2ePulsePeak(readJourneyTestParams().e2ePulsePeak);
   const ready = faceWidth >= 8 && faceHeight >= 8;
 
   const built = ready

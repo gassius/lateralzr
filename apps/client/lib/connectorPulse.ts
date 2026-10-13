@@ -13,6 +13,9 @@ import { PATTERN_VARIANT_PLACEMENTS } from '@/lib/patternVariantPlacements';
 /** Peak fill-opacity for the breath — barely perceptible at arm's length. */
 export const CONNECTOR_PULSE_PEAK_OPACITY = 0.22;
 
+/** Quiet delay after settle before the first breath (not a loading cue). */
+export const CONNECTOR_PULSE_FIRST_DELAY_MS = 400;
+
 /** Documented glow fill (must stay the pattern pulse orange, never white/cyan). */
 export const CONNECTOR_PULSE_GLOW_FILL = PATTERN_PULSE_GLOW_FILL;
 

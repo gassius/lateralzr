@@ -78,9 +78,11 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
 
 ### Card front connector pulse (Lz-40)
 
-- Live breath is gated off under OS reduced motion and the Lz-46 Motion preference (E2E always sets `reducedMotion: reduce`)
-- `card-front_pattern-pulse-peak_*` — `?patternVariant=1&e2ePulsePeak=1` holds one connector at peak fill-opacity (`#FFB867`, barely perceptible)
-- `card-front_pattern-pulse-off_*` — default RM rest: every `#connectors > g` stays at fill-opacity 0
+- Live breath is gated off under OS reduced motion and the Lz-46 Motion preference
+- `card-front_pattern-pulse-peak_*` — `?patternVariant=1&e2ePulsePeak=1` holds one connector at peak fill-opacity (`#FFB867`); override only when `EXPO_PUBLIC_E2E=1` or `__DEV__` (never production)
+- `card-front_pattern-pulse-off_*` — OS RM: still dark after clock advance past one full pulse window
+- `card-front_pattern-pulse-motion-reduced_*` — OS no-preference + app Motion=Reduced stays dark after a full window
+- Live control (no capture): OS no-preference — breath lights after settle + first delay
 
 ### Laterality sheet (Lz-31)
 

@@ -17,7 +17,7 @@ Existing locale override (unchanged): `locale=en` or `locale=es`. Device/browser
 | `complexity` | `5` | Force concept-label complexity (integer **1–5**) for **this load/session only**. Does not overwrite the stored preference. Storage updates only after an intentional swipe up/down. |
 | `laterality` | `4` | Force laterality grade (integer **1–5**) for **this load/session only**. Does not overwrite the stored preference. Storage updates only after an intentional submenu +/−. |
 | `patternVariant` | `1` | Test-only pattern placement override (**1** descending, **2** ascending, **3** edge). Forces `PatternLayer` variant for Critiquito captures; product assignment remains `hash(conceptKey) % 3`. |
-| `e2ePulsePeak` | `1` | Test-only (Lz-40): hold one connector pulse at peak fill-opacity for Critiquito / Playwright captures. Bypasses OS reduced-motion and the live breath scheduler. |
+| `e2ePulsePeak` | `1` | Test-only (Lz-40): hold one connector pulse at peak fill-opacity for Critiquito / Playwright captures. Honoured only in `__DEV__` or Client E2E exports (`EXPO_PUBLIC_E2E=1`); ignored in production web. |
 
 - Missing, blank, or unsupported values are ignored. The app cold-starts as usual (no crash).
 - `complexity` must be a whole number from 1 to 5. Blank, floats (`5.5`), and out-of-range values (`0`, `6`) are ignored. A valid value is session-only: Critiquito / preview deep links do not persist it.

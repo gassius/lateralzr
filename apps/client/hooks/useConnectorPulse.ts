@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyConnectorPulseOpacity,
+  CONNECTOR_PULSE_FIRST_DELAY_MS,
   CONNECTOR_PULSE_PEAK_OPACITY,
   pickPulseConnectorId,
   pulseOpacityAt,
@@ -116,7 +117,7 @@ export function useConnectorPulse(options: UseConnectorPulseOptions): ConnectorP
     };
 
     // First breath shortly after settle (decorative; not a loading cue).
-    timeoutRef.current = setTimeout(runBreath, 400);
+    timeoutRef.current = setTimeout(runBreath, CONNECTOR_PULSE_FIRST_DELAY_MS);
 
     return () => {
       generationRef.current += 1;

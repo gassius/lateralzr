@@ -13,7 +13,7 @@
     "test": "tsx --test lib/*.test.ts theme/*.test.ts e2e/helpers/*.test.ts",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test -c e2e/playwright.config.ts",
-    "e2e:build": "EXPO_PUBLIC_API_URL=http://127.0.0.1:4173 expo export --platform web"
+    "e2e:build": "EXPO_PUBLIC_API_URL=http://127.0.0.1:4173 EXPO_PUBLIC_E2E=1 expo export --platform web"
   },
   "dependencies": {
     "@babel/runtime": "^7.25.0",
