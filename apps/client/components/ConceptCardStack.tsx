@@ -1114,7 +1114,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   gestureFill: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   /** Flat preload peer — no depth tint; visibility driven by behindAnimatedStyle (Lz-33). */
   behindWrap: {
@@ -1134,7 +1134,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   a11ySurface: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   returnOverlay: {
     position: 'absolute',

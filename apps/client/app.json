@@ -7,12 +7,6 @@
     "icon": "./assets/images/logo/lateralzr-ios-app-icon-1024.png",
     "scheme": "client",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/logo/lateralzr-logo-on-orange@3x.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F78D1E"
-    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -26,9 +20,7 @@
         "foregroundImage": "./assets/images/logo/lateralzr-android-adaptive-foreground-1024.png",
         "backgroundColor": "#F78D1E"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "usesCleartextTraffic": true
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "bundler": "metro",
@@ -36,7 +28,26 @@
       "favicon": "./assets/images/logo/lateralzr-favicon@2x.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-image",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo/lateralzr-logo-on-orange@3x.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F78D1E"
+        }
+      ],
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true

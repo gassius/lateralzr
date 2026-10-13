@@ -6,8 +6,8 @@ This is the **Expo / React Native** app client for Lateralzr (`apps/client` in t
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
 
-1. Read the major version of the `expo` package in `package.json` (this project targets **SDK 54**).
-2. Fetch the matching versioned docs: https://docs.expo.dev/versions/v54.0.0/
+1. Read the major version of the `expo` package in `package.json` (this project targets **SDK 57**).
+2. Fetch the matching versioned docs: https://docs.expo.dev/versions/v57.0.0/
 3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
 
 ## Agent tooling (required for Expo work)
@@ -19,7 +19,7 @@ Use Expo's official agent tooling instead of guessing from training data:
 | **This file (`AGENTS.md`)** | Project instructions Cursor/Codex read automatically | Committed here |
 | **Expo Skills** | Known-good Expo/EAS patterns (auto-discovered) | `pnpm dlx skills add expo/skills` once per machine, then reopen Cursor. Or Cursor → Settings → Rules → Add Rule → Remote Rule → `https://github.com/expo/skills.git` |
 | **Expo MCP Server** | Live Expo docs, `expo install`, EAS builds/workflows, simulator screenshots | Project `.cursor/mcp.json` registers `https://mcp.expo.dev/mcp` — authenticate via Cursor Settings → Tools & MCP → Connect |
-| **Local MCP capabilities** | Screenshots, tap automation, DevTools, router sitemap (SDK 54+) | Dev dep `expo-mcp`; start with `pnpm start:mcp` (sets `EXPO_UNSTABLE_MCP_SERVER=1`) |
+| **Local MCP capabilities** | Screenshots, tap automation, DevTools, router sitemap | Dev dep `expo-mcp`; start with `pnpm start:mcp` (sets `EXPO_UNSTABLE_MCP_SERVER=1`) |
 
 Docs: https://docs.expo.dev/agents.md · https://docs.expo.dev/skills.md · https://docs.expo.dev/mcp.md · https://docs.expo.dev/agents/cursor.md
 

@@ -340,14 +340,14 @@ export function Sheet({
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 40,
     elevation: 40,
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: color.shell,
   },
   panel: {

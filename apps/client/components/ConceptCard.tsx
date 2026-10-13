@@ -688,7 +688,7 @@ export function ConceptCard({
           ) : (
             <Image
               source={imageSource}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               contentFit={CARD_BACK_MEDIA_CONTENT_FIT}
               contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
               cachePolicy="memory-disk"
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   faceSide: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   faceFront: {
     zIndex: 2,
