@@ -32,6 +32,14 @@
     "mismatchedPixels": 0
   },
   {
+    "file": "card-back_no-media_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
     "file": "card-back_no-media-200_390x844_en.png",
     "ratio": 0.04841262607850286,
     "percent": 4.841262607850286,
