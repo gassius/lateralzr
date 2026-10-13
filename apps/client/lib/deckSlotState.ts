@@ -2,10 +2,11 @@
  * End-of-prefetched-deck slot (ClickUp Lz-36 / 869ff5gcx).
  *
  * Forward past the buffer shows Lz-35 loading; back reveals the same last card
- * without mutating walk history; failure face is Lz-38 (out of scope here).
+ * without mutating walk history. Lz-38: `failed` / `noNextIdea` keep the card
+ * face and put copy + Retry/Adjust on the control-row status line.
  */
 
-export type DeckSlotState = 'card' | 'loading' | 'failed';
+export type DeckSlotState = 'card' | 'loading' | 'failed' | 'noNextIdea';
 
 export type NavSettleIntent = 'forward' | 'backward' | 'backwardGesture';
 
@@ -13,8 +14,10 @@ export function resolveDeckSlotState(args: {
   isLastCard: boolean;
   pendingEndDeckLoad: boolean;
   loadMoreError: boolean;
+  noNextIdea?: boolean;
 }): DeckSlotState {
   if (!args.isLastCard) return 'card';
+  if (args.noNextIdea) return 'noNextIdea';
   if (args.loadMoreError) return 'failed';
   if (args.pendingEndDeckLoad) return 'loading';
   return 'card';

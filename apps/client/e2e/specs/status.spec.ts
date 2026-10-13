@@ -276,4 +276,198 @@ test.describe('status screens', () => {
     // Front title must be card N (Meridian), not N-1 (Horizon) from an unguarded pop.
     await expect(cardFrontTitle(page)).toHaveText('Meridian');
   });
+
+  test('neighbourhood loading status stays in the control row (Lz-38)', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=1');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+
+    // Hold the laterality-swap fetch open so the status line stays readable.
+    await page.route('**/api/concepts/relationships', async (route) => {
+      const body = (() => {
+        try {
+          return route.request().postDataJSON() as { laterality?: number };
+        } catch {
+          return {};
+        }
+      })();
+      if (body?.laterality === 5) {
+        // Hold open like delayLoadMoreMs — status line must stay while the card remains.
+        await new Promise((r) => setTimeout(r, 120_000));
+        await route.fallback();
+        return;
+      }
+      await route.fallback();
+    });
+
+    const rail = page.getByTestId('laterality-rail');
+    const box = await rail.boundingBox();
+    if (!box) throw new Error('laterality-rail has no bounding box');
+    await rail.click({
+      position: { x: Math.floor(box.width * 0.92), y: Math.floor(box.height / 2) },
+    });
+
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /Loading a new neighborhood/i,
+      { timeout: 4_000 },
+    );
+    // Current card stays readable — status is never on the card / never a modal.
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, {
+      screen: 'status',
+      state: 'neighbourhood-loading',
+      locale: 'en',
+    });
+  });
+
+  test('fetch failure status line + Retry keeps the card (Lz-38)', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=loading-deck');
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.abort('failed');
+    });
+
+    await swipeForward(page);
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /Couldn't load the next idea/i,
+      { timeout: 8_000 },
+    );
+    const retry = page.getByTestId('deck-status-retry');
+    await expect(retry).toBeVisible();
+    await expect(retry).toHaveAttribute('aria-label', /Retry/i);
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'en' });
+  });
+
+  test('fetch failure status line ES (Lz-38)', async ({ page }, testInfo) => {
+    await openApp(page, 'canonicalConcept=loading-deck&locale=es');
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.abort('failed');
+    });
+    await swipeForward(page);
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No se pudo cargar la siguiente idea/i,
+      { timeout: 8_000 },
+    );
+    await expect(page.getByTestId('deck-status-retry')).toHaveAttribute(
+      'aria-label',
+      /Reintentar/i,
+    );
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'fetch-failed', locale: 'es' });
+  });
+
+  test('no next idea after bounded empty retries + Adjust (Lz-38)', async ({ page }, testInfo) => {
+    const emptyBatch = JSON.stringify({
+      status: 'success',
+      data: {
+        start: { id: 0, label: '' },
+        nodes: [],
+        edges: [],
+        meta: {
+          depth: 2,
+          limit: 12,
+          minStrength: 0,
+          hasMore: false,
+          locale: 'en',
+        },
+      },
+    });
+
+    await openApp(page, 'canonicalConcept=loading-deck');
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+
+    // Every subsequent batch is empty so the bounded retry cycle can exhaust.
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: emptyBatch,
+      });
+    });
+
+    await swipeForward(page);
+    // End-deck loading appears while the empty cycle runs; then advance fake timers.
+    await expect(page.getByTestId('loading-card').or(page.getByTestId('deck-status-line'))).toBeVisible({
+      timeout: 8_000,
+    });
+    // 1.5s → 3s → 6s scheduled retries (3 attempts), then No next idea.
+    await page.clock.fastForward(1500);
+    await page.clock.fastForward(3000);
+    await page.clock.fastForward(6000);
+    await page.clock.fastForward(50);
+
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No next idea at this setting/i,
+      { timeout: 4_000 },
+    );
+    const adjust = page.getByTestId('deck-status-adjust');
+    await expect(adjust).toBeVisible();
+    await expect(adjust).toHaveAttribute('aria-label', /Adjust/i);
+    await expect(visibleText(page, 'Horizon')).toBeVisible();
+    await expect(page.getByTestId('loading-card')).toHaveCount(0);
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'en' });
+
+    await adjust.click();
+    await expect(page.getByTestId('laterality-sheet')).toBeVisible({ timeout: 4_000 });
+  });
+
+  test('no next idea ES (Lz-38)', async ({ page }, testInfo) => {
+    const emptyBatch = JSON.stringify({
+      status: 'success',
+      data: {
+        start: { id: 0, label: '' },
+        nodes: [],
+        edges: [],
+        meta: {
+          depth: 2,
+          limit: 12,
+          minStrength: 0,
+          hasMore: false,
+          locale: 'es',
+        },
+      },
+    });
+
+    await openApp(page, 'canonicalConcept=loading-deck&locale=es');
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await page.route('**/api/concepts/relationships', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: emptyBatch,
+      });
+    });
+    await swipeForward(page);
+    await expect(page.getByTestId('loading-card').or(page.getByTestId('deck-status-line'))).toBeVisible({
+      timeout: 8_000,
+    });
+    await page.clock.fastForward(1500);
+    await page.clock.fastForward(3000);
+    await page.clock.fastForward(6000);
+    await page.clock.fastForward(50);
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No hay siguiente idea con este ajuste/i,
+      { timeout: 4_000 },
+    );
+    await expect(page.getByTestId('deck-status-adjust')).toHaveAttribute(
+      'aria-label',
+      /Ajustar/i,
+    );
+    await expect(visibleText(page, 'Horizonte')).toBeVisible();
+    await expectStatusLineClearOfLaterality(page);
+    await disableMotionCss(page);
+    await capture(page, testInfo, { screen: 'status', state: 'no-next-idea', locale: 'es' });
+  });
 });

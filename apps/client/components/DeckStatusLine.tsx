@@ -5,52 +5,63 @@ import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
 const OFFLINE_DOT_SIZE = 8;
-/** Retry hit target ≥48 px (guide recommended touch). */
-const RETRY_HIT = layout.recommendedTouchTarget;
+/** Retry / Adjust hit target ≥48 px (guide recommended touch). */
+const ACTION_HIT = layout.recommendedTouchTarget;
 
 type DeckStatusLineProps = {
-  /** i18n status copy (`findingStart` / `loadingMoreIdeas`). Null hides the loading face. */
+  /** i18n status copy. Null hides the loading / message-only face. */
   message: string | null;
   /** Lz-37: offline face replaces loading copy in the shared slot. */
   offline?: boolean;
   offlineLabel?: string;
-  retryLabel?: string;
-  onRetry?: () => void;
+  /** Action label for Retry (offline / fetchFailed) or Adjust (noNextIdea). */
+  actionLabel?: string;
+  onAction?: () => void;
+  /** testID for the action control (defaults to deck-status-retry). */
+  actionTestID?: string;
   /** When true, announce offline once (polite); caller clears via onOfflineAnnounced. */
   shouldAnnounceOffline?: boolean;
   onOfflineAnnounced?: () => void;
 };
 
 /**
- * Status line on the laterality label row (Lz-35; shared slot for Lz-37).
+ * Status line on the laterality label row (Lz-35; shared slot for Lz-37 / Lz-38).
  * In-flow left slot beside the laterality label — never an absolute overlay.
- * Loading: wraps; does not truncate. Offline: 8 px dot + copy + Retry link.
+ * Loading: wraps; does not truncate. Offline / failure / no-next: copy + action link.
  */
 export function DeckStatusLine({
   message,
   offline = false,
   offlineLabel,
-  retryLabel,
-  onRetry,
+  actionLabel,
+  onAction,
+  actionTestID = 'deck-status-retry',
   shouldAnnounceOffline = false,
   onOfflineAnnounced,
 }: DeckStatusLineProps) {
   const announcedStatusRef = useRef<string | null>(null);
   const announcedOfflineRef = useRef(false);
 
+  const announceKey =
+    offline && offlineLabel
+      ? `offline:${offlineLabel}`
+      : message != null && message !== ''
+        ? message
+        : null;
+
   useEffect(() => {
     if (offline) {
       announcedStatusRef.current = null;
       return;
     }
-    if (message == null || message === '') {
+    if (announceKey == null) {
       announcedStatusRef.current = null;
       return;
     }
-    if (announcedStatusRef.current === message) return;
-    announcedStatusRef.current = message;
-    AccessibilityInfo.announceForAccessibility?.(message);
-  }, [message, offline]);
+    if (announcedStatusRef.current === announceKey) return;
+    announcedStatusRef.current = announceKey;
+    AccessibilityInfo.announceForAccessibility?.(announceKey);
+  }, [announceKey, offline]);
 
   useEffect(() => {
     if (!offline || !shouldAnnounceOffline || offlineLabel == null || offlineLabel === '') {
@@ -63,7 +74,9 @@ export function DeckStatusLine({
     onOfflineAnnounced?.();
   }, [offline, shouldAnnounceOffline, offlineLabel, onOfflineAnnounced]);
 
-  if (offline && offlineLabel != null && offlineLabel !== '' && retryLabel != null && onRetry) {
+  const actionHitSlop = Math.max(0, Math.floor((ACTION_HIT - 20) / 2));
+
+  if (offline && offlineLabel != null && offlineLabel !== '' && actionLabel != null && onAction) {
     return (
       <View
         style={styles.slot}
@@ -75,32 +88,68 @@ export function DeckStatusLine({
           stay on the same row as Sin conexión — never orphan beside laterality.
           ≥48 px hit via hitSlop (not minWidth, which forced the wrap).
         */}
-        <View style={styles.offlineRow}>
+        <View style={styles.actionRow}>
           <View
             style={styles.dot}
             accessibilityElementsHidden
             importantForAccessibility="no"
           />
           <Text
-            style={[styles.copy, styles.offlineCopy, textStyle('meta')]}
+            style={[styles.copy, styles.flexibleCopy, textStyle('meta')]}
             accessibilityRole="text"
             accessibilityLabel={offlineLabel}
           >
             {offlineLabel}
           </Text>
           <Pressable
-            onPress={onRetry}
+            onPress={onAction}
             accessibilityRole="button"
-            accessibilityLabel={retryLabel}
-            hitSlop={Math.max(0, Math.floor((RETRY_HIT - 20) / 2))}
+            accessibilityLabel={actionLabel}
+            hitSlop={actionHitSlop}
             style={({ pressed }) => [
-              styles.retryHit,
-              pressed ? styles.retryPressed : null,
+              styles.actionHit,
+              pressed ? styles.actionPressed : null,
             ]}
-            testID="deck-status-retry"
+            testID={actionTestID}
           >
-            <Text style={[styles.retryText, textStyle('meta', { fontWeight: '600' })]}>
-              {retryLabel}
+            <Text style={[styles.actionText, textStyle('meta', { fontWeight: '600' })]}>
+              {actionLabel}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  // Lz-38: fetchFailed + Retry / noNextIdea + Adjust — control row only, never on the card.
+  if (message != null && message !== '' && actionLabel != null && onAction) {
+    return (
+      <View
+        style={styles.slot}
+        accessibilityLiveRegion="polite"
+        testID="deck-status-line"
+      >
+        <View style={styles.actionRow}>
+          <Text
+            style={[styles.copy, styles.flexibleCopy, textStyle('meta')]}
+            accessibilityRole="text"
+            accessibilityLabel={message}
+          >
+            {message}
+          </Text>
+          <Pressable
+            onPress={onAction}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+            hitSlop={actionHitSlop}
+            style={({ pressed }) => [
+              styles.actionHit,
+              pressed ? styles.actionPressed : null,
+            ]}
+            testID={actionTestID}
+          >
+            <Text style={[styles.actionText, textStyle('meta', { fontWeight: '600' })]}>
+              {actionLabel}
             </Text>
           </Pressable>
         </View>
@@ -138,10 +187,10 @@ const styles = StyleSheet.create({
     color: color.mutedOnShell,
     textAlign: 'left',
   },
-  offlineCopy: {
+  flexibleCopy: {
     flexShrink: 1,
   },
-  offlineRow: {
+  actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'nowrap',
@@ -155,17 +204,17 @@ const styles = StyleSheet.create({
     backgroundColor: color.mutedOnShell,
     flexShrink: 0,
   },
-  retryHit: {
+  actionHit: {
     // Touch ≥48 px comes from hitSlop; intrinsic width follows the label so ES
-    // "Reintentar" stays on one row with "Sin conexión" at 390 (AD #104).
+    // action labels stay on one row with the status copy at 390.
     justifyContent: 'center',
     alignItems: 'flex-start',
     flexShrink: 0,
   },
-  retryPressed: {
+  actionPressed: {
     opacity: 0.85,
   },
-  retryText: {
+  actionText: {
     color: color.paper,
     textDecorationLine: 'underline',
   },

@@ -24,7 +24,12 @@ import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
+import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
 import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
+import {
+  decideEmptyBatchRetry,
+  deckAfterFetchFailure,
+} from '@/lib/emptyBatchRetry';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 import {
@@ -89,9 +94,6 @@ import {
  */
 const UNVISITED_AHEAD_PREFETCH_AT = 2;
 
-const INITIAL_EMPTY_RETRY_MS = 1500;
-const MAX_EMPTY_RETRY_MS = 30_000;
-
 function firstSearchParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
@@ -150,6 +152,8 @@ export default function HomeScreen() {
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
+  /** Lz-38: empty-batch cycle exhausted — status line + Adjust (not on the card). */
+  const [noNextIdea, setNoNextIdea] = useState(false);
   /** True only after the user swipes forward from the last card while waiting for more items. */
   const [pendingEndDeckLoad, setPendingEndDeckLoad] = useState(false);
   const {
@@ -173,7 +177,8 @@ export default function HomeScreen() {
   }, [offline]);
   const loadMoreInFlightRef = useRef(false);
   const fetchGenRef = useRef(0);
-  const emptyRetryDelayRef = useRef(INITIAL_EMPTY_RETRY_MS);
+  /** Empty batches observed in the current bounded-retry cycle (Lz-38). */
+  const emptyAttemptCountRef = useRef(0);
   const emptyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadMoreConceptsRef = useRef<() => Promise<void>>(async () => {});
   const pendingEndDeckLoadRef = useRef(false);
@@ -336,16 +341,22 @@ export default function HomeScreen() {
     [setComplexity],
   );
 
-  function clearEmptyRetry() {
+  function clearEmptyRetryTimer() {
     if (emptyRetryTimerRef.current != null) {
       clearTimeout(emptyRetryTimerRef.current);
       emptyRetryTimerRef.current = null;
     }
   }
 
+  function resetEmptyRetryCycle() {
+    clearEmptyRetryTimer();
+    emptyAttemptCountRef.current = 0;
+    setNoNextIdea(false);
+  }
+
   useEffect(
     () => () => {
-      clearEmptyRetry();
+      clearEmptyRetryTimer();
     },
     [],
   );
@@ -357,8 +368,7 @@ export default function HomeScreen() {
     setLoadMoreError(false);
     pendingEndDeckLoadRef.current = false;
     setPendingEndDeckLoad(false);
-    clearEmptyRetry();
-    emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
+    resetEmptyRetryCycle();
     try {
       const testParams = journeyTestParamsRef.current;
       const startOptions = journeyStartOptions(testParams);
@@ -396,7 +406,7 @@ export default function HomeScreen() {
   const loadMoreConcepts = useCallback(async () => {
     if (loadMoreInFlightRef.current) return;
 
-    clearEmptyRetry();
+    clearEmptyRetryTimer();
 
     const list = conceptsRef.current;
     if (list.length === 0) return;
@@ -453,17 +463,23 @@ export default function HomeScreen() {
       }
 
       if (plan.action !== 'append') {
-        const delay = emptyRetryDelayRef.current;
+        // Lz-38: bounded empty retry — 1.5s / 3s / 6s, then No next idea + Adjust.
+        const decision = decideEmptyBatchRetry(emptyAttemptCountRef.current);
+        emptyAttemptCountRef.current = decision.attemptCount;
+        if (decision.action === 'exhausted') {
+          pendingEndDeckLoadRef.current = false;
+          setPendingEndDeckLoad(false);
+          setNoNextIdea(true);
+          return;
+        }
         emptyRetryTimerRef.current = setTimeout(() => {
           emptyRetryTimerRef.current = null;
           void loadMoreConceptsRef.current();
-        }, delay);
-        emptyRetryDelayRef.current = Math.min(delay * 2, MAX_EMPTY_RETRY_MS);
+        }, decision.delayMs);
         return;
       }
 
-      emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
-      clearEmptyRetry();
+      resetEmptyRetryCycle();
 
       const applied = applyAppendedBatch(conceptsRef.current, plan.add, pendingEndDeckLoadRef.current);
       conceptsRef.current = applied.concepts;
@@ -477,6 +493,13 @@ export default function HomeScreen() {
       reportRetrySucceeded();
     } catch {
       if (stillCurrent()) {
+        // Lz-38: failure never resets history — keep the walk, surface Retry in the row.
+        const preserved = deckAfterFetchFailure({
+          concepts: conceptsRef.current,
+          currentIndex: currentIndexRef.current,
+        });
+        conceptsRef.current = [...preserved.concepts];
+        currentIndexRef.current = preserved.currentIndex;
         if (!offlineRef.current) setLoadMoreError(true);
         reportRetryFailed();
       }
@@ -494,7 +517,7 @@ export default function HomeScreen() {
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);
-    emptyRetryDelayRef.current = INITIAL_EMPTY_RETRY_MS;
+    resetEmptyRetryCycle();
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
 
@@ -510,18 +533,29 @@ export default function HomeScreen() {
   useEffect(() => {
     if (offline) return;
     if (loading || concepts.length === 0) return;
-    if (loadMoreError) return;
+    if (loadMoreError || noNextIdea) return;
 
     const unvisitedAhead = concepts.length - 1 - currentIndex;
     if (unvisitedAhead > UNVISITED_AHEAD_PREFETCH_AT) return;
 
     void loadMoreConcepts();
-  }, [offline, loading, concepts.length, currentIndex, loadMoreError, loadMoreConcepts]);
+  }, [
+    offline,
+    loading,
+    concepts.length,
+    currentIndex,
+    loadMoreError,
+    noNextIdea,
+    loadMoreConcepts,
+  ]);
 
   const onSwipeLeft = useCallback(() => {
     const len = conceptsRef.current.length;
     const i = currentIndexRef.current;
     if (len === 0) return;
+    // Lz-38: manual forward swipe resets the empty-retry counter.
+    resetEmptyRetryCycle();
+    setLoadMoreError(false);
     if (i < len - 1) {
       pendingEndDeckLoadRef.current = false;
       setPendingEndDeckLoad(false);
@@ -628,6 +662,9 @@ export default function HomeScreen() {
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
     const token = ++lateralitySwapTokenRef.current;
     setLateralitySwap({ token });
+    // Lz-38: Laterality change resets the empty-retry counter.
+    resetEmptyRetryCycle();
+    setLoadMoreError(false);
 
     const current = conceptsRef.current[currentIndexRef.current];
     const mediaFilter = journeyTestParamsRef.current.onlyWithMedia
@@ -704,6 +741,13 @@ export default function HomeScreen() {
     setLateralitySheetOpen(true);
   }, [lateralitySwap]);
 
+  /** Lz-38: Adjust opens the Laterality sheet and resets the empty-retry cycle. */
+  const onAdjustNoNextIdea = useCallback(() => {
+    resetEmptyRetryCycle();
+    setLoadMoreError(false);
+    openLateralitySheet();
+  }, [openLateralitySheet]);
+
   const dismissLateralitySheet = useCallback(() => {
     setLateralitySheetOpen(false);
   }, []);
@@ -777,6 +821,9 @@ export default function HomeScreen() {
       const next = clampComplexity(previous + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
       setComplexity(next);
+      // Lz-38: Complexity change resets the empty-retry counter.
+      resetEmptyRetryCycle();
+      setLoadMoreError(false);
       if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
         announceComplexity(next, 'swipe');
       }
@@ -817,21 +864,26 @@ export default function HomeScreen() {
       if (result.complexityChanged) {
         complexityRef.current = result.complexity;
         setComplexity(result.complexity);
+        // Lz-38: Complexity change resets the empty-retry counter.
+        resetEmptyRetryCycle();
+        setLoadMoreError(false);
+        void persistComplexity(result.complexity);
+        void prefetchComplexityTree(result.complexity);
       }
-      void persistComplexity(result.complexity);
-      void prefetchComplexityTree(result.complexity);
     },
     [prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
-  /** Deck status card while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
+  /** Deck slot while waiting at the end — pending alone must show UI before loadingMore flips true (Lz-36). */
   const deckSlotState = resolveDeckSlotState({
     isLastCard,
     pendingEndDeckLoad,
     loadMoreError,
+    noNextIdea,
   });
-  const showDeckLoading = deckSlotState !== 'card';
+  // Lz-38: only the loading face replaces the card; failure / no-next keep the card readable.
+  const showDeckLoading = deckSlotState === 'loading';
   const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
 
   const menuChromeHeight = practiceMenuChromeHeight();
@@ -848,14 +900,42 @@ export default function HomeScreen() {
   /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
   const showInitialLoading = prefsReady && introGateOpen && concepts.length === 0 && !error;
   const showMainDeck = !showIntroLogo && !(error && concepts.length === 0);
+  const chromeStatus = resolveDeckChromeStatus({
+    offline,
+    noNextIdea,
+    loadMoreError,
+    lateralitySwapping: lateralitySwap != null,
+    showInitialLoading,
+    showDeckLoading,
+  });
   const deckStatusMessage =
-    offline
-      ? null
-      : showInitialLoading
-        ? t('findingStart')
-        : deckSlotState === 'loading'
-          ? t('loadingMoreIdeas')
-          : null;
+    chromeStatus.kind === 'noNextIdea'
+      ? t('noNextIdea')
+      : chromeStatus.kind === 'fetchFailed'
+        ? t('fetchFailed')
+        : chromeStatus.kind === 'neighbourhoodLoading'
+          ? t('loadingLateralNeighborhood')
+          : chromeStatus.kind === 'findingStart'
+            ? t('findingStart')
+            : chromeStatus.kind === 'loadingMore'
+              ? t('loadingMoreIdeas')
+              : null;
+  const statusActionLabel =
+    chromeStatus.kind === 'offline' || chromeStatus.kind === 'fetchFailed'
+      ? t('retry')
+      : chromeStatus.kind === 'noNextIdea'
+        ? t('adjust')
+        : undefined;
+  const statusActionHandler =
+    chromeStatus.kind === 'offline'
+      ? onOfflineRetry
+      : chromeStatus.kind === 'fetchFailed'
+        ? retryLoadMore
+        : chromeStatus.kind === 'noNextIdea'
+          ? onAdjustNoNextIdea
+          : undefined;
+  const statusActionTestID =
+    chromeStatus.kind === 'noNextIdea' ? 'deck-status-adjust' : 'deck-status-retry';
   const showStatusSlot = offline || deckStatusMessage != null;
 
   useEffect(() => {
@@ -950,8 +1030,7 @@ export default function HomeScreen() {
               preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
               showInitialLoading={showInitialLoading}
-              loadMoreError={loadMoreError}
-              onRetryLoadMore={retryLoadMore}
+              loadMoreError={loadMoreError || noNextIdea}
               sheetOpen={lateralitySheetOpen || appMenuOpen}
               onReplayGestureTipsReady={onReplayGestureTipsReady}
               onCoachTipChange={onCoachTipChange}
@@ -994,8 +1073,9 @@ export default function HomeScreen() {
                     message={deckStatusMessage}
                     offline={offline}
                     offlineLabel={t('offline')}
-                    retryLabel={t('retry')}
-                    onRetry={onOfflineRetry}
+                    actionLabel={statusActionLabel}
+                    onAction={statusActionHandler}
+                    actionTestID={statusActionTestID}
                     shouldAnnounceOffline={shouldAnnounceOffline}
                     onOfflineAnnounced={consumeOfflineAnnounce}
                   />

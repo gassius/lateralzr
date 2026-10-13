@@ -32,7 +32,7 @@ describe('resolveDeckSlotState', () => {
     );
   });
 
-  it('prefers failed over loading (Lz-38 surface)', () => {
+  it('prefers failed over loading (Lz-38 status-line surface)', () => {
     assert.equal(
       resolveDeckSlotState({
         isLastCard: true,
@@ -40,6 +40,18 @@ describe('resolveDeckSlotState', () => {
         loadMoreError: true,
       }),
       'failed',
+    );
+  });
+
+  it('prefers noNextIdea over failed and loading', () => {
+    assert.equal(
+      resolveDeckSlotState({
+        isLastCard: true,
+        pendingEndDeckLoad: true,
+        loadMoreError: true,
+        noNextIdea: true,
+      }),
+      'noNextIdea',
     );
   });
 });
