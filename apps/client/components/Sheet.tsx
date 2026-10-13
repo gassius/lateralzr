@@ -124,9 +124,11 @@ export function Sheet({
   const reduceMotionRef = useRef(reduceMotion);
   const returnFocusRefStable = useRef(returnFocusRef);
   const onClosedRef = useRef(onClosed);
+  const onBackRef = useRef(onBack);
   reduceMotionRef.current = reduceMotion;
   returnFocusRefStable.current = returnFocusRef;
   onClosedRef.current = onClosed;
+  onBackRef.current = onBack;
 
   useLayoutEffect(() => {
     if (Platform.OS === 'web') ensureA11yFocusRingStyles();
@@ -162,6 +164,8 @@ export function Sheet({
     return () => clearTimeout(timer);
   }, [mounted, titleMeasure.frozenWidth]);
 
+  // Open/close animation — deps are visibility only (PRR B1: unstable onBack must
+  // not restart the sheet). Nested Back focus lives in AppMenuSheet via `view`.
   useEffect(() => {
     if (visible) {
       wasVisibleRef.current = true;
@@ -171,14 +175,7 @@ export function Sheet({
         duration,
         easing: Easing.out(Easing.cubic),
       });
-      // Nested views prefer the back control; otherwise title (Lz-41 / Lz-32).
-      const focusTimer = setTimeout(() => {
-        if (onBack && backRef?.current) {
-          focusSheetHost(backRef);
-        } else {
-          focusSheetHost(titleRef);
-        }
-      }, Math.max(16, duration));
+      const focusTimer = setTimeout(() => focusSheetHost(titleRef), Math.max(16, duration));
       return () => clearTimeout(focusTimer);
     }
 
@@ -206,42 +203,20 @@ export function Sheet({
         if (finished) runOnJS(finishClose)();
       },
     );
-  }, [visible, progress, onBack, backRef]);
-
-  // When a nested view mounts the back control, move focus there (Language / Complexity).
-  useEffect(() => {
-    if (!visible || !onBack) return;
-    const frame = requestAnimationFrame(() => {
-      if (backRef?.current) {
-        focusSheetHost(backRef);
-      } else if (Platform.OS === 'web' && typeof document !== 'undefined') {
-        const el = document.querySelector(
-          `[data-testid="${backTestID ?? `${testID}-back`}"]`,
-        ) as HTMLElement | null;
-        el?.focus?.();
-      }
-    });
-    const retry = setTimeout(() => {
-      if (backRef?.current) focusSheetHost(backRef);
-    }, 48);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(retry);
-    };
-  }, [visible, onBack, backRef, backTestID, testID]);
+  }, [visible, progress]);
 
   useEffect(() => {
     if (!visible) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (resolveSheetHardwareBack(onBack != null) === 'nestedBack') {
-        onBack?.();
+      if (resolveSheetHardwareBack(onBackRef.current != null) === 'nestedBack') {
+        onBackRef.current?.();
         return true;
       }
       onDismiss();
       return true;
     });
     return () => sub.remove();
-  }, [visible, onDismiss, onBack]);
+  }, [visible, onDismiss]);
 
   useEffect(() => {
     if (!visible || Platform.OS !== 'web' || typeof window === 'undefined') return;

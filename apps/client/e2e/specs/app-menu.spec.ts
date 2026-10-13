@@ -109,6 +109,45 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Reduced');
   });
 
+  // PRR B1: selecting a Motion preference must not steal focus back to header Back.
+  test('Tab to a Motion row, select it, and keep focus on the Motion menu row', async ({
+    page,
+  }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-motion').click();
+    await expect(page.getByTestId('app-menu-motion')).toBeVisible();
+
+    // Start from Back (known host), then Tab into a Motion preference row.
+    const back = page.getByTestId('app-menu-back');
+    await expect(back).toBeVisible();
+    await back.focus();
+    await expect(back).toBeFocused();
+
+    let rowTestId: string | null = null;
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      const id = await page.evaluate(
+        () => (document.activeElement as HTMLElement | null)?.dataset?.testid ?? '',
+      );
+      if (id.startsWith('app-menu-motion-row-')) {
+        rowTestId = id;
+        break;
+      }
+    }
+    expect(rowTestId, 'Tab should land on a Motion preference row').toBeTruthy();
+
+    await page.keyboard.press('Enter');
+    // RN-web Pressable may ignore Enter — click the focused row if still nested.
+    if ((await page.getByTestId('app-menu-motion').count()) > 0) {
+      await page.getByTestId(rowTestId!).click();
+    }
+
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-back')).toHaveCount(0);
+    await expect(page.getByTestId('app-menu-row-motion')).toBeFocused();
+  });
+
   test('opening Language picker moves focus into the view', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     await openAppMenu(page);

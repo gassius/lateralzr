@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { capture } from '../helpers/capture';
+import { visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 /**
@@ -132,11 +133,18 @@ test.describe('Lz-41 200% text + reduced motion', () => {
     // Playwright projects already set OS reducedMotion=reduce.
     await openApp(page, 'canonicalConcept=mushroom&e2eTextScale=2');
     await expect(page.getByTestId('card-laterality-group')).toBeVisible();
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
     const surface = page.getByTestId('card-a11y-surface');
     await surface.focus();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByTestId('card-a11y-surface')).toBeVisible();
+    // PRR M1: must prove the concept advanced (not a no-op visibility check).
+    await expect(visibleText(page, 'Mycelium')).toBeVisible({ timeout: 10_000 });
+
+    const laterality = page.getByTestId('laterality-label');
+    await laterality.scrollIntoViewIfNeeded();
+    await expect(laterality).toBeVisible();
+    await expect(laterality).toBeInViewport();
 
     await capture(page, testInfo, {
       screen: 'a11y-pass',

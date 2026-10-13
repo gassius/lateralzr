@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import {
   Platform,
   Pressable,
@@ -147,14 +155,16 @@ function AppMenuRow({
   const valueText = row.value ?? (row.valueKey != null ? t(row.valueKey) : null);
 
   return (
-    <View ref={rowRef}>
+    <View>
       {showDivider ? <View style={styles.divider} testID={`app-menu-divider-${row.key}`} /> : null}
       <Pressable
+        ref={rowRef}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={a11y}
         testID={`app-menu-row-${row.key}`}
         style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+        {...webFocusProps}
       >
         <View style={styles.rowTextCluster} testID={`app-menu-row-text-${row.key}`}>
           <Text
@@ -311,17 +321,17 @@ export function AppMenuSheet({
     if (!visible) setView('root');
   }, [visible]);
 
-  // Nested Language / Complexity / Motion: move focus onto the header Back host.
-  // Sync layout focus (main/#121: Playwright clock mocks rAF) plus one web querySelector
-  // pass so focus still wins if the ref host is not ready in the same commit.
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  // Single focus-Back path (PRR B1): only when `view` enters a nested picker.
+  // Sync layout (main/#121: Playwright clock mocks rAF) + web querySelector — no
+  // deferred timers. Never wired through Sheet's open effect (unstable onBack).
   useLayoutEffect(() => {
     if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
     focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      const el = document.querySelector(
-        '[data-testid="app-menu-back"]',
-      ) as HTMLElement | null;
-      el?.focus?.();
+      document.querySelector<HTMLElement>('[data-testid="app-menu-back"]')?.focus?.();
     }
   }, [view]);
 
@@ -344,24 +354,40 @@ export function AppMenuSheet({
     }
   };
 
-  const goBackToRoot = () => {
+  /** Stable so Sheet open/close effects never restart on parent re-renders (PRR B1). */
+  const goBackToRoot = useCallback(() => {
+    const current = viewRef.current;
     const returnRef =
-      view === 'complexity'
+      current === 'complexity'
         ? complexityRowRef
-        : view === 'motion'
+        : current === 'motion'
           ? motionRowRef
           : languageRowRef;
     setView('root');
     requestAnimationFrame(() => focusSheetHost(returnRef));
-  };
+  }, []);
 
-  const selectMotion = (pref: MotionPreference) => {
-    onMotionPreferenceChange?.(pref);
-    setView('root');
-    requestAnimationFrame(() => {
-      focusSheetHost(motionRowRef);
-    });
-  };
+  const selectMotion = useCallback(
+    (pref: MotionPreference) => {
+      // Root rows remount after preference + view update — focus after commit.
+      setView('root');
+      onMotionPreferenceChange?.(pref);
+      const focusMotionRow = () => {
+        focusSheetHost(motionRowRef);
+        if (Platform.OS === 'web' && typeof document !== 'undefined') {
+          document
+            .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
+            ?.focus?.();
+        }
+      };
+      requestAnimationFrame(() => {
+        focusMotionRow();
+        setTimeout(focusMotionRow, 0);
+        setTimeout(focusMotionRow, 48);
+      });
+    },
+    [onMotionPreferenceChange],
+  );
 
   const sheetTitle =
     view === 'language'
