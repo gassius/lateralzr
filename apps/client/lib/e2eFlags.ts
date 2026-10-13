@@ -3,12 +3,15 @@
  */
 
 /**
- * True in Expo `__DEV__` or when the Client E2E export env is set
- * (`EXPO_PUBLIC_E2E=1` on `e2e:build` / Client E2E workflows).
+ * True in Expo `__DEV__`, when `EXPO_PUBLIC_E2E=1` is baked into the export
+ * (`e2e:build` / Client E2E workflows), or when the Client E2E API base is pinned
+ * (`EXPO_PUBLIC_API_URL=http://127.0.0.1:4173`). Production Vercel builds use
+ * neither flag.
  */
 export function isClientTestOrDevBuild(): boolean {
   if (typeof __DEV__ !== 'undefined' && __DEV__) return true;
-  return process.env.EXPO_PUBLIC_E2E === '1';
+  if (process.env.EXPO_PUBLIC_E2E === '1') return true;
+  return process.env.EXPO_PUBLIC_API_URL === 'http://127.0.0.1:4173';
 }
 
 /**
