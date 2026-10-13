@@ -941,6 +941,10 @@ export default function HomeScreen() {
   const statusActionTestID =
     chromeStatus.kind === 'noNextIdea' ? 'deck-status-adjust' : 'deck-status-retry';
   const showStatusSlot = offline || deckStatusMessage != null;
+  // AD #119: one message in the control region — hide coach tip on failure / no-next.
+  const suppressCoachTip =
+    chromeStatus.kind === 'fetchFailed' || chromeStatus.kind === 'noNextIdea';
+  const visibleCoachTip = suppressCoachTip ? null : coachTip;
 
   useEffect(() => {
     if (!showMainDeck) return;
@@ -1008,11 +1012,11 @@ export default function HomeScreen() {
       ) : null}
       {(() => {
         const controlGap = lateralityCardGap(usableHeight);
-        const tipBand = coachTip
+        const tipBand = visibleCoachTip
           ? Math.max(coachTipBandHeight, coachHintSlotHeight())
           : 0;
         // Shrink the card by tip band + one flex gap so Laterality stays put (AD Lz-48).
-        const tipReserve = coachTip ? tipBand + controlGap : 0;
+        const tipReserve = visibleCoachTip ? tipBand + controlGap : 0;
         const cardLateralityGroup = (
           <View
             style={[styles.cardLateralityGroup, { gap: controlGap }]}
@@ -1050,17 +1054,17 @@ export default function HomeScreen() {
                 }}
               />
             ) : null}
-            {coachTip ? (
+            {visibleCoachTip ? (
               <View
                 style={styles.coachTipSlot}
                 testID="coach-tip-slot"
                 onLayout={(e) => setCoachTipBandHeight(e.nativeEvent.layout.height)}
               >
                 <CoachHint
-                  text={coachTip.text}
-                  animateAppear={coachTip.animateAppear}
+                  text={visibleCoachTip.text}
+                  animateAppear={visibleCoachTip.animateAppear}
                   surface="shell"
-                  onDismiss={coachTip.onDismiss}
+                  onDismiss={visibleCoachTip.onDismiss}
                 />
               </View>
             ) : null}
@@ -1092,7 +1096,7 @@ export default function HomeScreen() {
                   styles.complexityCueSlot,
                   {
                     bottom:
-                      lateralityControlHeight + (coachTip ? tipBand + controlGap : 4),
+                      lateralityControlHeight + (visibleCoachTip ? tipBand + controlGap : 4),
                   },
                 ]}
                 pointerEvents="none"
@@ -1104,7 +1108,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark && !coachTip ? (
+            ) : showSessionComplexityMark && !visibleCoachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"

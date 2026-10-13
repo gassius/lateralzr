@@ -22,7 +22,7 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
-  STATUS_SLOT_MIN_WIDTH,
+  STATUS_BAND_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
   clampLaterality,
@@ -48,8 +48,9 @@ type LateralityControlProps = {
   /** Host for focus restore when the sheet closes. */
   labelRef?: RefObject<ViewType | null>;
   /**
-   * In-flow left slot on the label row (Lz-35 status line).
-   * Sits beside the laterality label — never an absolute overlay over the rail.
+   * Full-width status band above the Laterality label (Lz-35 / Lz-38).
+   * Never shares a row with the label — neighbourhood-loading, fetch-failed,
+   * and no-next-idea all use this reserved band.
    */
   statusSlot?: ReactNode;
 };
@@ -255,8 +256,16 @@ export function LateralityControl({
       accessibilityState={{ busy: swapping, disabled }}
       onLayout={onRootLayout}
     >
-      <View style={[styles.labelRow, statusSlot != null ? styles.labelRowWithStatus : null]}>
-        {statusSlot != null ? <View style={styles.statusSlot}>{statusSlot}</View> : null}
+      {/*
+        Full-width status band above the Laterality label (AD #119).
+        Always reserves STATUS_BAND_HEIGHT so fetch-failed / no-next never
+        shrink the card; empty when idle.
+      */}
+      <View style={styles.statusBand} testID="laterality-status-band">
+        {statusSlot}
+      </View>
+
+      <View style={styles.labelRow}>
         <Pressable
           ref={labelRef}
           onPress={onPressLabel ?? (() => {})}
@@ -331,24 +340,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
     justifyContent: 'flex-start',
   },
+  statusBand: {
+    alignSelf: 'stretch',
+    width: '100%',
+    minHeight: STATUS_BAND_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'stretch',
+  },
   labelRow: {
     minHeight: LATERALITY_LABEL_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     alignSelf: 'stretch',
-  },
-  labelRowWithStatus: {
-    justifyContent: 'flex-start',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  statusSlot: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: STATUS_SLOT_MIN_WIDTH,
-    minWidth: STATUS_SLOT_MIN_WIDTH,
-    justifyContent: 'center',
   },
   labelCluster: {
     flexDirection: 'row',

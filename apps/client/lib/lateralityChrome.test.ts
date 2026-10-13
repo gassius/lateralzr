@@ -12,6 +12,8 @@ import {
   lateralityCardGap,
   lateralityChromeReserve,
   MIN_CARD_AREA_HEIGHT,
+  STATUS_BAND_HEIGHT,
+  STATUS_BAND_LINE_HEIGHT,
   STATUS_SLOT_MIN_WIDTH,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
@@ -32,17 +34,20 @@ function cardAreaHeight(availableHeight: number, cardWidth: number): number {
 }
 
 describe('laterality chrome grouping', () => {
-  it('uses a label row + 48px rail under the card', () => {
+  it('uses a status band + label row + 48px rail under the card', () => {
+    assert.equal(STATUS_BAND_LINE_HEIGHT, 18);
+    assert.equal(STATUS_BAND_HEIGHT, 36);
     assert.equal(LATERALITY_LABEL_ROW_HEIGHT, 20);
     assert.equal(LATERALITY_RAIL_HEIGHT, 48);
-    assert.equal(LATERALITY_CONTROL_HEIGHT, 68);
+    // 36 + 20 + 48 — status band always reserved (AD #119: status never shifts card).
+    assert.equal(LATERALITY_CONTROL_HEIGHT, 104);
     assert.equal(LATERALITY_STEP_SIZE, 48);
     assert.ok(LATERALITY_STEP_SIZE >= 44);
     // 390×844 usable height is already ≥ 800 → tall gap.
     assert.equal(lateralityCardGap(PHONE_HEIGHT), layout.cardToControlGapTall);
-    assert.equal(lateralityChromeReserve(PHONE_HEIGHT), 68 + 16);
+    assert.equal(lateralityChromeReserve(PHONE_HEIGHT), 104 + 16);
     assert.equal(lateralityCardGap(568), layout.cardToControlGap);
-    assert.equal(lateralityChromeReserve(568), 68 + 12);
+    assert.equal(lateralityChromeReserve(568), 104 + 12);
   });
 
   it('uses 12 px gap below tall-screen threshold and 16 px at ≥ 800', () => {
@@ -96,5 +101,16 @@ describe('laterality chrome grouping', () => {
     // Longest EN/ES status word ≈ 8 glyphs; meta×2 ≈ 26px → ~120px floor.
     assert.equal(STATUS_SLOT_MIN_WIDTH, 120);
     assert.ok(STATUS_SLOT_MIN_WIDTH * 2 + 8 <= LATERALITY_BAR_MIN_ROW_WIDTH);
+  });
+
+  it('keeps chrome reserve identical whether or not a 2-line status fills the band', () => {
+    // Empty band and filled band share LATERALITY_CONTROL_HEIGHT → same card stack.
+    const idle = lateralityChromeReserve(844, LATERALITY_CONTROL_HEIGHT);
+    const withStatus = lateralityChromeReserve(844, LATERALITY_CONTROL_HEIGHT);
+    assert.equal(idle, withStatus);
+    assert.equal(
+      cardStackAvailableHeight(844, LATERALITY_CONTROL_HEIGHT),
+      cardStackAvailableHeight(844, LATERALITY_CONTROL_HEIGHT),
+    );
   });
 });

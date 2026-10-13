@@ -25,9 +25,10 @@ type DeckStatusLineProps = {
 };
 
 /**
- * Status line on the laterality label row (Lz-35; shared slot for Lz-37 / Lz-38).
- * In-flow left slot beside the laterality label — never an absolute overlay.
- * Loading: wraps; does not truncate. Offline / failure / no-next: copy + action link.
+ * Status line in the laterality status band (Lz-35; shared for Lz-37 / Lz-38).
+ * Full-width, left-aligned row above the Laterality label — never beside it,
+ * never an absolute overlay. Loading: wraps; does not truncate.
+ * Offline / failure / no-next: copy + action inline (or wrapped below).
  */
 export function DeckStatusLine({
   message,
@@ -176,7 +177,7 @@ export function DeckStatusLine({
 }
 
 const styles = StyleSheet.create({
-  /** Fills the LateralityControl statusSlot; min width matches the host slot. */
+  /** Fills the LateralityControl status band (full width, left-aligned). */
   slot: {
     alignSelf: 'stretch',
     width: '100%',
@@ -193,7 +194,9 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'nowrap',
+    // Inline when width allows; action drops to the next line rather than
+    // squeezing ES copy into a narrow column beside Laterality (AD #119).
+    flexWrap: 'wrap',
     flexShrink: 1,
     gap: 6,
   },
@@ -205,8 +208,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   actionHit: {
-    // Touch ≥48 px comes from hitSlop; intrinsic width follows the label so ES
-    // action labels stay on one row with the status copy at 390.
+    // Touch ≥48 px comes from hitSlop; intrinsic width follows the label.
     justifyContent: 'center',
     alignItems: 'flex-start',
     flexShrink: 0,

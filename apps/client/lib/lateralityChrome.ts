@@ -14,8 +14,20 @@ export const LATERALITY_RAIL_HEIGHT = layout.recommendedTouchTarget;
  */
 export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 
-/** Minimum control height (one label line + rail). Grows when the label wraps. */
-export const LATERALITY_CONTROL_HEIGHT = LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+/**
+ * Fixed status band above the Laterality label (Lz-38 AD).
+ * Two meta lines at 13 × 1.4 → 18 × 2 = 36. Always reserved so a status
+ * never steals height from the card ("Status never shifts the card").
+ */
+export const STATUS_BAND_LINE_HEIGHT = Math.round(type.meta * 1.4);
+export const STATUS_BAND_HEIGHT = STATUS_BAND_LINE_HEIGHT * 2;
+
+/**
+ * Minimum control height: status band + label + rail.
+ * Status band is always reserved (empty when idle) so card height is stable.
+ */
+export const LATERALITY_CONTROL_HEIGHT =
+  STATUS_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
 
 /** Comfortable tap target size (≥44). */
 export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;
@@ -27,9 +39,8 @@ export const LATERALITY_ROW_PADDING_HORIZONTAL = layout.screenGutter;
 export const LATERALITY_BAR_MIN_ROW_WIDTH = 320;
 
 /**
- * Minimum width for the Lz-35 status slot on the laterality label row.
- * Keeps meta copy word-wrapping (not one glyph per line) at 200% text;
- * when status + label cannot share one row, the row wraps and status stacks above.
+ * Minimum width for the Lz-35 status band copy.
+ * Keeps meta word-wrapping (not one glyph per line) at 200% text.
  * ~longest status word at meta×2 ("starting" / "Buscando").
  */
 export const STATUS_SLOT_MIN_WIDTH = 120;

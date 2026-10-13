@@ -58,13 +58,11 @@ export async function waitForStableLoadingChrome(page: Page): Promise<void> {
 }
 
 /**
- * B1: deck-status-line must be a real in-flow slot on the laterality label row —
- * not painted over the label lockup or the rail.
- * Fails on absolute full-width overlay; passes when status sits beside (or stacked
- * above) the label. Also pins a real minimum width so 200% text cannot collapse
- * the slot to single-character columns.
+ * B1 / AD #119: deck-status-line lives in the reserved status band above the
+ * Laterality label — never beside it, never painted over the label or rail.
+ * Pins a real minimum width so 200% text cannot collapse to single-character columns.
  *
- * Width + intersection run inside `toPass` so 200% wrap reflow cannot flake mid-layout.
+ * Width + intersection + stacking run inside `toPass` so reflow cannot flake.
  */
 export async function expectStatusLineClearOfLaterality(page: Page): Promise<void> {
   const status = page.getByTestId('deck-status-line');
@@ -79,14 +77,53 @@ export async function expectStatusLineClearOfLaterality(page: Page): Promise<voi
       'deck-status-line must keep a word-wrapping minimum width (not a 1-glyph column)',
     ).toBeGreaterThanOrEqual(120);
 
-    for (const id of ['laterality-label', 'laterality-rail'] as const) {
-      const control = page.getByTestId(id);
-      await expect(control).toBeVisible();
-      const controlBox = await requireBox(control, id);
-      expect(
-        boxesIntersect(statusBox, controlBox),
-        `deck-status-line must not intersect ${id}`,
-      ).toBe(false);
-    }
+    const label = page.getByTestId('laterality-label');
+    await expect(label).toBeVisible();
+    const labelBox = await requireBox(label, 'laterality-label');
+    expect(
+      boxesIntersect(statusBox, labelBox),
+      'deck-status-line must not intersect laterality-label',
+    ).toBe(false);
+    // Full-width band above the label (not a side-by-side squeeze).
+    expect(
+      statusBox.y + statusBox.height,
+      'deck-status-line must sit above laterality-label',
+    ).toBeLessThanOrEqual(labelBox.y + 1);
+
+    const rail = page.getByTestId('laterality-rail');
+    await expect(rail).toBeVisible();
+    const railBox = await requireBox(rail, 'laterality-rail');
+    expect(
+      boxesIntersect(statusBox, railBox),
+      'deck-status-line must not intersect laterality-rail',
+    ).toBe(false);
+
+    // Status should span the control column (full-width band), not a narrow gutter.
+    expect(
+      statusBox.width,
+      'deck-status-line should use the full-width status band',
+    ).toBeGreaterThanOrEqual(railBox.width * 0.85);
   }).toPass({ timeout: 2_000 });
+}
+
+/**
+ * Front card face box via the pattern layer (stable outer frame for Lz-38 AD).
+ */
+export async function cardFaceBoundingBox(page: Page): Promise<Box> {
+  const pattern = page.getByTestId('card-front-pattern');
+  await expect(pattern).toBeVisible();
+  return requireBox(pattern, 'card-front-pattern');
+}
+
+/**
+ * AD #119: card frame must be identical with and without a status line.
+ * Compares rounded boxes so sub-pixel layout noise cannot flake.
+ */
+export async function expectCardBoxesEqual(
+  withoutStatus: Box,
+  withStatus: Box,
+): Promise<void> {
+  expect(boxKey(withStatus), 'card box with status must match card box without status').toBe(
+    boxKey(withoutStatus),
+  );
 }
