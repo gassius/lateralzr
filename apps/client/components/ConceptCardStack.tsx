@@ -148,6 +148,14 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const returnOverlaySuppressSV = useSharedValue(0);
   const [flipped, setFlipped] = useState(false);
   const [containerW, setContainerW] = useState<number>(0);
+  /** Lz-40: card finished settle enter — pulse may start. */
+  const [cardSettled, setCardSettled] = useState(true);
+  /** Lz-40: pan active — kill pulse within one frame. */
+  const [pulseDragging, setPulseDragging] = useState(false);
+  /** Lz-40: AppState active (stop when backgrounded). */
+  const [appActive, setAppActive] = useState(
+    () => AppState.currentState === 'active',
+  );
   const reduceMotion = useReducedMotion();
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
@@ -319,9 +327,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     });
   }, [activeConcept, currentIndex, showDeckStatus, flushDwell]);
 
-  // Flush dwell when app backgrounds or stack unmounts.
+  // Flush dwell when app backgrounds or stack unmounts; Lz-40 stops pulse off-active.
   useEffect(() => {
     const onAppState = (next: AppStateStatus) => {
+      setAppActive(next === 'active');
       if (next === 'background' || next === 'inactive') {
         flushDwell(dwellFaceRef.current, dwellConceptRef.current, dwellIndexRef.current);
         dwellStartedAtRef.current = 0;
@@ -405,6 +414,19 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     // Also when showDeckStatus toggles (e.g. deck loading UI) without index change — forward swipe from last
     // left translateX/Y off-screen; reset so the status card is visible and not stuck on blue background.
   }, [currentIndex, showDeckStatus]);
+
+  // Lz-40: pulse starts only after settle completes (or immediately when there is no enter motion).
+  useEffect(() => {
+    setCardSettled(false);
+    setPulseDragging(false);
+    const ms = reduceMotion ? 0 : deckSettleDurationMs(false);
+    if (ms <= 0) {
+      setCardSettled(true);
+      return;
+    }
+    const timer = setTimeout(() => setCardSettled(true), ms);
+    return () => clearTimeout(timer);
+  }, [currentIndex, showDeckStatus, reduceMotion]);
 
   // Clear overlay/behind locks + suppression after paint so Reanimated and native have applied translateX = 0
   // before we drop the lock (same cadence as swipe-right path).
@@ -687,6 +709,15 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     flipped,
   });
 
+  /** Lz-40: front card only; PatternLayer also gates RM + scroll. */
+  const pulseGateActive =
+    cardSettled &&
+    !flipped &&
+    !pulseDragging &&
+    !sheetOpen &&
+    appActive &&
+    !showDeckStatus;
+
   const cancelCoachPeek = () => {
     'worklet';
     coachPeekX.value = 0;
@@ -704,6 +735,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       runOnJS(toggleFlip)();
     });
 
+  const markPulseDragging = useCallback((active: boolean) => {
+    setPulseDragging(active);
+  }, []);
+
   const panX = Gesture.Pan()
     .activeOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .failOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
@@ -711,6 +746,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       translateY.value = 0;
       cancelCoachPeek();
       runOnJS(noteInteraction)();
+      runOnJS(markPulseDragging)(true);
     })
     .onUpdate((e: { translationX: number }) => {
       if (swipeAnimating.value) return;
@@ -726,6 +762,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         velocityX: number;
         velocityY: number;
       }) => {
+        runOnJS(markPulseDragging)(false);
         if (swipeAnimating.value) return;
         const w = Math.max(1, cardWidthSV.value);
         const direction = swipeCommitDirection(e.translationX, e.velocityX, w);
@@ -817,6 +854,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       translateX.value = 0;
       cancelCoachPeek();
       runOnJS(noteInteraction)();
+      runOnJS(markPulseDragging)(true);
     })
     .onUpdate((e: { translationY: number }) => {
       if (swipeAnimating.value) return;
@@ -833,6 +871,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         velocityX: number;
         velocityY: number;
       }) => {
+        runOnJS(markPulseDragging)(false);
         if (swipeAnimating.value) return;
         const h = Math.max(1, cardHeightSV.value);
         const direction = swipeCommitDirection(e.translationY, e.velocityY, h);
@@ -1035,6 +1074,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   flipPeek={flipPeek}
                   exposeFrontTitleTestId
                   onBackInteractivePress={noteBackInteractivePress}
+                  pulseGateActive={pulseGateActive}
                 />
               )}
             </View>
@@ -1070,6 +1110,7 @@ function ConceptCardForIndex({
   flipPeek,
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
+  pulseGateActive = false,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -1079,6 +1120,7 @@ function ConceptCardForIndex({
   flipPeek?: SharedValue<number>;
   exposeFrontTitleTestId?: boolean;
   onBackInteractivePress?: () => void;
+  pulseGateActive?: boolean;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -1092,6 +1134,7 @@ function ConceptCardForIndex({
       flipPeek={flipPeek}
       exposeFrontTitleTestId={exposeFrontTitleTestId}
       onBackInteractivePress={onBackInteractivePress}
+      pulseGateActive={pulseGateActive}
     />
   );
 }

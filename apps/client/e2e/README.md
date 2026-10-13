@@ -76,6 +76,12 @@ Examples: `card-front_short-label_390x844_en.png`, `card-back_with-diagram_1280x
   - `card-front_pattern-clear-200_320x568_en` / `_es` — long-label @ `e2eTextScale=2`, resting scrollTop 0; asserts no motif in title+16
 - Title clear = spacer + line metrics (remeasured on layout/scale) + ink width + 16 px; intersecting motifs are hidden (never moved)
 
+### Card front connector pulse (Lz-40)
+
+- Live breath is gated off under OS reduced motion and the Lz-46 Motion preference (E2E always sets `reducedMotion: reduce`)
+- `card-front_pattern-pulse-peak_*` — `?patternVariant=1&e2ePulsePeak=1` holds one connector at peak fill-opacity (`#FFB867`, barely perceptible)
+- `card-front_pattern-pulse-off_*` — default RM rest: every `#connectors > g` stays at fill-opacity 0
+
 ### Laterality sheet (Lz-31)
 
 - `laterality-sheet_open_*` — sheet open from laterality label (`?laterality=4`), en + es

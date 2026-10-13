@@ -109,6 +109,11 @@ type ConceptCardProps = {
   exposeFrontTitleTestId?: boolean;
   /** Wiki / credit press — parent suppresses the stack tap→flip. */
   onBackInteractivePress?: () => void;
+  /**
+   * Lz-40: stack says the front card may breathe (settled, not flipped/dragging/
+   * sheet/background). PatternLayer still gates RM + scroll.
+   */
+  pulseGateActive?: boolean;
 };
 
 export function ConceptCard({
@@ -120,6 +125,7 @@ export function ConceptCard({
   flipPeek,
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
+  pulseGateActive = false,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
@@ -152,6 +158,8 @@ export function ConceptCard({
   const [titleInkSize, setTitleInkSize] = useState<{ width: number; height: number } | null>(
     null,
   );
+  /** Lz-40: stop connector pulse while the front face scrolls. */
+  const [frontScrolling, setFrontScrolling] = useState(false);
   /** Cache key already written from onTextLayout (ignore further probe events). */
   const nativeMeasureAcceptedRef = useRef<string | null>(null);
   /** True once B2 fallback is painted — late onTextLayout must not resize. */
@@ -395,6 +403,8 @@ export function ConceptCard({
         facePad={facePad}
         exposeTestId={exposeFrontTitleTestId}
         variantOverride={patternVariantOverride}
+        pulseGateActive={pulseGateActive && !flipped}
+        frontScrolling={frontScrolling}
       />
       <ScrollView
         style={styles.frontScroll}
@@ -406,6 +416,10 @@ export function ConceptCard({
         showsVerticalScrollIndicator={false}
         bounces={frontNeedsScroll}
         testID="card-front-scroll"
+        onScrollBeginDrag={() => setFrontScrolling(true)}
+        onScrollEndDrag={() => setFrontScrolling(false)}
+        onMomentumScrollBegin={() => setFrontScrolling(true)}
+        onMomentumScrollEnd={() => setFrontScrolling(false)}
       >
         <View
           style={[

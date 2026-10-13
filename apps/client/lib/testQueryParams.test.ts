@@ -95,6 +95,13 @@ describe('parseJourneyTestParams', () => {
     assert.equal(parseJourneyTestParams('').e2ePadBand, undefined);
   });
 
+  it('reads e2ePulsePeak test flag (Lz-40)', () => {
+    assert.equal(parseJourneyTestParams('e2ePulsePeak=1').e2ePulsePeak, true);
+    assert.equal(parseJourneyTestParams('e2ePulsePeak=true').e2ePulsePeak, true);
+    assert.equal(parseJourneyTestParams('e2ePulsePeak=0').e2ePulsePeak, undefined);
+    assert.equal(parseJourneyTestParams('').e2ePulsePeak, undefined);
+  });
+
   it('treats blank or whitespace-only concept values as missing', () => {
     const parsed = parseJourneyTestParams('canonicalConcept=%20%20&localizedConcept=');
     assert.equal(parsed.canonicalConcept, undefined);
