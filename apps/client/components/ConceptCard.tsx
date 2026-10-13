@@ -779,8 +779,7 @@ export function ConceptCard({
         { borderRadius: radius },
         showMediaLayer ? null : { padding: facePad },
       ]}
-      // Label is also announced via the SR-only header below (accessible only).
-      accessibilityLabel={t('aboutConcept', { concept: title })}
+      // Single AT name via sr-only heading below — no wrapper aria-label (Lz-41 / CI strict).
       testID={`card-back-${backLayout.mode}`}
     >
       <Text
