@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
+  coachContextReady,
   coachMessageKey,
-  flipCoachContextReady,
-  FLIP_COACH_CARD_INDEX,
-  FLIP_COACH_DELAY_MS,
+  COACH_IDLE_MS,
+  COACH_TIP_SEQUENCE,
   INITIAL_DISCOVERY_COACHING_STATE,
+  nextCoachTip,
   reduceDiscoveryCoaching,
   resetDiscoveryCoachingSession,
   getDiscoveryCoachingSession,
   scheduleCoachOffer,
   setDiscoveryCoachingSession,
   shouldAnimateCoachPeek,
-  swipeCoachContextReady,
   SWIPE_COACH_IDLE_MS,
+  tipResolved,
   visibleCoach,
   type DiscoveryCoachingState,
   type DiscoveryCoachingView,
@@ -69,124 +73,155 @@ function createFakeClock() {
   return { timers, advance };
 }
 
-describe('swipe coaching', () => {
-  it('does not offer before the idle threshold on the first card', () => {
-    assert.equal(SWIPE_COACH_IDLE_MS, 5000);
-    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 0 })), true);
+describe('§12.3 tip sequence', () => {
+  it('orders tipTap → tipSwipe → tipComplexity and never coaches laterality', () => {
+    assert.deepEqual([...COACH_TIP_SEQUENCE], ['tipTap', 'tipSwipe', 'tipComplexity']);
+    assert.equal(COACH_IDLE_MS, 4000);
+    assert.equal(SWIPE_COACH_IDLE_MS, COACH_IDLE_MS);
+    assert.equal(nextCoachTip(state()), 'tipTap');
+  });
+
+  it('does not offer before the idle threshold on a settled card', () => {
+    assert.equal(coachContextReady(state(), view({ cardIndex: 0 })), true);
     assert.equal(visibleCoach(state(), view()), null);
   });
 
-  it('offers once after idle on the first card, then stays until the first swipe', () => {
-    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 0 })), true);
+  it('offers tipTap after idle, then tipSwipe on the next card, then tipComplexity', () => {
+    const tapOffered = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 0,
+    });
+    assert.equal(tapOffered.offeredTip, 'tipTap');
+    assert.equal(visibleCoach(tapOffered, view({ cardIndex: 0 })), 'tipTap');
+    assert.equal(coachContextReady(tapOffered, view({ cardIndex: 0 })), false);
 
-    const offered = reduceDiscoveryCoaching(state(), { type: 'offerSwipe' });
-    assert.equal(offered.swipeCoachOffered, true);
-    assert.equal(visibleCoach(offered, view({ cardIndex: 0 })), 'swipe');
-    assert.equal(swipeCoachContextReady(offered, view()), false);
+    const afterTap = reduceDiscoveryCoaching(tapOffered, { type: 'tapped' });
+    assert.equal(afterTap.tapDiscovered, true);
+    assert.equal(visibleCoach(afterTap, view({ cardIndex: 0 })), null);
+    assert.equal(nextCoachTip(afterTap), 'tipSwipe');
+    // At most one tip per card — tipSwipe waits for the next card.
+    assert.equal(coachContextReady(afterTap, view({ cardIndex: 0 })), false);
+    assert.equal(coachContextReady(afterTap, view({ cardIndex: 1 })), true);
 
-    const afterSwipe = reduceDiscoveryCoaching(offered, { type: 'swiped' });
+    const swipeOffered = reduceDiscoveryCoaching(afterTap, {
+      type: 'offerTip',
+      tip: 'tipSwipe',
+      cardIndex: 1,
+    });
+    assert.equal(visibleCoach(swipeOffered, view({ cardIndex: 1 })), 'tipSwipe');
+
+    const afterSwipe = reduceDiscoveryCoaching(swipeOffered, { type: 'swipedHorizontal' });
     assert.equal(afterSwipe.swipeDiscovered, true);
-    assert.equal(visibleCoach(afterSwipe, view({ cardIndex: 0 })), null);
-    assert.equal(swipeCoachContextReady(afterSwipe, view()), false);
+    assert.equal(nextCoachTip(afterSwipe), 'tipComplexity');
+    assert.equal(coachContextReady(afterSwipe, view({ cardIndex: 2 })), true);
+
+    const complexityOffered = reduceDiscoveryCoaching(afterSwipe, {
+      type: 'offerTip',
+      tip: 'tipComplexity',
+      cardIndex: 2,
+    });
+    assert.equal(visibleCoach(complexityOffered, view({ cardIndex: 2 })), 'tipComplexity');
+
+    const afterVertical = reduceDiscoveryCoaching(complexityOffered, {
+      type: 'swipedVertical',
+    });
+    assert.equal(afterVertical.complexityDiscovered, true);
+    assert.equal(nextCoachTip(afterVertical), null);
+    assert.equal(coachContextReady(afterVertical, view({ cardIndex: 3 })), false);
   });
 
-  it('never offers swipe coaching if the user already swiped', () => {
-    const discovered = reduceDiscoveryCoaching(state(), { type: 'swiped' });
-    assert.equal(swipeCoachContextReady(discovered, view({ cardIndex: 0 })), false);
-    assert.equal(visibleCoach(discovered, view()), null);
+  it('never offers two tips at once and refuses out-of-order offers', () => {
+    const offered = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 0,
+    });
+    const second = reduceDiscoveryCoaching(offered, {
+      type: 'offerTip',
+      tip: 'tipSwipe',
+      cardIndex: 0,
+    });
+    assert.equal(second.offeredTip, 'tipTap');
+    assert.equal(visibleCoach(second, view()), 'tipTap');
+
+    const skipAhead = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipSwipe',
+      cardIndex: 0,
+    });
+    assert.equal(skipAhead.offeredTip, null);
   });
 
-  it('does not offer swipe coaching on later cards, while flipped, or on deck status', () => {
-    assert.equal(swipeCoachContextReady(state(), view({ cardIndex: 1 })), false);
-    assert.equal(swipeCoachContextReady(state(), view({ flipped: true })), false);
-    assert.equal(swipeCoachContextReady(state(), view({ deckStatus: true })), false);
+  it('skips tips whose actions were already discovered', () => {
+    const afterTap = reduceDiscoveryCoaching(state(), { type: 'tapped' });
+    assert.equal(tipResolved(afterTap, 'tipTap'), true);
+    assert.equal(nextCoachTip(afterTap), 'tipSwipe');
+    assert.equal(coachContextReady(afterTap, view({ cardIndex: 0 })), true);
 
-    const offered = reduceDiscoveryCoaching(state(), { type: 'offerSwipe' });
+    const swipeOffered = reduceDiscoveryCoaching(afterTap, {
+      type: 'offerTip',
+      tip: 'tipSwipe',
+      cardIndex: 0,
+    });
+    assert.equal(visibleCoach(swipeOffered, view()), 'tipSwipe');
+  });
+
+  it('dismisses the visible tip on chip tap and does not return that tip', () => {
+    const offered = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 0,
+    });
+    const dismissed = reduceDiscoveryCoaching(offered, { type: 'dismissTip' });
+    assert.equal(dismissed.tipTapDismissed, true);
+    assert.equal(dismissed.offeredTip, null);
+    assert.equal(tipResolved(dismissed, 'tipTap'), true);
+    assert.equal(nextCoachTip(dismissed), 'tipSwipe');
+    assert.equal(coachContextReady(dismissed, view({ cardIndex: 0 })), false);
+    assert.equal(coachContextReady(dismissed, view({ cardIndex: 1 })), true);
+  });
+
+  it('hides coaching while flipped or on deck status', () => {
+    const offered = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 0,
+    });
     assert.equal(visibleCoach(offered, view({ flipped: true })), null);
     assert.equal(visibleCoach(offered, view({ deckStatus: true })), null);
-    assert.equal(visibleCoach(offered, view({ cardIndex: 1 })), null);
-  });
-});
-
-describe('flip coaching', () => {
-  it('does not offer before the third card', () => {
-    assert.equal(FLIP_COACH_CARD_INDEX, 2);
-    assert.equal(flipCoachContextReady(state(), view({ cardIndex: 1 })), false);
+    assert.equal(coachContextReady(state(), view({ flipped: true })), false);
+    assert.equal(coachContextReady(state(), view({ deckStatus: true })), false);
   });
 
-  it('offers once after a short dwell on the third card, then clears after the first flip', () => {
-    assert.equal(FLIP_COACH_DELAY_MS, 800);
-    assert.equal(
-      flipCoachContextReady(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      true,
-    );
-
-    const offered = reduceDiscoveryCoaching(state(), { type: 'offerFlip' });
-    assert.equal(visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX })), 'flip');
-    assert.equal(
-      flipCoachContextReady(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      false,
-    );
-
-    const afterFlip = reduceDiscoveryCoaching(offered, { type: 'flipped' });
-    assert.equal(afterFlip.flipDiscovered, true);
-    assert.equal(visibleCoach(afterFlip, view({ cardIndex: FLIP_COACH_CARD_INDEX })), null);
-  });
-
-  it('does not nag on later cards after the third-card offer', () => {
-    const offered = reduceDiscoveryCoaching(state(), { type: 'offerFlip' });
-    assert.equal(visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX + 1 })), null);
-    assert.equal(
-      flipCoachContextReady(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX + 1 })),
-      false,
-    );
-  });
-
-  it('still offers flip coaching after an early swipe if the user never flipped', () => {
-    const afterSwipe = reduceDiscoveryCoaching(state(), { type: 'swiped' });
-    assert.equal(visibleCoach(afterSwipe, view({ cardIndex: 0 })), null);
-    assert.equal(
-      flipCoachContextReady(afterSwipe, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      true,
-    );
-  });
-
-  it('never offers flip coaching if the user already flipped', () => {
-    const discovered = reduceDiscoveryCoaching(state(), { type: 'flipped' });
-    assert.equal(
-      flipCoachContextReady(discovered, view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      false,
-    );
-    assert.equal(visibleCoach(discovered, view({ cardIndex: FLIP_COACH_CARD_INDEX })), null);
-  });
-
-  it('hides flip coaching while flipped or on deck status', () => {
-    const offered = reduceDiscoveryCoaching(state(), { type: 'offerFlip' });
-    assert.equal(
-      visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX, flipped: true })),
-      null,
-    );
-    assert.equal(
-      visibleCoach(offered, view({ cardIndex: FLIP_COACH_CARD_INDEX, deckStatus: true })),
-      null,
-    );
+  it('clears a stale offer when the card changes without resolving the tip', () => {
+    const offered = reduceDiscoveryCoaching(state(), {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 0,
+    });
+    const cleared = reduceDiscoveryCoaching(offered, { type: 'clearOffer' });
+    assert.equal(cleared.offeredTip, null);
+    assert.equal(cleared.tipCardIndex, 0);
+    assert.equal(tipResolved(cleared, 'tipTap'), false);
+    assert.equal(coachContextReady(cleared, view({ cardIndex: 1 })), true);
   });
 });
 
 describe('scheduleCoachOffer', () => {
-  it('fires swipe idle exactly at SWIPE_COACH_IDLE_MS and not 1 ms before', () => {
+  it('fires idle exactly at COACH_IDLE_MS and not 1 ms before', () => {
     const { timers, advance } = createFakeClock();
     let offers = 0;
     scheduleCoachOffer(
-      swipeCoachContextReady(state(), view({ cardIndex: 0 })),
-      SWIPE_COACH_IDLE_MS,
+      coachContextReady(state(), view({ cardIndex: 0 })),
+      COACH_IDLE_MS,
       () => {
         offers += 1;
       },
       timers,
     );
 
-    advance(SWIPE_COACH_IDLE_MS - 1);
+    advance(COACH_IDLE_MS - 1);
     assert.equal(offers, 0);
     advance(1);
     assert.equal(offers, 1);
@@ -198,90 +233,63 @@ describe('scheduleCoachOffer', () => {
     const offer = () => {
       offers += 1;
     };
-    const ready = swipeCoachContextReady(state(), view({ cardIndex: 0 }));
+    const ready = coachContextReady(state(), view({ cardIndex: 0 }));
 
-    const cancel = scheduleCoachOffer(ready, SWIPE_COACH_IDLE_MS, offer, timers);
-    advance(4000);
+    const cancel = scheduleCoachOffer(ready, COACH_IDLE_MS, offer, timers);
+    advance(3000);
     assert.equal(offers, 0);
 
     cancel();
-    scheduleCoachOffer(ready, SWIPE_COACH_IDLE_MS, offer, timers);
+    scheduleCoachOffer(ready, COACH_IDLE_MS, offer, timers);
 
     advance(1000);
     assert.equal(offers, 0);
-    advance(SWIPE_COACH_IDLE_MS - 1000);
+    advance(COACH_IDLE_MS - 1000);
     assert.equal(offers, 1);
   });
 
-  it('fires flip dwell at FLIP_COACH_DELAY_MS and not 799 ms', () => {
-    const { timers, advance } = createFakeClock();
-    let offers = 0;
-    scheduleCoachOffer(
-      flipCoachContextReady(state(), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      FLIP_COACH_DELAY_MS,
-      () => {
-        offers += 1;
-      },
-      timers,
-    );
-
-    advance(799);
-    assert.equal(offers, 0);
-    advance(1);
-    assert.equal(offers, 1);
-  });
-
-  it('schedules nothing when swipe or flip context is not ready', () => {
+  it('schedules nothing when context is not ready', () => {
     const { timers, advance } = createFakeClock();
     let offers = 0;
     const offer = () => {
       offers += 1;
     };
-    const alreadyOffered = state({ swipeCoachOffered: true });
-    const alreadyDiscovered = state({ swipeDiscovered: true });
+    const alreadyOffered = state({ offeredTip: 'tipTap', tipCardIndex: 0 });
+    const sequenceDone = state({
+      tapDiscovered: true,
+      swipeDiscovered: true,
+      complexityDiscovered: true,
+    });
 
     scheduleCoachOffer(
-      swipeCoachContextReady(state(), view({ cardIndex: 1 })),
-      SWIPE_COACH_IDLE_MS,
+      coachContextReady(state(), view({ flipped: true })),
+      COACH_IDLE_MS,
       offer,
       timers,
     );
     scheduleCoachOffer(
-      swipeCoachContextReady(state(), view({ flipped: true })),
-      SWIPE_COACH_IDLE_MS,
+      coachContextReady(alreadyOffered, view()),
+      COACH_IDLE_MS,
       offer,
       timers,
     );
     scheduleCoachOffer(
-      swipeCoachContextReady(alreadyOffered, view()),
-      SWIPE_COACH_IDLE_MS,
-      offer,
-      timers,
-    );
-    scheduleCoachOffer(
-      swipeCoachContextReady(alreadyDiscovered, view()),
-      SWIPE_COACH_IDLE_MS,
-      offer,
-      timers,
-    );
-    scheduleCoachOffer(
-      flipCoachContextReady(state({ flipDiscovered: true }), view({ cardIndex: FLIP_COACH_CARD_INDEX })),
-      FLIP_COACH_DELAY_MS,
+      coachContextReady(sequenceDone, view()),
+      COACH_IDLE_MS,
       offer,
       timers,
     );
 
-    advance(SWIPE_COACH_IDLE_MS);
-    advance(FLIP_COACH_DELAY_MS);
+    advance(COACH_IDLE_MS);
     assert.equal(offers, 0);
   });
 
-  it('does not fire late after cancel (flip / deck-status cleanup)', () => {
+  it('does not fire late after cancel', () => {
     const { timers, advance } = createFakeClock();
     let offers = 0;
     const cancel = scheduleCoachOffer(
-      swipeCoachContextReady(state(), view()),
-      SWIPE_COACH_IDLE_MS,
+      coachContextReady(state(), view()),
+      COACH_IDLE_MS,
       () => {
         offers += 1;
       },
@@ -289,64 +297,83 @@ describe('scheduleCoachOffer', () => {
     );
 
     cancel();
-    advance(SWIPE_COACH_IDLE_MS + 100);
+    advance(COACH_IDLE_MS + 100);
     assert.equal(offers, 0);
   });
 });
 
 describe('shouldAnimateCoachPeek', () => {
-  it('skips compulsory animation when reduced motion is requested', () => {
-    assert.equal(shouldAnimateCoachPeek(false), true);
+  it('never peeks under §12.3 (tips sit on the shell)', () => {
+    assert.equal(shouldAnimateCoachPeek(false), false);
     assert.equal(shouldAnimateCoachPeek(true), false);
+  });
+
+  it('coaching hook gates tip fade with useReducedMotion (RM → instant)', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(path.join(here, '../hooks/useDiscoveryCoaching.ts'), 'utf8');
+    assert.match(src, /useReducedMotion\(\)/);
+    assert.match(src, /animateAppear:\s*!reduceMotion/);
+  });
+
+  it('skips RN-web screen-reader probe so visual tips still show (Lz-39 gate)', () => {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(path.join(here, '../hooks/useDiscoveryCoaching.ts'), 'utf8');
+    assert.match(src, /shouldQueryScreenReaderForNav/);
   });
 });
 
 describe('coachMessageKey', () => {
-  it('maps coach kinds to short action-oriented copy keys', () => {
-    assert.equal(coachMessageKey('swipe'), 'swipeCoach');
-    assert.equal(coachMessageKey('flip'), 'flipCoach');
+  it('maps tips to tipTap / tipSwipe / tipComplexity copy keys', () => {
+    assert.equal(coachMessageKey('tipTap'), 'tipTap');
+    assert.equal(coachMessageKey('tipSwipe'), 'tipSwipe');
+    assert.equal(coachMessageKey('tipComplexity'), 'tipComplexity');
   });
 });
 
-describe('discovery coaching session', () => {
-  it('persists swipe/flip discovery for the JS session', () => {
-    setDiscoveryCoachingSession(reduceDiscoveryCoaching(state(), { type: 'swiped' }));
-    assert.equal(getDiscoveryCoachingSession().swipeDiscovered, true);
+describe('discovery coaching session + Replay', () => {
+  it('persists discovery for the JS session', () => {
+    setDiscoveryCoachingSession(reduceDiscoveryCoaching(state(), { type: 'tapped' }));
+    assert.equal(getDiscoveryCoachingSession().tapDiscovered, true);
     resetDiscoveryCoachingSession();
     assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
   });
 
-  it('replay reset clears offered + discovered flags for a new coaching sequence', () => {
+  it('replay reset clears offered + discovered flags and restarts at tip 1', () => {
     setDiscoveryCoachingSession({
+      tapDiscovered: true,
       swipeDiscovered: true,
-      flipDiscovered: true,
-      swipeCoachOffered: true,
-      flipCoachOffered: true,
+      complexityDiscovered: true,
+      tipTapDismissed: true,
+      tipSwipeDismissed: true,
+      tipComplexityDismissed: true,
+      offeredTip: 'tipComplexity',
+      tipCardIndex: 4,
       replayAnchorIndex: 0,
     });
     resetDiscoveryCoachingSession();
     assert.deepEqual(getDiscoveryCoachingSession(), INITIAL_DISCOVERY_COACHING_STATE);
+    assert.equal(nextCoachTip(getDiscoveryCoachingSession()), 'tipTap');
     assert.equal(
-      swipeCoachContextReady(getDiscoveryCoachingSession(), view({ cardIndex: 0 })),
+      coachContextReady(getDiscoveryCoachingSession(), view({ cardIndex: 0 })),
       true,
     );
   });
 
-  it('replay at cardIndex 5 arms swipe at 5 and flip at 7', () => {
+  it('replay at cardIndex 5 arms tipTap at 5 (not earlier cards)', () => {
     resetDiscoveryCoachingSession(5);
     const s = getDiscoveryCoachingSession();
     assert.equal(s.replayAnchorIndex, 5);
-    assert.equal(swipeCoachContextReady(s, view({ cardIndex: 5 })), true);
-    assert.equal(swipeCoachContextReady(s, view({ cardIndex: 0 })), false);
-    assert.equal(flipCoachContextReady(s, view({ cardIndex: 7 })), true);
-    assert.equal(flipCoachContextReady(s, view({ cardIndex: 2 })), false);
+    assert.equal(nextCoachTip(s), 'tipTap');
+    assert.equal(coachContextReady(s, view({ cardIndex: 5 })), true);
+    assert.equal(coachContextReady(s, view({ cardIndex: 0 })), false);
+    assert.equal(coachContextReady(s, view({ cardIndex: 4 })), false);
 
-    const swipeOffered = reduceDiscoveryCoaching(s, { type: 'offerSwipe' });
-    assert.equal(visibleCoach(swipeOffered, view({ cardIndex: 5 })), 'swipe');
-    assert.equal(visibleCoach(swipeOffered, view({ cardIndex: 0 })), null);
-
-    const flipOffered = reduceDiscoveryCoaching(s, { type: 'offerFlip' });
-    assert.equal(visibleCoach(flipOffered, view({ cardIndex: 7 })), 'flip');
-    assert.equal(visibleCoach(flipOffered, view({ cardIndex: 2 })), null);
+    const offered = reduceDiscoveryCoaching(s, {
+      type: 'offerTip',
+      tip: 'tipTap',
+      cardIndex: 5,
+    });
+    assert.equal(visibleCoach(offered, view({ cardIndex: 5 })), 'tipTap');
+    assert.equal(visibleCoach(offered, view({ cardIndex: 0 })), null);
   });
 });

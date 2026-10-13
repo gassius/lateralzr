@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccessibleNavRow } from '@/components/AccessibleNavRow';
 import { AppMenuSheet } from '@/components/AppMenuSheet';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
+import { CoachHint } from '@/components/CoachHint';
 import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import {
   ConceptCardStack,
@@ -55,6 +56,7 @@ import {
   shouldPersistLateralityAfterSwap,
   type LateralityGrade,
 } from '@/lib/laterality';
+import { coachHintSlotHeight } from '@/lib/coachHintPresentation';
 import {
   cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
@@ -136,6 +138,14 @@ export default function HomeScreen() {
   const replayGestureTipsRef = useRef<() => void>(() => {});
   /** React state mirrors activeLocale so menu / chrome re-render on pick. */
   const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
+  /** §12.3 tip chip — in-flow between card and Laterality, never on the card. */
+  const [coachTip, setCoachTip] = useState<{
+    text: string;
+    animateAppear: boolean;
+    onDismiss: () => void;
+  } | null>(null);
+  /** Measured tip band height; falls back to 2-line reserve until laid out. */
+  const [coachTipBandHeight, setCoachTipBandHeight] = useState(0);
   const [localeReady, setLocaleReady] = useState(false);
 
   const [loadingMore, setLoadingMore] = useState(false);
@@ -732,6 +742,20 @@ export default function HomeScreen() {
     });
   }, []);
 
+  const onCoachTipChange = useCallback(
+    (
+      tip: {
+        text: string;
+        animateAppear: boolean;
+        onDismiss: () => void;
+      } | null,
+    ) => {
+      if (tip == null) setCoachTipBandHeight(0);
+      setCoachTip(tip);
+    },
+    [],
+  );
+
   const dismissComplexityCue = useCallback(() => {
     setComplexityCue(null);
   }, []);
@@ -899,9 +923,15 @@ export default function HomeScreen() {
         </View>
       ) : null}
       {(() => {
+        const controlGap = lateralityCardGap(usableHeight);
+        const tipBand = coachTip
+          ? Math.max(coachTipBandHeight, coachHintSlotHeight())
+          : 0;
+        // Shrink the card by tip band + one flex gap so Laterality stays put (AD Lz-48).
+        const tipReserve = coachTip ? tipBand + controlGap : 0;
         const cardLateralityGroup = (
           <View
-            style={[styles.cardLateralityGroup, { gap: lateralityCardGap(usableHeight) }]}
+            style={[styles.cardLateralityGroup, { gap: controlGap }]}
             testID="card-laterality-group"
           >
             <ConceptCardStack
@@ -914,7 +944,8 @@ export default function HomeScreen() {
               onSwipeForwardVertical={onSwipeForwardVertical}
               availableHeight={
                 cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-                (accessibleNavVisible ? accessibleNavHeight : 0)
+                (accessibleNavVisible ? accessibleNavHeight : 0) -
+                tipReserve
               }
               preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
@@ -923,6 +954,7 @@ export default function HomeScreen() {
               onRetryLoadMore={retryLoadMore}
               sheetOpen={lateralitySheetOpen || appMenuOpen}
               onReplayGestureTipsReady={onReplayGestureTipsReady}
+              onCoachTipChange={onCoachTipChange}
             />
             {accessibleNavVisible ? (
               <AccessibleNavRow
@@ -934,6 +966,20 @@ export default function HomeScreen() {
                   cardStackRef.current?.runAction(action);
                 }}
               />
+            ) : null}
+            {coachTip ? (
+              <View
+                style={styles.coachTipSlot}
+                testID="coach-tip-slot"
+                onLayout={(e) => setCoachTipBandHeight(e.nativeEvent.layout.height)}
+              >
+                <CoachHint
+                  text={coachTip.text}
+                  animateAppear={coachTip.animateAppear}
+                  surface="shell"
+                  onDismiss={coachTip.onDismiss}
+                />
+              </View>
             ) : null}
             <LateralityControl
               laterality={laterality}
@@ -958,7 +1004,13 @@ export default function HomeScreen() {
             />
             {complexityCue ? (
               <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                style={[
+                  styles.complexityCueSlot,
+                  {
+                    bottom:
+                      lateralityControlHeight + (coachTip ? tipBand + controlGap : 4),
+                  },
+                ]}
                 pointerEvents="none"
               >
                 <ComplexityCue
@@ -968,7 +1020,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark ? (
+            ) : showSessionComplexityMark && !coachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"
@@ -1074,6 +1126,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 20,
     elevation: 20,
+  },
+  /** §12.3 tip chip — in-flow between card and Laterality (flex gap ≥ 8px clear). */
+  coachTipSlot: {
+    width: '100%',
+    paddingHorizontal: practiceScreenGutter(),
+    alignItems: 'center',
   },
   error: {
     color: color.ink,

@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, Platform } from 'react-native';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { shouldQueryScreenReaderForNav } from '@/lib/cardActions';
 import {
-  FLIP_COACH_DELAY_MS,
-  flipCoachContextReady,
+  COACH_IDLE_MS,
+  coachContextReady,
   getDiscoveryCoachingSession,
+  nextCoachTip,
   reduceDiscoveryCoaching,
   resetDiscoveryCoachingSession,
   scheduleCoachOffer,
   setDiscoveryCoachingSession,
-  shouldAnimateCoachPeek,
-  SWIPE_COACH_IDLE_MS,
-  swipeCoachContextReady,
   visibleCoach,
-  type CoachKind,
+  type CoachTip,
   type DiscoveryCoachingEvent,
   type DiscoveryCoachingState,
   type DiscoveryCoachingView,
@@ -36,24 +36,39 @@ function commitEvent(
 }
 
 /**
- * Session-scoped swipe/flip coaching. Idle timer resets on pan/tap; flip coach
- * is card-count based (third card) and does not reset on pan.
+ * Session-scoped §12.3 tip sequence (tipTap → tipSwipe → tipComplexity).
+ * Idle timer resets on pan/tap; Replay re-arms from the current card.
+ * Motion prefers app-wide {@link useReducedMotion} (Lz-46): under reduced
+ * motion the tip chip appears instantly (no fade/slide/pulse).
  */
 export function useDiscoveryCoaching({
   cardIndex,
   flipped,
   deckStatus,
 }: UseDiscoveryCoachingArgs): {
-  coach: CoachKind | null;
-  peekEnabled: boolean;
+  /** Visual tip when not on the screen-reader path. */
+  coach: CoachTip | null;
+  /**
+   * Fade-in for the tip chip. False under reduced motion (instant show).
+   * Peek / slide are never used under §12.3.
+   */
+  animateAppear: boolean;
+  /** True when reduced motion is preferred — callers skip peek. */
+  reduceMotion: boolean;
+  /** Screen-reader path: next tip key for the card; suppresses visual tip. */
+  a11yHint: CoachTip | null;
+  screenReaderEnabled: boolean;
   noteInteraction: () => void;
-  noteSwiped: () => void;
-  noteFlipped: () => void;
+  noteTapped: () => void;
+  noteSwipedHorizontal: () => void;
+  noteSwipedVertical: () => void;
+  dismissTip: () => void;
   /** App menu “Replay gesture tips”: reset session state and re-arm timers. */
   replayGestureTips: () => void;
 } {
   const [state, setState] = useState<DiscoveryCoachingState>(getDiscoveryCoachingSession);
   const reduceMotion = useReducedMotion();
+  const [screenReaderEnabled, setScreenReaderEnabled] = useState(false);
   const [idleEpoch, setIdleEpoch] = useState(0);
 
   const view: DiscoveryCoachingView = useMemo(
@@ -61,16 +76,43 @@ export function useDiscoveryCoaching({
     [cardIndex, flipped, deckStatus],
   );
 
+  useEffect(() => {
+    // RN-web always reports screen reader enabled — same gate as accessible nav (Lz-39).
+    if (!shouldQueryScreenReaderForNav(Platform.OS)) {
+      setScreenReaderEnabled(false);
+      return;
+    }
+    let mounted = true;
+    void AccessibilityInfo.isScreenReaderEnabled().then((enabled) => {
+      if (mounted) setScreenReaderEnabled(enabled);
+    });
+    const sub = AccessibilityInfo.addEventListener('screenReaderChanged', (enabled) => {
+      setScreenReaderEnabled(enabled);
+    });
+    return () => {
+      mounted = false;
+      sub?.remove();
+    };
+  }, []);
+
   const noteInteraction = useCallback(() => {
     setIdleEpoch((n) => n + 1);
   }, []);
 
-  const noteSwiped = useCallback(() => {
-    commitEvent({ type: 'swiped' }, setState);
+  const noteTapped = useCallback(() => {
+    commitEvent({ type: 'tapped' }, setState);
   }, []);
 
-  const noteFlipped = useCallback(() => {
-    commitEvent({ type: 'flipped' }, setState);
+  const noteSwipedHorizontal = useCallback(() => {
+    commitEvent({ type: 'swipedHorizontal' }, setState);
+  }, []);
+
+  const noteSwipedVertical = useCallback(() => {
+    commitEvent({ type: 'swipedVertical' }, setState);
+  }, []);
+
+  const dismissTip = useCallback(() => {
+    commitEvent({ type: 'dismissTip' }, setState);
   }, []);
 
   const replayGestureTips = useCallback(() => {
@@ -79,28 +121,47 @@ export function useDiscoveryCoaching({
     setIdleEpoch((n) => n + 1);
   }, [cardIndex]);
 
+  // Leaving a card while a tip is offered clears the visual offer so the
+  // sequence can continue on a later card (tip stays unresolved).
   useEffect(() => {
-    return scheduleCoachOffer(swipeCoachContextReady(state, view), SWIPE_COACH_IDLE_MS, () => {
-      commitEvent({ type: 'offerSwipe' }, setState);
+    if (state.offeredTip != null && state.tipCardIndex != null && state.tipCardIndex !== cardIndex) {
+      commitEvent({ type: 'clearOffer' }, setState);
+    }
+  }, [cardIndex, state.offeredTip, state.tipCardIndex]);
+
+  useEffect(() => {
+    return scheduleCoachOffer(coachContextReady(state, view), COACH_IDLE_MS, () => {
+      setState((prev) => {
+        const tip = nextCoachTip(prev);
+        if (tip == null) return prev;
+        const next = reduceDiscoveryCoaching(prev, {
+          type: 'offerTip',
+          tip,
+          cardIndex: view.cardIndex,
+        });
+        if (next !== prev) setDiscoveryCoachingSession(next);
+        return next;
+      });
     });
   }, [state, view, idleEpoch]);
 
-  useEffect(() => {
-    return scheduleCoachOffer(flipCoachContextReady(state, view), FLIP_COACH_DELAY_MS, () => {
-      commitEvent({ type: 'offerFlip' }, setState);
-    });
-  }, [state, view]);
-
-  const coach = visibleCoach(state, view);
-  /** Also gates the coach copy fade/slide; reduced motion is text-only. */
-  const peekEnabled = shouldAnimateCoachPeek(reduceMotion);
+  const offered = visibleCoach(state, view);
+  /** Assistive tech: next unresolved tip as a card hint — no visual tip spam. */
+  const a11yHint: CoachTip | null = screenReaderEnabled ? nextCoachTip(state) : null;
+  const coach = screenReaderEnabled ? null : offered;
 
   return {
     coach,
-    peekEnabled,
+    /** Full motion: short fade; reduced motion: instant (no slide / pulse). */
+    animateAppear: !reduceMotion,
+    reduceMotion,
+    a11yHint,
+    screenReaderEnabled,
     noteInteraction,
-    noteSwiped,
-    noteFlipped,
+    noteTapped,
+    noteSwipedHorizontal,
+    noteSwipedVertical,
+    dismissTip,
     replayGestureTips,
   };
 }

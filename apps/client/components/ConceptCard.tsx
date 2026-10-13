@@ -73,7 +73,6 @@ import {
   type ConceptFrontTitleLayout,
 } from '@/lib/conceptFrontTitle';
 import type { PatternRect } from '@/lib/patternPlacement';
-import { CoachHint } from './CoachHint';
 import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
@@ -95,10 +94,11 @@ type ConceptCardProps = {
   reduceMotion?: boolean;
   /** True when this URL was successfully prefetched (smoother reveal, shorter transition). */
   isMediaPrefetched: boolean;
-  /** Momentary coaching copy on the front face; omit after the gesture is discovered. */
-  coachHint?: string | null;
-  /** Fade/slide the coach in. False under reduced motion (text-only). */
-  animateCoachAppear?: boolean;
+  /**
+   * Screen-reader coaching path (§12.3): tip copy as accessibilityHint instead
+   * of a visual chip. Visual tips render in the shell control region.
+   */
+  accessibilityHint?: string;
   /** 0–1 light flip peek for coaching; ignored once the card is actually flipped. */
   flipPeek?: SharedValue<number>;
   /**
@@ -116,8 +116,7 @@ export function ConceptCard({
   flipped,
   reduceMotion = false,
   isMediaPrefetched,
-  coachHint,
-  animateCoachAppear = true,
+  accessibilityHint,
   flipPeek,
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
@@ -513,9 +512,6 @@ export function ConceptCard({
           ) : null}
         </View>
       </ScrollView>
-      {coachHint ? (
-        <CoachHint text={coachHint} animateAppear={animateCoachAppear} surface="orange" />
-      ) : null}
     </View>
   );
 
@@ -793,7 +789,11 @@ export function ConceptCard({
   const backA11yHidden = !flipped;
 
   return (
-    <View style={styles.card}>
+    <View
+      style={styles.card}
+      accessibilityHint={accessibilityHint}
+      accessible={accessibilityHint != null ? true : undefined}
+    >
       {mediaUri.length > 0 && imageSource ? (
         <Image
           source={imageSource}

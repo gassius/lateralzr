@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -8,8 +8,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   COACH_APPEAR_DURATION_MS,
-  COACH_APPEAR_TRANSLATE_Y,
+  coachHintHitSlop,
   COACH_HINT_OPACITY,
+  COACH_HINT_PADDING_H,
+  COACH_HINT_PADDING_V,
+  COACH_HINT_RADIUS,
   coachHintPalette,
   type CoachHintSurface,
 } from '@/lib/coachHintPresentation';
@@ -17,13 +20,23 @@ import { textStyle } from '@/theme/typography';
 
 type CoachHintProps = {
   text: string;
-  /** Fade/slide on appear. False for reduced-motion (text-only, no motion). */
-  animateAppear: boolean;
-  /** Orange card is the current home; teal is the letterbox if coaching ever sits off-card. */
+  /**
+   * When true, fade in over {@link COACH_APPEAR_DURATION_MS} (no slide / pulse).
+   * False under reduced motion — instant show (opacity 1).
+   */
+  animateAppear?: boolean;
+  /** Shell control-region tip is the §12.3 default. */
   surface?: CoachHintSurface;
+  /** Tap dismisses the tip (§12.3). */
+  onDismiss?: () => void;
 };
 
-export function CoachHint({ text, animateAppear, surface = 'orange' }: CoachHintProps) {
+export function CoachHint({
+  text,
+  animateAppear = true,
+  surface = 'shell',
+  onDismiss,
+}: CoachHintProps) {
   const progress = useSharedValue(animateAppear ? 0 : 1);
   const colors = coachHintPalette(surface);
 
@@ -41,49 +54,48 @@ export function CoachHint({ text, animateAppear, surface = 'orange' }: CoachHint
 
   const motionStyle = useAnimatedStyle(() => ({
     opacity: progress.value,
-    transform: [{ translateY: (1 - progress.value) * COACH_APPEAR_TRANSLATE_Y }],
   }));
 
   return (
     <Animated.View
-      pointerEvents="none"
       style={[styles.anchor, motionStyle]}
       accessibilityLiveRegion="polite"
       testID="coach-hint"
     >
-      <View
+      <Pressable
+        onPress={onDismiss}
+        accessibilityRole="button"
+        accessibilityLabel={text}
+        disabled={onDismiss == null}
+        hitSlop={coachHintHitSlop()}
         style={[
           styles.chip,
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
         ]}
       >
-        <Text style={[styles.copy, textStyle('row'), { color: colors.text }]}>{text}</Text>
-      </View>
+        <Text style={[styles.copy, textStyle('label'), { color: colors.text }]}>{text}</Text>
+      </Pressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  /** Overlay so coaching does not shrink the front well and un-center short labels. */
+  /** Parent slot positions this in the control region above the rail. */
   anchor: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 18,
     alignItems: 'center',
     opacity: COACH_HINT_OPACITY,
   },
   chip: {
     maxWidth: '100%',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingHorizontal: COACH_HINT_PADDING_H,
+    paddingVertical: COACH_HINT_PADDING_V,
+    borderRadius: COACH_HINT_RADIUS,
   },
   chipBare: {
     backgroundColor: 'transparent',
     paddingHorizontal: 4,
   },
   copy: {
-    textAlign: 'center',
+    textAlign: 'left',
   },
 });
