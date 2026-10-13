@@ -1,0 +1,20 @@
+[
+  {
+    "file": "card-front_short-label_390x844_en.png",
+    "ratio": 0.07642939603840078,
+    "percent": 7.642939603840078,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 100630,
+    "diffImage": "card-front_short-label_390x844_en.diff.png"
+  },
+  {
+    "file": "laterality-bar_grade-3_390x844_en.png",
+    "ratio": 0.07642939603840078,
+    "percent": 7.642939603840078,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 100630,
+    "diffImage": "laterality-bar_grade-3_390x844_en.diff.png"
+  }
+]
