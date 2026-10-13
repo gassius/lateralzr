@@ -1012,11 +1012,13 @@ export default function HomeScreen() {
       ) : null}
       {(() => {
         const controlGap = lateralityCardGap(usableHeight);
-        const tipBand = visibleCoachTip
+        // Reserve from coachTip (not visibleCoachTip): suppressing the tip on
+        // fetch-failed / no-next must not grow the card (PRR #119 M1).
+        const tipBand = coachTip
           ? Math.max(coachTipBandHeight, coachHintSlotHeight())
           : 0;
         // Shrink the card by tip band + one flex gap so Laterality stays put (AD Lz-48).
-        const tipReserve = visibleCoachTip ? tipBand + controlGap : 0;
+        const tipReserve = coachTip ? tipBand + controlGap : 0;
         const cardLateralityGroup = (
           <View
             style={[styles.cardLateralityGroup, { gap: controlGap }]}
@@ -1067,6 +1069,15 @@ export default function HomeScreen() {
                   onDismiss={visibleCoachTip.onDismiss}
                 />
               </View>
+            ) : coachTip && suppressCoachTip ? (
+              // Invisible stand-in so tipReserve + flex gap still hold Laterality.
+              <View
+                style={[styles.coachTipSlot, { minHeight: tipBand }]}
+                testID="coach-tip-reserve"
+                pointerEvents="none"
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              />
             ) : null}
             <LateralityControl
               laterality={laterality}
@@ -1096,7 +1107,7 @@ export default function HomeScreen() {
                   styles.complexityCueSlot,
                   {
                     bottom:
-                      lateralityControlHeight + (visibleCoachTip ? tipBand + controlGap : 4),
+                      lateralityControlHeight + (coachTip ? tipBand + controlGap : 4),
                   },
                 ]}
                 pointerEvents="none"
@@ -1108,7 +1119,7 @@ export default function HomeScreen() {
                   onHidden={dismissComplexityCue}
                 />
               </View>
-            ) : showSessionComplexityMark && !visibleCoachTip ? (
+            ) : showSessionComplexityMark && !coachTip ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
                 pointerEvents="none"

@@ -103,14 +103,29 @@ describe('laterality chrome grouping', () => {
     assert.ok(STATUS_SLOT_MIN_WIDTH * 2 + 8 <= LATERALITY_BAR_MIN_ROW_WIDTH);
   });
 
-  it('keeps chrome reserve identical whether or not a 2-line status fills the band', () => {
-    // Empty band and filled band share LATERALITY_CONTROL_HEIGHT → same card stack.
-    const idle = lateralityChromeReserve(844, LATERALITY_CONTROL_HEIGHT);
-    const withStatus = lateralityChromeReserve(844, LATERALITY_CONTROL_HEIGHT);
-    assert.equal(idle, withStatus);
+  it('keeps chrome reserve identical when status fills the reserved band', () => {
+    // Empty band (idle) vs filled-to-capacity band — same control height → same card.
+    const emptyBandControl =
+      STATUS_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+    const filledBandControl =
+      STATUS_BAND_LINE_HEIGHT * 2 + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+    assert.equal(emptyBandControl, LATERALITY_CONTROL_HEIGHT);
+    assert.equal(filledBandControl, LATERALITY_CONTROL_HEIGHT);
     assert.equal(
-      cardStackAvailableHeight(844, LATERALITY_CONTROL_HEIGHT),
-      cardStackAvailableHeight(844, LATERALITY_CONTROL_HEIGHT),
+      lateralityChromeReserve(844, emptyBandControl),
+      lateralityChromeReserve(844, filledBandControl),
+    );
+    assert.equal(
+      cardStackAvailableHeight(844, emptyBandControl),
+      cardStackAvailableHeight(844, filledBandControl),
+    );
+
+    // Contrast: growing past the band (old squeezed multi-line status) must shrink the card.
+    const overflowControl = emptyBandControl + STATUS_BAND_LINE_HEIGHT;
+    assert.notEqual(overflowControl, emptyBandControl);
+    assert.notEqual(
+      cardStackAvailableHeight(844, emptyBandControl),
+      cardStackAvailableHeight(844, overflowControl),
     );
   });
 });
