@@ -42,11 +42,11 @@
   },
   {
     "file": "card-back_with-photo-200_390x844_en.png",
-    "ratio": 0.18231103414752703,
-    "percent": 18.231103414752702,
+    "ratio": 0.17727397010572365,
+    "percent": 17.727397010572364,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 240038,
+    "mismatchedPixels": 233406,
     "diffImage": "card-back_with-photo-200_390x844_en.diff.png"
   },
   {
