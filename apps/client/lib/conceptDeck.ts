@@ -1,8 +1,11 @@
+import type { ConceptMedia } from './api';
+
 export type DeckConcept = {
   concept: string;
   shortDescription: string;
   wikiUrl: string | null;
   mediaUrl: string | null;
+  media?: ConceptMedia[];
 };
 
 export type DeckGraphNode = {
@@ -11,6 +14,7 @@ export type DeckGraphNode = {
   shortDescription: string;
   wikiUrl: string | null;
   mediaUrl: string | null;
+  media?: ConceptMedia[];
 };
 
 export type DeckGraphEdge = {
@@ -43,6 +47,7 @@ function nodeToItem(node: DeckGraphNode): DeckConcept {
     shortDescription: node.shortDescription,
     wikiUrl: node.wikiUrl,
     mediaUrl: node.mediaUrl,
+    ...(node.media?.length ? { media: node.media } : {}),
   };
 }
 

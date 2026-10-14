@@ -653,6 +653,29 @@ export function ConceptCard({
     )
   ) : null;
 
+  // Credit only the displayed asset; other graph media may belong to a different locale.
+  const creditedMedia = item.media?.find((media) => media.url === item.mediaUrl);
+  const creditParts = [creditedMedia?.creator?.trim(), creditedMedia?.source?.trim()]
+    .filter((value): value is string => Boolean(value));
+  const license = creditedMedia?.license?.trim();
+  if (creditedMedia && license && creditParts.length === 0 && item.mediaUrl) {
+    try {
+      const host = new URL(item.mediaUrl).hostname;
+      creditParts.push(host === 'upload.wikimedia.org' ? t('wikimediaCommons') : host);
+    } catch {
+      // An unusable URL cannot provide a reliable source label.
+    }
+  }
+  const credit = [...new Set(creditParts)].join(', ');
+  const creditText = [credit, license].filter(Boolean).join(' · ');
+  const backCredit = showMediaLayer && creditedMedia && creditText ? (
+    <View onTouchStart={onBackInteractivePress} onPointerDown={onBackInteractivePress}>
+      <Text style={[textStyle('meta'), styles.credit]} testID="card-back-credit">
+        {t('imageCredit', { credit: creditText })}
+      </Text>
+    </View>
+  ) : null;
+
   const backCopy = (
     <View
       style={styles.copyCluster}
@@ -664,6 +687,7 @@ export function ConceptCard({
     >
       {backDescription}
       {backWiki}
+      {backCredit}
     </View>
   );
 
@@ -1044,6 +1068,10 @@ const styles = StyleSheet.create({
   },
   description: {
     color: color.ink,
+  },
+  credit: {
+    color: color.mutedOnPaper,
+    marginTop: 12,
   },
   linkHit: {
     alignSelf: 'flex-start',

@@ -8,6 +8,10 @@ const REL = path.join(FIXTURES, 'relationships');
 const IMAGES = path.join(FIXTURES, 'images');
 
 export type MockOptions = {
+  /** Exercise missing/disabled reference independently of image attribution. */
+  omitWikipedia?: boolean;
+  /** Match today’s API payload, which returns url/kind/license only. */
+  licenseOnlyMedia?: boolean;
   /** Hold load-more / subsequent relationship calls open this long (Node timer). */
   delayLoadMoreMs?: number;
   /** Hold the first relationships call open this long (intro / logo capture). */
@@ -215,7 +219,20 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
       await new Promise((r) => setTimeout(r, delayLoadMoreMs));
     }
 
-    const payload = pickRelationshipsFixture(body, relationshipsCalls);
+    let payload = pickRelationshipsFixture(body, relationshipsCalls);
+    if (options.omitWikipedia || options.licenseOnlyMedia) {
+      const graph = JSON.parse(payload);
+      for (const node of graph.data.nodes) {
+        if (options.omitWikipedia) node.wikiUrl = null;
+        if (options.licenseOnlyMedia) {
+          node.media = node.media.map(
+            ({ url, kind, license }: { url: string; kind: string; license: string }) =>
+              ({ url, kind, license }),
+          );
+        }
+      }
+      payload = JSON.stringify(graph);
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

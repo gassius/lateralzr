@@ -20,6 +20,7 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
+    await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveCount(0);
     await expect(cardBackTitle(page)).toHaveCount(0);
     await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
     await expect(page.getByLabel('About Mushroom')).toBeVisible();
@@ -76,6 +77,54 @@ test.describe('card back', () => {
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
   });
 
+  for (const reference of ['enabled', 'absent'] as const) {
+    test(`media credit remains with Wikipedia ${reference}`, async ({ page }) => {
+      await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
+        mock: { omitWikipedia: reference === 'absent' },
+      });
+      await flipCard(page);
+      const copy = cardBackCopy(page);
+      await expect(copy.getByTestId('card-back-credit')).toHaveText(
+        'Image: Lateralzr fixture photographer, Wikimedia Commons · CC BY-SA 4.0',
+      );
+      await expect(copy.getByTestId('card-back-credit')).toBeVisible();
+      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('font-size', '13px');
+      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('color', 'rgb(92, 98, 102)');
+      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('margin-top', '12px');
+      expect(await copy.getByTestId('card-back-credit').evaluate((el) =>
+        el.parentElement?.previousElementSibling?.getAttribute('data-testid'),
+      )).toBe(reference === 'enabled' ? 'card-back-wikipedia' : 'card-back-description');
+      await expect(copy.getByTestId('card-back-wikipedia')).toHaveCount(reference === 'enabled' ? 1 : 0);
+      await copy.getByTestId('card-back-credit').click();
+      await expect(copy).toBeVisible();
+    });
+  }
+
+  test('media credit prefix follows the active locale', async ({ page }) => {
+    await openApp(page, 'localizedConcept=Psicodélicos&onlyWithMedia=true&locale=es');
+    await flipCard(page);
+    await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
+      'Imagen: Lateralzr fixture photographer, Wikimedia Commons · CC BY-SA 4.0',
+    );
+  });
+
+  test('license-only API media credits use the image source', async ({ page }) => {
+    await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
+      mock: { licenseOnlyMedia: true },
+    });
+    await flipCard(page);
+    await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
+      'Image: Wikimedia Commons · CC BY-SA 4.0',
+    );
+  });
+
+  test('media without credit metadata has no credit row', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=diagram&onlyWithMedia=true');
+    await flipCard(page);
+    await expect(cardBackMedia(page)).toBeVisible();
+    await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveCount(0);
+  });
+
   // Art-director: scroll + min-28% band under large text — one viewport is enough.
   test('with photo at 200% e2e text scale', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% media-back capture');
@@ -84,6 +133,11 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.locator('[data-testid="card-back-description"]:visible').first()).toBeVisible();
+    const credit = cardBackCopy(page).getByTestId('card-back-credit');
+    await credit.scrollIntoViewIfNeeded();
+    await expect(credit).toBeVisible();
+    await expect(credit).toHaveCSS('font-size', '26px');
+    await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200', locale: 'en' });
   });
 
