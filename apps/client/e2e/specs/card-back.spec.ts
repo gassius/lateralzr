@@ -183,3 +183,73 @@ test.describe('card back', () => {
   });
 });
 
+
+// Functional layout and scroll checks only, at the single phone viewport.
+for (const concept of ['mushroom', 'no-description']) {
+  for (const scale of [1, 2]) {
+    test(`${concept} back uses lower reading region at ${scale * 100}% text`, async ({ page }) => {
+      await openApp(page, `canonicalConcept=${concept}&e2eTextScale=${scale}`);
+      await flipCard(page);
+      const scroll = cardBackScroll(page);
+      await expect(cardBackCopy(page)).toBeInViewport();
+      // The rendered content column owns the lower anchor; no pixel assertions.
+      await expect(scroll.locator(':scope > div').first()).toHaveCSS('justify-content', 'flex-end');
+      const insets = await cardBackCopy(page).evaluate((el) => {
+        const face = el.closest('[data-testid="card-back-without-media"]')!;
+        const copyBox = el.getBoundingClientRect();
+        const faceBox = face.getBoundingClientRect();
+        const style = getComputedStyle(face);
+        return {
+          bottom: faceBox.bottom - copyBox.bottom,
+          left: copyBox.left - faceBox.left,
+          right: faceBox.right - copyBox.right,
+          padding: Number.parseFloat(style.paddingBottom),
+        };
+      });
+      // Relative to the actual face padding, so a missing content minHeight
+      // cannot pass just because justifyContent still says flex-end.
+      expect(insets.bottom).toBeCloseTo(insets.padding, 0);
+      expect(insets.left).toBeCloseTo(insets.padding, 0);
+      expect(insets.right).toBeCloseTo(insets.padding, 0);
+      expect(await scroll.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
+      await dragCardBackCopyUp(page, 160);
+      expect(await readBackScrollTop(page)).toBe(0);
+      await expect(cardBackCopy(page)).toBeVisible();
+      if (concept === 'mushroom') {
+        await expect(page.getByTestId('card-back-wikipedia')).toBeInViewport();
+      } else {
+        await expect(page.getByTestId('card-back-wikipedia')).toHaveCount(0);
+      }
+    });
+  }
+}
+
+for (const scale of [1, 2]) {
+  test(`long no-media copy is reachable by scrolling at ${scale * 100}% text`, async ({ page }) => {
+    await openApp(page, `canonicalConcept=long-description&e2eTextScale=${scale}`);
+    await flipCard(page);
+    const scroll = cardBackScroll(page);
+    const description = page.locator('[data-testid="card-back-description"]:visible').first();
+    expect((await description.textContent())?.startsWith('A long reading passage')).toBe(true);
+    expect(await readBackScrollTop(page)).toBe(0);
+    // A Range checks whether the first/last character is reachable inside the
+    // scroll viewport, including 200% text, without comparing fixed positions.
+    const paragraphEdgeIsReachable = (el: Element, edge: 'first' | 'last') => {
+      const text = edge === 'first' ? el.firstChild! : el.lastChild!;
+      const length = text.textContent?.length ?? 0;
+      const start = edge === 'first' ? 0 : Math.max(0, length - 1);
+      const range = document.createRange();
+      range.setStart(text, start);
+      range.setEnd(text, Math.min(length, start + 1));
+      const ink = range.getBoundingClientRect();
+      const viewport = el.closest('[data-testid="card-back-scroll"]')!.getBoundingClientRect();
+      return ink.top >= viewport.top && ink.bottom <= viewport.bottom;
+    };
+    expect(await description.evaluate(paragraphEdgeIsReachable, 'first')).toBe(true);
+    await dragCardBackCopyUp(page, 160);
+    expect(await readBackScrollTop(page)).toBeGreaterThan(0);
+    await scroll.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    expect(await description.evaluate(paragraphEdgeIsReachable, 'last')).toBe(true);
+    await expect(cardBackCopy(page)).toBeVisible();
+  });
+}
