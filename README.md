@@ -1,6 +1,8 @@
 # Lateralzr API
 
-A Laravel 12 API server for **Lateralzr** - an application designed to improve lateral thinking skills, inspired by Edward de Bono's lateral thinking concepts and Brian Eno's Oblique Strategies card set.
+Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+
+A Laravel 12 API server for **Lateralzr** — designed to improve lateral thinking skills, inspired by Edward de Bono's lateral thinking concepts and Brian Eno's Oblique Strategies card set.
 
 ## Project Overview
 
@@ -15,7 +17,7 @@ Lateral thinking, as defined by Edward de Bono, is a method of problem-solving t
 - **Framework**: Laravel 12
 - **Development Environment**: Laravel Sail (Docker)
 - **Admin**: Filament 5 at `/admin` (Livewire/Blade; no Vite build)
-- **Client**: Expo (React Native / web) in `apps/client`
+- **Client**: Expo mobile app (iOS / Android; web preview only) in `apps/client`
 - **AI Integration**: Laravel AI SDK with Ollama (local LLM) or OpenRouter (production)
 - **AI Development Tools**: Laravel Boost (MCP/Agent integration)
 - **Database**: MySQL (via Sail)
@@ -375,7 +377,7 @@ Enrichment lives in `app/Services/Enrichment/*`. There is no live-HTTP `smoke` g
 
 CI runs `php artisan test` (respects `phpunit.xml`), `vendor/bin/pint --test` on the API job, and the Expo typecheck plus unit tests.
 
-The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots. Client PRs (draft or ready) capture a 390px English subset (touched screens when we can map them, otherwise a small smoke set). Draft vs ready does not change what runs. The full viewport/locale matrix starts when the `run-full-screenshots` label is added (and on push to `main`); that run posts its own check, **Client E2E full screenshots**, on the commit it tested. A new push removes the label. Other labels do not start, re-run, or cancel a Client E2E run.
+The required **Client E2E screenshots** check runs on every pull request so branch protection can require it. PRs that do not touch `apps/client/**` or Client E2E workflow/config finish that check green without capturing screenshots. Client PRs (draft or ready) capture a 390×844 English subset (touched screens when we can map them, otherwise a small smoke set). Draft vs ready does not change what runs. The full locale matrix starts when the `run-full-screenshots` label is added (and on push to `main`); that run posts its own check, **Client E2E full screenshots**, on the commit it tested. A new push removes the label. Other labels do not start, re-run, or cancel a Client E2E run. Design, QA, and E2E target one phone viewport: **390×844**.
 
 This project emphasizes test-driven development. New features should include unit tests for business logic and feature tests for API endpoints.
 
