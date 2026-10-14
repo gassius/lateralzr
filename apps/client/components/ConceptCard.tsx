@@ -572,7 +572,7 @@ export function ConceptCard({
         })
       : null;
   const scrollContentStyle = cardBackScrollContentStyle(
-    backFaceH,
+    showMediaLayer ? backFaceH - readingPadTop - facePad : backFaceH,
     showMediaLayer ? 0 : facePad,
     rhythm.scrollJustify,
   );
@@ -653,6 +653,29 @@ export function ConceptCard({
     )
   ) : null;
 
+  // Credit only the displayed asset; other graph media may belong to a different locale.
+  const creditedMedia = item.media?.find((media) => media.url === item.mediaUrl);
+  const creditParts = [creditedMedia?.creator?.trim(), creditedMedia?.source?.trim()]
+    .filter((value): value is string => Boolean(value));
+  const license = creditedMedia?.license?.trim();
+  if (creditedMedia && license && creditParts.length === 0 && item.mediaUrl) {
+    try {
+      const host = new URL(item.mediaUrl).hostname;
+      creditParts.push(host === 'upload.wikimedia.org' ? t('wikimediaCommons') : host);
+    } catch {
+      // An unusable URL cannot provide a reliable source label.
+    }
+  }
+  const credit = [...new Set(creditParts)].join(', ');
+  const creditText = [credit, license].filter(Boolean).join(' · ');
+  const backCredit = showMediaLayer && creditedMedia && creditText ? (
+    <View onTouchStart={onBackInteractivePress} onPointerDown={onBackInteractivePress}>
+      <Text style={[textStyle('meta'), styles.credit]} testID="card-back-credit">
+        {t('imageCredit', { credit: creditText })}
+      </Text>
+    </View>
+  ) : null;
+
   const backCopy = (
     <View
       style={styles.copyCluster}
@@ -664,6 +687,7 @@ export function ConceptCard({
     >
       {backDescription}
       {backWiki}
+      {backCredit}
     </View>
   );
 
@@ -792,11 +816,13 @@ export function ConceptCard({
       </Text>
       {backMediaLayer}
       <ScrollView
-        style={styles.backScroll}
-        contentContainerStyle={[
-          scrollContentStyle,
-          readingPadTop > 0 ? { paddingTop: readingPadTop } : null,
+        style={[
+          styles.backScroll,
+          // Keep the image/fade outside the reading scroll viewport. Scrolling
+          // overflowing copy must not slide opaque paper over the media band.
+          showMediaLayer ? { marginTop: readingPadTop, backgroundColor: color.paper } : null,
         ]}
+        contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={false}
         bounces
         nestedScrollEnabled
@@ -807,12 +833,12 @@ export function ConceptCard({
             styles.backInner,
             showMediaLayer ? styles.backReadingOnPaper : null,
             // paddingTop on the paper block covers the seam overlap so ink still
-            // clears the fade; paddingBottom holds the guide 24/20 inset.
+            // clears the fade; a fixed spacer below the scroller holds the bottom inset.
             showMediaLayer
               ? {
                   paddingHorizontal: facePad,
                   paddingTop: CARD_BACK_MEDIA_SEAM_OVERLAP,
-                  paddingBottom: facePad,
+                  paddingBottom: 0,
                 }
               : null,
             backLayout.expandMediaZone ? styles.backInnerExpand : null,
@@ -821,6 +847,15 @@ export function ConceptCard({
           {backCopy}
         </View>
       </ScrollView>
+      {showMediaLayer ? (
+        <View
+          style={{ height: facePad, backgroundColor: color.paper }}
+          testID="card-back-reading-inset"
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
     </View>
   );
 
@@ -1044,6 +1079,10 @@ const styles = StyleSheet.create({
   },
   description: {
     color: color.ink,
+  },
+  credit: {
+    color: color.mutedOnPaper,
+    marginTop: 12,
   },
   linkHit: {
     alignSelf: 'flex-start',

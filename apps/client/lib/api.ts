@@ -5,11 +5,21 @@ import { buildRelationshipsRequestBody } from '@/lib/testQueryParams';
 
 const API_URL = resolveApiBaseUrl();
 
+/** Media attribution belongs to the asset, independently of its reference link. */
+export type ConceptMedia = {
+  url: string;
+  kind: string;
+  license?: string | null;
+  creator?: string | null;
+  source?: string | null;
+};
+
 export type ConceptItem = {
   concept: string;
   shortDescription: string;
   wikiUrl: string | null;
   mediaUrl: string | null;
+  media?: ConceptMedia[];
 };
 
 export type ConceptGraphNode = {
@@ -19,6 +29,7 @@ export type ConceptGraphNode = {
   complexity: number;
   wikiUrl: string | null;
   mediaUrl: string | null;
+  media?: ConceptMedia[];
   /** Present on API payloads; used to reject cross-locale leakage. */
   locale?: string;
 };
