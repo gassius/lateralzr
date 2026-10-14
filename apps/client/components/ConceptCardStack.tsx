@@ -39,6 +39,7 @@ import {
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
+import { cardRadius } from '@/lib/cardLayout';
 import {
   buildCardAccessibilityActions,
   canRunCardAction,
@@ -1177,6 +1178,8 @@ const styles = StyleSheet.create({
   },
   a11ySurface: {
     ...StyleSheet.absoluteFill,
+    // The outer focus outline follows both faces without clipping its 2 px offset.
+    borderRadius: cardRadius(),
   },
   returnOverlay: {
     position: 'absolute',
