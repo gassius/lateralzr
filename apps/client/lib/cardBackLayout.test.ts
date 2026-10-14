@@ -61,9 +61,9 @@ test('Tide-style copy is balanced instead of stretched over an empty media hole'
   assert.equal(layout.expandMediaZone, false);
 });
 
-test('no-media rhythm centers body copy with guide type and link offset', () => {
+test('no-media rhythm bottom-aligns body copy with guide type and link offset', () => {
   const layout = composeCardBackLayout('absent');
-  assert.equal(layout.rhythm.scrollJustify, 'center');
+  assert.equal(layout.rhythm.scrollJustify, 'flex-end');
   assert.equal(layout.rhythm.descriptionFontSize, 18);
   assert.equal(layout.rhythm.descriptionLineHeight, 27);
   assert.equal(layout.rhythm.descriptionMarginBottom, 0);
@@ -118,7 +118,7 @@ test('failure wins over a decoded flag so a broken-image box cannot linger', () 
   assert.equal(layout.showMediaZone, false);
   assert.equal(layout.showMediaImage, false);
   assert.equal(layout.showMediaPlaceholder, false);
-  assert.equal(layout.rhythm.scrollJustify, 'center');
+  assert.equal(layout.rhythm.scrollJustify, 'flex-end');
 });
 
 test('scroll minHeight subtracts face padding (no border) so leftover space is real, not a percent no-op', () => {
@@ -132,11 +132,11 @@ test('scroll minHeight subtracts face padding (no border) so leftover space is r
   assert.equal(cardBackScrollMinHeight(Number.NaN), undefined);
 });
 
-test('scroll content style uses measured minHeight so short copy can center under flip', () => {
+test('scroll content style uses measured minHeight so short copy can bottom-align under flip', () => {
   assert.deepEqual(cardBackScrollContentStyle(480), {
     flexGrow: 1,
     minHeight: 440,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   });
   assert.deepEqual(cardBackScrollContentStyle(480, 24, 'flex-start'), {
     flexGrow: 1,
@@ -145,11 +145,11 @@ test('scroll content style uses measured minHeight so short copy can center unde
   });
   assert.deepEqual(cardBackScrollContentStyle(0), {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   });
   assert.deepEqual(cardBackScrollContentStyle(Number.NaN), {
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   });
 });
 

@@ -3,7 +3,7 @@
  * this module does not encode the lateral bridge to the previous/next card.
  *
  * Lz-27 (no-media / failed): paper reading region, no title, ScrollView with
- * centered short copy. Lz-28 owns the full-bleed media layer + fade
+ * bottom-anchored short copy. Lz-28 owns the full-bleed media layer + fade
  * (`lib/cardBackMedia.ts`); this module only toggles the with-media branch.
  */
 
@@ -14,7 +14,7 @@ export type CardBackMediaPhase = 'absent' | 'loading' | 'ready' | 'failed';
 export type CardBackLayoutMode = 'with-media' | 'without-media';
 
 /** How leftover viewport height is used on the back column. */
-export type CardBackScrollJustify = 'flex-start' | 'center';
+export type CardBackScrollJustify = 'flex-start' | 'flex-end';
 
 /**
  * Typography and placement for the description / link cluster.
@@ -54,7 +54,7 @@ export const CARD_BACK_WITH_MEDIA_RHYTHM: CardBackCopyRhythm = {
 };
 
 export const CARD_BACK_WITHOUT_MEDIA_RHYTHM: CardBackCopyRhythm = {
-  scrollJustify: 'center',
+  scrollJustify: 'flex-end',
   descriptionFontSize: BODY_SIZE,
   descriptionLineHeight: BODY_LINE_HEIGHT,
   descriptionMarginBottom: 0,
@@ -74,8 +74,9 @@ export type CardBackLayout = {
   /** With-media reading rhythm is top-stacked (image band claims leftover height). */
   expandMediaZone: boolean;
   /**
-   * Center the reading region in the ScrollView when there is no media layer
-   * (short copy sits mid-face; long copy grows upward and scrolls).
+   * Anchor the reading region at the bottom when there is no media layer.
+   * Short copy uses the media back’s bottom inset; long copy grows upward
+   * and the content column expands before scrolling, keeping its start reachable.
    */
   balanceCopy: boolean;
   /**

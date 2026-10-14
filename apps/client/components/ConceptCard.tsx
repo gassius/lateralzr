@@ -767,7 +767,7 @@ export function ConceptCard({
 
   /**
    * One ScrollView for both branches (Lz-27 / Lz-28). Measured minHeight from the
-   * untransformed front keeps center/flex-start real under the flip on RN Web.
+   * untransformed front keeps flex-end/flex-start real under the flip on RN Web.
    * Media is a full-bleed layer under the paper reading block — not an inner box.
    */
   const back = (
