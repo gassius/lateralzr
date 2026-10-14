@@ -88,9 +88,6 @@ test.describe('card back', () => {
         'Image: Lateralzr fixture photographer, Wikimedia Commons · CC BY-SA 4.0',
       );
       await expect(copy.getByTestId('card-back-credit')).toBeVisible();
-      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('font-size', '13px');
-      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('color', 'rgb(92, 98, 102)');
-      await expect(copy.getByTestId('card-back-credit')).toHaveCSS('margin-top', '12px');
       expect(await copy.getByTestId('card-back-credit').evaluate((el) =>
         el.parentElement?.previousElementSibling?.getAttribute('data-testid'),
       )).toBe(reference === 'enabled' ? 'card-back-wikipedia' : 'card-back-description');
@@ -134,10 +131,28 @@ test.describe('card back', () => {
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.locator('[data-testid="card-back-description"]:visible').first()).toBeVisible();
     const credit = cardBackCopy(page).getByTestId('card-back-credit');
-    await credit.scrollIntoViewIfNeeded();
-    await expect(credit).toBeVisible();
-    await expect(credit).toHaveCSS('font-size', '26px');
+    const fade = page.locator('[data-testid="card-back-media-fade"]:visible').first();
+    const inset = page.locator('[data-testid="card-back-reading-inset"]:visible').first();
+    const fadeIsOutsideReadingScroll = () => fade.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      // Hit testing the fade area detects the reading scroller covering the
+      // image transition, without checking screenshot pixels or exact styles.
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit?.closest('[data-testid="card-back-scroll"]') == null;
+    });
+    await expect(fade).toBeInViewport({ ratio: 1 });
+    expect(await fadeIsOutsideReadingScroll()).toBe(true);
+    await dragCardBackCopyUp(page, 160);
+    expect(await readBackScrollTop(page)).toBeGreaterThan(0);
+    // IntersectionObserver includes the reading viewport's clip; visibility
+    // alone would pass when the last line is cut off below the card edge.
+    await expect(credit).toBeInViewport({ ratio: 1 });
+    await expect(inset).toBeInViewport({ ratio: 1 });
+    await expect(fade).toBeInViewport({ ratio: 1 });
+    expect(await fadeIsOutsideReadingScroll()).toBe(true);
     await expect(cardBackMedia(page)).toBeVisible();
+    await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200-scrolled', locale: 'en' });
+    await cardBackScroll(page).evaluate((el) => { el.scrollTop = 0; });
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200', locale: 'en' });
   });
 

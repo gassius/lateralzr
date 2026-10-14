@@ -572,7 +572,7 @@ export function ConceptCard({
         })
       : null;
   const scrollContentStyle = cardBackScrollContentStyle(
-    backFaceH,
+    showMediaLayer ? backFaceH - readingPadTop - facePad : backFaceH,
     showMediaLayer ? 0 : facePad,
     rhythm.scrollJustify,
   );
@@ -816,11 +816,13 @@ export function ConceptCard({
       </Text>
       {backMediaLayer}
       <ScrollView
-        style={styles.backScroll}
-        contentContainerStyle={[
-          scrollContentStyle,
-          readingPadTop > 0 ? { paddingTop: readingPadTop } : null,
+        style={[
+          styles.backScroll,
+          // Keep the image/fade outside the reading scroll viewport. Scrolling
+          // overflowing copy must not slide opaque paper over the media band.
+          showMediaLayer ? { marginTop: readingPadTop, backgroundColor: color.paper } : null,
         ]}
+        contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={false}
         bounces
         nestedScrollEnabled
@@ -831,12 +833,12 @@ export function ConceptCard({
             styles.backInner,
             showMediaLayer ? styles.backReadingOnPaper : null,
             // paddingTop on the paper block covers the seam overlap so ink still
-            // clears the fade; paddingBottom holds the guide 24/20 inset.
+            // clears the fade; a fixed spacer below the scroller holds the bottom inset.
             showMediaLayer
               ? {
                   paddingHorizontal: facePad,
                   paddingTop: CARD_BACK_MEDIA_SEAM_OVERLAP,
-                  paddingBottom: facePad,
+                  paddingBottom: 0,
                 }
               : null,
             backLayout.expandMediaZone ? styles.backInnerExpand : null,
@@ -845,6 +847,15 @@ export function ConceptCard({
           {backCopy}
         </View>
       </ScrollView>
+      {showMediaLayer ? (
+        <View
+          style={{ height: facePad, backgroundColor: color.paper }}
+          testID="card-back-reading-inset"
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        />
+      ) : null}
     </View>
   );
 
