@@ -229,3 +229,74 @@ test.describe('keyboard a11y', () => {
     });
   });
 });
+
+for (const concept of ['mushroom', 'diagram']) {
+  test(`rounded keyboard focus survives both card faces (${concept})`, async ({ page }) => {
+    await openApp(page, `canonicalConcept=${concept}`);
+    await page.keyboard.press('Tab');
+    await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
+    const surface = page.getByTestId('card-a11y-surface');
+    for (const face of ['front', 'back']) {
+      await page.getByTestId('a11y-nav-flip').focus();
+      const unfocusedBox = await surface.boundingBox();
+      expect(unfocusedBox).not.toBeNull();
+      await surface.focus();
+      await expect(surface).toBeFocused();
+      const ring = await surface.evaluate((el) => {
+        const style = getComputedStyle(el);
+        const box = el.getBoundingClientRect();
+        const outset = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+        const clippingAncestors: string[] = [];
+        for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+          const ancestorStyle = getComputedStyle(parent);
+          const ancestorBox = parent.getBoundingClientRect();
+          const clips = (overflow: string) => ['hidden', 'clip', 'scroll', 'auto'].includes(overflow);
+          if (
+            (clips(ancestorStyle.overflowX) &&
+              (box.left - outset < ancestorBox.left || box.right + outset > ancestorBox.right)) ||
+            (clips(ancestorStyle.overflowY) &&
+              (box.top - outset < ancestorBox.top || box.bottom + outset > ancestorBox.bottom))
+          ) {
+            clippingAncestors.push(parent.getAttribute('data-testid') ?? parent.tagName);
+          }
+        }
+        return {
+          visible: el.matches(':focus-visible'),
+          radii: [
+            style.borderTopLeftRadius,
+            style.borderTopRightRadius,
+            style.borderBottomRightRadius,
+            style.borderBottomLeftRadius,
+          ],
+          width: style.outlineWidth,
+          offset: style.outlineOffset,
+          style: style.outlineStyle,
+          color: style.outlineColor,
+          clippingAncestors,
+        };
+      });
+      expect(ring.visible, face).toBe(true);
+      expect(ring.radii, face).toEqual(['22px', '22px', '22px', '22px']);
+      expect(ring.width).toBe('2px');
+      expect(ring.offset).toBe('2px');
+      expect(ring.style).toBe('solid');
+      expect(ring.color).toBe('rgb(245, 241, 232)');
+      expect(ring.clippingAncestors, face).toEqual([]);
+      expect(await surface.boundingBox(), face).toEqual(unfocusedBox);
+      if (face === 'front') {
+        await page.keyboard.press('Enter');
+        await expect(cardBackCopy(page)).toBeVisible();
+        await expect(surface.getByTestId('card-back-media')).toHaveCount(concept === 'diagram' ? 1 : 0);
+      }
+    }
+
+    const next = page.getByTestId('a11y-nav-next');
+    await next.focus();
+    await expect(next).toBeFocused();
+    await expect(next).toHaveCSS('outline-width', '2px');
+    await expect(next).toHaveCSS('outline-offset', '2px');
+    await expect(next).toHaveCSS('outline-color', 'rgb(245, 241, 232)');
+    await page.keyboard.press('Enter');
+    await expect(surface).toHaveAttribute('aria-label', concept === 'mushroom' ? 'mycelium' : 'node');
+  });
+}
