@@ -38,6 +38,7 @@ test.describe('deck swipe (Lz-56)', () => {
     const surface = page.getByTestId('card-a11y-surface');
     await page.keyboard.press('Tab');
     await surface.focus();
+    await expect(surface).toBeFocused();
     await page.keyboard.press('ArrowRight');
     await expect(visibleText(page, 'Spore')).toBeVisible({ timeout: 10_000 });
   });

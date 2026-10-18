@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { capture, flipCard, isFrontCardFlipped } from '../helpers/capture';
-import { cardBackCopy, visibleText } from '../helpers/locators';
+import { cardBackCopy, cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
 /**
@@ -25,15 +25,17 @@ test.describe('keyboard a11y', () => {
     await expect(surface).toBeFocused();
 
     await page.keyboard.press('ArrowRight');
-    await expect(visibleText(page, 'Mycelium')).toBeVisible({ timeout: 10_000 });
+    await expect(cardFrontTitle(page)).toHaveText('Mycelium', { timeout: 10_000 });
 
     await surface.focus();
+    await expect(surface).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(cardBackCopy(page)).toBeVisible({ timeout: 10_000 });
 
     await surface.focus();
+    await expect(surface).toBeFocused();
     await page.keyboard.press('ArrowLeft');
-    await expect(visibleText(page, 'Mushroom')).toBeVisible({ timeout: 10_000 });
+    await expect(cardFrontTitle(page)).toHaveText('Mushroom', { timeout: 10_000 });
   });
 
   test('Enter on focused back Wikipedia link opens the link and keeps the card flipped', async ({

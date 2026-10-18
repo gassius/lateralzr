@@ -80,9 +80,11 @@ describe('back→front flip progress lives on the stack (AD B1)', () => {
     const cardSrc = readFileSync(path.join(here, '../components/ConceptCard.tsx'), 'utf8');
     const flipSrc = readFileSync(path.join(here, 'cardFlip.ts'), 'utf8');
     assert.match(stackSrc, /const flipProgress = useSharedValue\(0\)/);
-    assert.match(stackSrc, /flipProgress\.value = withTiming\(next \? 1 : 0/);
+    assert.match(stackSrc, /flipProgress\.value = withTiming\(/);
+    assert.match(stackSrc, /reduceMotion: ReduceMotion\.Never/);
     assert.match(stackSrc, /flipProgress=\{flipProgress\}/);
     assert.match(cardSrc, /flipProgressShared/);
+    assert.match(cardSrc, /reduceMotion: ReduceMotion\.Never/);
     assert.match(flipSrc, /rotateY: `\$\{-180 \+ 180 \* p\}deg`/);
   });
 });

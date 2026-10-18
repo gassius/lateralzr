@@ -21,6 +21,7 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  ReduceMotion,
   runOnJS,
   runOnUI,
   useAnimatedStyle,
@@ -142,6 +143,16 @@ const PAN_ACTIVE_OFFSET = 18;
 function conceptTintRgba(alpha: number): string {
   'worklet';
   return `rgba(19,91,119,${alpha})`;
+}
+
+/** In-app RM cross-fade: do not let OS Reduce Motion skip the 150 ms timing. */
+function rmCrossfadeTiming(duration: number) {
+  'worklet';
+  return {
+    duration,
+    easing: SWIPE_EASING,
+    reduceMotion: ReduceMotion.Never,
+  };
 }
 
 export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardStackProps>(function ConceptCardStack({
@@ -597,10 +608,19 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       }
     }
     flippedSV.value = next ? 1 : 0;
-    flipProgress.value = withTiming(next ? 1 : 0, {
-      duration: flipDurationMs(reduceMotion),
-      easing: Easing.out(Easing.cubic),
-    });
+    flipProgress.value = withTiming(
+      next ? 1 : 0,
+      reduceMotion
+        ? {
+            duration: flipDurationMs(true),
+            easing: Easing.out(Easing.cubic),
+            reduceMotion: ReduceMotion.Never,
+          }
+        : {
+            duration: flipDurationMs(false),
+            easing: Easing.out(Easing.cubic),
+          },
+    );
     setFlipped(next);
   }, [flushDwell, noteTapped, reduceMotion, flippedSV, flipProgress]);
 
@@ -662,9 +682,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
           if (deckReducedMotionFadesOutgoingFront('right')) {
-            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+            frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
           }
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeRight)();
           });
           return;
@@ -689,8 +709,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           rmPeerLayerSV.value = -1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeLeft)();
           });
           return;
@@ -710,8 +730,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         rmPeerLayerSV.value = -1;
         frontCommitOpacity.value = 1;
         peerCommitOpacity.value = 0;
-        frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-        peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+        frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+        peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
           if (finished) runOnJS(commitSwipeVertical)(vertical);
         });
         return;
@@ -932,8 +952,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             rmPeerLayerSV.value = -1;
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
-            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+            peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
               if (finished) runOnJS(commitSwipeLeft)();
             });
             return;
@@ -957,7 +977,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               translateY.value = 0;
               frontCommitOpacity.value = 1;
               peerCommitOpacity.value = 0;
-              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs), (finished) => {
                 if (finished) runOnJS(commitSwipeRight)();
               });
               return;
@@ -977,9 +997,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
             if (deckReducedMotionFadesOutgoingFront('right')) {
-              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+              frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
             }
-            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
               if (finished) runOnJS(commitSwipeRight)();
             });
             return;
@@ -1088,8 +1108,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           rmPeerLayerSV.value = -1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeVertical)(vertical);
           });
           return;

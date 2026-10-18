@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import type { Page, TestInfo } from '@playwright/test';
+import { expect, type Page, TestInfo } from '@playwright/test';
 import { VIEWPORTS, type ViewportId } from './viewports';
-import { visibleText } from './locators';
+import { cardFrontTitle } from './locators';
 import { DIFF_RATIO_THRESHOLD, diffPngs } from './pngDiff';
 
 const HERE = __dirname;
@@ -290,7 +290,9 @@ export async function swipeForward(
   await page.mouse.up();
 
   if (expectLabel != null) {
-    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+    // Front-of-stack title updates at commit. Underlay text can match mid-RM
+    // cross-fade while swipeAnimating is still true.
+    await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
   // When no label is provided (e.g. end-of-deck loading), the caller waits on the resulting UI.
 }
@@ -311,7 +313,7 @@ export async function swipeBack(
   await page.mouse.up();
 
   if (expectLabel != null) {
-    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+    await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
 }
 

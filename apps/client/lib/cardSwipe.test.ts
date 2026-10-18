@@ -435,6 +435,21 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.match(stackSrc, /zIndex: deckReturnOverlayZIndex\(covering\)/);
     assert.match(stackSrc, /const shadowLift = covering \? 0 : lift/);
   });
+
+  it('RM cross-fades opt out of Reanimated System skip so 150 ms actually runs', () => {
+    assert.match(stackSrc, /function rmCrossfadeTiming/);
+    assert.match(stackSrc, /reduceMotion: ReduceMotion\.Never/);
+    assert.match(stackSrc, /peerCommitOpacity\.value = withTiming\(1, rmCrossfadeTiming\(commitMs\)/);
+    assert.match(stackSrc, /frontCommitOpacity\.value = withTiming\(0, rmCrossfadeTiming\(commitMs\)/);
+    assert.match(
+      stackSrc,
+      /translateX\.value = withTiming\(-\(w \+ 120\), \{ duration: commitMs, easing: SWIPE_EASING \}/,
+    );
+    assert.match(
+      stackSrc,
+      /translateY\.value = withTiming\(target, \{ duration: commitMs, easing: SWIPE_EASING \}/,
+    );
+  });
 });
 
 describe('initial reduced-motion (native cold start)', () => {

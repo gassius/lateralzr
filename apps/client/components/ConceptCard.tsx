@@ -13,6 +13,7 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  ReduceMotion,
   runOnJS,
   useAnimatedReaction,
   useAnimatedScrollHandler,
@@ -372,10 +373,16 @@ export function ConceptCard({
 
   useEffect(() => {
     if (flipProgressShared) return;
-    flipProgress.value = withTiming(flipped ? 1 : 0, {
-      duration: flipDurationMs(reduceMotion),
-      easing: Easing.out(Easing.cubic),
-    });
+    flipProgress.value = withTiming(
+      flipped ? 1 : 0,
+      reduceMotion
+        ? {
+            duration: flipDurationMs(true),
+            easing: Easing.out(Easing.cubic),
+            reduceMotion: ReduceMotion.Never,
+          }
+        : { duration: flipDurationMs(false), easing: Easing.out(Easing.cubic) },
+    );
   }, [flipped, flipProgress, flipProgressShared, reduceMotion]);
 
   useAnimatedReaction(
