@@ -341,6 +341,22 @@ export function deckReducedMotionUnderlayPeer(
   return 0;
 }
 
+/** Previous-card index to park in the underlay during a right drag, or null at start of history. */
+export function deckBehindLockIndexForRightDrag(currentIndex: number): number | null {
+  return currentIndex > 0 ? currentIndex - 1 : null;
+}
+
+/**
+ * Which card the underlay mounts. A right-drag / Previous lock uses
+ * `currentIndex-1`; otherwise the next card (past-end renders LoadingCard).
+ */
+export function deckBehindDisplayIndex(
+  behindLockedIndex: number | null,
+  currentIndex: number,
+): number {
+  return behindLockedIndex !== null ? behindLockedIndex : currentIndex + 1;
+}
+
 /** Horizontal rotateY ≤ 3°, signed with travel. */
 export function cardSwipeTiltYDeg(tx: number, width: number, reduceMotion: boolean): number {
   'worklet';

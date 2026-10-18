@@ -74,6 +74,8 @@ import {
   cardSwipeReturnOverlayTransform,
   cardSwipeTiltZDeg,
   cardSwipeTranslationAfterHandoff,
+  deckBehindDisplayIndex,
+  deckBehindLockIndexForRightDrag,
   deckCommitCrossfadeProgress,
   deckFrontWrapZIndex,
   deckLayerVisibility,
@@ -210,6 +212,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const exitSignSV = useSharedValue(0);
   /** 0 none, −1 next underlay, 1 previous overlay (RM commit cross-fade). */
   const rmPeerLayerSV = useSharedValue(0);
+  /** 1 = JS already locked the underlay to Previous for this right drag. */
+  const behindRightLockSV = useSharedValue(0);
   const handoffOriginY = useSharedValue(0);
   const backScrollY = useSharedValue(0);
   const backScrollContentH = useSharedValue(0);
@@ -462,6 +466,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       releaseTiltZSV.value = 0;
       exitSignSV.value = 0;
       rmPeerLayerSV.value = 0;
+      behindRightLockSV.value = 0;
     })();
     translateX.value = 0;
     translateY.value = 0;
@@ -478,6 +483,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     releaseTiltZSV.value = 0;
     exitSignSV.value = 0;
     rmPeerLayerSV.value = 0;
+    behindRightLockSV.value = 0;
     setFlipped(false);
 
     const rm = reduceMotionSV.value > 0.5;
@@ -635,8 +641,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   }, []);
 
   const lockBehindIndexForRightCommit = useCallback(() => {
-    const i = currentIndexRef.current - 1;
-    if (i >= 0) setBehindLockedIndex(i);
+    const i = deckBehindLockIndexForRightDrag(currentIndexRef.current);
+    if (i !== null) setBehindLockedIndex(i);
+  }, []);
+
+  const unlockBehindIndex = useCallback(() => {
+    setBehindLockedIndex(null);
   }, []);
 
   const lockBehindIndexForLeftCommit = useCallback(() => {
@@ -907,6 +917,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     releaseTiltZSV.value = 0;
     exitSignSV.value = 0;
     rmPeerLayerSV.value = 0;
+    if (behindRightLockSV.value > 0.5) {
+      behindRightLockSV.value = 0;
+      runOnJS(unlockBehindIndex)();
+    }
     translateX.value = withSpring(0, spring);
     translateY.value = withSpring(0, spring, (finished) => {
       if (finished) runOnJS(markDeckMoving)(false);
@@ -928,6 +942,15 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       if (showDeckStatusSV.value === 1 && tx < 0) tx = 0;
       translateX.value = tx;
       translateY.value = cardSwipeFollowY(e.translationY, reduceMotionSV.value > 0.5);
+      if (tx > 0 && canGoBack) {
+        if (behindRightLockSV.value < 0.5) {
+          behindRightLockSV.value = 1;
+          runOnJS(lockBehindIndexForRightCommit)();
+        }
+      } else if (behindRightLockSV.value > 0.5) {
+        behindRightLockSV.value = 0;
+        runOnJS(unlockBehindIndex)();
+      }
     })
     .onEnd(
       (e: {
@@ -1270,9 +1293,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     );
   }
 
-  const nextIndex = currentIndex + 1;
-  const behindDisplayIndex =
-    behindLockedIndex !== null ? behindLockedIndex : nextIndex;
+  const behindDisplayIndex = deckBehindDisplayIndex(behindLockedIndex, currentIndex);
   const nextCardReady =
     behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
   // One underlay always mounts (never blank shell). Hidden at rest via underlay opacity.

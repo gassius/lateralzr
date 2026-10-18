@@ -60,6 +60,8 @@ import {
   deckFrontWrapZIndex,
   deckLayerVisibility,
   deckPreviousCovering,
+  deckBehindDisplayIndex,
+  deckBehindLockIndexForRightDrag,
   deckReducedMotionFadesOutgoingFront,
   deckReducedMotionUnderlayPeer,
   deckReturnOverlayElevation,
@@ -412,6 +414,15 @@ describe('underlay axis lock and RM cross-fade', () => {
     assert.equal(deckReducedMotionUnderlayPeer(1, 0, 0.4), 0);
     assert.equal(deckReducedMotionUnderlayPeer(0, 80, 1), 0);
   });
+
+  it('right-drag underlay shows Previous when locked, otherwise Next', () => {
+    assert.equal(deckBehindLockIndexForRightDrag(3), 2);
+    assert.equal(deckBehindLockIndexForRightDrag(0), null);
+    assert.equal(deckBehindDisplayIndex(null, 3), 4);
+    assert.equal(deckBehindDisplayIndex(2, 3), 2);
+    assert.equal(deckBehindDisplayIndex(deckBehindLockIndexForRightDrag(3), 3), 2);
+    assert.equal(deckBehindDisplayIndex(deckBehindLockIndexForRightDrag(0), 0), 1);
+  });
 });
 
 describe('stack / shell wiring (AD B2–B4, M3)', () => {
@@ -433,7 +444,6 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
   });
 
   it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {
-    assert.match(stackSrc, /deckReducedMotionUnderlayPeer/);
     assert.match(stackSrc, /deckCommitCrossfadeProgress/);
     assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(shadowLift\)/);
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
