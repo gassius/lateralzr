@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { cardBackCreditHasRow, resolveCardBackCredit } from './cardBackCredit.ts';
+import {
+  cardBackCreditHasRow,
+  cardBackLicenceHitSlop,
+  resolveCardBackCredit,
+} from './cardBackCredit.ts';
 
 describe('resolveCardBackCredit', () => {
   it('uses creator, licence name/url, and known change notices', () => {
@@ -30,6 +34,13 @@ describe('resolveCardBackCredit', () => {
     assert.equal(credit.licenceName, 'Public domain');
     assert.equal(credit.licenceUrl, null);
     assert.equal(credit.creator, 'Wikimedia Commons');
+  });
+
+  it('gives the 13 px meta licence a >=48 px target', () => {
+    const fontSize = 13;
+    const slop = cardBackLicenceHitSlop(fontSize);
+    assert.ok(fontSize + slop * 2 >= 48);
+    assert.ok(13 * 2 + cardBackLicenceHitSlop(13 * 2) * 2 >= 48);
   });
 
   it('tolerates a row with no provenance', () => {

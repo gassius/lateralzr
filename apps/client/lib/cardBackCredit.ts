@@ -1,4 +1,14 @@
+import { layout } from '../theme/tokens';
 import type { ConceptMedia } from './api';
+
+/**
+ * Symmetric vertical hitSlop so a text-sized licence control meets §18.
+ * Pass the rendered font size (meta token × font/e2e scale).
+ */
+export function cardBackLicenceHitSlop(fontSize: number): number {
+  const size = Number.isFinite(fontSize) ? Math.max(0, fontSize) : 0;
+  return Math.max(0, Math.ceil((layout.recommendedTouchTarget - size) / 2));
+}
 
 export type CardBackChangeNoticeKey = 'cropped' | 'resized';
 

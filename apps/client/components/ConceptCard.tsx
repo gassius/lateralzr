@@ -41,7 +41,11 @@ import {
   resolveContainMediaBox,
   resolveInformativeAlt,
 } from '@/lib/cardBackMedia';
-import { cardBackCreditHasRow, resolveCardBackCredit } from '@/lib/cardBackCredit';
+import {
+  cardBackCreditHasRow,
+  cardBackLicenceHitSlop,
+  resolveCardBackCredit,
+} from '@/lib/cardBackCredit';
 import {
   resolveShowMediaCredits,
   resolveShowReferenceLinks,
@@ -736,6 +740,11 @@ export function ConceptCard({
   // 48 px target via hitSlop only — minHeight would pad the visible underline past the
   // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
   const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - backLinkFontSize) / 2));
+  const creditMetaType = textStyle('meta');
+  const licenceFontSize = Math.round(
+    ((creditMetaType.fontSize as number) || 13) * osFontScale,
+  );
+  const licenceHitSlop = cardBackLicenceHitSlop(licenceFontSize);
   const openWiki = () => {
     onBackInteractivePress?.();
     void Linking.openURL(item.wikiUrl!);
@@ -827,7 +836,7 @@ export function ConceptCard({
             accessibilityLabel={t('licenceLinkA11y', { name: creditModel.licenceName })}
             onPressIn={onBackInteractivePress}
             onPress={openLicence}
-            hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
+            hitSlop={{ top: licenceHitSlop, bottom: licenceHitSlop, left: 8, right: 8 }}
             style={styles.linkHit}
             testID="card-back-licence"
             {...licenceWebKeyProps}
