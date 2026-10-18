@@ -130,7 +130,11 @@ export function deckReturnOverlayTranslateX(
   return -width;
 }
 
-/** Drag pose keeps opacity 1 so overlayPeer starting at 0 cannot flash the overlay out. */
+/**
+ * Drag pose stays opaque until the RM fade starts (`overlayPeer === 0`).
+ * Dragged Previous then fades out at the release pose (`1 - overlayPeer`).
+ * Keyboard Previous (`tx === 0`) still fades in-place at rest covering.
+ */
 export function deckReturnOverlayOpacity(
   hidden: boolean,
   translateX: number,
@@ -138,7 +142,9 @@ export function deckReturnOverlayOpacity(
 ): number {
   'worklet';
   if (hidden) return 0;
-  if (translateX > 0) return 1;
+  if (translateX > 0) {
+    return overlayPeer > 0 ? 1 - overlayPeer : 1;
+  }
   return overlayPeer > 0 ? overlayPeer : 1;
 }
 
@@ -306,13 +312,33 @@ export function cardSwipeTiltZDeg(
 
 /**
  * RM Next / Complexity fade the outgoing card (underlay is already opaque).
- * RM Previous keeps the covered card at 1 so a fading overlay cannot show shell.
+ * Dragged RM Previous (`translateX > 0`) also fades the covered front so the
+ * previous card at rest can reveal underneath. Keyboard Previous (`tx === 0`)
+ * still keeps the covered card opaque while the overlay fades in on top.
  */
 export function deckReducedMotionFadesOutgoingFront(
   direction: 'left' | 'right' | 'vertical',
+  translateX: number = 0,
 ): boolean {
   'worklet';
-  return direction !== 'right';
+  if (direction !== 'right') return true;
+  return translateX > 0;
+}
+
+/**
+ * Next (`rmPeerLayer < 0`) and dragged Previous (`rmPeerLayer > 0 && tx > 0`)
+ * drive the underlay from `peerCommitOpacity`. Keyboard Previous (tx === 0)
+ * does not — the overlay fades in at rest covering.
+ */
+export function deckReducedMotionUnderlayPeer(
+  rmPeerLayer: number,
+  translateX: number,
+  peerCommitOpacity: number,
+): number {
+  'worklet';
+  if (rmPeerLayer < 0) return peerCommitOpacity;
+  if (rmPeerLayer > 0 && translateX > 0) return peerCommitOpacity;
+  return 0;
 }
 
 /** Horizontal rotateY ≤ 3°, signed with travel. */

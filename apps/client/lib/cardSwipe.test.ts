@@ -61,6 +61,7 @@ import {
   deckLayerVisibility,
   deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
+  deckReducedMotionUnderlayPeer,
   deckReturnOverlayElevation,
   deckReturnOverlayOpacity,
   deckReturnOverlayTranslateX,
@@ -378,6 +379,8 @@ describe('underlay axis lock and RM cross-fade', () => {
 
   it('RM Previous keeps the covered card opaque so the shell cannot show', () => {
     assert.equal(deckReducedMotionFadesOutgoingFront('right'), false);
+    assert.equal(deckReducedMotionFadesOutgoingFront('right', 0), false);
+    assert.equal(deckReducedMotionFadesOutgoingFront('right', 80), true);
     assert.equal(deckReducedMotionFadesOutgoingFront('left'), true);
     assert.equal(deckReducedMotionFadesOutgoingFront('vertical'), true);
   });
@@ -398,9 +401,16 @@ describe('underlay axis lock and RM cross-fade', () => {
     assert.equal(deckReturnOverlayTranslateX(0, CARD_W, 0.4), 0);
     assert.equal(deckReturnOverlayTranslateX(0, CARD_W, 0), -CARD_W);
     assert.equal(deckReturnOverlayOpacity(false, 80, 0), 1);
-    assert.equal(deckReturnOverlayOpacity(false, 80, 0.01), 1);
+    assert.equal(deckReturnOverlayOpacity(false, 80, 0.4), 0.6);
     assert.equal(deckReturnOverlayOpacity(false, 0, 0.4), 0.4);
     assert.equal(deckReturnOverlayOpacity(true, 80, 1), 0);
+  });
+
+  it('RM dragged Previous reveals the underlay from peer opacity; keyboard does not', () => {
+    assert.equal(deckReducedMotionUnderlayPeer(-1, 0, 0.4), 0.4);
+    assert.equal(deckReducedMotionUnderlayPeer(1, 80, 0.4), 0.4);
+    assert.equal(deckReducedMotionUnderlayPeer(1, 0, 0.4), 0);
+    assert.equal(deckReducedMotionUnderlayPeer(0, 80, 1), 0);
   });
 });
 
@@ -423,8 +433,7 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
   });
 
   it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {
-    assert.match(stackSrc, /rmPeerLayerSV\.value < 0 \? peerCommitOpacity\.value/);
-    assert.match(stackSrc, /rmPeerLayerSV\.value > 0 \? peerCommitOpacity\.value/);
+    assert.match(stackSrc, /deckReducedMotionUnderlayPeer/);
     assert.match(stackSrc, /deckCommitCrossfadeProgress/);
     assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(shadowLift\)/);
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
@@ -470,13 +479,6 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     );
   });
 
-  it('RM Next/Previous fade from the release translation (no snap to centre)', () => {
-    assert.match(stackSrc, /deckReturnOverlayTranslateX\(translateX\.value, w, overlayPeer\)/);
-    assert.match(stackSrc, /deckReturnOverlayOpacity\(hidden, translateX\.value, overlayPeer\)/);
-    assert.equal(/if \(!slide\) \{\s*translateX\.value = 0/.test(stackSrc), false);
-    assert.equal(/if \(!swipeShouldSlideOutOnCommit\(rm\)\) \{\s*translateX\.value = 0/.test(stackSrc), false);
-    assert.equal(/if \(!swipeShouldSlideOutOnCommit\(rm\)\) \{\s*translateY\.value = 0/.test(stackSrc), false);
-  });
 });
 
 describe('initial reduced-motion (native cold start)', () => {

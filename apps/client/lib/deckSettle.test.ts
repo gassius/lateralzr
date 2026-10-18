@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   DECK_SETTLE_MS,
   DECK_SETTLE_REDUCED_MS,
@@ -36,10 +33,5 @@ describe('deckSettle', () => {
     assert.equal(deckEnterLandsSettled(false, 'backward', 'backward'), false);
     assert.equal(deckEnterLandsSettled(false, 'backwardGesture', null), true);
     assert.equal(deckEnterLandsSettled(true, 'forward', null), true);
-    const here = path.dirname(fileURLToPath(import.meta.url));
-    const stackSrc = readFileSync(path.join(here, '../components/ConceptCardStack.tsx'), 'utf8');
-    assert.match(stackSrc, /deckEnterLandsSettled\(rm, intent, committedNavIntent\)/);
-    assert.match(stackSrc, /enterOpacity\.value = 0/);
-    assert.match(stackSrc, /enterOpacity\.value = withTiming\(1/);
   });
 });

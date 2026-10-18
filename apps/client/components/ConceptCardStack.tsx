@@ -79,6 +79,7 @@ import {
   deckLayerVisibility,
   deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
+  deckReducedMotionUnderlayPeer,
   deckReturnOverlayElevation,
   deckReturnOverlayOpacity,
   deckReturnOverlayTranslateX,
@@ -633,6 +634,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     if (i >= 0) setReturnOverlayLockedIndex(i);
   }, []);
 
+  const lockBehindIndexForRightCommit = useCallback(() => {
+    const i = currentIndexRef.current - 1;
+    if (i >= 0) setBehindLockedIndex(i);
+  }, []);
+
   const lockBehindIndexForLeftCommit = useCallback(() => {
     const i = currentIndexRef.current;
     const next = Math.min(i + 1, concepts.length - 1);
@@ -984,11 +990,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           swipeAnimating.value = true;
           exitingSV.value = 1;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
+          runOnJS(lockBehindIndexForRightCommit)();
           if (!swipeShouldSlideOutOnCommit(rm)) {
             rmPeerLayerSV.value = 1;
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
-            if (deckReducedMotionFadesOutgoingFront('right')) {
+            if (deckReducedMotionFadesOutgoingFront('right', translateX.value)) {
               frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
             }
             peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
@@ -1181,7 +1188,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
     const dragP = deckUnderlayDragProgress(translateX.value, translateY.value, w, h);
-    const peer = rmPeerLayerSV.value < 0 ? peerCommitOpacity.value : 0;
+    const peer = deckReducedMotionUnderlayPeer(
+      rmPeerLayerSV.value,
+      translateX.value,
+      peerCommitOpacity.value,
+    );
     const revealP = deckCommitCrossfadeProgress(dragP, peer);
     const reveal = deckUnderlayReveal(revealP, rm, DECK_NEXT_VISIBLE_AT_REST);
     const hidden = reveal.opacity <= 0;
@@ -1197,7 +1208,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
     const dragP = deckUnderlayDragProgress(translateX.value, translateY.value, w, h);
-    const peer = rmPeerLayerSV.value < 0 ? peerCommitOpacity.value : 0;
+    const peer = deckReducedMotionUnderlayPeer(
+      rmPeerLayerSV.value,
+      translateX.value,
+      peerCommitOpacity.value,
+    );
     const revealP = deckCommitCrossfadeProgress(dragP, peer);
     const reveal = deckUnderlayReveal(revealP, rm, DECK_NEXT_VISIBLE_AT_REST);
     return {
