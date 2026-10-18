@@ -14,7 +14,7 @@ import {
 } from '@/components/ConceptCardStack';
 import { DeckStatusLine } from '@/components/DeckStatusLine';
 import { LateralityControl } from '@/components/LateralityControl';
-import { LateralityReshuffle, ReshuffleStackFade } from '@/components/LateralityReshuffle';
+import { LateralityReshuffle } from '@/components/LateralityReshuffle';
 import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
@@ -25,6 +25,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { A11Y_PASS_FOCUS } from '@/lib/a11yPass';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
+import { resolveCardAspectLayout } from '@/lib/cardLayout';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
 import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
@@ -73,6 +74,7 @@ import {
   type LateralityRestoreSnapshot,
 } from '@/lib/laterality';
 import {
+  reshuffleCueFrame,
   reshuffleDealMs,
   reshuffleGatherMs,
   reshuffleMinCueMs,
@@ -124,10 +126,11 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const routeParams = useLocalSearchParams<{ complexity?: string | string[] }>();
   const routeComplexity = parseComplexityParam(firstSearchParam(routeParams.complexity));
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   // Web phone frame reports its inner size; native hook is a no-op (null).
   const phoneFrame = useWebPhoneFrameSize();
   const layoutHeight = phoneFrame?.height ?? windowHeight;
+  const layoutWidth = phoneFrame?.width ?? windowWidth;
   const [concepts, setConcepts] = useState<ConceptItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1157,6 +1160,12 @@ export default function HomeScreen() {
             : Platform.OS === 'web'
               ? ({ inert: undefined, 'aria-hidden': undefined } as Record<string, unknown>)
               : {};
+        const stackAvailableHeight = Math.max(
+          0,
+          usableHeight -
+            lateralityChromeReserve(usableHeight, lateralityControlHeight) -
+            (accessibleNavVisible ? accessibleNavHeight : 0),
+        );
         const controlGap = lateralityCardGap(usableHeight);
         // AD #119: tip OR status share LateralityControl's messaging band —
         // one fixed height, never stacked, never subtracted again from the card.
@@ -1203,10 +1212,20 @@ export default function HomeScreen() {
               testID="deck-stack-layer"
             >
               <View style={styles.stackSlot}>
-                <ReshuffleStackFade
-                  phase={lateralitySwap?.phase ?? null}
-                  reduceMotion={reduceMotion}
-                >
+                {lateralitySwap ? (
+                  <LateralityReshuffle
+                    phase={lateralitySwap.phase}
+                    reduceMotion={reduceMotion}
+                    cardFrame={reshuffleCueFrame(
+                      resolveCardAspectLayout({
+                        columnWidth: Math.min(layoutWidth, PRACTICE_COLUMN_MAX_WIDTH),
+                        availableHeight: stackAvailableHeight,
+                      }),
+                      Math.min(layoutWidth, PRACTICE_COLUMN_MAX_WIDTH),
+                    )}
+                  />
+                ) : null}
+                <View style={styles.reshuffleCardLayer}>
                   <ConceptCardStack
                     ref={cardStackRef}
                     concepts={concepts}
@@ -1216,27 +1235,17 @@ export default function HomeScreen() {
                     onSwipeRight={onSwipeRight}
                     onSwipeForwardVertical={onSwipeForwardVertical}
                     onDeckMotionChange={setDeckMoving}
-                    availableHeight={Math.max(
-                      0,
-                      usableHeight -
-                        lateralityChromeReserve(usableHeight, lateralityControlHeight) -
-                        (accessibleNavVisible ? accessibleNavHeight : 0),
-                    )}
+                    availableHeight={stackAvailableHeight}
                     showDeckLoading={showDeckLoading}
                     showInitialLoading={showInitialLoading}
                     loadMoreError={loadMoreError || noNextIdea}
                     sheetOpen={lateralitySheetOpen || appMenuOpen}
                     inputLocked={lateralitySwap != null}
+                    reshufflePhase={lateralitySwap?.phase ?? null}
                     onReplayGestureTipsReady={onReplayGestureTipsReady}
                     onCoachTipChange={onCoachTipChange}
                   />
-                </ReshuffleStackFade>
-                {lateralitySwap ? (
-                  <LateralityReshuffle
-                    phase={lateralitySwap.phase}
-                    reduceMotion={reduceMotion}
-                  />
-                ) : null}
+                </View>
               </View>
             </View>
             {accessibleNavVisible ? (
@@ -1451,6 +1460,11 @@ const styles = StyleSheet.create({
   stackSlot: {
     width: '100%',
     position: 'relative',
+    overflow: 'visible',
+  },
+  /** Card sits above the cue so gather/deal read on top of sinking silhouettes. */
+  reshuffleCardLayer: {
+    zIndex: 2,
   },
   /** While dragging / exiting, the card stacks above the ellipsis (zIndex 30). */
   deckMovingGroup: {

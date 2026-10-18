@@ -34,6 +34,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { LoadingCard } from './LoadingCard';
+import { useReshuffleCardStyle } from './LateralityReshuffle';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -45,6 +46,7 @@ import {
   type CardFace,
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
+import type { LateralityReshufflePhase } from '@/lib/lateralityReshuffle';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { CARD_STACK_GUTTER, cardRadius, resolveCardAspectLayout } from '@/lib/cardLayout';
 import {
@@ -149,6 +151,8 @@ type ConceptCardStackProps = {
   onDeckMotionChange?: (moving: boolean) => void;
   /** Lz-57: ignore card taps/swipes while the laterality cue is covering the wait. */
   inputLocked?: boolean;
+  /** Lz-57: gather / deal the card on its own rect (§12.5). */
+  reshufflePhase?: LateralityReshufflePhase | null;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
@@ -184,6 +188,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   onCoachTipChange,
   onDeckMotionChange,
   inputLocked = false,
+  reshufflePhase = null,
 }, ref) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -211,6 +216,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     () => AppState.currentState === 'active',
   );
   const reduceMotion = useReducedMotion();
+  const reshuffleCardStyle = useReshuffleCardStyle(reshufflePhase, reduceMotion);
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
   const flippedSV = useSharedValue(0);
   const flipProgress = useSharedValue(0);
@@ -1323,10 +1329,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           setContainerW(e.nativeEvent.layout.width);
         }}
       >
-        <View
+        <Animated.View
           style={[
             styles.cardWrap,
             { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+            reshuffleCardStyle,
           ]}
         >
           <View style={styles.gestureFill}>
@@ -1334,7 +1341,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               <LoadingCard />
             </View>
           </View>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -1366,10 +1373,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         setContainerW(e.nativeEvent.layout.width);
       }}
     >
-      <View
+      <Animated.View
         style={[
           styles.cardWrap,
           { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+          reshuffleCardStyle,
         ]}
       >
         <GestureDetector gesture={composed}>
@@ -1487,7 +1495,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           ) : null}
           </View>
         </GestureDetector>
-      </View>
+      </Animated.View>
     </View>
   );
 });

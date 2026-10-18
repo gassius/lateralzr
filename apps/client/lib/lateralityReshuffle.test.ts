@@ -6,17 +6,27 @@ import { fileURLToPath } from 'node:url';
 import { motion } from '../theme/tokens.ts';
 import { resolveReducedMotion } from './reducedMotion.ts';
 import {
+  RESHUFFLE_GATHER_DROP_PX,
+  RESHUFFLE_GATHER_SCALE,
+  reshuffleCardOffsetY,
+  reshuffleCardScale,
+  reshuffleCueFrame,
   reshuffleDealMs,
   reshuffleGatherMs,
   reshuffleMinCueMs,
+  reshufflePhaseTargets,
   reshuffleReverseMs,
   reshuffleSilhouetteCount,
+  reshuffleSilhouetteOffsetY,
+  reshuffleSilhouetteOpacity,
+  reshuffleSilhouetteScale,
   reshuffleStackFadeMs,
   reshuffleStatusDelayMs,
   reshuffleTimeoutMs,
   riffleFanDeg,
   riffleFanMix,
   riffleFanOffset,
+  riffleStackZ,
   withTimeout,
 } from './lateralityReshuffle.ts';
 
@@ -53,9 +63,58 @@ describe('laterality reshuffle timing tokens', () => {
     assert.equal(reshuffleStackFadeMs(reduceMotion, 'gather'), 150);
     assert.equal(reshuffleStackFadeMs(reduceMotion, 'deal'), 150);
     assert.equal(reshuffleStackFadeMs(reduceMotion, 'reverse'), 150);
-    assert.equal(reshuffleStackFadeMs(false, 'gather'), 260);
+    assert.equal(reshuffleStackFadeMs(false, 'gather'), 0);
+    assert.equal(reshuffleStackFadeMs(false, 'shuffle'), 150);
     assert.equal(reshuffleStackFadeMs(false, 'deal'), 360);
     assert.equal(reshuffleStackFadeMs(false, 'reverse'), 260);
+  });
+});
+
+describe('reshuffle card and cue motion', () => {
+  it('sizes the cue to the card rect, not the stack slot surplus', () => {
+    const frame = reshuffleCueFrame(
+      { topSurplus: 69, width: 366, height: 512 },
+      390,
+    );
+    assert.equal(frame.top, 69);
+    assert.equal(frame.width, 366);
+    assert.equal(frame.height, 512);
+    assert.equal(frame.left, 12);
+  });
+
+  it('keeps the card visible through gather and deals it up from the deck', () => {
+    const gather = reshufflePhaseTargets('gather', false);
+    assert.equal(gather.cardOpacity, 1);
+    assert.equal(gather.gather, 1);
+    assert.equal(gather.deal, 0);
+    assert.equal(reshuffleCardOffsetY(1, 0, 0), RESHUFFLE_GATHER_DROP_PX);
+    assert.equal(reshuffleCardScale(1, 0, 0), RESHUFFLE_GATHER_SCALE);
+
+    const dealt = reshufflePhaseTargets('deal', false);
+    assert.equal(dealt.cardOpacity, 1);
+    assert.equal(dealt.cueOpacity, 0);
+    assert.equal(dealt.deal, 1);
+    assert.equal(reshuffleCardOffsetY(1, 1, 0), 0);
+    assert.equal(reshuffleCardScale(1, 1, 0), 1);
+    assert.ok(reshuffleSilhouetteOffsetY(1, 1, 0) > reshuffleSilhouetteOffsetY(1, 0, 0));
+    assert.equal(reshuffleSilhouetteScale(1), RESHUFFLE_GATHER_SCALE);
+    assert.equal(reshuffleSilhouetteOpacity(0, 1, 1, 0), 0);
+    assert.equal(reshuffleSilhouetteOpacity(1, 1, 1, 0), 0);
+  });
+
+  it('brings rear silhouettes in behind the card during gather', () => {
+    assert.equal(reshuffleSilhouetteOpacity(0, 0.4, 0, 0), 0);
+    assert.equal(reshuffleSilhouetteOpacity(1, 0.4, 0, 0), 0.4);
+    assert.equal(reshuffleSilhouetteOpacity(2, 0.4, 0, 0), 0.4);
+    assert.equal(reshuffleSilhouetteOpacity(0, 1, 0, 0), 1);
+  });
+
+  it('treats reverse like deal: card lifts, cue sinks and fades', () => {
+    const reverse = reshufflePhaseTargets('reverse', false);
+    assert.equal(reverse.cardOpacity, 1);
+    assert.equal(reverse.cueOpacity, 0);
+    assert.equal(reshuffleCardOffsetY(1, 0, 1), 0);
+    assert.ok(reshuffleSilhouetteOffsetY(1, 0, 1) > RESHUFFLE_GATHER_DROP_PX);
   });
 });
 
@@ -73,10 +132,29 @@ describe('riffle interpolation', () => {
     assert.equal(riffleFanDeg(0, 0.5), (riffleFanDeg(0, 0) + riffleFanDeg(0, 1)) / 2);
   });
 
+  it('swaps stacking order at the midpoint of each riffle tick', () => {
+    assert.equal(riffleStackZ(0, 3, 0), 3);
+    assert.equal(riffleStackZ(2, 3, 0), 1);
+    assert.equal(riffleStackZ(0, 3, 0.49), 3);
+    assert.equal(riffleStackZ(0, 3, 0.5), 1);
+    assert.equal(riffleStackZ(2, 3, 1), 3);
+    assert.equal(riffleStackZ(0, 3, 1), 1);
+  });
+
   it('marks riffle helpers as worklets for the Silhouette UI thread', () => {
     const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'lateralityReshuffle.ts'), 'utf8');
-    for (const name of ['riffleFanMix', 'riffleFanOffset', 'riffleFanDeg'] as const) {
-      const match = src.match(new RegExp(`export function ${name}\\([^)]*\\): number \\{\\n  'worklet';`));
+    for (const name of [
+      'riffleFanMix',
+      'riffleFanOffset',
+      'riffleFanDeg',
+      'riffleStackZ',
+      'reshuffleCardOffsetY',
+      'reshuffleCardScale',
+      'reshuffleSilhouetteOffsetY',
+      'reshuffleSilhouetteScale',
+      'reshuffleSilhouetteOpacity',
+    ] as const) {
+      const match = src.match(new RegExp(`export function ${name}[^{]+\\{\\n  'worklet';`));
       assert.ok(match, `${name} must start with 'worklet'`);
     }
   });
