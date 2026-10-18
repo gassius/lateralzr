@@ -239,6 +239,21 @@ async function cardGestureBox(page: Page): Promise<{
   return box;
 }
 
+/**
+ * Let Reanimated flush the index-change `runOnUI` reset before the next action.
+ * Title locators resolve on the React commit; the UI-thread reset is one frame later.
+ */
+export async function flushDeckUi(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+}
+
 /** Flip the front card (RNGH Tap on web). Locator click waits for a stable hit target. */
 export async function flipCard(page: Page): Promise<void> {
   const wasFlipped = await page.evaluate(isFrontCardFlipped);
@@ -294,6 +309,7 @@ export async function swipeForward(
     // cross-fade while swipeAnimating is still true.
     await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
+  await flushDeckUi(page);
   // When no label is provided (e.g. end-of-deck loading), the caller waits on the resulting UI.
 }
 
@@ -315,6 +331,7 @@ export async function swipeBack(
   if (expectLabel != null) {
     await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
+  await flushDeckUi(page);
 }
 
 /**

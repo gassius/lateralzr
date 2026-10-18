@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { capture, flipCard, isFrontCardFlipped } from '../helpers/capture';
+import { capture, flipCard, flushDeckUi, isFrontCardFlipped } from '../helpers/capture';
 import { cardBackCopy, cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
@@ -26,6 +26,7 @@ test.describe('keyboard a11y', () => {
 
     await page.keyboard.press('ArrowRight');
     await expect(cardFrontTitle(page)).toHaveText('Mycelium', { timeout: 10_000 });
+    await flushDeckUi(page);
 
     await surface.focus();
     await expect(surface).toBeFocused();

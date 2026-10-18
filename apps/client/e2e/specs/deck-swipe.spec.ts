@@ -33,14 +33,18 @@ test.describe('deck swipe (Lz-56)', () => {
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await swipeForward(page, 'Mycelium');
-    await expect(visibleText(page, 'Mycelium')).toBeVisible();
+    await expect(cardFrontTitle(page)).toHaveText('Mycelium');
+    await expect(page.getByTestId('card-laterality-group')).toHaveAttribute(
+      'data-deck-moving',
+      'false',
+      { timeout: 8_000 },
+    );
 
     const surface = page.getByTestId('card-a11y-surface');
-    await page.keyboard.press('Tab');
     await surface.focus();
     await expect(surface).toBeFocused();
     await page.keyboard.press('ArrowRight');
-    await expect(visibleText(page, 'Spore')).toBeVisible({ timeout: 10_000 });
+    await expect(cardFrontTitle(page)).toHaveText('Spore', { timeout: 10_000 });
   });
 
   test('vertical swipe and Complexity actions change the cue', async ({ page }) => {
