@@ -195,8 +195,11 @@ async function compareToBaseline(
   });
 }
 
-function cardPoint(box: { x: number; y: number; width: number; height: number }) {
-  return { x: box.x + box.width * 0.5, y: box.y + box.height * 0.3 };
+function swipePoint(
+  box: { x: number; y: number; width: number; height: number },
+  xRatio: number,
+): { x: number; y: number } {
+  return { x: box.x + box.width * xRatio, y: box.y + box.height * 0.5 };
 }
 
 /**
@@ -228,17 +231,23 @@ async function cardGestureBox(page: Page): Promise<{
   height: number;
 }> {
   const surface = page.getByTestId('card-a11y-surface');
+  // Playwright "visible" requires a non-zero box — wait through chrome remounts
+  // (assistive nav ScrollView, 200% text, 47/34 insets) instead of clicking a stale point.
+  await surface.waitFor({ state: 'visible', timeout: 8_000 });
   const box = await surface.boundingBox();
   if (!box) throw new Error('card-a11y-surface has no bounding box');
   return box;
 }
 
-/** Flip the front card with a real mouse click (RNGH Tap on web). */
+/** Flip the front card (RNGH Tap on web). Locator click waits for a stable hit target. */
 export async function flipCard(page: Page): Promise<void> {
-  const box = await cardGestureBox(page);
   const wasFlipped = await page.evaluate(isFrontCardFlipped);
-  const { x, y } = cardPoint(box);
-  await page.mouse.click(x, y);
+  const frontTitle = page.locator('[data-testid="card-front-title"]:visible');
+  if (!wasFlipped && (await frontTitle.count()) > 0) {
+    await frontTitle.click();
+  } else {
+    await page.getByTestId('card-a11y-surface').click();
+  }
   await page.waitForFunction(
     (expectFlipped: boolean) => {
       const surface = document.querySelector('[data-testid="card-a11y-surface"]');
@@ -273,12 +282,11 @@ export async function swipeForward(
   expectLabel?: string | RegExp,
 ): Promise<void> {
   const box = await cardGestureBox(page);
-  const y = box.y + box.height * 0.3;
-  const fromX = box.x + box.width * 0.8;
-  const toX = box.x + box.width * 0.15;
-  await page.mouse.move(fromX, y);
+  const from = swipePoint(box, 0.8);
+  const to = swipePoint(box, 0.15);
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(toX, y, { steps: 16 });
+  await page.mouse.move(to.x, to.y, { steps: 16 });
   await page.mouse.up();
 
   if (expectLabel != null) {
@@ -295,12 +303,11 @@ export async function swipeBack(
   expectLabel?: string | RegExp,
 ): Promise<void> {
   const box = await cardGestureBox(page);
-  const y = box.y + box.height * 0.3;
-  const fromX = box.x + box.width * 0.2;
-  const toX = box.x + box.width * 0.85;
-  await page.mouse.move(fromX, y);
+  const from = swipePoint(box, 0.2);
+  const to = swipePoint(box, 0.85);
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(toX, y, { steps: 16 });
+  await page.mouse.move(to.x, to.y, { steps: 16 });
   await page.mouse.up();
 
   if (expectLabel != null) {

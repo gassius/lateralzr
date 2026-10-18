@@ -222,10 +222,13 @@ for (const concept of ['mushroom', 'diagram']) {
     await page.keyboard.press('Tab');
     await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
     const surface = page.getByTestId('card-a11y-surface');
+    await expect(surface).toBeVisible();
     for (const face of ['front', 'back']) {
       await page.getByTestId('a11y-nav-flip').focus();
+      await expect(surface).toBeVisible();
       const unfocusedBox = await surface.boundingBox();
       expect(unfocusedBox).not.toBeNull();
+      expect(unfocusedBox?.height ?? 0, face).toBeGreaterThan(0);
       await surface.focus();
       await expect(surface).toBeFocused();
       const ring = await surface.evaluate((el) => {
