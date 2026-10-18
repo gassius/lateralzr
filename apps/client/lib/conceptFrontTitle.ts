@@ -143,6 +143,24 @@ export const CONCEPT_FRONT_TITLE_COLOR = titleColor(CONCEPT_FRONT_TITLE_FONT_SIZ
 
 export type MeasureTitleWidth = (text: string, fontSize: number) => number;
 
+/**
+ * Painted ink width of the title (max line), not the full-width Text box.
+ * Pattern clearing uses this so an edge-current chain survives beside a short title (§11.1 / §16.2).
+ */
+export function conceptFrontTitleInkWidth(
+  displayText: string,
+  fontSize: number,
+  measure: MeasureTitleWidth = measureConceptFrontTitleWidth,
+): number {
+  if (displayText.length === 0 || fontSize <= 0) return 0;
+  let max = 0;
+  for (const line of displayText.split('\n')) {
+    const ink = measure(line.replace(/\s+$/u, ''), fontSize);
+    if (ink > max) max = ink;
+  }
+  return max;
+}
+
 export type ConceptFrontTitleLayout = {
   /** Text shown on the face (may include `-\n` soft wraps). */
   displayText: string;

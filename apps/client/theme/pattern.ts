@@ -13,8 +13,8 @@ export const PATTERN_RELIEF = {
   core: { fill: '#EC8318', opacity: 0.45, offsetX: 0, offsetY: 0 },
 } as const;
 
-/** Pulse-glow fill on `#connectors` (Lz-40 animates opacity only). */
-export const PATTERN_PULSE_GLOW_FILL = '#FFB867';
+/** Required connector glow fill on `#connectors` (Lz-58 / §11.3). */
+export const PATTERN_PULSE_GLOW_FILL = '#FFC98A';
 
 /** Card design units shared by all three pattern SVGs. */
 export const PATTERN_CARD_UNITS = {

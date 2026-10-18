@@ -29,6 +29,11 @@ export function cardBackTitle(page: Page): Locator {
   return page.locator('[data-testid="card-back-title"]:visible').first();
 }
 
+/** Current-card blind emboss (the behind card also mounts a back face). */
+export function cardBackEmboss(page: Page): Locator {
+  return page.getByTestId('card-a11y-surface').getByTestId('card-back-emboss');
+}
+
 /**
  * Interactive front-of-stack title only (`exposeFrontTitleTestId` on the front card).
  * Prefer this over getByText for long labels — layout may insert `\\n` / `-\n`.

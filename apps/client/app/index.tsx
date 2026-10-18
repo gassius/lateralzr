@@ -135,6 +135,7 @@ export default function HomeScreen() {
   const [appMenuOpen, setAppMenuOpen] = useState(false);
   const [motionPreference, setMotionPreference] =
     useState<MotionPreference>(DEFAULT_MOTION_PREFERENCE);
+  const [motionHydrated, setMotionHydrated] = useState(false);
   const lateralityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
@@ -260,7 +261,10 @@ export default function HomeScreen() {
   useEffect(() => {
     let cancelled = false;
     void loadStoredMotionPreference().then((stored) => {
-      if (!cancelled) setMotionPreference(stored);
+      if (!cancelled) {
+        setMotionPreference(stored);
+        setMotionHydrated(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -884,7 +888,7 @@ export default function HomeScreen() {
   });
   // Lz-38: only the loading face replaces the card; failure / no-next keep the card readable.
   const showDeckLoading = deckSlotState === 'loading';
-  const prefsReady = complexityHydrated && lateralityHydrated && localeReady;
+  const prefsReady = complexityHydrated && lateralityHydrated && localeReady && motionHydrated;
 
   const menuChromeHeight = practiceMenuChromeHeight();
   const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;
@@ -895,6 +899,7 @@ export default function HomeScreen() {
     !complexityHydrated ||
     !lateralityHydrated ||
     !localeReady ||
+    !motionHydrated ||
     (!error && !introGateOpen);
 
   /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
@@ -962,15 +967,18 @@ export default function HomeScreen() {
 
   if (showIntroLogo) {
     return (
+      <MotionPreferenceProvider value={motionPreference}>
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
-        <LateralzrLogo animate />
+        <LateralzrLogo animate={motionHydrated} />
       </View>
+      </MotionPreferenceProvider>
     );
   }
 
   if (error && concepts.length === 0) {
     return (
+      <MotionPreferenceProvider value={motionPreference}>
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
         <LateralzrLogo animate={false} />
@@ -979,6 +987,7 @@ export default function HomeScreen() {
           <Text style={[styles.retryText, textStyle('row')]}>{t('retry')}</Text>
         </Pressable>
       </View>
+      </MotionPreferenceProvider>
     );
   }
 

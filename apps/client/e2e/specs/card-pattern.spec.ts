@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
-import { capture } from '../helpers/capture';
+import { capture, flipCard, swipeBack, swipeForward } from '../helpers/capture';
 import { cardFrontPattern, cardFrontTitle, visibleText } from '../helpers/locators';
-import { openApp } from '../helpers/preparePage';
+import { openApp, settleAfterNavigation } from '../helpers/preparePage';
 
 /**
  * Lz-25 pattern variants — forced via `?patternVariant=1|2|3` on a short title
@@ -67,6 +67,25 @@ async function capturePatternClear200(
     locale,
   });
 }
+
+test.describe('card front pattern stability', () => {
+  test('variant stays put after flip and backtrack', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
+    await flipCard(page);
+    await flipCard(page);
+    await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
+    await swipeForward(page, 'Mycelium');
+    await swipeBack(page, 'Mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page);
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
+  });
+});
 
 test.describe('card front pattern clearing', () => {
   test('200% long-label: clear capture (en)', async ({ page }, testInfo) => {

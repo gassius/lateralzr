@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   Linking,
@@ -57,6 +57,7 @@ import {
   applyNativeTitleTextLayoutOnce,
   conceptFrontTitleBlockHeight,
   conceptFrontTitleBottomSpacerMinHeight,
+  conceptFrontTitleInkWidth,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
   conceptFrontTitleOverflowTopSpacerHeight,
@@ -72,7 +73,9 @@ import {
   titleColor,
   type ConceptFrontTitleLayout,
 } from '@/lib/conceptFrontTitle';
-import type { PatternRect } from '@/lib/patternPlacement';
+import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
+import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
+import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
@@ -145,6 +148,9 @@ export function ConceptCard({
   const [frontFaceH, setFrontFaceH] = useState(0);
   const [frontContentH, setFrontContentH] = useState(0);
   const [backTextBlockH, setBackTextBlockH] = useState(0);
+  const [firstTextY, setFirstTextY] = useState<number | null>(null);
+  const backFaceRef = useRef<View>(null);
+  const backDescRef = useRef<Text>(null);
   /**
    * Native: committed visible layout (onTextLayout or B2 fallback).
    * Web uses sync DOM measure and never touches this.
@@ -358,16 +364,27 @@ export function ConceptCard({
         : conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
-   * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
-   * layout/scale changes (onLayout alone can lag after the title rises or e2eTextScale).
-   * Width prefers ink-hugging onLayout so short titles do not wipe edge motifs.
+   * Pattern clear box in face pixels — the painted title ink + margin, never the
+   * full-width Text box (§11.1 / §16.2). Falling back to column width hid the
+   * edge-current chain beside short titles.
    */
+  const titleInkWidth = conceptFrontTitleInkWidth(
+    frontTitleLayout.displayText,
+    displayFontSize,
+  );
+  const titleLayoutLooksFullBleed =
+    titleInkSize != null && titleInkSize.width >= titleContentWidth - 1;
+  const titleClearWidth = titleLayoutLooksFullBleed
+    ? titleInkWidth
+    : titleInkSize != null && titleInkSize.width > 0
+      ? Math.min(titleInkSize.width, titleInkWidth > 0 ? titleInkWidth : titleInkSize.width)
+      : titleInkWidth;
   const titleFaceRect: PatternRect | null =
-    frontTopSpacerH != null && titleLineCount > 0
+    frontTopSpacerH != null && titleLineCount > 0 && titleClearWidth > 0
       ? {
           x: facePad,
           y: facePad + frontTopSpacerH,
-          width: titleInkSize != null && titleInkSize.width > 0 ? titleInkSize.width : titleContentWidth,
+          width: titleClearWidth,
           height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
         }
       : null;
@@ -586,8 +603,31 @@ export function ConceptCard({
   );
   const backLinkFontSize = Math.round(16 * e2eTextScaleFactor);
 
+  const measureFirstTextLine = () => {
+    if (showMediaLayer) return;
+    const desc = backDescRef.current;
+    const face = backFaceRef.current;
+    if (!desc || !face || typeof desc.measureLayout !== 'function') return;
+    desc.measureLayout(
+      face,
+      (_x, y) => {
+        if (!Number.isFinite(y)) return;
+        setFirstTextY((prev) => (prev != null && Math.abs(prev - y) < 0.5 ? prev : y));
+      },
+      () => {},
+    );
+  };
+
+  useEffect(() => {
+    if (!flipped || showMediaLayer) return;
+    const id = requestAnimationFrame(() => measureFirstTextLine());
+    return () => cancelAnimationFrame(id);
+  }, [flipped, showMediaLayer, title]);
+
   const backDescription = (
     <Text
+      ref={backDescRef}
+      onLayout={measureFirstTextLine}
       style={[
         styles.description,
         {
@@ -794,18 +834,46 @@ export function ConceptCard({
    * untransformed front keeps flex-end/flex-start real under the flip on RN Web.
    * Media is a full-bleed layer under the paper reading block — not an inner box.
    */
+  const showBlindEmboss = !showMediaLayer && faceWidth >= 8 && backFaceH >= 8;
+  const embossPlan = resolveNoMediaEmbossHeight({
+    cardHeight: backFaceH,
+    firstTextY,
+  });
+  const embossXml = useMemo(() => {
+    if (!showBlindEmboss) return '';
+    return buildNoMediaEmbossXml(
+      buildPatternSvgXml({
+        conceptKey: patternConceptKey,
+        titleFaceRect: null,
+        faceWidth,
+        faceHeight: backFaceH,
+        variantOverride: patternVariantOverride,
+      }).xml,
+    );
+  }, [showBlindEmboss, patternConceptKey, faceWidth, backFaceH, patternVariantOverride]);
+
   const back = (
     <View
+      ref={backFaceRef}
       style={[
         styles.faceInner,
         styles.faceBackInner,
-        showMediaLayer ? styles.faceBackInnerMedia : null,
+        showMediaLayer ? styles.faceBackInnerMedia : styles.faceBackInnerEmboss,
         { borderRadius: radius },
         showMediaLayer ? null : { padding: facePad },
       ]}
       // Single AT name via sr-only heading below — no wrapper aria-label (Lz-41 / CI strict).
       testID={`card-back-${backLayout.mode}`}
     >
+      {showBlindEmboss ? (
+        <NoMediaEmboss
+          xml={embossXml}
+          width={faceWidth}
+          height={embossPlan.height}
+          faceHeight={backFaceH}
+          fadeStart={embossPlan.fadeStart}
+        />
+      ) : null}
       <Text
         accessibilityRole="header"
         accessibilityLabel={t('aboutConcept', { concept: title })}
@@ -972,6 +1040,9 @@ const styles = StyleSheet.create({
   },
   faceBackInner: {
     backgroundColor: color.paper,
+  },
+  faceBackInnerEmboss: {
+    overflow: 'hidden',
   },
   /** Edge-to-edge media under the reading block; padding lives on the copy. */
   faceBackInnerMedia: {
