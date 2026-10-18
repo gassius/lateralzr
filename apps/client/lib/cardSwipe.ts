@@ -73,6 +73,39 @@ export const DECK_REVEAL_TINT = deck.revealTint;
  */
 export const DECK_UNDERLAY_HIDDEN_X = -4096;
 
+/** Current-card wrap at rest — below the previous overlay (z 3). */
+export const DECK_FRONT_REST_Z = 2;
+/** Current-card wrap while leaving left / Next / vertical (`frontWrapMoving`). */
+export const DECK_FRONT_MOVING_Z = 40;
+/** Previous overlay while hidden at rest. */
+export const DECK_RETURN_OVERLAY_Z = 3;
+/**
+ * Previous overlay while it covers the current card. Above rest front (2) and
+ * above `frontWrapMoving` (40) so a late-applied moving z cannot bury it.
+ */
+export const DECK_RETURN_OVERLAY_COVERING_Z = 41;
+
+/**
+ * Incoming previous sits on top (guide §10/§17): right drag, or RM Previous
+ * (`rmPeerLayer` > 0 even when translateX is zeroed for the cross-fade).
+ */
+export function deckPreviousCovering(translateX: number, rmPeerLayer: number): boolean {
+  'worklet';
+  return translateX > 0 || rmPeerLayer > 0;
+}
+
+/** Covered front stays at rest z; left / Next keep the raised moving z. */
+export function deckFrontWrapZIndex(covering: boolean, moving: boolean): number {
+  'worklet';
+  if (covering) return DECK_FRONT_REST_Z;
+  return moving ? DECK_FRONT_MOVING_Z : DECK_FRONT_REST_Z;
+}
+
+export function deckReturnOverlayZIndex(covering: boolean): number {
+  'worklet';
+  return covering ? DECK_RETURN_OVERLAY_COVERING_Z : DECK_RETURN_OVERLAY_Z;
+}
+
 /**
  * Settled non-bouncy ease-out for exit / settle / RM cross-fade.
  * Matches Reanimated `Easing.out(Easing.cubic)` (1 − (1−t)³) without importing

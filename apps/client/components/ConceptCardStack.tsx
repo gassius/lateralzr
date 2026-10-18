@@ -74,8 +74,11 @@ import {
   cardSwipeTiltZDeg,
   cardSwipeTranslationAfterHandoff,
   deckCommitCrossfadeProgress,
+  deckFrontWrapZIndex,
   deckLayerVisibility,
+  deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
+  deckReturnOverlayZIndex,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
   deckUnderlayTransform,
@@ -1112,15 +1115,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const w = Math.max(1, cardWidthSV.value);
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
+    const covering = deckPreviousCovering(rawTx, rmPeerLayerSV.value);
     const coverP = rawTx > 0 ? swipeAxisProgress(rawTx, w) : 0;
     const scale = cardCoveredScale(coverP, rm);
     const lift = cardSwipeLiftShadowPx(
       Math.max(swipeAxisProgress(tx, w), swipeAxisProgress(ty, h), coverP),
       rm,
     );
-    // Covered card (right swipe) keeps rest elevation so Android does not
-    // stack it above the incoming overlay (z 3, no elevation).
-    const shadowLift = coverP > 0 ? 0 : lift;
+    // Covered card (right / Previous) stays at rest z + rest elevation so the
+    // incoming overlay paints on top. Left / Next still raise via moving z.
+    const shadowLift = covering ? 0 : lift;
+    const moving = swipeAnimating.value || exitingSV.value > 0.5 || rawTx < 0 || ty !== 0;
     const androidFill = cardSwipeAndroidLiftFill({
       liftPx: shadowLift,
       flipProgress: flipProgress.value,
@@ -1143,6 +1148,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         { scale },
       ],
       ...cardSwipeLiftShadowStyle(shadowLift),
+      zIndex: deckFrontWrapZIndex(covering, moving),
       backgroundColor:
         Platform.OS === 'android' && androidFill ? color.front : 'transparent',
     };
@@ -1198,6 +1204,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
     const overlayPeer = rmPeerLayerSV.value > 0 ? peerCommitOpacity.value : 0;
+    const covering = deckPreviousCovering(translateX.value, rmPeerLayerSV.value);
     const active = translateX.value > 0 || overlayPeer > 0;
     const suppressed = returnOverlaySuppressSV.value > 0.5;
     const progress = Math.min(1, swipeAxisProgress(translateX.value, w));
@@ -1206,6 +1213,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     return {
       opacity: hidden ? 0 : overlayPeer > 0 ? overlayPeer : 1,
       visibility: deckLayerVisibility(hidden),
+      zIndex: deckReturnOverlayZIndex(covering),
       transform: cardSwipeReturnOverlayTransform(tx, h, progress, rm),
     };
   });
@@ -1486,6 +1494,7 @@ const styles = StyleSheet.create({
     borderRadius: cardRadius(),
     overflow: 'visible',
   },
+  /** Raised z for left / Next only; covering Previous overrides to rest z 2. */
   frontWrapMoving: {
     zIndex: 40,
     elevation: 40,

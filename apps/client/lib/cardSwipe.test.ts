@@ -4,10 +4,14 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  DECK_FRONT_MOVING_Z,
+  DECK_FRONT_REST_Z,
   DECK_NEXT_OFFSET_Y,
   DECK_NEXT_SCALE,
   DECK_NEXT_TINT,
   DECK_NEXT_VISIBLE_AT_REST,
+  DECK_RETURN_OVERLAY_COVERING_Z,
+  DECK_RETURN_OVERLAY_Z,
   DECK_UNDERLAY_HIDDEN_X,
   DECK_UNDERLAYS,
   SWIPE_BACK_COVERED_SCALE,
@@ -53,8 +57,11 @@ import {
   cardSwipeTranslationAfterHandoff,
   cardSwipeVerticalRollDeg,
   deckCommitCrossfadeProgress,
-  deckReducedMotionFadesOutgoingFront,
+  deckFrontWrapZIndex,
   deckLayerVisibility,
+  deckPreviousCovering,
+  deckReducedMotionFadesOutgoingFront,
+  deckReturnOverlayZIndex,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
   deckUnderlayTransform,
@@ -408,6 +415,25 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.match(stackSrc, /deckCommitCrossfadeProgress/);
     assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(shadowLift\)/);
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
+  });
+
+  it('Previous covering keeps front at rest z and raises the overlay above it', () => {
+    assert.equal(deckPreviousCovering(0, 0), false);
+    assert.equal(deckPreviousCovering(-40, 0), false);
+    assert.equal(deckPreviousCovering(40, 0), true);
+    assert.equal(deckPreviousCovering(0, 1), true);
+    assert.equal(deckPreviousCovering(0, -1), false);
+    assert.equal(deckFrontWrapZIndex(true, true), DECK_FRONT_REST_Z);
+    assert.equal(deckFrontWrapZIndex(true, false), DECK_FRONT_REST_Z);
+    assert.equal(deckFrontWrapZIndex(false, true), DECK_FRONT_MOVING_Z);
+    assert.equal(deckFrontWrapZIndex(false, false), DECK_FRONT_REST_Z);
+    assert.equal(deckReturnOverlayZIndex(true), DECK_RETURN_OVERLAY_COVERING_Z);
+    assert.equal(deckReturnOverlayZIndex(false), DECK_RETURN_OVERLAY_Z);
+    assert.ok(DECK_RETURN_OVERLAY_COVERING_Z > DECK_FRONT_MOVING_Z);
+    assert.match(stackSrc, /deckPreviousCovering\(rawTx, rmPeerLayerSV\.value\)/);
+    assert.match(stackSrc, /zIndex: deckFrontWrapZIndex\(covering, moving\)/);
+    assert.match(stackSrc, /zIndex: deckReturnOverlayZIndex\(covering\)/);
+    assert.match(stackSrc, /const shadowLift = covering \? 0 : lift/);
   });
 });
 
