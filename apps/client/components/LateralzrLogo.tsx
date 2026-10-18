@@ -15,7 +15,8 @@ import {
   LOGO_SVG_WHITE_DOT_PATHS,
   LOGO_SVG_WHITE_REST,
 } from '@/assets/images/lateralzrLogoLayers';
-import { LOGO_PULSE_HALF_MS, LOGO_STAGGER_MS } from '@/lib/introLogo';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { introLogoPulseAllowed, LOGO_PULSE_HALF_MS, LOGO_STAGGER_MS } from '@/lib/introLogo';
 
 /** Opacity on the parent View often does not affect SvgXml on native; animate SvgXml directly. */
 const AnimatedSvgXml = Animated.createAnimatedComponent(SvgXml);
@@ -37,6 +38,8 @@ type LateralzrLogoProps = {
 
 /** Four white circle paths (path188–190 + path202) pulse in sequence over the static white rest layer. */
 export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
+  const reduceMotion = useReducedMotion();
+  const runPulse = animate && introLogoPulseAllowed(reduceMotion);
   const { width: winW } = useWindowDimensions();
   const w = Math.min(Math.max(winW * 0.48, LOCKUP_MIN), LOCKUP_MAX);
   const h = w * (VB_H / VB_W);
@@ -50,7 +53,7 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
 
   useEffect(() => {
     const opacities = [o0, o1, o2, o3];
-    if (!animate) {
+    if (!runPulse) {
       opacities.forEach((s) => {
         cancelAnimation(s);
         s.value = 1;
@@ -74,7 +77,7 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
         s.value = 1;
       });
     };
-  }, [animate, o0, o1, o2, o3]);
+  }, [runPulse, o0, o1, o2, o3]);
 
   const s0 = useAnimatedStyle(() => ({ opacity: o0.value }));
   const s1 = useAnimatedStyle(() => ({ opacity: o1.value }));

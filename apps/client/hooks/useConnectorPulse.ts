@@ -32,7 +32,8 @@ export type ConnectorPulseState = {
 };
 
 /**
- * Schedules the §11.3 breath: cycle 2–3 s, pause 8–15 s, max one concurrent.
+ * Schedules the §11.3 glow: 2400 ms cycle, 7–12 s pause, max one concurrent.
+ * First breath waits `CONNECTOR_PULSE_FIRST_DELAY_MS` after settle.
  * Starts only while `allowed`; stop is immediate (opacity → 0).
  */
 export function useConnectorPulse(options: UseConnectorPulseOptions): ConnectorPulseState {

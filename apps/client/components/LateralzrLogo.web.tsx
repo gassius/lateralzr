@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated as RNAnimated, Image, useWindowDimensions, View } from 'react-native';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { introLogoPulseAllowed } from '@/lib/introLogo';
 
 /** Master SVG (same geometry as assets/images/lateralzr_logo.svg / path modules). */
 const LOGO = require('../assets/images/logo/lateralzr-logo-master.svg');
@@ -16,6 +18,8 @@ type LateralzrLogoProps = {
  * Web: SVG as Image. Uses RN Animated (not Reanimated) so opacity loops reliably on react-native-web.
  */
 export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
+  const reduceMotion = useReducedMotion();
+  const runPulse = animate && introLogoPulseAllowed(reduceMotion);
   const { width: winW } = useWindowDimensions();
   const w = Math.min(Math.max(winW * 0.48, LOCKUP_MIN), LOCKUP_MAX);
   const h = w * (254.62924 / 286.14209);
@@ -25,7 +29,7 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
   useEffect(() => {
     loopRef.current?.stop?.();
     loopRef.current = null;
-    if (!animate) {
+    if (!runPulse) {
       opacity.setValue(1);
       return;
     }
@@ -49,7 +53,7 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
       loop.stop();
       opacity.setValue(1);
     };
-  }, [animate, opacity]);
+  }, [runPulse, opacity]);
 
   return (
     <View accessibilityRole="image" accessibilityLabel="Lateralzr logo">

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  INTRO_LOGO_PULSE_MAX_MS,
+  introLogoPulseAllowed,
   LOGO_DOT_COUNT,
   LOGO_ONE_CYCLE_MS,
   LOGO_PULSE_HALF_MS,
@@ -27,4 +29,10 @@ test('remainingIntroMs waits out the minimum when fetch is fast', () => {
 
 test('remainingIntroMs never goes negative', () => {
   assert.equal(remainingIntroMs(100, 99, 3000), 3000);
+});
+
+test('optional intro node pulse is one cycle and off under reduced motion', () => {
+  assert.equal(INTRO_LOGO_PULSE_MAX_MS, 1200);
+  assert.equal(introLogoPulseAllowed(false), true);
+  assert.equal(introLogoPulseAllowed(true), false);
 });

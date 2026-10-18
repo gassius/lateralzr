@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="358" height="560" viewBox="0 0 358 560" preserveAspectRatio="xMidYMid slice" data-variant="03-edge-current" data-version="3.3.1">
-  <title>Lateralzr card-front pattern 03 · edge-current (v3.3.1)</title>
-  <desc>Lateralzr v3.3.1 card-front background. Visual output identical to v3.3. Card units 358 x 560. Motif = dark outline paths of lateralzr-logo-master.svg (no redraw), split into #motif-bulb and four arms #motif-arm-a..d (connector line + terminal node). Finish: shade #C9670F 34% offset -0.6, highlight #FFB867 60% offset +0.7, core #EC8318 45% on #F78D1E. Relief layers #relief-shade/#relief-highlight/#relief-core keep the v3.3 paint order; inside each, use.bulb and use.connector[data-connector=cNN] (data-motif mNN, data-arm). #connectors is the pulse layer on top: one g per connector, id = data-connector = c01..c44, glow #FFB867 at fill-opacity 0 at rest. Lz-40 animates only that group's fill-opacity. Decorative: aria-hidden. #title-clear-area: no motif or pulse inside it.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="358" height="560" viewBox="0 0 358 560" preserveAspectRatio="xMidYMid slice" data-variant="03-edge-current" data-version="3.4" data-network="node-to-node">
+  <title>Lateralzr card-front pattern 03 · edge-current (v3.4)</title>
+  <desc>Lateralzr v3.4 card-front background regenerated from the committed vector master. Card units 358 x 560. Motif = logo mark paths (no redraw). Network: node-to-node inter-bulb connectors. Finish: shade #C9670F 34% offset -0.6, highlight #FFB867 60% offset +0.7, core #EC8318 45% on #F78D1E. #connectors is the required glow layer (#FFC98A, halo 3 px). Decorative: aria-hidden. #title-clear-area: no motif or pulse inside it.</desc>
   <defs>
     <g id="motif-bulb"><g
      transform="translate(-5758.4912,-272.80185)"><path
@@ -48,226 +48,211 @@
        transform="matrix(1.3333333,0,0,-1.3333333,5826.9008,411.08613)" /><path
        d="m 0,0 c -0.197,-0.037 -0.388,-0.087 -0.573,-0.146 l -0.002,-0.001 c -0.974,-0.313 -1.803,-0.925 -2.394,-1.768 -0.72,-1.027 -0.998,-2.274 -0.781,-3.51 0.216,-1.239 0.899,-2.318 1.924,-3.038 1.028,-0.72 2.275,-0.997 3.511,-0.78 1.269,0.19 2.312,0.894 3.038,1.924 0.72,1.027 0.997,2.274 0.779,3.509 -0.215,1.24 -0.899,2.318 -1.924,3.039 -1.026,0.722 -2.272,1 -3.508,0.783 C 0.046,0.009 0.024,0.004 0,0 m 2.022,-10.576 c -0.034,-0.006 -0.07,-0.013 -0.104,-0.019 -1.592,-0.28 -3.203,0.078 -4.532,1.009 -1.326,0.931 -2.209,2.325 -2.487,3.924 -0.279,1.596 0.078,3.207 1.009,4.534 0.765,1.09 1.836,1.88 3.096,2.287 0.269,0.086 0.546,0.158 0.831,0.205 C 1.43,1.643 3.04,1.283 4.367,0.35 5.693,-0.58 6.576,-1.974 6.853,-3.573 7.133,-5.168 6.776,-6.779 5.845,-8.107 4.925,-9.412 3.571,-10.285 2.022,-10.576 M -0.24,1.404 c -1.589,-0.298 -2.969,-1.185 -3.891,-2.502 -0.94,-1.334 -1.303,-2.957 -1.022,-4.573 0.283,-1.613 1.173,-3.018 2.51,-3.954 1.334,-0.94 2.957,-1.303 4.574,-1.022 0.287,0.042 0.564,0.122 0.835,0.209 l 10e-4,0.001 c 1.272,0.409 2.351,1.204 3.117,2.299 0.939,1.338 1.302,2.962 1.021,4.575 C 6.623,-1.951 5.732,-0.546 4.396,0.39 3.057,1.331 1.433,1.695 -0.178,1.415 -0.199,1.411 -0.219,1.408 -0.24,1.404 m 2.492,-13.386 c -0.029,-0.006 -0.058,-0.011 -0.086,-0.016 -1.978,-0.343 -3.966,0.101 -5.597,1.251 -1.635,1.146 -2.728,2.865 -3.073,4.84 -0.344,1.978 0.101,3.966 1.251,5.597 1.127,1.611 2.816,2.697 4.761,3.062 0.026,0.005 0.051,0.009 0.076,0.014 C 1.56,3.108 3.547,2.663 5.184,1.513 6.819,0.366 7.911,-1.352 8.256,-3.328 8.6,-5.302 8.155,-7.289 7.006,-8.924 6.069,-10.266 4.748,-11.241 3.188,-11.743 2.884,-11.841 2.572,-11.922 2.252,-11.982 M -0.716,3.783 C -1.074,3.716 -1.424,3.628 -1.761,3.519 L -1.763,3.518 c -1.773,-0.57 -3.281,-1.684 -4.358,-3.22 -1.31,-1.867 -1.815,-4.135 -1.422,-6.387 0.395,-2.251 1.64,-4.214 3.505,-5.526 1.866,-1.309 4.132,-1.813 6.381,-1.42 2.254,0.384 4.217,1.633 5.532,3.503 1.309,1.866 1.813,4.135 1.421,6.387 C 8.9,-0.895 7.656,1.068 5.791,2.381 3.923,3.694 1.655,4.199 -0.593,3.805 -0.634,3.798 -0.675,3.791 -0.716,3.783 M 2.723,-14.36 c -0.048,-0.008 -0.096,-0.018 -0.144,-0.026 -2.609,-0.457 -5.24,0.129 -7.405,1.649 -2.165,1.524 -3.61,3.8 -4.068,6.411 -0.455,2.614 0.131,5.246 1.65,7.412 1.251,1.782 3.001,3.074 5.06,3.738 0.432,0.139 0.888,0.25 1.355,0.332 C 1.779,5.614 4.411,5.027 6.58,3.503 8.744,1.979 10.189,-0.298 10.646,-2.909 11.102,-5.522 10.515,-8.154 8.997,-10.32 7.5,-12.45 5.278,-13.88 2.723,-14.36 M -0.964,5.185 C -3.54,4.702 -5.78,3.26 -7.282,1.116 c -1.529,-2.177 -2.12,-4.822 -1.662,-7.449 0.462,-2.627 1.913,-4.916 4.088,-6.443 2.176,-1.532 4.821,-2.121 7.448,-1.661 0.451,0.08 0.917,0.194 1.367,0.339 2.067,0.664 3.823,1.961 5.076,3.749 1.529,2.174 2.119,4.819 1.661,7.447 C 10.235,-0.274 8.784,2.014 6.608,3.542 4.432,5.074 1.787,5.666 -0.841,5.208 -0.882,5.201 -0.923,5.193 -0.964,5.185 m 3.925,-20.949 c -0.044,-0.008 -0.089,-0.017 -0.132,-0.024 -2.989,-0.524 -5.999,0.148 -8.474,1.89 -2.474,1.737 -4.126,4.34 -4.65,7.329 -0.52,2.989 0.151,5.997 1.891,8.472 1.735,2.478 4.353,4.128 7.327,4.656 2.99,0.52 5.999,-0.153 8.474,-1.896 2.474,-1.737 4.127,-4.34 4.65,-7.329 0.52,-2.989 -0.151,-5.998 -1.89,-8.472 -1.425,-2.033 -3.424,-3.508 -5.779,-4.266 -0.466,-0.15 -0.942,-0.271 -1.417,-0.36"
        transform="matrix(1.3333333,0,0,-1.3333333,5827.9464,411.76133)" /></g></g>
+    <filter id="glow-halo" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
   </defs>
   <rect id="card-fill" width="358" height="560" fill="#F78D1E"/>
   <g id="pattern" aria-hidden="true">
-    <g id="relief-shade" fill="#C9670F" fill-opacity="0.34" transform="translate(-0.6 -0.6)">
-      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m10" href="#motif-bulb" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m11" href="#motif-bulb" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c01" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c02" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c03" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c04" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c05" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c06" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c07" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c08" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c09" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c10" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c11" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c12" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c13" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c14" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c15" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c16" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c17" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c18" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c19" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c20" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c21" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c22" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c23" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c24" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c25" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c26" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c27" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c28" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c29" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c30" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c31" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c32" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c33" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c34" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c35" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c36" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c37" data-motif="m10" data-arm="upper-left" href="#motif-arm-a" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c38" data-motif="m10" data-arm="upper-right" href="#motif-arm-b" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c39" data-motif="m10" data-arm="right" href="#motif-arm-c" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c40" data-motif="m10" data-arm="lower-left" href="#motif-arm-d" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c41" data-motif="m11" data-arm="upper-left" href="#motif-arm-a" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c42" data-motif="m11" data-arm="upper-right" href="#motif-arm-b" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c43" data-motif="m11" data-arm="right" href="#motif-arm-c" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c44" data-motif="m11" data-arm="lower-left" href="#motif-arm-d" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
+    <g id="relief-shade" fill="#C9670F" fill-opacity="0.34" stroke="#C9670F" stroke-opacity="0.34" transform="translate(-0.6 -0.6)">
+      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <line class="inter-bulb" data-connector="c01" data-motif="m01" data-motif-end="m02" data-arm="inter-bulb" x1="202.1" y1="40.2" x2="225" y2="45.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c02" data-motif="m02" data-motif-end="m03" data-arm="inter-bulb" x1="266.6" y1="71.7" x2="285.3" y2="85.6" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c03" data-motif="m03" data-motif-end="m04" data-arm="inter-bulb" x1="291.4" y1="118.6" x2="294.3" y2="142" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c04" data-motif="m04" data-motif-end="m05" data-arm="inter-bulb" x1="309.3" y1="192.6" x2="309.7" y2="216.2" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c05" data-motif="m05" data-motif-end="m06" data-arm="inter-bulb" x1="318.4" y1="264" x2="316.3" y2="287.4" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c06" data-motif="m06" data-motif-end="m07" data-arm="inter-bulb" x1="303.3" y1="340.4" x2="309.8" y2="362.9" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c07" data-motif="m07" data-motif-end="m08" data-arm="inter-bulb" x1="329.9" y1="408.6" x2="321.8" y2="430.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c08" data-motif="m08" data-motif-end="m09" data-arm="inter-bulb" x1="296.6" y1="476.7" x2="297" y2="500.3" stroke-width="1.1" stroke-linecap="round"/>
     </g>
-    <g id="relief-highlight" fill="#FFB867" fill-opacity="0.60" transform="translate(0.7 0.7)">
-      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m10" href="#motif-bulb" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m11" href="#motif-bulb" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c01" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c02" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c03" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c04" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c05" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c06" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c07" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c08" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c09" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c10" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c11" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c12" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c13" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c14" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c15" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c16" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c17" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c18" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c19" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c20" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c21" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c22" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c23" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c24" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c25" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c26" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c27" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c28" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c29" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c30" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c31" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c32" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c33" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c34" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c35" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c36" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c37" data-motif="m10" data-arm="upper-left" href="#motif-arm-a" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c38" data-motif="m10" data-arm="upper-right" href="#motif-arm-b" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c39" data-motif="m10" data-arm="right" href="#motif-arm-c" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c40" data-motif="m10" data-arm="lower-left" href="#motif-arm-d" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c41" data-motif="m11" data-arm="upper-left" href="#motif-arm-a" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c42" data-motif="m11" data-arm="upper-right" href="#motif-arm-b" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c43" data-motif="m11" data-arm="right" href="#motif-arm-c" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c44" data-motif="m11" data-arm="lower-left" href="#motif-arm-d" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
+    <g id="relief-highlight" fill="#FFB867" fill-opacity="0.60" stroke="#FFB867" stroke-opacity="0.60" transform="translate(0.7 0.7)">
+      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <line class="inter-bulb" data-connector="c01" data-motif="m01" data-motif-end="m02" data-arm="inter-bulb" x1="202.1" y1="40.2" x2="225" y2="45.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c02" data-motif="m02" data-motif-end="m03" data-arm="inter-bulb" x1="266.6" y1="71.7" x2="285.3" y2="85.6" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c03" data-motif="m03" data-motif-end="m04" data-arm="inter-bulb" x1="291.4" y1="118.6" x2="294.3" y2="142" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c04" data-motif="m04" data-motif-end="m05" data-arm="inter-bulb" x1="309.3" y1="192.6" x2="309.7" y2="216.2" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c05" data-motif="m05" data-motif-end="m06" data-arm="inter-bulb" x1="318.4" y1="264" x2="316.3" y2="287.4" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c06" data-motif="m06" data-motif-end="m07" data-arm="inter-bulb" x1="303.3" y1="340.4" x2="309.8" y2="362.9" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c07" data-motif="m07" data-motif-end="m08" data-arm="inter-bulb" x1="329.9" y1="408.6" x2="321.8" y2="430.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c08" data-motif="m08" data-motif-end="m09" data-arm="inter-bulb" x1="296.6" y1="476.7" x2="297" y2="500.3" stroke-width="1.1" stroke-linecap="round"/>
     </g>
-    <g id="relief-core" fill="#EC8318" fill-opacity="0.45">
-      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m10" href="#motif-bulb" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="bulb" data-motif="m11" href="#motif-bulb" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c01" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c02" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c03" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c04" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c05" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c06" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c07" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c08" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/>
-      <use class="connector" data-connector="c09" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c10" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c11" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c12" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/>
-      <use class="connector" data-connector="c13" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c14" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c15" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c16" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c17" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c18" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c19" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c20" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/>
-      <use class="connector" data-connector="c21" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c22" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c23" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c24" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/>
-      <use class="connector" data-connector="c25" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c26" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c27" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c28" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/>
-      <use class="connector" data-connector="c29" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c30" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c31" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c32" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c33" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c34" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c35" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c36" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/>
-      <use class="connector" data-connector="c37" data-motif="m10" data-arm="upper-left" href="#motif-arm-a" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c38" data-motif="m10" data-arm="upper-right" href="#motif-arm-b" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c39" data-motif="m10" data-arm="right" href="#motif-arm-c" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c40" data-motif="m10" data-arm="lower-left" href="#motif-arm-d" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/>
-      <use class="connector" data-connector="c41" data-motif="m11" data-arm="upper-left" href="#motif-arm-a" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c42" data-motif="m11" data-arm="upper-right" href="#motif-arm-b" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c43" data-motif="m11" data-arm="right" href="#motif-arm-c" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
-      <use class="connector" data-connector="c44" data-motif="m11" data-arm="lower-left" href="#motif-arm-d" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/>
+    <g id="relief-core" fill="#EC8318" fill-opacity="0.45" stroke="#EC8318" stroke-opacity="0.45">
+      <use class="bulb" data-motif="m01" href="#motif-bulb" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-left" href="#motif-arm-a" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="upper-right" href="#motif-arm-b" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="right" href="#motif-arm-c" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m01" data-arm="lower-left" href="#motif-arm-d" transform="translate(180 40) rotate(-6) scale(0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m02" href="#motif-bulb" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-left" href="#motif-arm-a" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="upper-right" href="#motif-arm-b" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="right" href="#motif-arm-c" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m02" data-arm="lower-left" href="#motif-arm-d" transform="translate(249.5 51.5) rotate(17.8) scale(-0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m03" href="#motif-bulb" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-left" href="#motif-arm-a" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="upper-right" href="#motif-arm-b" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="right" href="#motif-arm-c" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m03" data-arm="lower-left" href="#motif-arm-d" transform="translate(308.1 102.6) rotate(-3.2) scale(0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m04" href="#motif-bulb" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="right" href="#motif-arm-c" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m04" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.8 170.2) rotate(25.2) scale(-0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m05" href="#motif-bulb" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-left" href="#motif-arm-a" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="upper-right" href="#motif-arm-b" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="right" href="#motif-arm-c" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m05" data-arm="lower-left" href="#motif-arm-d" transform="translate(310.1 242.4) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m06" href="#motif-bulb" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-left" href="#motif-arm-a" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="upper-right" href="#motif-arm-b" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="right" href="#motif-arm-c" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="arm" data-motif="m06" data-arm="lower-left" href="#motif-arm-d" transform="translate(313.6 316.9) rotate(-27.1) scale(0.2653 0.2653) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m07" href="#motif-bulb" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-left" href="#motif-arm-a" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="upper-right" href="#motif-arm-b" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="right" href="#motif-arm-c" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="arm" data-motif="m07" data-arm="lower-left" href="#motif-arm-d" transform="translate(317.3 389.2) rotate(16.3) scale(-0.2449 0.2449) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m08" href="#motif-bulb" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-left" href="#motif-arm-a" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="upper-right" href="#motif-arm-b" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="right" href="#motif-arm-c" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="arm" data-motif="m08" data-arm="lower-left" href="#motif-arm-d" transform="translate(312 457.4) rotate(-12.1) scale(0.2551 0.2551) translate(-143 -97)"/>
+      <use class="bulb" data-motif="m09" href="#motif-bulb" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-left" href="#motif-arm-a" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="upper-right" href="#motif-arm-b" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="right" href="#motif-arm-c" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <use class="arm" data-motif="m09" data-arm="lower-left" href="#motif-arm-d" transform="translate(297.4 526.5) rotate(31.3) scale(-0.2347 0.2347) translate(-143 -97)"/>
+      <line class="inter-bulb" data-connector="c01" data-motif="m01" data-motif-end="m02" data-arm="inter-bulb" x1="202.1" y1="40.2" x2="225" y2="45.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c02" data-motif="m02" data-motif-end="m03" data-arm="inter-bulb" x1="266.6" y1="71.7" x2="285.3" y2="85.6" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c03" data-motif="m03" data-motif-end="m04" data-arm="inter-bulb" x1="291.4" y1="118.6" x2="294.3" y2="142" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c04" data-motif="m04" data-motif-end="m05" data-arm="inter-bulb" x1="309.3" y1="192.6" x2="309.7" y2="216.2" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c05" data-motif="m05" data-motif-end="m06" data-arm="inter-bulb" x1="318.4" y1="264" x2="316.3" y2="287.4" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c06" data-motif="m06" data-motif-end="m07" data-arm="inter-bulb" x1="303.3" y1="340.4" x2="309.8" y2="362.9" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c07" data-motif="m07" data-motif-end="m08" data-arm="inter-bulb" x1="329.9" y1="408.6" x2="321.8" y2="430.7" stroke-width="1.1" stroke-linecap="round"/>
+      <line class="inter-bulb" data-connector="c08" data-motif="m08" data-motif-end="m09" data-arm="inter-bulb" x1="296.6" y1="476.7" x2="297" y2="500.3" stroke-width="1.1" stroke-linecap="round"/>
     </g>
-    <g id="connectors" data-role="pulse-glow" fill="#FFB867">
-      <g id="c01" data-connector="c01" data-motif="m01" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c02" data-connector="c02" data-motif="m01" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c03" data-connector="c03" data-motif="m01" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c04" data-connector="c04" data-motif="m01" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(40 34) rotate(-10) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c05" data-connector="c05" data-motif="m02" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/></g>
-      <g id="c06" data-connector="c06" data-motif="m02" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/></g>
-      <g id="c07" data-connector="c07" data-motif="m02" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/></g>
-      <g id="c08" data-connector="c08" data-motif="m02" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(168 48) rotate(14) scale(-0.2755 0.2755) translate(-143 -97)"/></g>
-      <g id="c09" data-connector="c09" data-motif="m03" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/></g>
-      <g id="c10" data-connector="c10" data-motif="m03" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/></g>
-      <g id="c11" data-connector="c11" data-motif="m03" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/></g>
-      <g id="c12" data-connector="c12" data-motif="m03" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(258 74) rotate(-8) scale(0.2959 0.2959) translate(-143 -97)"/></g>
-      <g id="c13" data-connector="c13" data-motif="m04" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c14" data-connector="c14" data-motif="m04" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c15" data-connector="c15" data-motif="m04" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c16" data-connector="c16" data-motif="m04" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(320 132) rotate(20) scale(-0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c17" data-connector="c17" data-motif="m05" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/></g>
-      <g id="c18" data-connector="c18" data-motif="m05" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/></g>
-      <g id="c19" data-connector="c19" data-motif="m05" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/></g>
-      <g id="c20" data-connector="c20" data-motif="m05" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(300 196) rotate(-16) scale(0.2551 0.2551) translate(-143 -97)"/></g>
-      <g id="c21" data-connector="c21" data-motif="m06" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/></g>
-      <g id="c22" data-connector="c22" data-motif="m06" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/></g>
-      <g id="c23" data-connector="c23" data-motif="m06" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/></g>
-      <g id="c24" data-connector="c24" data-motif="m06" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(330 268) rotate(14) scale(-0.2245 0.2245) translate(-143 -97)"/></g>
-      <g id="c25" data-connector="c25" data-motif="m07" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/></g>
-      <g id="c26" data-connector="c26" data-motif="m07" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/></g>
-      <g id="c27" data-connector="c27" data-motif="m07" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/></g>
-      <g id="c28" data-connector="c28" data-motif="m07" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(320 342) rotate(-12) scale(0.2449 0.2449) translate(-143 -97)"/></g>
-      <g id="c29" data-connector="c29" data-motif="m08" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c30" data-connector="c30" data-motif="m08" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c31" data-connector="c31" data-motif="m08" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c32" data-connector="c32" data-motif="m08" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(334 436) rotate(10) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c33" data-connector="c33" data-motif="m09" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c34" data-connector="c34" data-motif="m09" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c35" data-connector="c35" data-motif="m09" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c36" data-connector="c36" data-motif="m09" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(286 474) rotate(-22) scale(0.2653 0.2653) translate(-143 -97)"/></g>
-      <g id="c37" data-connector="c37" data-motif="m10" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c38" data-connector="c38" data-motif="m10" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c39" data-connector="c39" data-motif="m10" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c40" data-connector="c40" data-motif="m10" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(230 522) rotate(12) scale(-0.2347 0.2347) translate(-143 -97)"/></g>
-      <g id="c41" data-connector="c41" data-motif="m11" data-arm="upper-left" fill-opacity="0"><use href="#motif-arm-a" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c42" data-connector="c42" data-motif="m11" data-arm="upper-right" fill-opacity="0"><use href="#motif-arm-b" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c43" data-connector="c43" data-motif="m11" data-arm="right" fill-opacity="0"><use href="#motif-arm-c" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/></g>
-      <g id="c44" data-connector="c44" data-motif="m11" data-arm="lower-left" fill-opacity="0"><use href="#motif-arm-d" transform="translate(292 520) rotate(-6) scale(0.3061 0.3061) translate(-143 -97)"/></g>
+    <g id="connectors" fill="#FFC98A" pointer-events="none">
+      <g id="c01" data-connector="c01" data-motif="m01" data-motif-end="m02" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="202.1" y1="40.2" x2="225" y2="45.7" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="202.1" y1="40.2" x2="225" y2="45.7" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c02" data-connector="c02" data-motif="m02" data-motif-end="m03" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="266.6" y1="71.7" x2="285.3" y2="85.6" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="266.6" y1="71.7" x2="285.3" y2="85.6" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c03" data-connector="c03" data-motif="m03" data-motif-end="m04" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="291.4" y1="118.6" x2="294.3" y2="142" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="291.4" y1="118.6" x2="294.3" y2="142" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c04" data-connector="c04" data-motif="m04" data-motif-end="m05" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="309.3" y1="192.6" x2="309.7" y2="216.2" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="309.3" y1="192.6" x2="309.7" y2="216.2" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c05" data-connector="c05" data-motif="m05" data-motif-end="m06" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="318.4" y1="264" x2="316.3" y2="287.4" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="318.4" y1="264" x2="316.3" y2="287.4" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c06" data-connector="c06" data-motif="m06" data-motif-end="m07" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="303.3" y1="340.4" x2="309.8" y2="362.9" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="303.3" y1="340.4" x2="309.8" y2="362.9" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c07" data-connector="c07" data-motif="m07" data-motif-end="m08" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="329.9" y1="408.6" x2="321.8" y2="430.7" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="329.9" y1="408.6" x2="321.8" y2="430.7" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
+      <g id="c08" data-connector="c08" data-motif="m08" data-motif-end="m09" data-arm="inter-bulb" fill-opacity="0" opacity="0">
+        <line class="halo" x1="296.6" y1="476.7" x2="297" y2="500.3" stroke="#FFC98A" stroke-width="4.1" stroke-linecap="round" stroke-opacity="0.545" filter="url(#glow-halo)"/>
+        <line class="core" x1="296.6" y1="476.7" x2="297" y2="500.3" stroke="#FFC98A" stroke-width="1.1" stroke-linecap="round" stroke-opacity="1"/>
+      </g>
     </g>
+    <rect id="title-clear-area" x="20" y="236" width="220" height="168" fill="none"/>
   </g>
-  <rect id="title-clear-area" x="20" y="236" width="270" height="168" fill="none" stroke="none" data-role="title-clear-area" data-units="card px of 358x560; scale with the card"/>
 </svg>

@@ -20,22 +20,25 @@ import {
   defaultTitleClearForVariant,
   patternSvgForVariant,
 } from './patternPlacement.ts';
+import { PATTERN_VARIANT_PLACEMENTS } from './patternVariantPlacements.ts';
 import { motion } from '@/theme/tokens';
 import { PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
 
 describe('connectorPulse tokens', () => {
-  it('pins cycle/pause/concurrent to section23 motion tokens', () => {
+  it('pins cycle/pause/concurrent to section23 glow tokens', () => {
     const t = connectorPulseTiming();
-    assert.deepEqual(t.cycleMs, motion.pulseCycleMs);
-    assert.deepEqual(t.pauseMs, motion.pulsePauseMs);
+    assert.deepEqual(t.cycleMs, [motion.glow.cycleMs, motion.glow.cycleMs]);
+    assert.deepEqual(t.pauseMs, motion.glow.pauseMs);
     assert.equal(t.concurrentPulses, 1);
     assert.equal(t.peakOpacity, CONNECTOR_PULSE_PEAK_OPACITY);
-    assert.ok(CONNECTOR_PULSE_PEAK_OPACITY > 0 && CONNECTOR_PULSE_PEAK_OPACITY < 0.4);
+    assert.equal(t.firstDelayMs, 1500);
+    assert.equal(CONNECTOR_PULSE_PEAK_OPACITY, 0.55);
+    assert.ok(CONNECTOR_PULSE_PEAK_OPACITY >= 0.45 && CONNECTOR_PULSE_PEAK_OPACITY <= 0.6);
   });
 
-  it('glow fill stays pattern pulse orange (never white/cyan)', () => {
+  it('glow fill stays warm light orange (never white/cyan)', () => {
     assert.equal(CONNECTOR_PULSE_GLOW_FILL, PATTERN_PULSE_GLOW_FILL);
-    assert.equal(CONNECTOR_PULSE_GLOW_FILL, '#FFB867');
+    assert.equal(CONNECTOR_PULSE_GLOW_FILL, '#FFC98A');
     assert.ok(assertPulseGlowFill(patternSvgForVariant(0)));
   });
 });
@@ -66,6 +69,7 @@ describe('connectorPulseAllowed', () => {
     assert.equal(connectorPulseAllowed({ ...open, sheetOpen: true }), false);
     assert.equal(connectorPulseAllowed({ ...open, settled: false }), false);
     assert.equal(connectorPulseAllowed({ ...open, appActive: false }), false);
+    assert.equal(connectorPulseAllowed({ ...open, reshuffling: true }), false);
   });
 });
 
@@ -89,9 +93,9 @@ describe('random ranges', () => {
     })();
     for (let n = 0; n < 5; n += 1) {
       const cycle = randomPulseCycleMs(rnd);
-      assert.ok(cycle >= motion.pulseCycleMs[0] && cycle <= motion.pulseCycleMs[1]);
+      assert.equal(cycle, motion.glow.cycleMs);
       const pause = randomPulsePauseMs(rnd);
-      assert.ok(pause >= motion.pulsePauseMs[0] && pause <= motion.pulsePauseMs[1]);
+      assert.ok(pause >= motion.glow.pauseMs[0] && pause <= motion.glow.pauseMs[1]);
     }
     assert.equal(randomIntInclusive(8, 8), 8);
   });
@@ -101,7 +105,7 @@ describe('list / pick / apply connector opacity', () => {
   it('lists only visible pulse groups after title clearing', () => {
     const raw = patternSvgForVariant(0);
     const all = listVisiblePulseConnectors(raw);
-    assert.equal(all.length, 48);
+    assert.equal(all.length, PATTERN_VARIANT_PLACEMENTS[0].connectors.length);
 
     const built = buildPatternSvgXml({
       conceptKey: 'mushroom',
@@ -164,12 +168,12 @@ describe('list / pick / apply connector opacity', () => {
     const next = applyConnectorPulseOpacity(built.xml, id!, CONNECTOR_PULSE_PEAK_OPACITY);
     assert.equal(readConnectorPulseOpacity(next, id!), CONNECTOR_PULSE_PEAK_OPACITY);
     assert.ok(assertPulseGlowFill(next));
-    // Geometry: use href + transform for that connector unchanged.
-    const useRe = new RegExp(
-      `<g\\b[^>]*\\bid="${id}"[^>]*>\\s*<use\\b([^/]*)/>`,
+    // Geometry: inter-bulb line endpoints unchanged.
+    const lineRe = new RegExp(
+      `<g\\b[^>]*\\bid="${id}"[^>]*>[\\s\\S]*?<line class="core"([^/]*)/>`,
     );
-    const before = useRe.exec(built.xml)?.[1];
-    const after = useRe.exec(next)?.[1];
+    const before = lineRe.exec(built.xml)?.[1];
+    const after = lineRe.exec(next)?.[1];
     assert.equal(before, after);
     const rest = applyConnectorPulseOpacity(next, id!, 0);
     assert.equal(readConnectorPulseOpacity(rest, id!), 0);

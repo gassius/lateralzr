@@ -22,6 +22,13 @@ export const LOGO_ONE_CYCLE_MS = LOGO_STAGGER_MS * (LOGO_DOT_COUNT - 1) + LOGO_P
  */
 export const MIN_INTRO_LOGO_MS = Math.max(3000, LOGO_ONE_CYCLE_MS);
 
+/** Optional §5.2 intro node pulse: one cycle, glow colour, off under RM. */
+export const INTRO_LOGO_PULSE_MAX_MS = 1200;
+
+export function introLogoPulseAllowed(reduceMotion: boolean): boolean {
+  return !reduceMotion;
+}
+
 /** Milliseconds still needed to reach the minimum intro duration. */
 export function remainingIntroMs(
   startedAtMs: number,

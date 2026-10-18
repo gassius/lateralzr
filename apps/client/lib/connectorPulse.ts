@@ -1,8 +1,8 @@
 /**
- * Card-front connector pulse (Lz-40 / guide §11.3).
+ * Card-front connector glow (Lz-58 / guide §11.3).
  *
- * Decorative only: one short connector + terminal node, opacity breath on the
- * existing `#connectors` glow layer (#FFB867). No geometry movement.
+ * Decorative only: one inter-bulb connector + terminal node. Opacity breath on
+ * `#connectors` (#FFC98A). No geometry movement.
  */
 
 import { PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
@@ -10,13 +10,13 @@ import { motion } from '@/theme/tokens';
 import type { PatternRect, PatternVariantIndex } from '@/lib/patternPlacement';
 import { PATTERN_VARIANT_PLACEMENTS } from '@/lib/patternVariantPlacements';
 
-/** Peak fill-opacity for the breath — barely perceptible at arm's length. */
-export const CONNECTOR_PULSE_PEAK_OPACITY = 0.22;
+/** Peak opacity for the required glow (settled on device inside 0.45–0.60). */
+export const CONNECTOR_PULSE_PEAK_OPACITY = motion.glow.peakOpacity;
 
-/** Quiet delay after settle before the first breath (not a loading cue). */
-export const CONNECTOR_PULSE_FIRST_DELAY_MS = 400;
+/** First glow no sooner than this after settle. */
+export const CONNECTOR_PULSE_FIRST_DELAY_MS = motion.glow.firstDelayMs;
 
-/** Documented glow fill (must stay the pattern pulse orange, never white/cyan). */
+/** Documented glow fill (warm light orange, never white/cyan). */
 export const CONNECTOR_PULSE_GLOW_FILL = PATTERN_PULSE_GLOW_FILL;
 
 export type PulseConnector = {
@@ -36,6 +36,8 @@ export type ConnectorPulseGate = {
   scrolling: boolean;
   /** Laterality / app-menu sheet open. */
   sheetOpen: boolean;
+  /** Laterality reshuffle cue in progress (Lz-57; reserved on main). */
+  reshuffling?: boolean;
   /** AppState === 'active'. */
   appActive: boolean;
   /** Shared RM gate (OS + web + Lz-46 Motion preference). */
@@ -47,15 +49,18 @@ export type ConnectorPulseTiming = {
   pauseMs: readonly [number, number];
   concurrentPulses: number;
   peakOpacity: number;
+  firstDelayMs: number;
 };
 
 /** Pin helpers to theme tokens (unit tests). */
 export function connectorPulseTiming(): ConnectorPulseTiming {
+  const glow = motion.glow;
   return {
-    cycleMs: motion.pulseCycleMs,
-    pauseMs: motion.pulsePauseMs,
-    concurrentPulses: motion.concurrentPulses,
-    peakOpacity: CONNECTOR_PULSE_PEAK_OPACITY,
+    cycleMs: [glow.cycleMs, glow.cycleMs],
+    pauseMs: glow.pauseMs,
+    concurrentPulses: glow.concurrent,
+    peakOpacity: glow.peakOpacity,
+    firstDelayMs: glow.firstDelayMs,
   };
 }
 
@@ -66,7 +71,7 @@ export function connectorPulseTiming(): ConnectorPulseTiming {
 export function connectorPulseAllowed(gate: ConnectorPulseGate): boolean {
   if (gate.reduceMotion) return false;
   if (!gate.settled || !gate.frontShowing) return false;
-  if (gate.dragging || gate.scrolling || gate.sheetOpen) return false;
+  if (gate.dragging || gate.scrolling || gate.sheetOpen || gate.reshuffling) return false;
   if (!gate.appActive) return false;
   return true;
 }
@@ -83,12 +88,12 @@ export function randomIntInclusive(
 }
 
 export function randomPulseCycleMs(random: () => number = Math.random): number {
-  const [lo, hi] = motion.pulseCycleMs;
-  return randomIntInclusive(lo, hi, random);
+  const glow = motion.glow;
+  return randomIntInclusive(glow.cycleMs, glow.cycleMs, random);
 }
 
 export function randomPulsePauseMs(random: () => number = Math.random): number {
-  const [lo, hi] = motion.pulsePauseMs;
+  const [lo, hi] = motion.glow.pauseMs;
   return randomIntInclusive(lo, hi, random);
 }
 
@@ -187,19 +192,31 @@ export function applyConnectorPulseOpacity(
 ): string {
   if (!connectorId) return xml;
   const value = formatOpacity(opacity);
-  const re = new RegExp(
+  let next = xml;
+  const fillRe = new RegExp(
     `(<g\\b[^>]*\\bid="${connectorId}"[^>]*\\bfill-opacity=")[^"]*(")`,
   );
-  if (!re.test(xml)) return xml;
-  return xml.replace(re, `$1${value}$2`);
+  if (fillRe.test(next)) {
+    next = next.replace(fillRe, `$1${value}$2`);
+  }
+  const opacityRe = new RegExp(
+    `(<g\\b[^>]*\\bid="${connectorId}"[^>]*\\bopacity=")[^"]*(")`,
+  );
+  if (opacityRe.test(next)) {
+    next = next.replace(opacityRe, `$1${value}$2`);
+  }
+  return next;
 }
 
-/** Read fill-opacity for a connector group (tests / e2e helpers). */
+/** Read fill-opacity / opacity for a connector group (tests / e2e helpers). */
 export function readConnectorPulseOpacity(xml: string, connectorId: string): number | null {
-  const re = new RegExp(
+  const opacityRe = new RegExp(
+    `<g\\b[^>]*\\bid="${connectorId}"[^>]*\\bopacity="([^"]*)"`,
+  );
+  const fillRe = new RegExp(
     `<g\\b[^>]*\\bid="${connectorId}"[^>]*\\bfill-opacity="([^"]*)"`,
   );
-  const match = re.exec(xml);
+  const match = opacityRe.exec(xml) ?? fillRe.exec(xml);
   if (!match) return null;
   const n = Number(match[1]);
   return Number.isFinite(n) ? n : null;

@@ -49,7 +49,7 @@ test.describe('card front connector pulse', () => {
     const pulse = await readPulseDom(page);
     expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
     expect(pulse.connectorGroupCount, JSON.stringify(pulse)).toBeGreaterThan(0);
-    expect(pulse.fill).toBe('#FFB867');
+    expect(pulse.fill).toBe('#FFC98A');
 
     // AD-only artifact for Critiquito — settle/baseline noise must not fail CI.
     try {
@@ -63,6 +63,51 @@ test.describe('card front connector pulse', () => {
         type: 'ad-capture-soft',
         description: err instanceof Error ? err.message : String(err),
       });
+    }
+  });
+
+  test('glow scheduler stays off under OS reduced motion', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&patternVariant=1');
+    await expect(cardFrontPattern(page)).toBeAttached();
+    const pulse = await readPulseDom(page);
+    expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
+    expect(pulse.connectorGroupCount).toBeGreaterThan(0);
+    const live = await page.evaluate(() => {
+      const groups = document.querySelectorAll('[data-testid="card-front-pattern"] #connectors > g[id^="c"]');
+      return Array.from(groups).map((g) => ({
+        id: g.id,
+        opacity: g.getAttribute('opacity'),
+        fillOpacity: g.getAttribute('fill-opacity'),
+      }));
+    });
+    expect(live.length).toBeGreaterThan(0);
+    for (const row of live) {
+      expect(row.opacity === '0' || row.opacity === null).toBeTruthy();
+      expect(row.fillOpacity === '0' || row.fillOpacity === null).toBeTruthy();
+    }
+  });
+});
+
+test.describe('card front connector pulse — Motion reduced', () => {
+  test.use({ reducedMotion: 'no-preference' });
+
+  test('glow stays off when Motion is Reduced', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&patternVariant=1');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await page.getByTestId('app-menu-row-motion').click();
+    await page.getByTestId('app-menu-motion-row-reduced').click();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await page.getByTestId('app-menu-close').click();
+    await expect(page.getByTestId('app-menu')).toHaveCount(0);
+    await expect(cardFrontPattern(page)).toBeAttached();
+    const live = await page.evaluate(() => {
+      const groups = document.querySelectorAll('[data-testid="card-front-pattern"] #connectors > g[id^="c"]');
+      return Array.from(groups).map((g) => g.getAttribute('opacity') ?? g.getAttribute('fill-opacity'));
+    });
+    expect(live.length).toBeGreaterThan(0);
+    for (const opacity of live) {
+      expect(opacity === '0' || opacity === null).toBeTruthy();
     }
   });
 });

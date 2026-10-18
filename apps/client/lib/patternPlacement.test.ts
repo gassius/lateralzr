@@ -30,14 +30,27 @@ import { PATTERN_VARIANT_PLACEMENTS } from './patternVariantPlacements.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const patternDir = join(here, '../assets/images/pattern');
+const masterDir = join(here, '../assets/pattern');
+
+// Masters committed byte-identical from ClickUp 1amjtreveb6 (Lz-58).
+const MASTER_SHA256 = {
+  'pattern-master-v3.4.png':
+    'ed9ad7d677b266a6e3cc0cfc4ac6e4a5d20ffe2901f2285948845131aed539dc',
+  'lateralzr-pattern-network-descending-v3.4-study.svg':
+    '9c4d4c0b8cfeea8d93dc85d319c1a1e973d3ecaaf82e07f672864f383d65c28b',
+  'lateralzr-pattern-network-ascending-v3.4.svg':
+    '00b913afa5dd671b78b2405c5f0282fd19ea18a468e2651da34fe089f9ae45b9',
+  'lateralzr-pattern-network-edge-v3.4.svg':
+    '8ab25757b5e89f5e3bc8b4ba96f4fad293c00bb4e23dcac25e4cb2c4b7f8ee8f',
+} as const;
 
 const EXPECTED_SHA256 = {
   'lateralzr-pattern-01-descending-current.svg':
-    '7046310f0938d30b863671e44ea80192b97f4ad02b3d89f0892354991b7b1276',
+    'b93d5ee42deaf8c90911c96e02af5ccfce69c3e8bd36a2d19d25ee72506167d0',
   'lateralzr-pattern-02-ascending-current.svg':
-    'afa7d92096936da9ca0c7eff5c65501ed9d723c3220826fef24a9439846a552b',
+    '6ba0b6ffdbcbad6b86f5dda3aebc9fc8909e897966c2d45d6664161bc17ea31b',
   'lateralzr-pattern-03-edge-current.svg':
-    '2f5c34364c3c0002b3ad8de338c80517f10825f638ce96ca3d0a78d59ba938b6',
+    'ae2454441c6797f63eb6f7631b1820cd66c6eda1ad38470436342dc3f6f8c6bd',
 } as const;
 
 function assertRectClose(actual: PatternRect, expected: PatternRect, tol = 0.5) {
@@ -63,7 +76,15 @@ function motifElementsById(xml: string): Map<string, string[]> {
   return map;
 }
 
-describe('pattern SVG assets (byte-identical to Critiquito v3.3.1)', () => {
+describe('pattern SVG assets (v3.4 masters + regenerated production)', () => {
+  it('commits the v3.4 masters byte-identical (ClickUp 1amjtreveb6)', () => {
+    for (const [name, expected] of Object.entries(MASTER_SHA256)) {
+      const bytes = readFileSync(join(masterDir, name));
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      assert.equal(digest, expected, name);
+    }
+  });
+
   it('ships the three production files with locked checksums', () => {
     for (const name of PATTERN_SVG_FILENAMES) {
       const bytes = readFileSync(join(patternDir, name));
@@ -135,17 +156,42 @@ describe('variantFor', () => {
   });
 });
 
+describe('v3.4 network constraints', () => {
+  it('joins bulbs node-to-node and keeps echoes at 1–3', () => {
+    for (const [index, table] of PATTERN_VARIANT_PLACEMENTS.entries()) {
+      const current = table.motifs.filter((m) => m.cy <= 400);
+      const echo = table.motifs.filter((m) => m.cy > 400);
+      assert.ok(current.length >= 4, `variant ${index} current ${current.length}`);
+      // Descending master's main network is 10 joined bulbs (authority over the 4–7 envelope).
+      assert.ok(current.length <= 10, `variant ${index} current ${current.length}`);
+      assert.ok(echo.length >= 1 && echo.length <= 3, `variant ${index} echo ${echo.length}`);
+      assert.ok(table.connectors.length >= 1, `variant ${index} needs inter-bulb connectors`);
+      const ids = new Set(table.motifs.map((m) => m.id));
+      for (const c of table.connectors) {
+        assert.ok(ids.has(c.from) && ids.has(c.to), `${c.id} must be node-to-node`);
+        assert.notEqual(c.from, c.to);
+      }
+    }
+  });
+
+  it('keeps every motif outside the SVG default clear area', () => {
+    for (const variant of [0, 1, 2] as const) {
+      const clear = defaultTitleClearForVariant(variant);
+      assert.deepEqual(motifsIntersectingClearArea(variant, clear), []);
+    }
+  });
+});
+
 describe('motifBoundingBox (exact ±0.5)', () => {
-  it('matches rotated+mirrored v0 m02 (rotate 8, sx −0.3571)', () => {
+  it('matches rotated+mirrored v0 m02 (rotate 0.8, sx −0.3163)', () => {
     const m02 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm02')!;
-    assert.equal(m02.rotate, 8);
-    assert.equal(m02.sx, -0.3571);
-    // Locked against drop-rotation / ignore-mirroring / collapse-right-edge mutations.
+    assert.equal(m02.rotate, 0.8);
+    assert.equal(m02.sx, -0.3163);
     assertRectClose(motifBoundingBox(m02), {
-      x: 76.76734524472573,
-      y: 24.093330207035052,
-      width: 79.44898428811172,
-      height: 81.88039239206992,
+      x: 78.6666116190604,
+      y: 17.74092734222627,
+      width: 62.88966947427144,
+      height: 65.38449291989441,
     });
   });
 
@@ -153,19 +199,18 @@ describe('motifBoundingBox (exact ±0.5)', () => {
     const m01 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm01')!;
     assert.ok(m01.sx > 0);
     assertRectClose(motifBoundingBox(m01), {
-      x: 4.492222313424108,
-      y: 4.584898743203063,
-      width: 74.05560831032624,
-      height: 76.00461325677779,
+      x: 9.424796002431634,
+      y: 21.67254113735624,
+      width: 63.56363710757077,
+      height: 65.50889976593217,
     });
   });
 
   it('hides only the motif that crosses a tight clear boundary (~2 units)', () => {
-    // v0 m10 bottom ≈ 224.7; neighbour m05 bottom ≈ 211.7. Clear clips m10 by ~2 only.
     const m10 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm10')!;
-    const m05 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm05')!;
+    const m08 = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm08')!;
     const bb10 = motifBoundingBox(m10);
-    const bb05 = motifBoundingBox(m05);
+    const bb08 = motifBoundingBox(m08);
     const clearTop = bb10.y + bb10.height - 2;
     const clear: PatternRect = {
       x: 20,
@@ -175,19 +220,18 @@ describe('motifBoundingBox (exact ±0.5)', () => {
     };
     assert.ok(bb10.y + bb10.height > clear.y, 'm10 must cross into clear');
     assert.ok(bb10.y + bb10.height - clear.y < 2.5, 'crossing depth ~2');
-    assert.ok(bb05.y + bb05.height <= clear.y + 0.5, 'm05 stays above clear');
+    assert.ok(bb08.y + bb08.height <= clear.y + 0.5, 'm08 stays above clear');
     const hidden = motifsIntersectingClearArea(0, clear);
     assert.ok(hidden.includes('m10'));
-    assert.equal(hidden.includes('m05'), false);
+    assert.equal(hidden.includes('m08'), false);
   });
 });
 
 describe('title clearing', () => {
-  it('keeps every motif outside the SVG default clear area', () => {
+  it('pins the default clear area to the SVG table', () => {
     for (const variant of [0, 1, 2] as const) {
       const clear = defaultTitleClearForVariant(variant);
       assert.deepEqual(clear, PATTERN_VARIANT_PLACEMENTS[variant].titleClear);
-      assert.deepEqual(motifsIntersectingClearArea(variant, clear), []);
       for (const motif of PATTERN_VARIANT_PLACEMENTS[variant].motifs) {
         assert.ok(motifBoundingBox(motif).width > 0);
       }
@@ -244,21 +288,26 @@ describe('title clearing', () => {
     const byId = motifElementsById(xml);
     const hiddenSet = new Set(hiddenMotifs);
     for (const [id, els] of byId) {
-      assert.ok(els.length >= 19, `${id} should appear in relief uses + pulse groups`);
+      assert.ok(els.length >= 15, `${id} should appear in relief uses`);
       if (hiddenSet.has(id)) {
         for (const el of els) {
           assert.match(el, /display="none"/, `hidden ${id}: ${el.slice(0, 120)}`);
         }
-      } else {
-        for (const el of els) {
-          assert.doesNotMatch(el, /display="none"/, `visible ${id} must not be hidden`);
+        continue;
+      }
+      for (const el of els) {
+        const end = /\bdata-motif-end="(m\d+)"/.exec(el)?.[1];
+        // Inter-bulb connectors hide when either end is in the title clearing.
+        if (end && hiddenSet.has(end)) {
+          assert.match(el, /display="none"/, `connector into hidden ${end}`);
+          continue;
         }
+        assert.doesNotMatch(el, /display="none"/, `visible ${id} must not be hidden`);
       }
     }
     // Pulse groups specifically (mutation: skip <g> tags).
     for (const id of hiddenMotifs) {
       const groups = [...xml.matchAll(new RegExp(`<g\\b[^>]*data-motif="${id}"[^>]*>`, 'g'))];
-      assert.ok(groups.length > 0, `expected pulse <g> for ${id}`);
       for (const g of groups) {
         assert.match(g[0]!, /display="none"/);
       }
@@ -269,7 +318,7 @@ describe('title clearing', () => {
 });
 
 describe('patternVariantPlacements ↔ SVG (M1)', () => {
-  it('matches every use.bulb transform and #title-clear-area from the v3.3.1 files', () => {
+  it('matches every use.bulb transform and #title-clear-area from the v3.4 files', () => {
     for (let v = 0; v < 3; v += 1) {
       const svg = PATTERN_SVG_BY_VARIANT[v]!;
       const table = PATTERN_VARIANT_PLACEMENTS[v]!;

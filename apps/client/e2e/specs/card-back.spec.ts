@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { capture, flipCard } from '../helpers/capture';
 import {
   cardBackCopy,
+  cardBackEmboss,
   cardBackMedia,
   cardBackTitle,
   cardFrontTitle,
@@ -24,6 +25,9 @@ test.describe('card back', () => {
     await expect(cardBackTitle(page)).toHaveCount(0);
     await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
     await expect(page.getByLabel('About Mushroom')).toBeVisible();
+    const emboss = cardBackEmboss(page);
+    await expect(emboss).toBeAttached();
+    await expect(emboss).toHaveAttribute('aria-hidden', 'true');
     await capture(page, testInfo, { screen: 'card-back', state: 'no-media', locale: 'en' });
   });
 
@@ -45,6 +49,9 @@ test.describe('card back', () => {
       page.getByText("There isn't a description for this concept yet."),
     ).toBeVisible();
     await expect(page.getByTestId('card-back-wikipedia')).toHaveCount(0);
+    const emboss = cardBackEmboss(page);
+    await expect(emboss).toBeAttached();
+    await expect(emboss).toHaveAttribute('aria-hidden', 'true');
     await capture(page, testInfo, { screen: 'card-back', state: 'no-description', locale: 'en' });
   });
 
@@ -74,6 +81,7 @@ test.describe('card back', () => {
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
+    await expect(page.getByTestId('card-back-emboss')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
   });
 

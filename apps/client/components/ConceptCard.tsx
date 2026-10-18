@@ -72,7 +72,9 @@ import {
   titleColor,
   type ConceptFrontTitleLayout,
 } from '@/lib/conceptFrontTitle';
-import type { PatternRect } from '@/lib/patternPlacement';
+import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
+import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
+import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
@@ -145,6 +147,9 @@ export function ConceptCard({
   const [frontFaceH, setFrontFaceH] = useState(0);
   const [frontContentH, setFrontContentH] = useState(0);
   const [backTextBlockH, setBackTextBlockH] = useState(0);
+  const [firstTextY, setFirstTextY] = useState<number | null>(null);
+  const backFaceRef = useRef<View>(null);
+  const backDescRef = useRef<Text>(null);
   /**
    * Native: committed visible layout (onTextLayout or B2 fallback).
    * Web uses sync DOM measure and never touches this.
@@ -586,8 +591,30 @@ export function ConceptCard({
   );
   const backLinkFontSize = Math.round(16 * e2eTextScaleFactor);
 
+  const measureFirstTextLine = () => {
+    if (showMediaLayer) return;
+    const desc = backDescRef.current;
+    const face = backFaceRef.current;
+    if (!desc || !face || typeof desc.measureInWindow !== 'function') return;
+    desc.measureInWindow((_dx, dy) => {
+      face.measureInWindow((_fx, fy) => {
+        const next = dy - fy;
+        if (!Number.isFinite(next) || next <= 0) return;
+        setFirstTextY((prev) => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next));
+      });
+    });
+  };
+
+  useEffect(() => {
+    if (!flipped || showMediaLayer) return;
+    const id = requestAnimationFrame(() => measureFirstTextLine());
+    return () => cancelAnimationFrame(id);
+  }, [flipped, showMediaLayer, title]);
+
   const backDescription = (
     <Text
+      ref={backDescRef}
+      onLayout={measureFirstTextLine}
       style={[
         styles.description,
         {
@@ -794,18 +821,43 @@ export function ConceptCard({
    * untransformed front keeps flex-end/flex-start real under the flip on RN Web.
    * Media is a full-bleed layer under the paper reading block — not an inner box.
    */
+  const showBlindEmboss = !showMediaLayer && faceWidth >= 8 && backFaceH >= 8;
+  const embossPlan = resolveNoMediaEmbossHeight({
+    cardHeight: backFaceH,
+    firstTextY,
+  });
+  const embossXml = showBlindEmboss
+    ? buildNoMediaEmbossXml(
+        buildPatternSvgXml({
+          conceptKey: patternConceptKey,
+          titleFaceRect: null,
+          faceWidth,
+          faceHeight: backFaceH,
+        }).xml,
+      )
+    : '';
+
   const back = (
     <View
+      ref={backFaceRef}
       style={[
         styles.faceInner,
         styles.faceBackInner,
-        showMediaLayer ? styles.faceBackInnerMedia : null,
+        showMediaLayer ? styles.faceBackInnerMedia : styles.faceBackInnerEmboss,
         { borderRadius: radius },
         showMediaLayer ? null : { padding: facePad },
       ]}
       // Single AT name via sr-only heading below — no wrapper aria-label (Lz-41 / CI strict).
       testID={`card-back-${backLayout.mode}`}
     >
+      {showBlindEmboss ? (
+        <NoMediaEmboss
+          xml={embossXml}
+          width={faceWidth}
+          height={embossPlan.height}
+          fadeStart={embossPlan.fadeStart}
+        />
+      ) : null}
       <Text
         accessibilityRole="header"
         accessibilityLabel={t('aboutConcept', { concept: title })}
@@ -972,6 +1024,9 @@ const styles = StyleSheet.create({
   },
   faceBackInner: {
     backgroundColor: color.paper,
+  },
+  faceBackInnerEmboss: {
+    overflow: 'hidden',
   },
   /** Edge-to-edge media under the reading block; padding lives on the copy. */
   faceBackInnerMedia: {

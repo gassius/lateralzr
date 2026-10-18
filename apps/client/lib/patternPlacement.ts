@@ -219,17 +219,18 @@ export function faceRectToCardUnits(
 export function hideMotifsInPatternSvg(xml: string, motifIds: readonly string[]): string {
   if (motifIds.length === 0) return xml;
   const hide = new Set(motifIds);
-  return xml.replace(
-    /<(use|g)\b([^>]*?)\sdata-motif="(m\d+)"([^>]*?)(\/?)>/g,
-    (full, tag: string, pre: string, motifId: string, post: string, selfClose: string) => {
-      if (!hide.has(motifId)) return full;
-      if (/\bdisplay\s*=/.test(full)) return full;
-      if (selfClose === '/') {
-        return `<${tag}${pre} data-motif="${motifId}"${post} display="none"/>`;
-      }
-      return `<${tag}${pre} data-motif="${motifId}"${post} display="none">`;
-    },
-  );
+  return xml.replace(/<(use|g|line)\b([^>]*?)>/g, (full) => {
+    const motifId = /\bdata-motif="(m\d+)"/.exec(full)?.[1];
+    const motifEnd = /\bdata-motif-end="(m\d+)"/.exec(full)?.[1];
+    const shouldHide =
+      (motifId != null && hide.has(motifId)) || (motifEnd != null && hide.has(motifEnd));
+    if (!shouldHide) return full;
+    if (/\bdisplay\s*=/.test(full)) return full;
+    if (/\/\s*>$/.test(full)) {
+      return full.replace(/\s*\/>$/, ' display="none"/>');
+    }
+    return full.replace(/>$/, ' display="none">');
+  });
 }
 
 /**
