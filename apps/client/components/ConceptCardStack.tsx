@@ -716,11 +716,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     });
   };
 
-  const beginMotionCommit = () => {
+  const beginMotionCommit = useCallback(() => {
     'worklet';
     swipeAnimating.value = true;
     indexMotionSerialSV.value += 1;
-  };
+  }, [indexMotionSerialSV, swipeAnimating]);
 
   const focusCard = useCallback(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
