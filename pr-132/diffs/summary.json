@@ -118,11 +118,11 @@
   },
   {
     "file": "status_neighbourhood-loading_390x844_en.png",
-    "ratio": 0.7180877081054806,
-    "percent": 71.80877081054805,
+    "ratio": 0.6828859825009114,
+    "percent": 68.28859825009114,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 945463,
+    "mismatchedPixels": 899115,
     "diffImage": "status_neighbourhood-loading_390x844_en.diff.png"
   },
   {
