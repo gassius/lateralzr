@@ -6,6 +6,8 @@ export type DeckConcept = {
   wikiUrl: string | null;
   mediaUrl: string | null;
   media?: ConceptMedia[];
+  /** Edge laterality that dealt this card (1–5). Start seeds may omit it. */
+  grade?: 1 | 2 | 3 | 4 | 5;
 };
 
 export type DeckGraphNode = {
@@ -20,6 +22,7 @@ export type DeckGraphNode = {
 export type DeckGraphEdge = {
   from: number;
   to: number;
+  laterality?: number;
 };
 
 export type DeckGraph = {
@@ -41,13 +44,21 @@ export function mergeUniqueRelated(existing: DeckConcept[], related: DeckConcept
   });
 }
 
-function nodeToItem(node: DeckGraphNode): DeckConcept {
+function parseEdgeGrade(value: unknown): 1 | 2 | 3 | 4 | 5 {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 3;
+  const n = Math.round(value);
+  if (n < 1 || n > 5) return 3;
+  return n as 1 | 2 | 3 | 4 | 5;
+}
+
+function nodeToItem(node: DeckGraphNode, grade?: 1 | 2 | 3 | 4 | 5): DeckConcept {
   return {
     concept: node.label,
     shortDescription: node.shortDescription,
     wikiUrl: node.wikiUrl,
     mediaUrl: node.mediaUrl,
     ...(node.media?.length ? { media: node.media } : {}),
+    ...(grade != null ? { grade } : {}),
   };
 }
 
@@ -67,50 +78,52 @@ export function graphToDeckItems(data: DeckGraph): DeckConcept[] {
     byId.set(node.id, node);
   }
 
-  const adj = new Map<number, number[]>();
-  const addEdge = (from: number, to: number) => {
+  const adj = new Map<number, Array<{ id: number; grade?: 1 | 2 | 3 | 4 | 5 }>>();
+  const addEdge = (from: number, to: number, grade?: 1 | 2 | 3 | 4 | 5) => {
     const list = adj.get(from);
+    const hop = { id: to, grade };
     if (list) {
-      list.push(to);
+      list.push(hop);
     } else {
-      adj.set(from, [to]);
+      adj.set(from, [hop]);
     }
   };
   for (const edge of data.edges ?? []) {
-    addEdge(edge.from, edge.to);
-    addEdge(edge.to, edge.from);
+    const grade = parseEdgeGrade(edge.laterality);
+    addEdge(edge.from, edge.to, grade);
+    addEdge(edge.to, edge.from, grade);
   }
 
-  const ordered: DeckGraphNode[] = [];
+  const ordered: Array<{ node: DeckGraphNode; grade?: 1 | 2 | 3 | 4 | 5 }> = [];
   const seen = new Set<number>();
-  const queue: number[] = [];
+  const queue: Array<{ id: number; grade?: 1 | 2 | 3 | 4 | 5 }> = [];
   const startId = data.start?.id;
 
   if (startId != null && byId.has(startId)) {
-    queue.push(startId);
+    queue.push({ id: startId });
     seen.add(startId);
   }
 
   while (queue.length > 0) {
-    const id = queue.shift()!;
-    const node = byId.get(id);
+    const hop = queue.shift()!;
+    const node = byId.get(hop.id);
     if (!node) continue;
-    ordered.push(node);
-    for (const nextId of adj.get(id) ?? []) {
-      if (seen.has(nextId) || !byId.has(nextId)) continue;
-      seen.add(nextId);
-      queue.push(nextId);
+    ordered.push({ node, grade: hop.grade });
+    for (const next of adj.get(hop.id) ?? []) {
+      if (seen.has(next.id) || !byId.has(next.id)) continue;
+      seen.add(next.id);
+      queue.push(next);
     }
   }
 
   for (const node of nodes) {
     if (!seen.has(node.id)) {
-      ordered.push(node);
+      ordered.push({ node });
       seen.add(node.id);
     }
   }
 
-  return ordered.map(nodeToItem);
+  return ordered.map(({ node, grade }) => nodeToItem(node, grade));
 }
 
 export type LoadMorePlan =

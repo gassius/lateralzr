@@ -13,6 +13,10 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  ReduceMotion,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -89,13 +93,15 @@ import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMedia
 import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
 import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
-import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
+import { cardFlipA11yFace, cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 const LINK_HIT = layout.recommendedTouchTarget;
+
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
@@ -148,6 +154,15 @@ type ConceptCardProps = {
    * preload). Zero until the stack has measured; then the URI is stable.
    */
   mediaRequestWidth?: number;
+  /** Lz-56: UI-thread back-face scroll metrics for the 24 px vertical hand-off. */
+  backScrollOffsetY?: SharedValue<number>;
+  backScrollContentH?: SharedValue<number>;
+  backScrollViewportH?: SharedValue<number>;
+  /**
+   * Stack-owned 0–1 flip progress. Lives above this card so a remount on
+   * back→front (a11y role / wiki tree) cannot snap progress to 0.
+   */
+  flipProgress?: SharedValue<number>;
 };
 
 export function ConceptCard({
@@ -162,6 +177,10 @@ export function ConceptCard({
   pulseGateActive = false,
   facePadding,
   mediaRequestWidth = 0,
+  backScrollOffsetY,
+  backScrollContentH,
+  backScrollViewportH,
+  flipProgress: flipProgressShared,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const { width: windowWidth } = useWindowDimensions();
@@ -203,10 +222,28 @@ export function ConceptCard({
   /** True once B2 fallback is painted — late onTextLayout must not resize. */
   const nativeFallbackVisibleRef = useRef(false);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
-  const flipProgress = useSharedValue(0);
+  const fallbackFlipProgress = useSharedValue(0);
+  const flipProgress = flipProgressShared ?? fallbackFlipProgress;
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+  const fallbackScrollY = useSharedValue(0);
+  const fallbackScrollContentH = useSharedValue(0);
+  const fallbackScrollViewportH = useSharedValue(0);
+  const scrollY = backScrollOffsetY ?? fallbackScrollY;
+  const scrollContentH = backScrollContentH ?? fallbackScrollContentH;
+  const scrollViewportH = backScrollViewportH ?? fallbackScrollViewportH;
+  const onBackScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+      scrollContentH.value = event.contentSize.height;
+      scrollViewportH.value = event.layoutMeasurement.height;
+    },
+  });
+  /** AT / pointer face after the flip midpoint — not the `flipped` boolean. */
+  const [presentedFace, setPresentedFace] = useState<'front' | 'back'>(
+    flipped ? 'back' : 'front',
+  );
   const imageSource =
     mediaRequestWidth > 0
       ? remoteImageSource(
@@ -335,11 +372,26 @@ export function ConceptCard({
   const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
-    flipProgress.value = withTiming(flipped ? 1 : 0, {
-      duration: flipDurationMs(reduceMotion),
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [flipped, flipProgress, reduceMotion]);
+    if (flipProgressShared) return;
+    flipProgress.value = withTiming(
+      flipped ? 1 : 0,
+      reduceMotion
+        ? {
+            duration: flipDurationMs(true),
+            easing: Easing.out(Easing.cubic),
+            reduceMotion: ReduceMotion.Never,
+          }
+        : { duration: flipDurationMs(false), easing: Easing.out(Easing.cubic) },
+    );
+  }, [flipped, flipProgress, flipProgressShared, reduceMotion]);
+
+  useAnimatedReaction(
+    () => cardFlipA11yFace(flipProgress.value),
+    (face, previous) => {
+      if (face !== previous) runOnJS(setPresentedFace)(face);
+    },
+    [setPresentedFace],
+  );
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Native: prefetched URLs are treated as ready so deck handoff never briefly resets.
@@ -768,7 +820,7 @@ export function ConceptCard({
   const showReferenceLinks = resolveShowReferenceLinks(journeyTestParams);
   const showMediaCredits = resolveShowMediaCredits(journeyTestParams);
   const backWiki = showReferenceLinks && item.wikiUrl ? (
-    flipped ? (
+    presentedFace === 'back' ? (
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={t('wikipedia')}
@@ -1077,7 +1129,7 @@ export function ConceptCard({
         {t('aboutConcept', { concept: title })}
       </Text>
       {backMediaLayer}
-      <ScrollView
+      <AnimatedScrollView
         style={[
           styles.backScroll,
           // Keep the image/fade outside the reading scroll viewport. Scrolling
@@ -1089,6 +1141,14 @@ export function ConceptCard({
         bounces
         nestedScrollEnabled
         testID="card-back-scroll"
+        scrollEventThrottle={16}
+        onScroll={onBackScroll}
+        onLayout={(event) => {
+          scrollViewportH.value = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_w, h) => {
+          scrollContentH.value = h;
+        }}
       >
         <View
           style={[
@@ -1108,7 +1168,7 @@ export function ConceptCard({
         >
           {backCopy}
         </View>
-      </ScrollView>
+      </AnimatedScrollView>
       {showMediaLayer ? (
         <View
           style={{ height: facePad, backgroundColor: color.paper }}
@@ -1121,8 +1181,8 @@ export function ConceptCard({
     </View>
   );
 
-  const frontA11yHidden = flipped;
-  const backA11yHidden = !flipped;
+  const frontA11yHidden = presentedFace === 'back';
+  const backA11yHidden = presentedFace === 'front';
 
   return (
     <View
@@ -1153,7 +1213,7 @@ export function ConceptCard({
         <View style={styles.flipRoot}>
           <Animated.View
             style={[styles.faceSide, styles.faceFront, frontFaceStyle]}
-            pointerEvents={flipped ? 'none' : 'auto'}
+            pointerEvents={presentedFace === 'back' ? 'none' : 'auto'}
             accessibilityElementsHidden={frontA11yHidden}
             importantForAccessibility={frontA11yHidden ? 'no-hide-descendants' : 'auto'}
             {...(Platform.OS === 'web' ? { 'aria-hidden': frontA11yHidden } : null)}
@@ -1162,7 +1222,7 @@ export function ConceptCard({
           </Animated.View>
           <Animated.View
             style={[styles.faceSide, styles.faceBack, backFaceStyle]}
-            pointerEvents={flipped ? 'auto' : 'none'}
+            pointerEvents={presentedFace === 'back' ? 'auto' : 'none'}
             accessibilityElementsHidden={backA11yHidden}
             importantForAccessibility={backA11yHidden ? 'no-hide-descendants' : 'auto'}
             {...(Platform.OS === 'web' ? { 'aria-hidden': backA11yHidden } : null)}

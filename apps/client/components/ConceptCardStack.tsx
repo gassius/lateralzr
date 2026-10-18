@@ -9,10 +9,12 @@ import {
   useState,
 } from 'react';
 import {
+  AccessibilityInfo,
   AppState,
   type AccessibilityActionEvent,
   type AppStateStatus,
   type NativeSyntheticEvent,
+  findNodeHandle,
   PixelRatio,
   Platform,
   StyleSheet,
@@ -20,15 +22,19 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
+  ReduceMotion,
   runOnJS,
   runOnUI,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { LoadingCard } from './LoadingCard';
+import { useReshuffleCardStyle } from './LateralityReshuffle';
 import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -40,6 +46,7 @@ import {
   type CardFace,
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
+import type { LateralityReshufflePhase } from '@/lib/lateralityReshuffle';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import { CARD_STACK_GUTTER, cardRadius, resolveCardAspectLayout } from '@/lib/cardLayout';
 import {
@@ -55,16 +62,46 @@ import {
   type CardAction,
 } from '@/lib/cardActions';
 import {
+  DECK_NEXT_VISIBLE_AT_REST,
+  SWIPE_BACK_FACE_SCROLL_HANDOFF_PX,
   SWIPE_EASING,
-  SWIPE_RETURN_MS,
+  SWIPE_RETURN_SPRING,
+  applyStartOfHistoryResistance,
+  backFaceVerticalHandoffOrigin,
+  cardCoveredScale,
+  cardCoveredTint,
+  cardSwipeFollowY,
   cardSwipeFrontTransform,
+  cardSwipeAndroidLiftFill,
+  cardSwipeLiftShadowPx,
+  cardSwipeLiftShadowStyle,
   cardSwipeReturnOverlayTransform,
+  cardSwipeTiltZDeg,
+  cardSwipeTranslationAfterHandoff,
+  deckBehindDisplayIndex,
+  deckBehindLockIndexForRightDrag,
+  deckCommitCrossfadeProgress,
+  deckFrontWrapZIndex,
+  deckLayerVisibility,
+  deckPreviousCovering,
+  deckReducedMotionFadesOutgoingFront,
+  deckReducedMotionUnderlayPeer,
+  deckReturnOverlayElevation,
+  deckReturnOverlayOpacity,
+  deckReturnOverlayTranslateX,
+  deckReturnOverlayZIndex,
+  deckUnderlayCommittedSideMatchesReveal,
+  deckUnderlayDragProgress,
+  deckUnderlayReveal,
+  deckUnderlayTransform,
+  swipeAxisProgress,
   swipeCommitDirection,
   swipeCommitDurationMs,
   swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
+import { flipDurationMs } from '@/lib/cardFlip';
 import { clampComplexity } from '@/lib/complexityStorage';
-import { deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
+import { deckEnterLandsSettled, deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
 import {
   resolveNavSettleIntent,
   returnOverlayIndexForEndLoading,
@@ -73,10 +110,13 @@ import { coachMessageKey } from '@/lib/discoveryCoaching';
 import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { requestedMediaWidth, resolveCardMediaUrl } from '@/lib/remoteImage';
+import { color } from '@/theme/tokens';
 
 export type ConceptCardStackHandle = {
   /** Run a non-swipe action through the same commit path as gestures. */
   runAction: (action: CardAction) => void;
+  /** Move AT / keyboard focus to the dealt card after a laterality reshuffle. */
+  focusCard: () => void;
 };
 
 type ConceptCardStackProps = {
@@ -107,11 +147,30 @@ type ConceptCardStackProps = {
       onDismiss: () => void;
     } | null,
   ) => void;
+  /** Lz-56: chrome lock + raise stack while dragging or exiting. */
+  onDeckMotionChange?: (moving: boolean) => void;
+  /** Lz-57: ignore card taps/swipes while the laterality cue is covering the wait. */
+  inputLocked?: boolean;
+  /** Lz-57: gather / deal the card on its own rect (§12.5). */
+  reshufflePhase?: LateralityReshufflePhase | null;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
-/** Move behind peek off-screen instead of opacity:0 — opacity toggles caused a sibling alpha compositor flash on handoff. */
-const BEHIND_PEEK_OFFSCREEN_X = -4096;
+
+function conceptTintRgba(alpha: number): string {
+  'worklet';
+  return `rgba(19,91,119,${alpha})`;
+}
+
+/** In-app RM cross-fade: do not let OS Reduce Motion skip the 150 ms timing. */
+function rmCrossfadeTiming(duration: number) {
+  'worklet';
+  return {
+    duration,
+    easing: SWIPE_EASING,
+    reduceMotion: ReduceMotion.Never,
+  };
+}
 
 export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardStackProps>(function ConceptCardStack({
   concepts,
@@ -127,6 +186,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   sheetOpen = false,
   onReplayGestureTipsReady,
   onCoachTipChange,
+  onDeckMotionChange,
+  inputLocked = false,
+  reshufflePhase = null,
 }, ref) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -137,6 +199,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   /** Peer (behind / return overlay) opacity during RM commit cross-fade (0 → 1). */
   const peerCommitOpacity = useSharedValue(0);
   const swipeAnimating = useSharedValue(false);
+  /** Invalidates a late index-change `runOnUI` reset after a new commit starts. */
+  const indexMotionSerialSV = useSharedValue(0);
   const canSwipeRightSV = useSharedValue(0);
   const showDeckStatusSV = useSharedValue(0);
   const cardWidthSV = useSharedValue(360);
@@ -154,7 +218,29 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     () => AppState.currentState === 'active',
   );
   const reduceMotion = useReducedMotion();
+  const reshuffleCardStyle = useReshuffleCardStyle(reshufflePhase, reduceMotion);
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+  const flippedSV = useSharedValue(0);
+  const flipProgress = useSharedValue(0);
+  const exitingSV = useSharedValue(0);
+  const exitProgressSV = useSharedValue(0);
+  const releaseTiltZSV = useSharedValue(0);
+  const exitSignSV = useSharedValue(0);
+  /** 0 none, −1 next underlay, 1 previous overlay (RM commit cross-fade). */
+  const rmPeerLayerSV = useSharedValue(0);
+  /** 1 = JS already locked the underlay to Previous for this right drag. */
+  const behindRightLockSV = useSharedValue(0);
+  /** 1 when committed `behindDisplayIndex === currentIndex - 1` (layout effect). */
+  const behindShowsPrevSV = useSharedValue(0);
+  const handoffOriginY = useSharedValue(0);
+  const backScrollY = useSharedValue(0);
+  const backScrollContentH = useSharedValue(0);
+  const backScrollViewportH = useSharedValue(0);
+  const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
+  /** 1 = finger Y at the scroll edge is latched in edgeStartY. */
+  const edgeLatched = useSharedValue(0);
+  const edgeStartY = useSharedValue(0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
   const [returnOverlayLockedIndex, setReturnOverlayLockedIndex] = useState<number | null>(null);
   /** While swipe-left commit runs, pin behind card to this index (the “next” card under the front) before index advances. */
@@ -192,12 +278,18 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   useEffect(() => {
     flippedRef.current = flipped;
-  }, [flipped]);
+    flippedSV.value = flipped ? 1 : 0;
+  }, [flipped, flippedSV]);
 
   const sheetOpenRef = useRef(sheetOpen);
   useEffect(() => {
     sheetOpenRef.current = sheetOpen;
   }, [sheetOpen]);
+  const inputLockedRef = useRef(inputLocked);
+  const a11ySurfaceRef = useRef<View>(null);
+  useEffect(() => {
+    inputLockedRef.current = inputLocked;
+  }, [inputLocked]);
 
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
@@ -361,12 +453,18 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     showDeckStatusSV.value = showDeckStatus ? 1 : 0;
   }, [showDeckStatus, showDeckStatusSV]);
 
+  useLayoutEffect(() => {
+    const display = deckBehindDisplayIndex(behindLockedIndex, currentIndex);
+    behindShowsPrevSV.value = display === currentIndex - 1 ? 1 : 0;
+  }, [behindLockedIndex, behindShowsPrevSV, currentIndex]);
+
   // Layout effect: reset gesture + enter state before paint so the new top card never flashes with the
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
   useLayoutEffect(() => {
     // Lz-36: loading → concept without a swipe intent (append settle, or back cleared pending).
+    const committedNavIntent = navIntentRef.current;
     const intent = resolveNavSettleIntent({
-      navIntent: navIntentRef.current,
+      navIntent: committedNavIntent,
       wasDeckStatus: wasDeckStatusRef.current,
       showDeckStatus,
       prevIndex: loadingClearPrevIndexRef.current,
@@ -379,30 +477,56 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
     returnOverlaySuppressSV.value = 1;
 
+    const resetSerial = indexMotionSerialSV.value + 1;
+    indexMotionSerialSV.value = resetSerial;
     runOnUI(() => {
       'worklet';
+      // Serial is bumped on keyboard and gesture commits so a late reset cannot
+      // clobber an in-flight fade. Do not gate on swipeAnimating — after a
+      // commit it is still true on native and the worklet would never run.
+      if (indexMotionSerialSV.value !== resetSerial) {
+        return;
+      }
       translateX.value = 0;
       translateY.value = 0;
       swipeAnimating.value = false;
+      exitingSV.value = 0;
+      handoffOriginY.value = 0;
+      edgeLatched.value = 0;
       coachPeekX.value = 0;
       flipPeek.value = 0;
       frontCommitOpacity.value = 1;
       peerCommitOpacity.value = 0;
+      flipProgress.value = 0;
+      exitProgressSV.value = 0;
+      releaseTiltZSV.value = 0;
+      exitSignSV.value = 0;
+      rmPeerLayerSV.value = 0;
+      behindRightLockSV.value = 0;
     })();
     translateX.value = 0;
     translateY.value = 0;
     swipeAnimating.value = false;
+    exitingSV.value = 0;
+    handoffOriginY.value = 0;
+    edgeLatched.value = 0;
     coachPeekX.value = 0;
     flipPeek.value = 0;
     frontCommitOpacity.value = 1;
     peerCommitOpacity.value = 0;
+    flipProgress.value = 0;
+    exitProgressSV.value = 0;
+    releaseTiltZSV.value = 0;
+    exitSignSV.value = 0;
+    rmPeerLayerSV.value = 0;
+    behindRightLockSV.value = 0;
     setFlipped(false);
 
     const rm = reduceMotionSV.value > 0.5;
     if (intent === 'forward' || intent === 'backward' || intent === 'backwardGesture') {
-      // RM / backwardGesture: cross-fade or return overlay already completed — land settled.
-      // Full motion: fade 0→1 + ±8 → 0 over settle token (260 ms; Lz-36 loading replace).
-      if (rm || intent === 'backwardGesture') {
+      // Underlay-revealed Next/Complexity, RM, Previous overlay: already on screen — land settled.
+      // Loading-replace (derived forward / back-from-status): fade 0→1 + ±8 → 0 over 260 ms.
+      if (deckEnterLandsSettled(rm, intent, committedNavIntent)) {
         enterX.value = 0;
         enterOpacity.value = 1;
       } else {
@@ -426,6 +550,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   useEffect(() => {
     setCardSettled(false);
     setPulseDragging(false);
+    onDeckMotionChange?.(false);
     const ms = reduceMotion ? 0 : deckSettleDurationMs(false);
     if (ms <= 0) {
       setCardSettled(true);
@@ -433,7 +558,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     }
     const timer = setTimeout(() => setCardSettled(true), ms);
     return () => clearTimeout(timer);
-  }, [currentIndex, showDeckStatus, reduceMotion]);
+  }, [currentIndex, showDeckStatus, reduceMotion, onDeckMotionChange]);
 
   // Clear overlay/behind locks + suppression after paint so Reanimated and native have applied translateX = 0
   // before we drop the lock (same cadence as swipe-right path).
@@ -529,12 +654,35 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         });
       }
     }
+    flippedSV.value = next ? 1 : 0;
+    flipProgress.value = withTiming(
+      next ? 1 : 0,
+      reduceMotion
+        ? {
+            duration: flipDurationMs(true),
+            easing: Easing.out(Easing.cubic),
+            reduceMotion: ReduceMotion.Never,
+          }
+        : {
+            duration: flipDurationMs(false),
+            easing: Easing.out(Easing.cubic),
+          },
+    );
     setFlipped(next);
-  }, [flushDwell, noteTapped]);
+  }, [flushDwell, noteTapped, reduceMotion, flippedSV, flipProgress]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
     const i = currentIndexRef.current - 1;
     if (i >= 0) setReturnOverlayLockedIndex(i);
+  }, []);
+
+  const lockBehindIndexForRightCommit = useCallback(() => {
+    const i = deckBehindLockIndexForRightDrag(currentIndexRef.current);
+    if (i !== null) setBehindLockedIndex(i);
+  }, []);
+
+  const unlockBehindIndex = useCallback(() => {
+    setBehindLockedIndex(null);
   }, []);
 
   const lockBehindIndexForLeftCommit = useCallback(() => {
@@ -549,30 +697,69 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       sheetOpen: sheetOpenRef.current,
       animating: swipeAnimating.value,
       showDeckStatus: showDeckStatusRef.current,
+      inputLocked: inputLockedRef.current,
     }),
     [swipeAnimating],
   );
+
+  const startHorizontalExit = (sign: number) => {
+    'worklet';
+    const w = Math.max(1, cardWidthSV.value);
+    const rm = reduceMotionSV.value > 0.5;
+    releaseTiltZSV.value = cardSwipeTiltZDeg(translateX.value, w, rm);
+    exitSignSV.value = sign;
+    exitProgressSV.value = 0;
+    exitingSV.value = 1;
+    exitProgressSV.value = withTiming(1, {
+      duration: swipeCommitDurationMs(rm),
+      easing: SWIPE_EASING,
+    });
+  };
+
+  const beginMotionCommit = useCallback(() => {
+    'worklet';
+    swipeAnimating.value = true;
+    indexMotionSerialSV.value += 1;
+  }, [indexMotionSerialSV, swipeAnimating]);
+
+  const focusCard = useCallback(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const surface = document.querySelector('[data-testid="card-a11y-surface"]');
+      if (surface instanceof HTMLElement) {
+        surface.focus();
+      }
+      return;
+    }
+    const node = findNodeHandle(a11ySurfaceRef.current);
+    if (node != null) {
+      AccessibilityInfo.setAccessibilityFocus(node);
+    }
+  }, []);
 
   /** Animate then call the same commit* helpers gestures use (respects Lz-34 RM). */
   const animateThenCommit = useCallback(
     (kind: 'next' | 'previous' | 'complexityUp' | 'complexityDown') => {
       if (swipeAnimating.value) return;
-      swipeAnimating.value = true;
+      beginMotionCommit();
       coachPeekX.value = 0;
       flipPeek.value = 0;
+      setPulseDragging(true);
+      onDeckMotionChange?.(true);
       const rm = reduceMotion;
       const commitMs = swipeCommitDurationMs(rm);
       const slide = swipeShouldSlideOutOnCommit(rm);
 
       if (kind === 'previous') {
         lockReturnOverlayIndexForRightCommit();
+        exitingSV.value = 1;
         if (!slide) {
-          translateX.value = 0;
-          translateY.value = 0;
+          rmPeerLayerSV.value = 1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          if (deckReducedMotionFadesOutgoingFront('right')) {
+            frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+          }
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeRight)();
           });
           return;
@@ -586,13 +773,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
       lockBehindIndexForLeftCommit();
       if (kind === 'next') {
+        releaseTiltZSV.value = cardSwipeTiltZDeg(translateX.value, Math.max(1, cardWidthSV.value), rm);
+        exitSignSV.value = -1;
+        exitProgressSV.value = 0;
+        exitingSV.value = 1;
+        exitProgressSV.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING });
         if (!slide) {
-          translateX.value = 0;
-          translateY.value = 0;
+          rmPeerLayerSV.value = -1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeLeft)();
           });
           return;
@@ -605,13 +796,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       }
 
       const vertical = complexityDirectionForAction(kind);
+      exitingSV.value = 1;
       if (!slide) {
-        translateX.value = 0;
-        translateY.value = 0;
+        rmPeerLayerSV.value = -1;
         frontCommitOpacity.value = 1;
         peerCommitOpacity.value = 0;
-        frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-        peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+        frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+        peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
           if (finished) runOnJS(commitSwipeVertical)(vertical);
         });
         return;
@@ -634,10 +825,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       coachPeekX,
       flipPeek,
       frontCommitOpacity,
+      beginMotionCommit,
       peerCommitOpacity,
       swipeAnimating,
       translateX,
       translateY,
+      onDeckMotionChange,
+      exitingSV,
     ],
   );
 
@@ -654,7 +848,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     [actionGate, animateThenCommit, noteInteraction, toggleFlip],
   );
 
-  useImperativeHandle(ref, () => ({ runAction }), [runAction]);
+  useImperativeHandle(ref, () => ({ runAction, focusCard }), [runAction, focusCard]);
 
   const activeLocale = getActiveLocale();
   const accessibilityActions = useMemo(
@@ -682,7 +876,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         currentTarget?: EventTarget | null;
         preventDefault?: () => void;
       };
-      // Nested controls (back-face Wikipedia link) must keep Enter/Space.
       if (!shouldHandleCardSurfaceKey(domEvent.target, domEvent.currentTarget)) {
         return;
       }
@@ -695,6 +888,27 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     [runAction],
   );
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const onKey = (event: KeyboardEvent) => {
+      const surface = document.querySelector('[data-testid="card-a11y-surface"]');
+      if (!(surface instanceof Element)) return;
+      const active = document.activeElement;
+      if (active == null) return;
+      const surfaceFocused = active === surface;
+      const nestedFocus = surface.contains(active);
+      if (!surfaceFocused && !nestedFocus) return;
+      if (!surfaceFocused && !shouldHandleCardSurfaceKey(event.target, surface)) return;
+      const action = cardActionFromKey(event.key);
+      if (action == null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      runAction(action);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [runAction]);
+
   useLayoutEffect(() => {
     if (Platform.OS === 'web') ensureA11yFocusRingStyles();
   }, []);
@@ -706,10 +920,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             sheetOpen,
             showDeckStatus,
             currentIndex,
+            inputLocked,
           }),
-          onKeyDown: onCardKeyDown,
         } as Record<string, unknown>)
-      : {};
+      : { onKeyDown: onCardKeyDown };
 
   const surfaceIsButton = cardSurfaceIsAccessibleButton({
     showDeckStatus,
@@ -722,6 +936,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     !flipped &&
     !pulseDragging &&
     !sheetOpen &&
+    !inputLocked &&
     appActive &&
     !showDeckStatus;
 
@@ -733,6 +948,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   // maxDeltaY so a vertical ScrollView drag on the back fails the tap (no accidental flip).
   const tap = Gesture.Tap()
+    .enabled(!inputLocked)
     .maxDistance(14)
     .maxDeltaY(10)
     .onEnd(() => {
@@ -742,25 +958,61 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       runOnJS(toggleFlip)();
     });
 
-  const markPulseDragging = useCallback((active: boolean) => {
-    setPulseDragging(active);
-  }, []);
+  const markDeckMoving = useCallback(
+    (active: boolean) => {
+      setPulseDragging(active);
+      onDeckMotionChange?.(active);
+    },
+    [onDeckMotionChange],
+  );
+
+  const springHome = () => {
+    'worklet';
+    const spring = {
+      damping: SWIPE_RETURN_SPRING.damping,
+      stiffness: SWIPE_RETURN_SPRING.stiffness,
+      overshootClamping: true as const,
+    };
+    exitProgressSV.value = 0;
+    exitingSV.value = 0;
+    releaseTiltZSV.value = 0;
+    exitSignSV.value = 0;
+    rmPeerLayerSV.value = 0;
+    if (behindRightLockSV.value > 0.5) {
+      behindRightLockSV.value = 0;
+      runOnJS(unlockBehindIndex)();
+    }
+    translateX.value = withSpring(0, spring);
+    translateY.value = withSpring(0, spring, (finished) => {
+      if (finished) runOnJS(markDeckMoving)(false);
+    });
+  };
 
   const panX = Gesture.Pan()
+    .enabled(!inputLocked)
     .activeOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .failOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .onStart(() => {
-      translateY.value = 0;
       cancelCoachPeek();
       runOnJS(noteInteraction)();
-      runOnJS(markPulseDragging)(true);
+      runOnJS(markDeckMoving)(true);
     })
-    .onUpdate((e: { translationX: number }) => {
+    .onUpdate((e: { translationX: number; translationY: number }) => {
       if (swipeAnimating.value) return;
-      let tx = e.translationX;
-      if (canSwipeRightSV.value === 0 && tx > 0) tx = 0;
+      const canGoBack = canSwipeRightSV.value > 0.5;
+      let tx = applyStartOfHistoryResistance(e.translationX, canGoBack);
       if (showDeckStatusSV.value === 1 && tx < 0) tx = 0;
       translateX.value = tx;
+      translateY.value = cardSwipeFollowY(e.translationY, reduceMotionSV.value > 0.5);
+      if (tx > 0 && canGoBack) {
+        if (behindRightLockSV.value < 0.5) {
+          behindRightLockSV.value = 1;
+          runOnJS(lockBehindIndexForRightCommit)();
+        }
+      } else if (behindRightLockSV.value > 0.5) {
+        behindRightLockSV.value = 0;
+        runOnJS(unlockBehindIndex)();
+      }
     })
     .onEnd(
       (e: {
@@ -769,7 +1021,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         velocityX: number;
         velocityY: number;
       }) => {
-        runOnJS(markPulseDragging)(false);
         if (swipeAnimating.value) return;
         const w = Math.max(1, cardWidthSV.value);
         const direction = swipeCommitDirection(e.translationX, e.velocityX, w);
@@ -778,21 +1029,18 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
         if (direction < 0) {
           if (showDeckStatusSV.value === 1) {
-            translateX.value = withTiming(0, {
-              duration: SWIPE_RETURN_MS,
-              easing: SWIPE_EASING,
-            });
+            springHome();
             return;
           }
-          swipeAnimating.value = true;
+          beginMotionCommit();
+          startHorizontalExit(-1);
           runOnJS(lockBehindIndexForLeftCommit)();
           if (!swipeShouldSlideOutOnCommit(rm)) {
-            // RM: snap drag, cross-fade outgoing → incoming (no slide-out / no 8 px shift).
-            translateX.value = 0;
+            rmPeerLayerSV.value = -1;
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
-            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+            peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
               if (finished) runOnJS(commitSwipeLeft)();
             });
             return;
@@ -805,22 +1053,16 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         }
         if (direction > 0) {
           if (canSwipeRightSV.value === 0) {
-            translateX.value = withTiming(0, {
-              duration: SWIPE_RETURN_MS,
-              easing: SWIPE_EASING,
-            });
+            springHome();
             return;
           }
-          // Lz-36: back from loading — slide/fade the silhouette away; no return-overlay mount
-          // (mounting a peer ConceptCard under LoadingCard raced peerCommitOpacity and flaked
-          // deck-status-line vs laterality-rail bbox asserts in Client E2E).
           if (showDeckStatusSV.value === 1) {
-            swipeAnimating.value = true;
+            beginMotionCommit();
+            exitingSV.value = 1;
             if (!swipeShouldSlideOutOnCommit(rm)) {
-              translateX.value = 0;
               frontCommitOpacity.value = 1;
               peerCommitOpacity.value = 0;
-              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+              frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs), (finished) => {
                 if (finished) runOnJS(commitSwipeRight)();
               });
               return;
@@ -830,14 +1072,18 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             });
             return;
           }
-          swipeAnimating.value = true;
+          beginMotionCommit();
+          exitingSV.value = 1;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
+          runOnJS(lockBehindIndexForRightCommit)();
           if (!swipeShouldSlideOutOnCommit(rm)) {
-            translateX.value = 0;
+            rmPeerLayerSV.value = 1;
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
-            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-            peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+            if (deckReducedMotionFadesOutgoingFront('right', translateX.value)) {
+              frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+            }
+            peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
               if (finished) runOnJS(commitSwipeRight)();
             });
             return;
@@ -847,21 +1093,67 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           });
           return;
         }
-        translateX.value = withTiming(0, {
-          duration: SWIPE_RETURN_MS,
-          easing: SWIPE_EASING,
-        });
+        springHome();
       },
     );
 
   const panY = Gesture.Pan()
-    .activeOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
-    .failOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
+    .enabled(!inputLocked)
+    .manualActivation(true)
+    .onTouchesDown((e) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      touchStartX.value = touch.absoluteX;
+      touchStartY.value = touch.absoluteY;
+      edgeLatched.value = 0;
+      handoffOriginY.value = 0;
+    })
+    .onTouchesMove((e, manager) => {
+      if (swipeAnimating.value) return;
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const dy = touch.absoluteY - touchStartY.value;
+      const dx = touch.absoluteX - touchStartX.value;
+      if (Math.abs(dx) >= Math.abs(dy) && Math.abs(dx) > PAN_ACTIVE_OFFSET) {
+        manager.fail();
+        return;
+      }
+      const flippedFace = flippedSV.value > 0.5;
+      const contentH = backScrollContentH.value;
+      const viewportH = backScrollViewportH.value;
+      const canScroll = flippedFace && contentH > viewportH + 1;
+      if (!canScroll) {
+        if (Math.abs(dy) > PAN_ACTIVE_OFFSET) manager.activate();
+        return;
+      }
+      const atTop = backScrollY.value <= 1;
+      const atBottom = backScrollY.value + viewportH >= contentH - 1;
+      const atEdge = atTop || atBottom;
+      if (!atEdge) {
+        edgeLatched.value = 0;
+        return;
+      }
+      if (edgeLatched.value === 0) {
+        edgeStartY.value = touch.absoluteY;
+        edgeLatched.value = 1;
+      }
+      const origin = backFaceVerticalHandoffOrigin(
+        dy,
+        edgeStartY.value - touchStartY.value,
+        atTop,
+        atBottom,
+        SWIPE_BACK_FACE_SCROLL_HANDOFF_PX,
+      );
+      if (origin != null) {
+        handoffOriginY.value = origin;
+        manager.activate();
+      }
+    })
     .onStart(() => {
       translateX.value = 0;
       cancelCoachPeek();
       runOnJS(noteInteraction)();
-      runOnJS(markPulseDragging)(true);
+      runOnJS(markDeckMoving)(true);
     })
     .onUpdate((e: { translationY: number }) => {
       if (swipeAnimating.value) return;
@@ -869,7 +1161,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         translateY.value = 0;
         return;
       }
-      translateY.value = e.translationY;
+      const origin = handoffOriginY.value;
+      translateY.value =
+        origin !== 0 ? cardSwipeTranslationAfterHandoff(e.translationY, origin) : e.translationY;
     })
     .onEnd(
       (e: {
@@ -878,36 +1172,28 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         velocityX: number;
         velocityY: number;
       }) => {
-        runOnJS(markPulseDragging)(false);
         if (swipeAnimating.value) return;
         const h = Math.max(1, cardHeightSV.value);
-        const direction = swipeCommitDirection(e.translationY, e.velocityY, h);
-        if (direction === 0) {
-          translateY.value = withTiming(0, {
-            duration: SWIPE_RETURN_MS,
-            easing: SWIPE_EASING,
-          });
+        const origin = handoffOriginY.value;
+        const ty =
+          origin !== 0 ? cardSwipeTranslationAfterHandoff(e.translationY, origin) : e.translationY;
+        const direction = swipeCommitDirection(ty, e.velocityY, h);
+        if (direction === 0 || showDeckStatusSV.value === 1) {
+          springHome();
           return;
         }
         const vertical: 'up' | 'down' = direction < 0 ? 'up' : 'down';
-
-        if (showDeckStatusSV.value === 1) {
-          translateY.value = withTiming(0, {
-            duration: SWIPE_RETURN_MS,
-            easing: SWIPE_EASING,
-          });
-          return;
-        }
-        swipeAnimating.value = true;
+        beginMotionCommit();
+        exitingSV.value = 1;
         runOnJS(lockBehindIndexForLeftCommit)();
         const rm = reduceMotionSV.value > 0.5;
         const commitMs = swipeCommitDurationMs(rm);
         if (!swipeShouldSlideOutOnCommit(rm)) {
-          translateY.value = 0;
+          rmPeerLayerSV.value = -1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
-          peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
+          frontCommitOpacity.value = withTiming(0, rmCrossfadeTiming(commitMs));
+          peerCommitOpacity.value = withTiming(1, rmCrossfadeTiming(commitMs), (finished) => {
             if (finished) runOnJS(commitSwipeVertical)(vertical);
           });
           return;
@@ -921,52 +1207,133 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   const composed = showDeckStatus
     ? Gesture.Exclusive(panX, panY)
-    : flipped
-      ? Gesture.Exclusive(tap, panX)
-      : Gesture.Exclusive(tap, panX, panY);
+    : Gesture.Exclusive(tap, panX, panY);
 
-  /** Current / top-of-deck card — translate only (quiet 1:1 drag). */
+  /** Current / top-of-deck card — directional tilt + translation. */
   const frontAnimatedStyle = useAnimatedStyle(() => {
     const ty = translateY.value;
     const peekX = coachPeekX.value;
-    const tx = (translateX.value < 0 ? translateX.value : 0) + peekX;
+    const rawTx = translateX.value;
+    const tx = (rawTx < 0 ? rawTx : 0) + peekX;
     const x = enterX.value + tx;
+    const w = Math.max(1, cardWidthSV.value);
+    const h = Math.max(1, cardHeightSV.value);
+    const rm = reduceMotionSV.value > 0.5;
+    const covering = deckPreviousCovering(rawTx, rmPeerLayerSV.value);
+    const coverP = rawTx > 0 ? swipeAxisProgress(rawTx, w) : 0;
+    const scale = cardCoveredScale(coverP, rm);
+    const lift = cardSwipeLiftShadowPx(
+      Math.max(swipeAxisProgress(tx, w), swipeAxisProgress(ty, h), coverP),
+      rm,
+    );
+    // Covered card (right / Previous) stays at rest z + rest elevation so the
+    // incoming overlay paints on top. Left / Next still raise via moving z.
+    const shadowLift = covering ? 0 : lift;
+    const moving = swipeAnimating.value || exitingSV.value > 0.5 || rawTx < 0 || ty !== 0;
+    const androidFill = cardSwipeAndroidLiftFill({
+      liftPx: shadowLift,
+      flipProgress: flipProgress.value,
+      flipPeek: flipPeek.value,
+      showDeckStatus: showDeckStatusSV.value > 0.5,
+    });
     return {
       opacity: enterOpacity.value * frontCommitOpacity.value,
-      transform: cardSwipeFrontTransform(x, ty),
+      transform: [
+        ...cardSwipeFrontTransform(
+          x,
+          ty,
+          w,
+          h,
+          rm,
+          exitProgressSV.value,
+          releaseTiltZSV.value,
+          exitSignSV.value,
+        ),
+        { scale },
+      ],
+      ...cardSwipeLiftShadowStyle(shadowLift),
+      zIndex: deckFrontWrapZIndex(covering, moving),
+      backgroundColor:
+        Platform.OS === 'android' && androidFill ? color.front : 'transparent',
     };
   });
 
-  /** Preload peer — invisible except during RM commit cross-fade. */
-  const behindAnimatedStyle = useAnimatedStyle(() => {
-    const peer = peerCommitOpacity.value;
-    const showForRm = reduceMotionSV.value > 0.5 && peer > 0.001;
+  const frontTintStyle = useAnimatedStyle(() => {
+    const w = Math.max(1, cardWidthSV.value);
+    const coverP = translateX.value > 0 ? swipeAxisProgress(translateX.value, w) : 0;
+    const tint = cardCoveredTint(coverP);
     return {
-      opacity: showForRm ? peer : 0,
-      transform: [{ translateX: showForRm ? 0 : BEHIND_PEEK_OFFSCREEN_X }],
+      backgroundColor: conceptTintRgba(tint),
+      opacity: tint > 0 ? 1 : 0,
+    };
+  });
+
+  /** Next-card underlay — hidden at rest, revealed by drag / RM peer fade. */
+  const behindAnimatedStyle = useAnimatedStyle(() => {
+    const w = Math.max(1, cardWidthSV.value);
+    const h = Math.max(1, cardHeightSV.value);
+    const rm = reduceMotionSV.value > 0.5;
+    const dragP = deckUnderlayDragProgress(translateX.value, translateY.value, w, h);
+    const peer = deckReducedMotionUnderlayPeer(
+      rmPeerLayerSV.value,
+      translateX.value,
+      peerCommitOpacity.value,
+    );
+    const revealP = deckCommitCrossfadeProgress(dragP, peer);
+    const reveal = deckUnderlayReveal(revealP, rm, DECK_NEXT_VISIBLE_AT_REST);
+    const sideMatches = deckUnderlayCommittedSideMatchesReveal(
+      behindShowsPrevSV.value,
+      translateX.value,
+      translateY.value,
+      rmPeerLayerSV.value,
+    );
+    const hidden = reveal.opacity <= 0 || !sideMatches;
+    return {
+      opacity: hidden ? 0 : reveal.opacity,
+      visibility: deckLayerVisibility(hidden),
+      transform: deckUnderlayTransform(reveal.scale, reveal.offsetY, rm, hidden),
+    };
+  });
+
+  const behindTintStyle = useAnimatedStyle(() => {
+    const w = Math.max(1, cardWidthSV.value);
+    const h = Math.max(1, cardHeightSV.value);
+    const rm = reduceMotionSV.value > 0.5;
+    const dragP = deckUnderlayDragProgress(translateX.value, translateY.value, w, h);
+    const peer = deckReducedMotionUnderlayPeer(
+      rmPeerLayerSV.value,
+      translateX.value,
+      peerCommitOpacity.value,
+    );
+    const revealP = deckCommitCrossfadeProgress(dragP, peer);
+    const reveal = deckUnderlayReveal(revealP, rm, DECK_NEXT_VISIBLE_AT_REST);
+    return {
+      backgroundColor: conceptTintRgba(reveal.tint),
+      opacity: reveal.opacity > 0 && reveal.tint > 0 ? 1 : 0,
     };
   });
 
   /**
    * Previous card sliding in from the left ON TOP when swiping right.
-   * Translate only; RM commit cross-fades in place via peerCommitOpacity.
+   * Starts at −10° Z / −3° Y; RM commit cross-fades in place via peerCommitOpacity.
    */
   const returnOverlayStyle = useAnimatedStyle(() => {
     const w = Math.max(1, cardWidthSV.value);
-    const active = translateX.value > 0;
+    const h = Math.max(1, cardHeightSV.value);
+    const rm = reduceMotionSV.value > 0.5;
+    const overlayPeer = rmPeerLayerSV.value > 0 ? peerCommitOpacity.value : 0;
+    const covering = deckPreviousCovering(translateX.value, rmPeerLayerSV.value);
+    const active = translateX.value > 0 || overlayPeer > 0;
     const suppressed = returnOverlaySuppressSV.value > 0.5;
-    const rmPeer = reduceMotionSV.value > 0.5 && peerCommitOpacity.value > 0.001;
-    if (rmPeer) {
-      return {
-        opacity: suppressed ? 0 : peerCommitOpacity.value,
-        transform: cardSwipeReturnOverlayTransform(0),
-      };
-    }
-    const tx = active ? -w + translateX.value : -w;
-    const baseOpacity = active && !suppressed ? 1 : 0;
+    const progress = Math.min(1, swipeAxisProgress(translateX.value, w));
+    const tx = deckReturnOverlayTranslateX(translateX.value, w, overlayPeer);
+    const hidden = !active || suppressed;
     return {
-      opacity: baseOpacity,
-      transform: cardSwipeReturnOverlayTransform(tx),
+      opacity: deckReturnOverlayOpacity(hidden, translateX.value, overlayPeer),
+      visibility: deckLayerVisibility(hidden),
+      zIndex: deckReturnOverlayZIndex(covering),
+      elevation: deckReturnOverlayElevation(covering),
+      transform: cardSwipeReturnOverlayTransform(tx, h, progress, rm),
     };
   });
 
@@ -979,10 +1346,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           setContainerW(e.nativeEvent.layout.width);
         }}
       >
-        <View
+        <Animated.View
           style={[
             styles.cardWrap,
             { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+            reshuffleCardStyle,
           ]}
         >
           <View style={styles.gestureFill}>
@@ -990,19 +1358,16 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               <LoadingCard />
             </View>
           </View>
-        </View>
+        </Animated.View>
       </View>
     );
   }
 
-  const nextIndex = Math.min(currentIndex + 1, concepts.length - 1);
-  const behindDisplayIndex =
-    behindLockedIndex !== null ? behindLockedIndex : nextIndex;
-  // Do not require behindDisplayIndex !== currentIndex: when the next card becomes the front, that equality
-  // would unmount the behind layer while the front updates to the same item — duplicate mount churn = blink.
-  // Behind stays under the front (z-index); duplicate content is invisible but keeps one ConceptCard instance stable.
-  const showBehindNext =
-    !showDeckStatus && behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
+  const behindDisplayIndex = deckBehindDisplayIndex(behindLockedIndex, currentIndex);
+  const nextCardReady =
+    behindDisplayIndex >= 0 && behindDisplayIndex < concepts.length;
+  // One underlay always mounts (never blank shell). Hidden at rest via underlay opacity.
+  const showBehindNext = !showDeckStatus;
   const prevIndex = currentIndex - 1;
   // Under the loading silhouette the resting underlay is the current last card (not N-1).
   const restingUnderlayIndex = showDeckStatus
@@ -1025,10 +1390,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         setContainerW(e.nativeEvent.layout.width);
       }}
     >
-      <View
+      <Animated.View
         style={[
           styles.cardWrap,
           { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+          reshuffleCardStyle,
         ]}
       >
         <GestureDetector gesture={composed}>
@@ -1037,31 +1403,49 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             <Animated.View
               style={[styles.behindWrap, behindAnimatedStyle]}
               pointerEvents="none"
+              testID="deck-underlay"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
               {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             >
-              <ConceptCardForIndex
-                concepts={concepts}
-                currentIndex={behindDisplayIndex}
-                flipped={false}
-                reduceMotion={reduceMotion}
-                preloadedMediaUrls={preloadedMediaUrls}
-                facePadding={cardLayout.padding}
-                mediaRequestWidth={mediaRequestWidth}
+              {nextCardReady ? (
+                <ConceptCardForIndex
+                  concepts={concepts}
+                  currentIndex={behindDisplayIndex}
+                  flipped={false}
+                  reduceMotion={reduceMotion}
+                  preloadedMediaUrls={preloadedMediaUrls}
+                  facePadding={cardLayout.padding}
+                  mediaRequestWidth={mediaRequestWidth}
+                />
+              ) : (
+                <LoadingCard exposeTestId={false} />
+              )}
+              <Animated.View
+                pointerEvents="none"
+                style={[styles.tintOverlay, behindTintStyle]}
               />
             </Animated.View>
           ) : null}
 
           <Animated.View
             key={showDeckStatus ? `deck-loading-${currentIndex}` : 'front-card'}
-            style={[styles.frontWrap, frontAnimatedStyle]}
+            style={[styles.frontWrap, pulseDragging ? styles.frontWrapMoving : null, frontAnimatedStyle]}
           >
             <View
+              ref={a11ySurfaceRef}
               style={styles.a11ySurface}
               testID="card-a11y-surface"
               {...(Platform.OS === 'web'
-                ? ({ dataSet: { flipped: flipped ? 'true' : 'false' } } as Record<string, unknown>)
+                ? ({
+                    dataSet: {
+                      flipped: flipped ? 'true' : 'false',
+                      lateralityGrade:
+                        concepts[currentIndex]?.grade != null
+                          ? String(concepts[currentIndex]?.grade)
+                          : '',
+                    },
+                  } as Record<string, unknown>)
                 : null)}
               accessible={surfaceIsButton}
               accessibilityRole={surfaceIsButton ? 'button' : undefined}
@@ -1078,7 +1462,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               accessibilityActions={surfaceIsButton ? accessibilityActions : undefined}
               onAccessibilityAction={surfaceIsButton ? onAccessibilityAction : undefined}
               accessibilityState={{
-                disabled: showDeckStatus || sheetOpen,
+                disabled: showDeckStatus || sheetOpen || inputLocked,
               }}
               {...webCardFocusProps}
             >
@@ -1092,14 +1476,19 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   reduceMotion={reduceMotion}
                   preloadedMediaUrls={preloadedMediaUrls}
                   flipPeek={flipPeek}
+                  flipProgress={flipProgress}
                   exposeFrontTitleTestId
                   onBackInteractivePress={noteBackInteractivePress}
                   pulseGateActive={pulseGateActive}
                   facePadding={cardLayout.padding}
                   mediaRequestWidth={mediaRequestWidth}
+                  backScrollOffsetY={backScrollY}
+                  backScrollContentH={backScrollContentH}
+                  backScrollViewportH={backScrollViewportH}
                 />
               )}
             </View>
+            <Animated.View pointerEvents="none" style={[styles.tintOverlay, frontTintStyle]} />
           </Animated.View>
 
           {showReturnOverlay ? (
@@ -1123,7 +1512,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           ) : null}
           </View>
         </GestureDetector>
-      </View>
+      </Animated.View>
     </View>
   );
 });
@@ -1135,11 +1524,15 @@ function ConceptCardForIndex({
   reduceMotion = false,
   preloadedMediaUrls,
   flipPeek,
+  flipProgress,
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
   facePadding,
   mediaRequestWidth,
+  backScrollOffsetY,
+  backScrollContentH,
+  backScrollViewportH,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -1147,11 +1540,15 @@ function ConceptCardForIndex({
   reduceMotion?: boolean;
   preloadedMediaUrls: ReadonlySet<string>;
   flipPeek?: SharedValue<number>;
+  flipProgress?: SharedValue<number>;
   exposeFrontTitleTestId?: boolean;
   onBackInteractivePress?: () => void;
   pulseGateActive?: boolean;
   facePadding: number;
   mediaRequestWidth: number;
+  backScrollOffsetY?: SharedValue<number>;
+  backScrollContentH?: SharedValue<number>;
+  backScrollViewportH?: SharedValue<number>;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri =
@@ -1176,6 +1573,10 @@ function ConceptCardForIndex({
       pulseGateActive={pulseGateActive}
       facePadding={facePadding}
       mediaRequestWidth={mediaRequestWidth}
+      backScrollOffsetY={backScrollOffsetY}
+      backScrollContentH={backScrollContentH}
+      backScrollViewportH={backScrollViewportH}
+      flipProgress={flipProgress}
     />
   );
 }
@@ -1197,7 +1598,12 @@ const styles = StyleSheet.create({
   gestureFill: {
     ...StyleSheet.absoluteFill,
   },
-  /** Flat preload peer — no depth tint; visibility driven by behindAnimatedStyle (Lz-33). */
+  tintOverlay: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: cardRadius(),
+    zIndex: 4,
+  },
+  /** Next-card underlay (Lz-56) — opacity/scale driven by behindAnimatedStyle. */
   behindWrap: {
     position: 'absolute',
     left: 0,
@@ -1213,6 +1619,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 2,
+    borderRadius: cardRadius(),
+    overflow: 'visible',
+  },
+  /** Raised z for left / Next only; covering Previous overrides to rest z 2. */
+  frontWrapMoving: {
+    zIndex: 40,
+    elevation: 40,
+    overflow: 'visible',
   },
   a11ySurface: {
     ...StyleSheet.absoluteFill,

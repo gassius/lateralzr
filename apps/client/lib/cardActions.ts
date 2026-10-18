@@ -44,6 +44,8 @@ export type CardActionGate = {
   animating?: boolean;
   /** End-of-deck status card — no next / complexity / flip (previous still ok). */
   showDeckStatus?: boolean;
+  /** Laterality reshuffle cue — card taps/swipes stay off. */
+  inputLocked?: boolean;
 };
 
 export type CardAccessibilityActionDef = {
@@ -98,7 +100,7 @@ export function cardActionFromAccessibilityName(name: string): CardAction | null
  * During deck status, only previous (index > 0) remains available so the loop can finish.
  */
 export function canRunCardAction(action: CardAction, gate: CardActionGate): boolean {
-  if (gate.sheetOpen || gate.animating) return false;
+  if (gate.sheetOpen || gate.animating || gate.inputLocked) return false;
   if (action === 'previous') {
     return gate.currentIndex > 0;
   }
@@ -162,14 +164,26 @@ export function shouldClearKeyboardModalityOnPointer(
 }
 
 /**
- * Card surface key handler must ignore bubbled keys from nested controls
- * (e.g. the Wikipedia link on the back face).
+ * Card surface key handler. RN-web often targets an inner heading while the
+ * surface is focused; still handle those. Nested controls (Wikipedia, credits)
+ * keep Enter/Space.
  */
 export function shouldHandleCardSurfaceKey(
   target: EventTarget | null | undefined,
   currentTarget: EventTarget | null | undefined,
 ): boolean {
-  return target != null && currentTarget != null && target === currentTarget;
+  if (target == null || currentTarget == null) return false;
+  if (target === currentTarget) return true;
+  const currentEl = currentTarget as { contains?: (node: unknown) => boolean };
+  if (typeof currentEl.contains !== 'function') return false;
+  if (!currentEl.contains(target)) return false;
+  const maybeEl = target as { closest?: (sel: string) => unknown; parentElement?: { closest?: (sel: string) => unknown } };
+  const targetEl = typeof maybeEl.closest === 'function' ? maybeEl : maybeEl.parentElement;
+  if (targetEl == null || typeof targetEl.closest !== 'function') return false;
+  if (targetEl.closest('[data-testid="card-back-wikipedia"]')) return false;
+  if (targetEl.closest('[data-testid="card-back-credit"]')) return false;
+  if (targetEl.closest('a[href]')) return false;
+  return true;
 }
 
 /** Resolve an a11y action name through the shared gate into a runnable CardAction. */
@@ -184,8 +198,8 @@ export function resolveRunnableAccessibilityAction(
 }
 
 /** Web tabIndex for the card surface (previous stays reachable on deck status). */
-export function cardWebTabIndex(gate: Pick<CardActionGate, 'sheetOpen' | 'showDeckStatus' | 'currentIndex'>): number {
-  if (gate.sheetOpen) return -1;
+export function cardWebTabIndex(gate: Pick<CardActionGate, 'sheetOpen' | 'showDeckStatus' | 'currentIndex' | 'inputLocked'>): number {
+  if (gate.sheetOpen || gate.inputLocked) return -1;
   if (gate.showDeckStatus && gate.currentIndex <= 0) return -1;
   return 0;
 }

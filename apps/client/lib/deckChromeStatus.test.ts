@@ -49,9 +49,25 @@ describe('resolveDeckChromeStatus', () => {
     );
   });
 
-  it('shows neighbourhood loading while laterality swaps', () => {
+  it('shows neighbourhood loading while laterality swaps after the status delay', () => {
     assert.deepEqual(
       resolveDeckChromeStatus({ ...base, lateralitySwapping: true }),
+      { kind: 'neighbourhoodLoading' },
+    );
+    assert.deepEqual(
+      resolveDeckChromeStatus({
+        ...base,
+        lateralitySwapping: true,
+        lateralityStatusReady: false,
+      }),
+      { kind: 'none' },
+    );
+    assert.deepEqual(
+      resolveDeckChromeStatus({
+        ...base,
+        lateralitySwapping: true,
+        lateralityStatusReady: true,
+      }),
       { kind: 'neighbourhoodLoading' },
     );
   });

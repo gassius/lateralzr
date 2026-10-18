@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   DECK_SETTLE_MS,
   DECK_SETTLE_REDUCED_MS,
+  deckEnterLandsSettled,
   deckSettleDurationMs,
   deckSettleEnterShiftPx,
   deckSettleTokens,
@@ -24,5 +25,13 @@ describe('deckSettle', () => {
     assert.equal(deckSettleEnterShiftPx(false, true), spacing[1]);
     assert.equal(deckSettleEnterShiftPx(false, false), -spacing[1]);
     assert.equal(deckSettleEnterShiftPx(true, true), 0);
+  });
+
+  it('lands settled after underlay-revealed Next/Complexity; loading-replace still fades', () => {
+    assert.equal(deckEnterLandsSettled(false, 'forward', 'forward'), true);
+    assert.equal(deckEnterLandsSettled(false, 'forward', null), false);
+    assert.equal(deckEnterLandsSettled(false, 'backward', 'backward'), false);
+    assert.equal(deckEnterLandsSettled(false, 'backwardGesture', null), true);
+    assert.equal(deckEnterLandsSettled(true, 'forward', null), true);
   });
 });

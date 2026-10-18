@@ -2,7 +2,7 @@ import tokensJson from './tokens.json';
 import { GUIDE_SECTION_23, type DesignTokens } from './section23';
 
 /**
- * Art Direction v3.4 design tokens (ClickUp Lz-55 + Lz-60 / guide §23).
+ * Art Direction v3.4 design tokens (ClickUp Lz-55 / Lz-56 / Lz-57 / Lz-59 / Lz-60 / guide §23).
  * Runtime values come from `tokens.json`; types are the §23 literal shape.
  * Logo near-black lives in `./logo` — not in `color`.
  * Later Lz-54 tickets add further §23 groups; do not dump the whole v3.4 map here.

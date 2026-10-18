@@ -333,6 +333,111 @@ class ConceptRelationshipApiTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
     }
 
+    public function test_relationships_endpoint_filters_by_laterality_grade(): void
+    {
+        $mushroom = $this->makeConcept('mushroom', 'mushroom', 'https://example.com/mushroom.jpg');
+        $tide = $this->makeConcept('tide', 'tide', 'https://example.com/tide.jpg');
+        $chaos = $this->makeConcept('chaos', 'chaos', 'https://example.com/chaos.jpg');
+
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $mushroom->id,
+            'to_concept_id' => $tide->id,
+            'strength' => 0.95,
+            'last_laterality' => 2,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $mushroom->id,
+            'to_concept_id' => $chaos->id,
+            'strength' => 0.40,
+            'last_laterality' => 5,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'mushroom',
+            'laterality' => 5,
+            'limit' => 4,
+            'depth' => 1,
+        ])
+            ->assertStatus(200)
+            ->assertJsonPath('data.meta.laterality', 5)
+            ->assertJsonPath('data.edges.0.to', $chaos->id)
+            ->assertJsonPath('data.edges.0.laterality', 5);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'mushroom',
+            'laterality' => 4,
+            'limit' => 4,
+            'depth' => 1,
+        ])->assertStatus(404);
+    }
+
+    public function test_relationships_endpoint_random_start_filters_by_laterality(): void
+    {
+        $starts = [];
+        foreach ([1, 2, 3, 4, 5] as $grade) {
+            $from = $this->makeConcept("seed-{$grade}", "seed-{$grade}", "https://example.com/seed-{$grade}.jpg");
+            $to = $this->makeConcept("nbr-{$grade}", "nbr-{$grade}", "https://example.com/nbr-{$grade}.jpg");
+            ConceptRelationship::query()->create([
+                'from_concept_id' => $from->id,
+                'to_concept_id' => $to->id,
+                'strength' => 0.9,
+                'last_laterality' => $grade,
+                'llm_occurrences' => 1,
+                'user_weight' => 0,
+            ]);
+            $starts[$grade] = $from->id;
+        }
+
+        foreach ([1, 2, 3, 4, 5] as $grade) {
+            $this->postJson('/api/concepts/relationships', [
+                'laterality' => $grade,
+            ])
+                ->assertStatus(200)
+                ->assertJsonPath('data.start.id', $starts[$grade])
+                ->assertJsonPath('data.meta.laterality', $grade);
+        }
+
+        for ($i = 0; $i < 20; $i++) {
+            $this->postJson('/api/concepts/relationships', [
+                'laterality' => 5,
+            ])
+                ->assertStatus(200)
+                ->assertJsonPath('data.start.id', $starts[5])
+                ->assertJsonPath('data.meta.laterality', 5);
+        }
+    }
+
+    public function test_relationships_endpoint_treats_null_laterality_as_grade_three(): void
+    {
+        $from = $this->makeConcept('creativity', 'creativity', 'https://example.com/creativity.jpg');
+        $to = $this->makeConcept('silence', 'silence', 'https://example.com/silence.jpg');
+
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $from->id,
+            'to_concept_id' => $to->id,
+            'strength' => 0.72,
+            'last_laterality' => null,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 3,
+        ])
+            ->assertStatus(200)
+            ->assertJsonPath('data.edges.0.laterality', 3);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 1,
+        ])->assertStatus(404);
+    }
+
     public function test_fetch_seeded_pair_returns_live_response_keys(): void
     {
         $from = $this->makeConcept('creativity', 'creativity', 'https://example.com/creativity.jpg');

@@ -17,13 +17,17 @@ export function resolveDeckChromeStatus(args: {
   noNextIdea: boolean;
   loadMoreError: boolean;
   lateralitySwapping: boolean;
+  /** False until the reshuffle status delay (300 ms) elapses. */
+  lateralityStatusReady?: boolean;
   showInitialLoading: boolean;
   showDeckLoading: boolean;
 }): DeckChromeStatus {
   if (args.offline) return { kind: 'offline' };
   if (args.noNextIdea) return { kind: 'noNextIdea' };
   if (args.loadMoreError) return { kind: 'fetchFailed' };
-  if (args.lateralitySwapping) return { kind: 'neighbourhoodLoading' };
+  if (args.lateralitySwapping && args.lateralityStatusReady !== false) {
+    return { kind: 'neighbourhoodLoading' };
+  }
   if (args.showInitialLoading) return { kind: 'findingStart' };
   if (args.showDeckLoading) return { kind: 'loadingMore' };
   return { kind: 'none' };

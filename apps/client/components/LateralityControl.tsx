@@ -250,6 +250,7 @@ export function LateralityControl({
           'aria-valuemax': MAX_LATERALITY,
           'aria-valuenow': displayGrade,
           'aria-valuetext': a11yText,
+          'aria-busy': swapping || undefined,
         } as Record<string, unknown>)
       : {};
 
@@ -258,6 +259,12 @@ export function LateralityControl({
       style={styles.root}
       testID="laterality-control"
       accessibilityState={{ busy: swapping, disabled }}
+      {...(Platform.OS === 'web'
+        ? ({
+            // RN-web skips aria-busy on an un-roled View; E2E + AT need the rail row marked.
+            'aria-busy': swapping || undefined,
+          } as Record<string, unknown>)
+        : {})}
       onLayout={onRootLayout}
     >
       {/*

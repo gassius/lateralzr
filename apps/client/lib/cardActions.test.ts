@@ -90,6 +90,12 @@ describe('canRunCardAction', () => {
     }
   });
 
+  it('blocks all actions while a laterality reshuffle cue locks input', () => {
+    for (const action of ['next', 'previous', 'flip', 'complexityUp', 'complexityDown'] as const) {
+      assert.equal(canRunCardAction(action, { ...open, inputLocked: true }), false);
+    }
+  });
+
   it('blocks forward actions on the deck-status card but allows previous', () => {
     assert.equal(canRunCardAction('next', { ...open, animating: true }), false);
     assert.equal(canRunCardAction('flip', { ...open, showDeckStatus: true }), false);
@@ -167,7 +173,7 @@ describe('card surface a11y helpers', () => {
     assert.equal(cardWebTabIndex({ sheetOpen: false, showDeckStatus: true, currentIndex: 3 }), 0);
   });
 
-  it('handles card keys only when target === currentTarget', () => {
+  it('handles card keys on the surface and contained non-control descendants', () => {
     const el = { id: 'surface' };
     const child = { id: 'link' };
     assert.equal(shouldHandleCardSurfaceKey(el as unknown as EventTarget, el as unknown as EventTarget), true);
@@ -176,6 +182,22 @@ describe('card surface a11y helpers', () => {
       false,
     );
     assert.equal(shouldHandleCardSurfaceKey(null, el as unknown as EventTarget), false);
+
+    const wiki = {
+      closest: (sel: string) => (sel.includes('wikipedia') ? wiki : null),
+    };
+    const surface = {
+      contains: (node: unknown) => node === wiki || node === heading,
+    };
+    const heading = { closest: () => null };
+    assert.equal(
+      shouldHandleCardSurfaceKey(heading as unknown as EventTarget, surface as unknown as EventTarget),
+      true,
+    );
+    assert.equal(
+      shouldHandleCardSurfaceKey(wiki as unknown as EventTarget, surface as unknown as EventTarget),
+      false,
+    );
   });
 });
 

@@ -31,6 +31,8 @@ export type ConceptItem = {
   wikiUrl: string | null;
   mediaUrl: string | null;
   media?: ConceptMedia[];
+  /** Stored laterality grade for a dealt card (Lz-57). */
+  grade?: 1 | 2 | 3 | 4 | 5;
 };
 
 export type ConceptGraphNode = {
@@ -49,6 +51,7 @@ export type ConceptGraphEdge = {
   id: number;
   from: number;
   to: number;
+  laterality?: number;
 };
 
 export type ConceptGraphResponse = {

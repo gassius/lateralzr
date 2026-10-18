@@ -7,7 +7,7 @@ import { GUIDE_SECTION_23 } from './section23.ts';
 import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
 describe('v3.4 design tokens', () => {
-  it('matches the Lz-55/Lz-59/Lz-60 §23 pin (sheets, cardAspect, media, webPreview, build)', () => {
+  it('matches the Lz-55/Lz-56/Lz-57/Lz-59/Lz-60 §23 pin (sheets, cardAspect, media, webPreview, build, motion.swipe/deck/flip, reshuffle + laterality filter)', () => {
     // Independent pin — not loaded from tokens.json.
     assert.deepEqual(tokens, GUIDE_SECTION_23);
     assert.equal(tokens.version, '3.4');
@@ -57,6 +57,30 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.webPreview.frameEdge, '#FFFFFF1A');
     assert.equal(tokens.webPreview.simulatedSafeAreaTop, 47);
     assert.equal(tokens.webPreview.simulatedSafeAreaBottom, 34);
+    assert.equal(tokens.motion.flip.ms, 360);
+    assert.equal(tokens.motion.flip.bidirectional, true);
+    assert.equal(tokens.motion.flip.ms, tokens.motion.flipMs);
+    assert.equal(tokens.motion.swipe.commitRatio, 0.3);
+    assert.equal(tokens.motion.swipe.exitMs, 260);
+    assert.equal(tokens.motion.swipe.returnSpring.damping, 26);
+    assert.equal(tokens.motion.swipe.returnSpring.stiffness, 260);
+    assert.equal(tokens.motion.swipe.tiltZDegAtHalf, 8);
+    assert.equal(tokens.motion.swipe.startOfHistoryResistance, 0.35);
+    assert.equal(tokens.motion.swipe.backFaceScrollHandoffPx, 24);
+    assert.equal(tokens.motion.deck.underlays, 1);
+    assert.equal(tokens.motion.deck.nextVisibleAtRest, false);
+    assert.equal(tokens.motion.deck.nextScale, 0.95);
+    assert.equal(tokens.motion.deck.nextOffsetY, 10);
+    assert.equal(tokens.motion.deck.nextTint, 0.22);
+    assert.equal(tokens.motion.reshuffle.gatherMs, 260);
+    assert.equal(tokens.motion.reshuffle.minCueMs, 900);
+    assert.equal(tokens.motion.reshuffle.timeoutMs, 10000);
+    assert.equal(tokens.motion.reshuffle.cardInputDuringShuffle, false);
+    assert.equal(tokens.motion.reshuffle.reducedMotion.silhouettes, 1);
+    assert.equal(tokens.laterality.filterByGrade, true);
+    assert.equal(tokens.laterality.onChange, 'reshuffle-whole-deck');
+    assert.equal(tokens.laterality.historyKeepsVisited, true);
+    assert.equal(tokens.laterality.discardFutureOnChange, true);
   });
 
   it('pins subdued card shadow tokens for ConceptCard / swirl', () => {

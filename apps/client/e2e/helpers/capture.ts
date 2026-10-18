@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import type { Page, TestInfo } from '@playwright/test';
+import { expect, type Page, TestInfo } from '@playwright/test';
 import { VIEWPORTS, type ViewportId } from './viewports';
-import { visibleText } from './locators';
+import { cardFrontTitle } from './locators';
 import { DIFF_RATIO_THRESHOLD, diffPngs } from './pngDiff';
 
 const HERE = __dirname;
@@ -239,6 +239,21 @@ async function cardGestureBox(page: Page): Promise<{
   return box;
 }
 
+/**
+ * Let Reanimated flush the index-change `runOnUI` reset before the next action.
+ * Title locators resolve on the React commit; the UI-thread reset is one frame later.
+ */
+export async function flushDeckUi(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+}
+
 /** Flip the front card (RNGH Tap on web). Locator click waits for a stable hit target. */
 export async function flipCard(page: Page): Promise<void> {
   const wasFlipped = await page.evaluate(isFrontCardFlipped);
@@ -290,8 +305,11 @@ export async function swipeForward(
   await page.mouse.up();
 
   if (expectLabel != null) {
-    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+    // Front-of-stack title updates at commit. Underlay text can match mid-RM
+    // cross-fade while swipeAnimating is still true.
+    await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
+  await flushDeckUi(page);
   // When no label is provided (e.g. end-of-deck loading), the caller waits on the resulting UI.
 }
 
@@ -311,6 +329,40 @@ export async function swipeBack(
   await page.mouse.up();
 
   if (expectLabel != null) {
-    await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
+    await expect(cardFrontTitle(page)).toHaveText(expectLabel, { timeout: 8_000 });
   }
+  await flushDeckUi(page);
+}
+
+/**
+ * Vertical card swipe (Complexity). `direction` is the finger travel.
+ */
+export async function swipeVertical(
+  page: Page,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const box = await cardGestureBox(page);
+  const x = box.x + box.width * 0.5;
+  const fromY = direction === 'up' ? box.y + box.height * 0.7 : box.y + box.height * 0.3;
+  const toY = direction === 'up' ? box.y + box.height * 0.2 : box.y + box.height * 0.8;
+  await page.mouse.move(x, fromY);
+  await page.mouse.down();
+  await page.mouse.move(x, toY, { steps: 16 });
+  await page.mouse.up();
+}
+
+/** Hold a short horizontal drag (below commit) so chrome-lock can be asserted. */
+export async function holdHorizontalDrag(
+  page: Page,
+  direction: 'left' | 'right',
+  fraction = 0.2,
+): Promise<{ x: number; y: number }> {
+  const box = await cardGestureBox(page);
+  const from = swipePoint(box, 0.5);
+  const toX =
+    direction === 'left' ? from.x - box.width * fraction : from.x + box.width * fraction;
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(toX, from.y, { steps: 10 });
+  return { x: toX, y: from.y };
 }

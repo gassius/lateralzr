@@ -8,6 +8,7 @@ import {
   FLIP_EASING,
   FLIP_MS,
   FLIP_REDUCED_MOTION_CROSSFADE_MS,
+  cardFlipA11yFace,
   cardFlipFaceStyle,
   cardFlipTransformHasRotateOrPerspective,
   flipDurationMs,
@@ -26,9 +27,11 @@ const lateralitySheetSrc = readFileSync(
 const hookSrc = readFileSync(path.join(here, '../hooks/useReducedMotion.ts'), 'utf8');
 
 describe('card flip tokens', () => {
-  it('pins flip duration to motion.flipMs (360)', () => {
+  it('pins flip duration to motion.flip.ms (360, bidirectional)', () => {
+    assert.equal(FLIP_MS, motion.flip.ms);
     assert.equal(FLIP_MS, motion.flipMs);
     assert.equal(FLIP_MS, 360);
+    assert.equal(motion.flip.bidirectional, true);
     assert.equal(FLIP_REDUCED_MOTION_CROSSFADE_MS, motion.reducedMotionCrossfadeMs);
     assert.equal(FLIP_REDUCED_MOTION_CROSSFADE_MS, 150);
   });
@@ -69,6 +72,20 @@ describe('app-wide Motion preference wiring (PRR B1)', () => {
     assert.match(lateralitySheetSrc, /useReducedMotion\(\)/);
     assert.match(lateralitySheetSrc, /reduceMotion=\{reduceMotion\}/);
     assert.match(hookSrc, /useMotionPreference\(\)/);
+  });
+});
+
+describe('back→front flip progress lives on the stack (AD B1)', () => {
+  it('stack animates flipProgress on toggle and passes the shared value into the card', () => {
+    const cardSrc = readFileSync(path.join(here, '../components/ConceptCard.tsx'), 'utf8');
+    const flipSrc = readFileSync(path.join(here, 'cardFlip.ts'), 'utf8');
+    assert.match(stackSrc, /const flipProgress = useSharedValue\(0\)/);
+    assert.match(stackSrc, /flipProgress\.value = withTiming\(/);
+    assert.match(stackSrc, /reduceMotion: ReduceMotion\.Never/);
+    assert.match(stackSrc, /flipProgress=\{flipProgress\}/);
+    assert.match(cardSrc, /flipProgressShared/);
+    assert.match(cardSrc, /reduceMotion: ReduceMotion\.Never/);
+    assert.match(flipSrc, /rotateY: `\$\{-180 \+ 180 \* p\}deg`/);
   });
 });
 
@@ -114,7 +131,7 @@ describe('cardFlipFaceStyle', () => {
     assert.ok(back.transform.some((s) => 'perspective' in s));
   });
 
-  it('pins rotateY angles at p=0 / 0.5 / 1 (front 0/-45/-90, back 90/45/0)', () => {
+  it('pins rotateY 0→180 front and −180→0 back (symmetric both directions)', () => {
     const rotateY = (
       progress: number,
       face: 'front' | 'back',
@@ -127,12 +144,24 @@ describe('cardFlipFaceStyle', () => {
     };
 
     assert.equal(rotateY(0, 'front'), '0deg');
-    assert.equal(rotateY(0.5, 'front'), '-45deg');
-    assert.equal(rotateY(1, 'front'), '-90deg');
+    assert.equal(rotateY(0.5, 'front'), '90deg');
+    assert.equal(rotateY(1, 'front'), '180deg');
 
-    assert.equal(rotateY(0, 'back'), '90deg');
-    assert.equal(rotateY(0.5, 'back'), '45deg');
+    assert.equal(rotateY(0, 'back'), '-180deg');
+    assert.equal(rotateY(0.5, 'back'), '-90deg');
     assert.equal(rotateY(1, 'back'), '0deg');
+
+    assert.equal(rotateY(0.99, 'front'), `${180 * 0.99}deg`);
+    assert.equal(rotateY(0.99, 'back'), `${-180 + 180 * 0.99}deg`);
+    assert.notEqual(rotateY(1, 'back'), '360deg');
+    assert.notEqual(rotateY(0, 'back'), '180deg');
+  });
+
+  it('exposes only one AT face after the midpoint', () => {
+    assert.equal(cardFlipA11yFace(0), 'front');
+    assert.equal(cardFlipA11yFace(0.49), 'front');
+    assert.equal(cardFlipA11yFace(0.5), 'back');
+    assert.equal(cardFlipA11yFace(1), 'back');
   });
 
   it('endpoints: front visible at 0, back at 1 (both modes)', () => {
