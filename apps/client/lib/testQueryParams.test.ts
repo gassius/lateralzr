@@ -5,6 +5,7 @@ import {
   buildRelationshipsRequestBody,
   journeyStartOptions,
   parseJourneyTestParams,
+  parseOnOffParam,
   parsePatternVariantParam,
   rememberWebSearch,
   resetRememberedWebSearch,
@@ -100,6 +101,19 @@ describe('parseJourneyTestParams', () => {
     assert.equal(parseJourneyTestParams('e2ePulsePeak=true').e2ePulsePeak, true);
     assert.equal(parseJourneyTestParams('e2ePulsePeak=0').e2ePulsePeak, undefined);
     assert.equal(parseJourneyTestParams('').e2ePulsePeak, undefined);
+  });
+
+  it('reads Lz-60 build-switch overrides as On/Off', () => {
+    assert.equal(parseOnOffParam('0'), false);
+    assert.equal(parseOnOffParam('false'), false);
+    assert.equal(parseOnOffParam('1'), true);
+    assert.equal(parseOnOffParam('true'), true);
+    assert.equal(parseOnOffParam(''), undefined);
+    assert.equal(parseOnOffParam('maybe'), undefined);
+    assert.equal(parseJourneyTestParams('e2eShowReferenceLinks=0').e2eShowReferenceLinks, false);
+    assert.equal(parseJourneyTestParams('e2eShowMediaCredits=false').e2eShowMediaCredits, false);
+    assert.equal(parseJourneyTestParams('e2eShowReferenceLinks=1').e2eShowReferenceLinks, true);
+    assert.equal(parseJourneyTestParams('').e2eShowReferenceLinks, undefined);
   });
 
   it('treats blank or whitespace-only concept values as missing', () => {

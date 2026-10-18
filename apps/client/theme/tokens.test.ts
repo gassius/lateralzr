@@ -7,7 +7,7 @@ import { GUIDE_SECTION_23 } from './section23.ts';
 import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
 describe('v3.4 design tokens', () => {
-  it('matches the Lz-55 §23 pin (cardAspect, media, webPreview on the v3.3 base)', () => {
+  it('matches the Lz-55/Lz-60 §23 pin (cardAspect, media, webPreview, build)', () => {
     // Independent pin — not loaded from tokens.json.
     assert.deepEqual(tokens, GUIDE_SECTION_23);
     assert.equal(tokens.version, '3.4');
@@ -22,6 +22,23 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.media.purposes.diagram, 'contain');
     assert.equal(tokens.media.maxRequestWidth, 1600);
     assert.equal(tokens.media.decodeTimeoutMs, 8000);
+    assert.equal(tokens.media.fadeOnlyOnCover, true);
+    assert.equal(tokens.media.darkBusyFadeRaise, 0.15);
+    assert.deepEqual(tokens.media.requiredFields, [
+      'purpose',
+      'alt',
+      'creator',
+      'sourcePageUrl',
+      'licenceName',
+      'licenceUrl',
+      'changeNotice',
+      'focalX',
+      'focalY',
+      'tone',
+    ]);
+    assert.equal(tokens.build.showReferenceLinks.default, true);
+    assert.equal(tokens.build.showMediaCredits.env, 'EXPO_PUBLIC_SHOW_MEDIA_CREDITS');
+    assert.equal(tokens.build.userSetting, false);
     assert.equal(tokens.webPreview.outside, '#0E1012');
     assert.equal(tokens.webPreview.frameEdge, '#FFFFFF1A');
     assert.equal(tokens.webPreview.simulatedSafeAreaTop, 47);

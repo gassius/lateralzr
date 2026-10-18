@@ -107,6 +107,54 @@ class ConceptForm
                             ->default(0)
                             ->minValue(0)
                             ->maxValue(255),
+                        Select::make('purpose')
+                            ->options([
+                                'photo' => 'Photo',
+                                'diagram' => 'Diagram',
+                                'map' => 'Map',
+                                'artwork' => 'Artwork',
+                                'text-bearing' => 'Text-bearing',
+                            ])
+                            ->native(false),
+                        TextInput::make('alt')
+                            ->label('Alt text')
+                            ->maxLength(160)
+                            ->columnSpanFull(),
+                        TextInput::make('creator')
+                            ->maxLength(255),
+                        TextInput::make('source_page_url')
+                            ->label('Source page URL')
+                            ->url()
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
+                        TextInput::make('licence_name')
+                            ->label('Licence name')
+                            ->maxLength(128),
+                        TextInput::make('licence_url')
+                            ->label('Licence URL')
+                            ->url()
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
+                        TextInput::make('change_notice')
+                            ->label('Change notice')
+                            ->helperText('Machine token: cropped or resized.')
+                            ->maxLength(32),
+                        TextInput::make('focal_x')
+                            ->label('Focal X')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(1),
+                        TextInput::make('focal_y')
+                            ->label('Focal Y')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(1),
+                        Select::make('tone')
+                            ->options([
+                                'dark' => 'Dark',
+                                'busy' => 'Busy',
+                            ])
+                            ->native(false),
                     ])
                     ->columns(2)
                     ->collapsible(),

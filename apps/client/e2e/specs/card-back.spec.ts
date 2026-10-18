@@ -83,6 +83,9 @@ test.describe('card back', () => {
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.getByTestId('card-back-emboss')).toHaveCount(0);
     await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'cover');
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fade', 'raised');
+    await expect(page.getByTestId('card-back-media-fade')).toBeVisible();
+    await expect(page.getByTestId('card-back-media-alt')).toHaveCount(0);
     await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
     await expect(page.locator('[data-testid="card-back-media-decoder"]:visible')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
@@ -96,8 +99,9 @@ test.describe('card back', () => {
       await flipCard(page);
       const copy = cardBackCopy(page);
       await expect(copy.getByTestId('card-back-credit')).toHaveText(
-        'Image: Lateralzr fixture photographer, Wikimedia Commons · CC BY-SA 4.0',
+        'Image: Lateralzr fixture photographer · CC BY-SA 4.0 · Cropped',
       );
+      await expect(copy.getByTestId('card-back-licence')).toBeVisible();
       await expect(copy.getByTestId('card-back-credit')).toBeVisible();
       expect(await copy.getByTestId('card-back-credit').evaluate((el) =>
         el.parentElement?.previousElementSibling?.getAttribute('data-testid'),
@@ -112,7 +116,7 @@ test.describe('card back', () => {
     await openApp(page, 'localizedConcept=Psicodélicos&onlyWithMedia=true&locale=es');
     await flipCard(page);
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
-      'Imagen: Lateralzr fixture photographer, Wikimedia Commons · CC BY-SA 4.0',
+      'Imagen: Lateralzr fixture photographer · CC BY-SA 4.0 · Recortada',
     );
   });
 
@@ -131,6 +135,32 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveCount(0);
+  });
+
+  test('reference-link Off removes Wikipedia and leaves no leftover gap', async ({ page }) => {
+    await openApp(
+      page,
+      'localizedConcept=Psychedelics&onlyWithMedia=true&e2eShowReferenceLinks=0',
+    );
+    await flipCard(page);
+    const copy = cardBackCopy(page);
+    await expect(copy.getByTestId('card-back-wikipedia')).toHaveCount(0);
+    await expect(copy.getByTestId('card-back-credit')).toBeVisible();
+    expect(await copy.getByTestId('card-back-credit').evaluate((el) =>
+      el.parentElement?.previousElementSibling?.getAttribute('data-testid'),
+    )).toBe('card-back-description');
+  });
+
+  test('media-credits Off removes the credit row', async ({ page }) => {
+    await openApp(
+      page,
+      'localizedConcept=Psychedelics&onlyWithMedia=true&e2eShowMediaCredits=0',
+    );
+    await flipCard(page);
+    const copy = cardBackCopy(page);
+    await expect(copy.getByTestId('card-back-wikipedia')).toBeVisible();
+    await expect(copy.getByTestId('card-back-credit')).toHaveCount(0);
+    await expect(copy.getByTestId('card-back-licence')).toHaveCount(0);
   });
 
   // Art-director: scroll + min-28% band under large text — one viewport is enough.
@@ -175,6 +205,9 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'contain');
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fade', 'none');
+    await expect(page.getByTestId('card-back-media-fade')).toHaveCount(0);
+    await expect(page.getByTestId('card-back-media-alt')).toHaveText('Lattice of linked nodes');
     await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-diagram', locale: 'en' });
   });

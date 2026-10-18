@@ -15,6 +15,7 @@ import {
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
   resolveContainMediaBox,
+  resolveInformativeAlt,
 } from './cardBackMedia';
 
 test('mediaUrlPathname strips query/hash and lowercases', () => {
@@ -197,12 +198,55 @@ test('band drops the image when a 28% floor leaves no reading strip', () => {
   });
 });
 
-test('fade starts above the reading edge with no dark/busy offset', () => {
+test('fade is cover-only and raises the start for dark/busy tone', () => {
   const band = 200;
-  const fade = resolveCardBackMediaFade(band);
-  assert.equal(fade.startY, band - band * CARD_BACK_MEDIA_FADE_RATIO);
-  assert.equal(fade.height, band - fade.startY);
-  assert.deepEqual(resolveCardBackMediaFade(0), { startY: 0, height: 0 });
+  const face = 500;
+  const cover = resolveCardBackMediaFade({
+    bandHeight: band,
+    faceHeight: face,
+    contentFit: 'cover',
+  });
+  assert.equal(cover.kind, 'cover');
+  assert.equal(cover.startY, band - band * CARD_BACK_MEDIA_FADE_RATIO);
+  assert.equal(cover.height, band - cover.startY);
+
+  const raised = resolveCardBackMediaFade({
+    bandHeight: band,
+    faceHeight: face,
+    contentFit: 'cover',
+    tone: 'dark',
+  });
+  assert.equal(raised.kind, 'raised');
+  assert.equal(raised.startY, cover.startY - face * 0.15);
+  assert.equal(raised.height, band - raised.startY);
+  assert.ok(raised.startY < cover.startY);
+
+  const busy = resolveCardBackMediaFade({
+    bandHeight: band,
+    faceHeight: face,
+    contentFit: 'cover',
+    tone: 'busy',
+  });
+  assert.equal(busy.kind, 'raised');
+  assert.deepEqual(
+    resolveCardBackMediaFade({ bandHeight: band, contentFit: 'contain' }),
+    { startY: 0, height: 0, kind: 'none' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFade({ bandHeight: 0, contentFit: 'cover' }),
+    { startY: 0, height: 0, kind: 'none' },
+  );
+});
+
+test('informative alt is exposed once and skipped when it repeats the description', () => {
+  assert.equal(
+    resolveInformativeAlt('diagram', 'Lattice of linked nodes', 'A diagram-like map'),
+    'Lattice of linked nodes',
+  );
+  assert.equal(resolveInformativeAlt('map', 'City plan', 'City plan'), null);
+  assert.equal(resolveInformativeAlt('photo', 'A portrait', 'A portrait of X'), null);
+  assert.equal(resolveInformativeAlt('diagram', '  ', 'Something'), null);
+  assert.equal(resolveInformativeAlt('artwork', 'Etching', 'An etching'), null);
 });
 
 test('contain box is centred, inset, and capped at 1.5×', () => {

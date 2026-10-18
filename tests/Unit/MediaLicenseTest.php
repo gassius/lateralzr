@@ -66,4 +66,28 @@ class MediaLicenseTest extends TestCase
         $this->assertNull(MediaLicense::qualify([]));
         $this->assertNull(MediaLicense::qualify(null));
     }
+
+    public function test_extracts_provenance_fields_from_extmetadata(): void
+    {
+        $meta = [
+            'LicenseShortName' => ['value' => 'CC0'],
+            'LicenseUrl' => ['value' => 'https://creativecommons.org/publicdomain/zero/1.0/'],
+            'Artist' => ['value' => '<b>Jane Doe</b>'],
+            'ImageDescription' => ['value' => 'A dark night photograph of the ship, cropped at the bow.'],
+            'AttributionRequired' => ['value' => 'false'],
+        ];
+
+        $this->assertSame('CC0', MediaLicense::name($meta));
+        $this->assertSame('https://creativecommons.org/publicdomain/zero/1.0/', MediaLicense::url($meta));
+        $this->assertSame('Jane Doe', MediaLicense::creator($meta));
+        $this->assertSame('A dark night photograph of the ship, cropped at the bow.', MediaLicense::alt($meta));
+        $this->assertSame('dark', MediaLicense::inferTone($meta));
+        $this->assertSame('cropped', MediaLicense::inferChangeNotice($meta, true));
+        $this->assertSame('resized', MediaLicense::inferChangeNotice([
+            'ImageDescription' => ['value' => 'The reconstructed ship.'],
+        ], true));
+        $this->assertNull(MediaLicense::inferChangeNotice([
+            'ImageDescription' => ['value' => 'The reconstructed ship.'],
+        ], false));
+    }
 }

@@ -229,6 +229,16 @@ class ConceptCompleteInfoService
                     'license' => $item->license,
                     'source' => $item->source,
                     'position' => $position,
+                    'purpose' => $item->purpose,
+                    'alt' => $item->alt,
+                    'creator' => $item->creator,
+                    'source_page_url' => $item->sourcePageUrl,
+                    'licence_name' => $item->licenceName,
+                    'licence_url' => $item->licenceUrl,
+                    'change_notice' => $item->changeNotice,
+                    'focal_x' => $item->focalX,
+                    'focal_y' => $item->focalY,
+                    'tone' => $item->tone,
                 ]
             );
 

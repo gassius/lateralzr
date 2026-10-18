@@ -17,10 +17,22 @@ class ConceptMedia extends Model
         'license',
         'source',
         'position',
+        'purpose',
+        'alt',
+        'creator',
+        'source_page_url',
+        'licence_name',
+        'licence_url',
+        'change_notice',
+        'focal_x',
+        'focal_y',
+        'tone',
     ];
 
     protected $casts = [
         'position' => 'integer',
+        'focal_x' => 'float',
+        'focal_y' => 'float',
     ];
 
     protected static function booted(): void

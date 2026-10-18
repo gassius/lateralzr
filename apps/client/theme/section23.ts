@@ -1,7 +1,8 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.4 Lz-55 subset).
- * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Later Lz-54 tickets add
- * their own groups (motion.swipe, decorative, sheets, build, …) on top.
+ * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-60 subset).
+ * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-60 adds `build` and
+ * media fade/provenance fields. Later Lz-54 tickets add their own groups
+ * (motion.swipe, decorative, sheets, …) on top.
  * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
  */
 export const GUIDE_SECTION_23 = {
@@ -171,6 +172,31 @@ export const GUIDE_SECTION_23 = {
     nativePreferRasterForSvg: true,
     decodeTimeoutMs: 8000,
     imageFadeInMs: 150,
+    fadeOnlyOnCover: true,
+    darkBusyFadeRaise: 0.15,
+    requiredFields: [
+      'purpose',
+      'alt',
+      'creator',
+      'sourcePageUrl',
+      'licenceName',
+      'licenceUrl',
+      'changeNotice',
+      'focalX',
+      'focalY',
+      'tone',
+    ],
+  },
+  build: {
+    showReferenceLinks: {
+      env: 'EXPO_PUBLIC_SHOW_REFERENCE_LINKS',
+      default: true,
+    },
+    showMediaCredits: {
+      env: 'EXPO_PUBLIC_SHOW_MEDIA_CREDITS',
+      default: true,
+    },
+    userSetting: false,
   },
   webPreview: {
     outside: '#0E1012',

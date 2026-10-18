@@ -17,7 +17,9 @@
           {
             "url": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-diagram.png",
             "kind": "image",
-            "purpose": "diagram"
+            "purpose": "diagram",
+            "alt": "Lattice of linked nodes",
+            "tone": null
           }
         ],
         "locale": "en",
