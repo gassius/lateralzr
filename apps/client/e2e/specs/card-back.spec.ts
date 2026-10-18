@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { capture, flipCard } from '../helpers/capture';
+import { capture, flipCard, isFrontCardFlipped } from '../helpers/capture';
 import {
   cardBackCopy,
   cardBackEmboss,
@@ -247,21 +247,7 @@ test.describe('card back', () => {
 
     // Suppress window is 400 ms; confirm the back face stayed up (AC: link must not flip).
     await expect
-      .poll(
-        async () =>
-          page.evaluate(() => {
-            const nodes = Array.from(document.querySelectorAll('[data-testid="card-back-copy"]'));
-            return nodes.some((el) => {
-              let p: HTMLElement | null = el as HTMLElement;
-              while (p) {
-                if (getComputedStyle(p).opacity === '0') return false;
-                p = p.parentElement;
-              }
-              return true;
-            });
-          }),
-        { timeout: 1_000 },
-      )
+      .poll(async () => page.evaluate(isFrontCardFlipped), { timeout: 1_000 })
       .toBe(true);
     await expect(cardBackCopy(page)).toBeVisible();
   });
