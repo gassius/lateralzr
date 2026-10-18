@@ -73,29 +73,29 @@
   },
   {
     "file": "card-back_with-photo_390x844_en.png",
-    "ratio": 0.5734878174747843,
-    "percent": 57.34878174747843,
+    "ratio": 0.5734749058208773,
+    "percent": 57.34749058208774,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 755077,
+    "mismatchedPixels": 755060,
     "diffImage": "card-back_with-photo_390x844_en.diff.png"
   },
   {
     "file": "card-back_with-photo-200_390x844_en.png",
-    "ratio": 0.3630278587920768,
-    "percent": 36.302785879207676,
+    "ratio": 0.3636423016162353,
+    "percent": 36.36423016162353,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 477977,
+    "mismatchedPixels": 478786,
     "diffImage": "card-back_with-photo-200_390x844_en.diff.png"
   },
   {
     "file": "card-back_with-photo-200-scrolled_390x844_en.png",
-    "ratio": 0.36327393972536154,
-    "percent": 36.32739397253616,
+    "ratio": 0.3632610280714546,
+    "percent": 36.32610280714546,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 478301,
+    "mismatchedPixels": 478284,
     "diffImage": "card-back_with-photo-200-scrolled_390x844_en.diff.png"
   },
   {
