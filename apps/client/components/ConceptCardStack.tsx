@@ -9,10 +9,12 @@ import {
   useState,
 } from 'react';
 import {
+  AccessibilityInfo,
   AppState,
   type AccessibilityActionEvent,
   type AppStateStatus,
   type NativeSyntheticEvent,
+  findNodeHandle,
   PixelRatio,
   Platform,
   StyleSheet,
@@ -706,7 +708,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       }
       return;
     }
-    a11ySurfaceRef.current?.focus?.();
+    const node = findNodeHandle(a11ySurfaceRef.current);
+    if (node != null) {
+      AccessibilityInfo.setAccessibilityFocus(node);
+    }
   }, []);
 
   /** Animate then call the same commit* helpers gestures use (respects Lz-34 RM). */

@@ -32,16 +32,44 @@ export function reshuffleSilhouetteCount(reduceMotion: boolean): number {
   return reduceMotion ? reshuffle.reducedMotion.silhouettes : reshuffle.silhouettes;
 }
 
-export function reshuffleStatusVisible(elapsedMs: number): boolean {
-  return elapsedMs >= reshuffle.statusDelayMs;
+/** Stack ↔ cue opacity duration: 150 ms under RM; gather/deal/reverse otherwise. */
+export function reshuffleStackFadeMs(
+  reduceMotion: boolean,
+  phase: LateralityReshufflePhase | null,
+): number {
+  if (reduceMotion) return reshuffle.reducedMotion.crossfadeMs;
+  if (phase === 'deal') return reshuffle.dealMs;
+  if (phase === 'reverse') return reshuffle.reverseDealMs;
+  return reshuffle.gatherMs;
 }
 
-export function reshuffleCanSettle(elapsedMs: number, fetchDone: boolean): boolean {
-  return fetchDone && elapsedMs >= reshuffle.minCueMs;
+export const RESHUFFLE_FAN_DEG = reshuffle.fanDeg;
+export const RESHUFFLE_FAN_OFFSET_PX = reshuffle.fanOffsetPx;
+export const RESHUFFLE_GATHER_DROP_PX = reshuffle.gatherDropPx;
+export const RESHUFFLE_GATHER_SCALE = reshuffle.gatherScale;
+export const RESHUFFLE_RIFFLE_EVERY_MS = reshuffle.riffleEveryMs;
+export const RESHUFFLE_RIFFLE_MOVE_MS = reshuffle.riffleMoveMs;
+export const RESHUFFLE_CARD_INPUT_DURING_SHUFFLE = reshuffle.cardInputDuringShuffle;
+
+/** 0 = even fan, 1 = odd fan. Ping-pongs on the fractional riffle tick. */
+export function riffleFanMix(riffle: number): number {
+  if (!Number.isFinite(riffle)) return 0;
+  const phase = ((riffle % 2) + 2) % 2;
+  return phase <= 1 ? phase : 2 - phase;
 }
 
-export function reshuffleTimedOut(elapsedMs: number): boolean {
-  return elapsedMs >= reshuffle.timeoutMs;
+export function riffleFanOffset(index: number, riffle: number): number {
+  const even = (index - 1) * RESHUFFLE_FAN_OFFSET_PX;
+  const odd = -even;
+  const mix = riffleFanMix(riffle);
+  return even + (odd - even) * mix;
+}
+
+export function riffleFanDeg(index: number, riffle: number): number {
+  const even = RESHUFFLE_FAN_DEG[index] ?? 0;
+  const odd = -even;
+  const mix = riffleFanMix(riffle);
+  return even + (odd - even) * mix;
 }
 
 export function waitMs(ms: number): Promise<void> {
@@ -64,11 +92,3 @@ export async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T
     if (timer != null) clearTimeout(timer);
   }
 }
-
-export const RESHUFFLE_FAN_DEG = reshuffle.fanDeg;
-export const RESHUFFLE_FAN_OFFSET_PX = reshuffle.fanOffsetPx;
-export const RESHUFFLE_GATHER_DROP_PX = reshuffle.gatherDropPx;
-export const RESHUFFLE_GATHER_SCALE = reshuffle.gatherScale;
-export const RESHUFFLE_RIFFLE_EVERY_MS = reshuffle.riffleEveryMs;
-export const RESHUFFLE_RIFFLE_MOVE_MS = reshuffle.riffleMoveMs;
-export const RESHUFFLE_CARD_INPUT_DURING_SHUFFLE = reshuffle.cardInputDuringShuffle;

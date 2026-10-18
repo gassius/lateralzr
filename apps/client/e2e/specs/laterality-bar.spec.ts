@@ -30,7 +30,6 @@ async function stepHistory(
   expectLabel: string,
 ) {
   const surface = page.getByTestId('card-a11y-surface');
-  await surface.focus();
   await expect(surface).toBeFocused();
   await page.keyboard.press(direction === 'back' ? 'ArrowLeft' : 'ArrowRight');
   // RM commit is a 150ms withTiming; advance the installed clock so it can settle.
@@ -92,10 +91,10 @@ test.describe('laterality bar', () => {
     await completeReshuffleCue(page);
 
     await expect(visibleText(page, 'Entropy')).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByTestId('card-a11y-surface')).toHaveAttribute(
-      'data-laterality-grade',
-      '5',
-    );
+    const surface = page.getByTestId('card-a11y-surface');
+    await expect(surface).toHaveAttribute('data-laterality-grade', '5');
+    // Deal moves a11y focus; the test must not call .focus() itself (review B3).
+    await expect(surface).toBeFocused();
     await expect(page.getByTestId('laterality-label')).toContainText('Random entry');
 
     await stepHistory(page, 'back', 'Spore');
@@ -114,6 +113,7 @@ test.describe('laterality bar', () => {
     await completeReshuffleCue(page);
 
     await expect(visibleText(page, 'Entropy')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('card-a11y-surface')).toBeFocused();
     await stepHistory(page, 'back', 'Mycelium');
     await expect(visibleText(page, 'Spore')).toHaveCount(0);
     await stepHistory(page, 'forward', 'Entropy');

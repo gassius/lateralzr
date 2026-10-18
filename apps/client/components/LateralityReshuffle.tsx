@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useEffect, type ReactNode } from 'react';
+import { Platform, StyleSheet } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -7,10 +7,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { LoadingCard } from './LoadingCard';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
-  RESHUFFLE_FAN_DEG,
-  RESHUFFLE_FAN_OFFSET_PX,
   RESHUFFLE_GATHER_DROP_PX,
   RESHUFFLE_GATHER_SCALE,
   RESHUFFLE_RIFFLE_EVERY_MS,
@@ -19,38 +16,63 @@ import {
   reshuffleGatherMs,
   reshuffleReverseMs,
   reshuffleSilhouetteCount,
+  reshuffleStackFadeMs,
+  riffleFanDeg,
+  riffleFanOffset,
   type LateralityReshufflePhase,
 } from '@/lib/lateralityReshuffle';
 import { motion } from '@/theme/tokens';
 
 type LateralityReshuffleProps = {
   phase: LateralityReshufflePhase;
+  reduceMotion: boolean;
 };
 
-function fanOffset(index: number, riffle: number): number {
-  const base = (index - 1) * RESHUFFLE_FAN_OFFSET_PX;
-  return riffle % 2 === 0 ? base : -base;
-}
+/**
+ * Stack opacity crossfade to/from the cue (§12.5). 150 ms under Reduced Motion.
+ */
+export function ReshuffleStackFade({
+  phase,
+  reduceMotion,
+  children,
+}: {
+  phase: LateralityReshufflePhase | null;
+  reduceMotion: boolean;
+  children: ReactNode;
+}) {
+  const opacity = useSharedValue(1);
 
-function fanDeg(index: number, riffle: number): number {
-  const deg = RESHUFFLE_FAN_DEG[index] ?? 0;
-  return riffle % 2 === 0 ? deg : -deg;
+  useEffect(() => {
+    const showing = phase == null || phase === 'deal' || phase === 'reverse';
+    opacity.value = withTiming(showing ? 1 : 0, {
+      duration: reshuffleStackFadeMs(reduceMotion, phase),
+    });
+  }, [opacity, phase, reduceMotion]);
+
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  return (
+    <Animated.View pointerEvents={phase != null ? 'none' : 'auto'} style={style}>
+      {children}
+    </Animated.View>
+  );
 }
 
 /**
  * Gather / riffle / deal cue that covers the laterality neighborhood wait (Lz-57).
  * Reduced motion: one silhouette crossfade. Full motion: three fanned silhouettes.
+ * Deal lifts D1 into place; reverse collapses back onto C.
  */
-export function LateralityReshuffle({ phase }: LateralityReshuffleProps) {
-  const reduceMotion = useReducedMotion();
+export function LateralityReshuffle({ phase, reduceMotion }: LateralityReshuffleProps) {
   const count = reshuffleSilhouetteCount(reduceMotion);
   const gatherMs = reshuffleGatherMs(reduceMotion);
-  const settleMs =
-    phase === 'reverse' ? reshuffleReverseMs(reduceMotion) : reshuffleDealMs(reduceMotion);
+  const dealMs = reshuffleDealMs(reduceMotion);
+  const reverseMs = reshuffleReverseMs(reduceMotion);
   const opacity = useSharedValue(reduceMotion ? 0 : 1);
   const gather = useSharedValue(0);
   const riffle = useSharedValue(0);
   const deal = useSharedValue(0);
+  const reverse = useSharedValue(0);
 
   useEffect(() => {
     if (reduceMotion) {
@@ -63,14 +85,21 @@ export function LateralityReshuffle({ phase }: LateralityReshuffleProps) {
     if (phase === 'gather') {
       gather.value = withTiming(1, { duration: gatherMs });
       deal.value = 0;
+      reverse.value = 0;
     } else if (phase === 'shuffle') {
       gather.value = 1;
       deal.value = 0;
+      reverse.value = 0;
+    } else if (phase === 'deal') {
+      gather.value = 1;
+      reverse.value = 0;
+      deal.value = withTiming(1, { duration: dealMs });
     } else {
       gather.value = 1;
-      deal.value = withTiming(1, { duration: settleMs });
+      deal.value = 0;
+      reverse.value = withTiming(1, { duration: reverseMs });
     }
-  }, [deal, gather, gatherMs, opacity, phase, reduceMotion, settleMs]);
+  }, [deal, dealMs, gather, gatherMs, opacity, phase, reduceMotion, reverse, reverseMs]);
 
   useEffect(() => {
     if (reduceMotion || phase !== 'shuffle') return;
@@ -102,6 +131,7 @@ export function LateralityReshuffle({ phase }: LateralityReshuffleProps) {
           gather={gather}
           riffle={riffle}
           deal={deal}
+          reverse={reverse}
           exposeTestId={index === 0}
         />
       ))}
@@ -116,6 +146,7 @@ function Silhouette({
   gather,
   riffle,
   deal,
+  reverse,
   exposeTestId,
 }: {
   index: number;
@@ -124,6 +155,7 @@ function Silhouette({
   gather: SharedValue<number>;
   riffle: SharedValue<number>;
   deal: SharedValue<number>;
+  reverse: SharedValue<number>;
   exposeTestId: boolean;
 }) {
   const style = useAnimatedStyle(() => {
@@ -135,15 +167,18 @@ function Silhouette({
     }
     const g = gather.value;
     const d = deal.value;
-    const tick = Math.round(riffle.value);
-    const drop = RESHUFFLE_GATHER_DROP_PX * g * (1 - d);
-    const scale = 1 - (1 - RESHUFFLE_GATHER_SCALE) * g * (1 - d);
-    const x = fanOffset(index, tick) * g * (1 - d);
-    const rotate = fanDeg(index, tick) * g * (1 - d);
+    const r = reverse.value;
+    const open = g * (1 - d) * (1 - r);
+    const x = riffleFanOffset(index, riffle.value) * open;
+    const rotate = riffleFanDeg(index, riffle.value) * open;
+    const drop = RESHUFFLE_GATHER_DROP_PX * g * (1 - d) + RESHUFFLE_GATHER_DROP_PX * r;
+    const dealLift = -28 * d;
+    const scale =
+      1 - (1 - RESHUFFLE_GATHER_SCALE) * g * (1 - d) + 0.05 * d - 0.1 * r;
     return {
       zIndex: count - index,
       transform: [
-        { translateY: drop },
+        { translateY: drop + dealLift },
         { translateX: x },
         { scale },
         { rotate: `${rotate}deg` },

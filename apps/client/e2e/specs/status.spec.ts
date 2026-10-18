@@ -620,4 +620,66 @@ test.describe('status screens', () => {
     await retryFive;
     await expect.poll(() => lateralityFiveCalls, { timeout: 8_000 }).toBeGreaterThan(1);
   });
+
+  test('laterality reshuffle timeout restores the previous grade; Retry re-attempts the new grade', async ({
+    page,
+  }) => {
+    await preparePage(page);
+    let lateralityFiveCalls = 0;
+    await page.route('**/api/concepts/relationships', async (route) => {
+      let body: { laterality?: number } = {};
+      try {
+        body = (route.request().postDataJSON() as { laterality?: number }) ?? {};
+      } catch {
+        body = {};
+      }
+      if (body.laterality === 5) {
+        lateralityFiveCalls += 1;
+        if (lateralityFiveCalls === 1) {
+          await new Promise(() => {});
+          return;
+        }
+      }
+      await route.fallback();
+    });
+    await page.goto('/?canonicalConcept=mushroom&laterality=1&locale=en', {
+      waitUntil: 'domcontentloaded',
+    });
+    await settleAfterNavigation(page);
+
+    await expect(page.getByTestId('laterality-label')).toContainText('Same domain');
+    const rail = page.getByTestId('laterality-rail');
+    const box = await rail.boundingBox();
+    if (!box) throw new Error('laterality-rail has no bounding box');
+    await rail.click({
+      position: { x: Math.floor(box.width * 0.92), y: Math.floor(box.height / 2) },
+    });
+
+    await page.clock.fastForward(10_000);
+    await page.clock.fastForward(300);
+    await page.clock.fastForward(600);
+    await page.clock.fastForward(150);
+
+    await expect(page.getByTestId('laterality-label')).toContainText('Same domain');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /Couldn't load the next idea/i,
+    );
+    const retry = page.getByTestId('deck-status-retry');
+    await expect(retry).toBeVisible();
+
+    const retryFive = page.waitForRequest((req) => {
+      if (!req.url().includes('/api/concepts/relationships') || req.method() !== 'POST') {
+        return false;
+      }
+      try {
+        return (req.postDataJSON() as { laterality?: number })?.laterality === 5;
+      } catch {
+        return false;
+      }
+    });
+    await retry.click();
+    await retryFive;
+    await expect.poll(() => lateralityFiveCalls, { timeout: 8_000 }).toBeGreaterThan(1);
+  });
 });

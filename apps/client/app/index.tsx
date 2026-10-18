@@ -14,13 +14,14 @@ import {
 } from '@/components/ConceptCardStack';
 import { DeckStatusLine } from '@/components/DeckStatusLine';
 import { LateralityControl } from '@/components/LateralityControl';
-import { LateralityReshuffle } from '@/components/LateralityReshuffle';
+import { LateralityReshuffle, ReshuffleStackFade } from '@/components/LateralityReshuffle';
 import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { A11Y_PASS_FOCUS } from '@/lib/a11yPass';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
@@ -58,10 +59,10 @@ import {
   type MotionPreference,
 } from '@/lib/motionStorage';
 import { remainingIntroMs } from '@/lib/introLogo';
-import { readWebPrefersReducedMotion, resolveReducedMotion } from '@/lib/reducedMotion';
 import {
   clampLaterality,
   DEFAULT_LATERALITY,
+  lateralityBlocksComplexityChange,
   lateralityRetryGrade,
   planLateralityReshuffle,
   restoreLateralityReshuffle,
@@ -162,6 +163,7 @@ export default function HomeScreen() {
   const [motionPreference, setMotionPreference] =
     useState<MotionPreference>(DEFAULT_MOTION_PREFERENCE);
   const [motionHydrated, setMotionHydrated] = useState(false);
+  const reduceMotion = useReducedMotion(motionPreference);
   const lateralityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
@@ -219,6 +221,7 @@ export default function HomeScreen() {
   const committedLateralityRef = useRef<LateralityGrade>(DEFAULT_LATERALITY);
   const lateralityRetryGradeRef = useRef<LateralityGrade | null>(null);
   const lateralitySnapshotRef = useRef<LateralityRestoreSnapshot | null>(null);
+  const lateralityFocusPendingRef = useRef(false);
   const journeyTestParamsRef = useRef(readJourneyTestParams());
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
   const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
@@ -231,6 +234,13 @@ export default function HomeScreen() {
   useEffect(() => {
     lateralityRef.current = laterality;
   }, [laterality]);
+
+  useEffect(() => {
+    if (lateralitySwap != null) return;
+    if (!lateralityFocusPendingRef.current) return;
+    lateralityFocusPendingRef.current = false;
+    cardStackRef.current?.focusCard();
+  }, [lateralitySwap]);
 
   useEffect(() => {
     conceptsRef.current = concepts;
@@ -694,11 +704,6 @@ export default function HomeScreen() {
     fetchGenRef.current += 1;
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
     const token = ++lateralitySwapTokenRef.current;
-    const reduceMotion = resolveReducedMotion({
-      os: false,
-      web: readWebPrefersReducedMotion(),
-      appPref: motionPreference,
-    });
     setLateralitySwap({ token, phase: 'gather' });
     setLateralityStatusReady(false);
     setLateralityFetchFailed(false);
@@ -720,10 +725,14 @@ export default function HomeScreen() {
       : {};
     const attemptedGrade = lateralityRef.current;
 
-    const finishCue = async (phase: LateralityReshufflePhase) => {
+    const beginCue = async (phase: LateralityReshufflePhase) => {
       await minCue;
-      if (!stillCurrent()) return;
+      if (!stillCurrent()) return false;
       setLateralitySwap({ token, phase });
+      return true;
+    };
+
+    const settleCue = async (phase: LateralityReshufflePhase) => {
       const settleMs =
         phase === 'reverse' ? reshuffleReverseMs(reduceMotion) : reshuffleDealMs(reduceMotion);
       await waitMs(settleMs);
@@ -783,8 +792,7 @@ export default function HomeScreen() {
         attemptedGrade,
       );
       if (plan.kind === 'no-match') {
-        await finishCue('reverse');
-        if (!stillCurrent()) return;
+        if (!(await beginCue('reverse'))) return;
         applyDeck(plan.concepts, plan.currentIndex);
         if (shouldPersistLateralityAfterSwap('control', 'success')) {
           void persistLaterality(attemptedGrade);
@@ -792,13 +800,14 @@ export default function HomeScreen() {
         committedLateralityRef.current = attemptedGrade;
         lateralitySnapshotRef.current = null;
         lateralityRetryGradeRef.current = null;
+        await settleCue('reverse');
+        if (!stillCurrent()) return;
         setNoNextIdea(true);
         endSwap();
         return;
       }
 
-      await finishCue('deal');
-      if (!stillCurrent()) return;
+      if (!(await beginCue('deal'))) return;
       applyDeck(plan.concepts, plan.currentIndex);
       setLoadMoreError(false);
       if (shouldPersistLateralityAfterSwap('control', 'success')) {
@@ -807,13 +816,14 @@ export default function HomeScreen() {
       committedLateralityRef.current = attemptedGrade;
       lateralitySnapshotRef.current = null;
       lateralityRetryGradeRef.current = null;
+      lateralityFocusPendingRef.current = true;
+      await settleCue('deal');
+      if (!stillCurrent()) return;
       endSwap();
-      cardStackRef.current?.focusCard();
     } catch {
       if (!stillCurrent()) return;
       const snapshot = lateralitySnapshotRef.current;
-      await finishCue('reverse');
-      if (!stillCurrent()) return;
+      if (!(await beginCue('reverse'))) return;
       if (snapshot) {
         const restored = restoreLateralityReshuffle(snapshot);
         applyDeck(restored.concepts, restored.currentIndex);
@@ -824,13 +834,15 @@ export default function HomeScreen() {
         setLaterality(committedLateralityRef.current);
       }
       lateralityRetryGradeRef.current = lateralityRetryGrade(attemptedGrade);
+      await settleCue('reverse');
+      if (!stillCurrent()) return;
       setLateralityFetchFailed(true);
       endSwap();
     } finally {
       clearTimeout(statusTimer);
       clearTimeout(gatherTimer);
     }
-  }, [fetchBatch, motionPreference]);
+  }, [fetchBatch, reduceMotion]);
 
   const onSelectLaterality = useCallback((grade: LateralityGrade) => {
     if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
@@ -948,6 +960,7 @@ export default function HomeScreen() {
 
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
+      if (lateralityBlocksComplexityChange(lateralitySwap != null)) return;
       const previous = complexityRef.current;
       const next = clampComplexity(previous + (direction === 'up' ? 1 : -1));
       complexityRef.current = next;
@@ -975,7 +988,7 @@ export default function HomeScreen() {
 
       void prefetchComplexityTree(next);
     },
-    [announceComplexity, prefetchComplexityTree],
+    [announceComplexity, lateralitySwap, prefetchComplexityTree],
   );
 
   /**
@@ -984,6 +997,7 @@ export default function HomeScreen() {
    */
   const onSelectComplexity = useCallback(
     (grade: number) => {
+      if (lateralityBlocksComplexityChange(lateralitySwap != null)) return;
       const result = applyMenuComplexitySelection(
         {
           complexity: complexityRef.current,
@@ -1002,7 +1016,7 @@ export default function HomeScreen() {
         void prefetchComplexityTree(result.complexity);
       }
     },
-    [prefetchComplexityTree],
+    [lateralitySwap, prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;
@@ -1189,9 +1203,9 @@ export default function HomeScreen() {
               testID="deck-stack-layer"
             >
               <View style={styles.stackSlot}>
-                <View
-                  pointerEvents={lateralitySwap != null ? 'none' : 'auto'}
-                  style={lateralitySwap != null ? styles.stackHiddenDuringReshuffle : undefined}
+                <ReshuffleStackFade
+                  phase={lateralitySwap?.phase ?? null}
+                  reduceMotion={reduceMotion}
                 >
                   <ConceptCardStack
                     ref={cardStackRef}
@@ -1216,8 +1230,13 @@ export default function HomeScreen() {
                     onReplayGestureTipsReady={onReplayGestureTipsReady}
                     onCoachTipChange={onCoachTipChange}
                   />
-                </View>
-                {lateralitySwap ? <LateralityReshuffle phase={lateralitySwap.phase} /> : null}
+                </ReshuffleStackFade>
+                {lateralitySwap ? (
+                  <LateralityReshuffle
+                    phase={lateralitySwap.phase}
+                    reduceMotion={reduceMotion}
+                  />
+                ) : null}
               </View>
             </View>
             {accessibleNavVisible ? (
@@ -1432,9 +1451,6 @@ const styles = StyleSheet.create({
   stackSlot: {
     width: '100%',
     position: 'relative',
-  },
-  stackHiddenDuringReshuffle: {
-    opacity: 0,
   },
   /** While dragging / exiting, the card stacks above the ellipsis (zIndex 30). */
   deckMovingGroup: {

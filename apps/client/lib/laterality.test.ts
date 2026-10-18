@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import type { DeckConcept } from './conceptDeck.ts';
 import { setActiveLocale, t } from './i18n.ts';
@@ -8,6 +7,7 @@ import {
   DEFAULT_LATERALITY,
   LATERALITY_LABEL_KEYS,
   lateralityA11yText,
+  lateralityBlocksComplexityChange,
   lateralityCommitFromRail,
   lateralityControlDisabled,
   lateralityGradeLabelKey,
@@ -86,10 +86,9 @@ describe('session-only URL laterality', () => {
     assert.equal(lateralityControlDisabled(false, true), true);
   });
 
-  it('marks the web laterality row aria-busy while swapping (mutation guard)', () => {
-    const src = readFileSync(new URL('../components/LateralityControl.tsx', import.meta.url), 'utf8');
-    assert.match(src, /'aria-busy': swapping \|\| undefined/);
-    assert.match(src, /accessibilityState=\{\{ busy: swapping, disabled \}\}/);
+  it('blocks complexity changes while a laterality reshuffle is in flight', () => {
+    assert.equal(lateralityBlocksComplexityChange(true), true);
+    assert.equal(lateralityBlocksComplexityChange(false), false);
   });
 });
 
@@ -212,7 +211,7 @@ describe('selecting each grade sends 1..5 to the API body', () => {
 describe('planLateralityReshuffle', () => {
   it('keeps A..C and deals D1 after C (history rule)', () => {
     const history = [item('mushroom', 3), item('tide', 3), item('lighthouse', 3)];
-    const incoming = [item('lighthouse'), item('entropy'), item('chaos')];
+    const incoming = [item('lighthouse', 5), item('entropy', 5), item('chaos', 5)];
     const plan = planLateralityReshuffle(history, 2, incoming, 5);
     assert.equal(plan.kind, 'deal');
     if (plan.kind !== 'deal') return;
@@ -224,6 +223,15 @@ describe('planLateralityReshuffle', () => {
     assert.equal(plan.concepts[3]?.concept, 'entropy');
     assert.equal(plan.concepts[3]?.grade, 5);
     assert.equal(plan.concepts[0]?.grade, 3);
+  });
+
+  it('maps a missing incoming grade to 3, not the selected grade', () => {
+    const plan = planLateralityReshuffle([item('mushroom', 3)], 0, [item('entropy')], 5);
+    assert.equal(plan.kind, 'deal');
+    if (plan.kind !== 'deal') return;
+    assert.equal(plan.concepts[1]?.concept, 'entropy');
+    assert.equal(plan.concepts[1]?.grade, 3);
+    assert.notEqual(plan.concepts[1]?.grade, 5);
   });
 
   it('discards a seen-ahead card after C', () => {

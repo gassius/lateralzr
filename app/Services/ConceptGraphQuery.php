@@ -34,7 +34,7 @@ class ConceptGraphQuery
         $complexity = $this->normalizeComplexity($complexity);
         $laterality = $laterality === null ? null : max(1, min(5, $laterality));
 
-        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity);
+        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity, $laterality);
         if ($start === null) {
             return null;
         }
@@ -155,7 +155,8 @@ class ConceptGraphQuery
         string $locale,
         ?string $canonicalStart = null,
         bool $onlyWithMedia = false,
-        ?int $complexity = null
+        ?int $complexity = null,
+        ?int $laterality = null
     ): ?Concept {
         if ($startConcept !== null && trim($startConcept) !== '') {
             $normalized = ConceptTerm::normalizeTerm($startConcept);
@@ -203,9 +204,9 @@ class ConceptGraphQuery
         }
 
         // Prefer concepts that have edges and a term in the requested locale.
-        $startId = $this->randomStartId($locale, $onlyWithMedia, $complexity);
+        $startId = $this->randomStartId($locale, $onlyWithMedia, $complexity, $laterality);
         if ($startId === null && $complexity !== null) {
-            $startId = $this->randomStartId($locale, $onlyWithMedia, null);
+            $startId = $this->randomStartId($locale, $onlyWithMedia, null, $laterality);
         }
 
         if ($startId) {
@@ -216,7 +217,7 @@ class ConceptGraphQuery
         return null;
     }
 
-    protected function randomStartId(string $locale, bool $onlyWithMedia, ?int $complexity): ?int
+    protected function randomStartId(string $locale, bool $onlyWithMedia, ?int $complexity, ?int $laterality = null): ?int
     {
         $startQuery = ConceptRelationship::query()
             ->whereHas('fromConcept.terms', function ($q) use ($locale, $onlyWithMedia, $complexity) {
@@ -228,6 +229,10 @@ class ConceptGraphQuery
                     $this->constrainMediaUrl($q);
                 }
             });
+
+        if ($laterality !== null) {
+            $startQuery->whereRaw('COALESCE(last_laterality, 3) = ?', [$laterality]);
+        }
 
         if ($onlyWithMedia) {
             $startQuery->whereHas('toConcept.terms', function ($q) use ($locale, $complexity) {

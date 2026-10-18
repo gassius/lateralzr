@@ -44,10 +44,10 @@ export function mergeUniqueRelated(existing: DeckConcept[], related: DeckConcept
   });
 }
 
-function parseEdgeGrade(value: unknown): 1 | 2 | 3 | 4 | 5 | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+function parseEdgeGrade(value: unknown): 1 | 2 | 3 | 4 | 5 {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 3;
   const n = Math.round(value);
-  if (n < 1 || n > 5) return undefined;
+  if (n < 1 || n > 5) return 3;
   return n as 1 | 2 | 3 | 4 | 5;
 }
 

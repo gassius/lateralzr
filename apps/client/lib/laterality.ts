@@ -174,6 +174,11 @@ export function lateralityControlDisabled(canStep: boolean, swapping: boolean): 
   return swapping || !canStep;
 }
 
+/** Menu / vertical swipe must not rewrite the deck mid-reshuffle. */
+export function lateralityBlocksComplexityChange(swapping: boolean): boolean {
+  return swapping;
+}
+
 /**
  * Calm 2–3 stop gradient for the laterality swirl overlay (Lz-33 removes swirl).
  * Low laterality stays cool/contained; high laterality opens toward orange.
@@ -202,10 +207,8 @@ export function lateralityGradientStops(grade: number): LateralityGradientStops 
   }
 }
 
-function stampIncomingGrade(items: DeckConcept[], grade?: LateralityGrade): DeckConcept[] {
-  if (grade == null) return items;
-  const next = clampLaterality(grade);
-  return items.map((item) => ({ ...item, grade: item.grade ?? next }));
+function stampIncomingGrade(items: DeckConcept[]): DeckConcept[] {
+  return items.map((item) => ({ ...item, grade: item.grade ?? DEFAULT_LATERALITY }));
 }
 
 /**
@@ -254,7 +257,7 @@ export function planLateralityReshuffle(
   newDeck: DeckConcept[],
   grade?: LateralityGrade,
 ): LateralityReshufflePlan {
-  const incoming = stampIncomingGrade(newDeck, grade);
+  const incoming = stampIncomingGrade(newDeck);
   if (history.length === 0) {
     if (incoming.length === 0) {
       return { kind: 'no-match', concepts: [], currentIndex: 0 };

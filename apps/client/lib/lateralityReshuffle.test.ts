@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { motion } from '../theme/tokens.ts';
+import { resolveReducedMotion } from './reducedMotion.ts';
 import {
-  reshuffleCanSettle,
   reshuffleDealMs,
   reshuffleGatherMs,
   reshuffleMinCueMs,
   reshuffleReverseMs,
   reshuffleSilhouetteCount,
+  reshuffleStackFadeMs,
   reshuffleStatusDelayMs,
-  reshuffleStatusVisible,
-  reshuffleTimedOut,
   reshuffleTimeoutMs,
+  riffleFanDeg,
+  riffleFanMix,
+  riffleFanOffset,
+  withTimeout,
 } from './lateralityReshuffle.ts';
 
 describe('laterality reshuffle timing tokens', () => {
@@ -33,13 +36,46 @@ describe('laterality reshuffle timing tokens', () => {
     assert.equal(reshuffleReverseMs(false), 260);
   });
 
-  it('shows status after the delay and settles only after min cue + fetch', () => {
-    assert.equal(reshuffleStatusVisible(299), false);
-    assert.equal(reshuffleStatusVisible(300), true);
-    assert.equal(reshuffleCanSettle(899, true), false);
-    assert.equal(reshuffleCanSettle(900, false), false);
-    assert.equal(reshuffleCanSettle(900, true), true);
-    assert.equal(reshuffleTimedOut(9999), false);
-    assert.equal(reshuffleTimedOut(10000), true);
+  it('uses reduced-motion cue timings when OS reduce-motion is on', () => {
+    const reduceMotion = resolveReducedMotion({
+      os: true,
+      web: false,
+      appPref: 'full',
+    });
+    assert.equal(reduceMotion, true);
+    assert.equal(reshuffleGatherMs(reduceMotion), 0);
+    assert.equal(reshuffleDealMs(reduceMotion), 150);
+    assert.equal(reshuffleReverseMs(reduceMotion), 150);
+    assert.equal(reshuffleSilhouetteCount(reduceMotion), 1);
+    assert.equal(reshuffleStackFadeMs(reduceMotion, 'gather'), 150);
+    assert.equal(reshuffleStackFadeMs(reduceMotion, 'deal'), 150);
+    assert.equal(reshuffleStackFadeMs(reduceMotion, 'reverse'), 150);
+    assert.equal(reshuffleStackFadeMs(false, 'gather'), 260);
+    assert.equal(reshuffleStackFadeMs(false, 'deal'), 360);
+    assert.equal(reshuffleStackFadeMs(false, 'reverse'), 260);
+  });
+});
+
+describe('riffle interpolation', () => {
+  it('interpolates between even and odd fans without snapping at 0.5', () => {
+    const even = riffleFanOffset(0, 0);
+    const odd = riffleFanOffset(0, 1);
+    const mid = riffleFanOffset(0, 0.5);
+    assert.equal(riffleFanMix(0), 0);
+    assert.equal(riffleFanMix(1), 1);
+    assert.equal(riffleFanMix(0.5), 0.5);
+    assert.equal(mid, (even + odd) / 2);
+    assert.notEqual(mid, even);
+    assert.notEqual(mid, odd);
+    assert.equal(riffleFanDeg(0, 0.5), (riffleFanDeg(0, 0) + riffleFanDeg(0, 1)) / 2);
+  });
+});
+
+describe('withTimeout', () => {
+  it('rejects with reshuffle-timeout when the wait exceeds the budget', async () => {
+    await assert.rejects(
+      () => withTimeout(new Promise(() => {}), 5),
+      /reshuffle-timeout/,
+    );
   });
 });

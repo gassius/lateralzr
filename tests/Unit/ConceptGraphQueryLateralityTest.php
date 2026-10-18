@@ -100,6 +100,45 @@ class ConceptGraphQueryLateralityTest extends TestCase
         $this->assertNull($atOne);
     }
 
+    public function test_random_start_honours_laterality_filter(): void
+    {
+        $starts = [];
+        foreach ([1, 2, 3, 4, 5] as $grade) {
+            $from = $this->makeConcept("seed-{$grade}");
+            $to = $this->makeConcept("nbr-{$grade}");
+            $this->link($from, $to, laterality: $grade, strength: 0.9);
+            $starts[$grade] = $from->id;
+        }
+
+        foreach ([1, 2, 3, 4, 5] as $grade) {
+            $graph = app(ConceptGraphQuery::class)->getGraph(
+                startConcept: null,
+                locale: 'en',
+                laterality: $grade,
+            );
+            $this->assertNotNull($graph);
+            $this->assertSame($starts[$grade], $graph['start']['id']);
+            $this->assertSame($grade, $graph['meta']['laterality']);
+            foreach ($graph['edges'] as $edge) {
+                $this->assertSame($grade, $edge['laterality']);
+            }
+        }
+
+        for ($i = 0; $i < 20; $i++) {
+            $graph = app(ConceptGraphQuery::class)->getGraph(
+                startConcept: null,
+                locale: 'en',
+                laterality: 5,
+            );
+            $this->assertNotNull($graph);
+            $this->assertSame($starts[5], $graph['start']['id']);
+            $this->assertSame(5, $graph['meta']['laterality']);
+            foreach ($graph['edges'] as $edge) {
+                $this->assertSame(5, $edge['laterality']);
+            }
+        }
+    }
+
     public function test_omitting_laterality_does_not_add_meta_laterality(): void
     {
         $from = $this->makeConcept('creativity');
