@@ -6,7 +6,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -60,13 +59,10 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
       });
       return;
     }
-    const pulse = withRepeat(
-      withSequence(
-        withTiming(0.28, { duration: LOGO_PULSE_HALF_MS }),
-        withTiming(1, { duration: LOGO_PULSE_HALF_MS }),
-      ),
-      -1,
-      false,
+    // One sequence only — last stagger + pulse = INTRO_LOGO_PULSE_MAX_MS (§5.2).
+    const pulse = withSequence(
+      withTiming(0.28, { duration: LOGO_PULSE_HALF_MS }),
+      withTiming(1, { duration: LOGO_PULSE_HALF_MS }),
     );
     opacities.forEach((s, i) => {
       s.value = withDelay(i * LOGO_STAGGER_MS, pulse);

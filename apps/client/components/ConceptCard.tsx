@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import {
   Linking,
@@ -595,14 +595,15 @@ export function ConceptCard({
     if (showMediaLayer) return;
     const desc = backDescRef.current;
     const face = backFaceRef.current;
-    if (!desc || !face || typeof desc.measureInWindow !== 'function') return;
-    desc.measureInWindow((_dx, dy) => {
-      face.measureInWindow((_fx, fy) => {
-        const next = dy - fy;
-        if (!Number.isFinite(next) || next <= 0) return;
-        setFirstTextY((prev) => (prev != null && Math.abs(prev - next) < 0.5 ? prev : next));
-      });
-    });
+    if (!desc || !face || typeof desc.measureLayout !== 'function') return;
+    desc.measureLayout(
+      face,
+      (_x, y) => {
+        if (!Number.isFinite(y)) return;
+        setFirstTextY((prev) => (prev != null && Math.abs(prev - y) < 0.5 ? prev : y));
+      },
+      () => {},
+    );
   };
 
   useEffect(() => {
@@ -826,16 +827,18 @@ export function ConceptCard({
     cardHeight: backFaceH,
     firstTextY,
   });
-  const embossXml = showBlindEmboss
-    ? buildNoMediaEmbossXml(
-        buildPatternSvgXml({
-          conceptKey: patternConceptKey,
-          titleFaceRect: null,
-          faceWidth,
-          faceHeight: backFaceH,
-        }).xml,
-      )
-    : '';
+  const embossXml = useMemo(() => {
+    if (!showBlindEmboss) return '';
+    return buildNoMediaEmbossXml(
+      buildPatternSvgXml({
+        conceptKey: patternConceptKey,
+        titleFaceRect: null,
+        faceWidth,
+        faceHeight: backFaceH,
+        variantOverride: patternVariantOverride,
+      }).xml,
+    );
+  }, [showBlindEmboss, patternConceptKey, faceWidth, backFaceH, patternVariantOverride]);
 
   const back = (
     <View
@@ -855,6 +858,7 @@ export function ConceptCard({
           xml={embossXml}
           width={faceWidth}
           height={embossPlan.height}
+          faceHeight={backFaceH}
           fadeStart={embossPlan.fadeStart}
         />
       ) : null}

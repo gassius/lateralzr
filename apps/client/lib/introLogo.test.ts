@@ -15,7 +15,8 @@ import {
 test('logo timing constants match one full staggered cycle', () => {
   assert.equal(LOGO_PULSE_MS, LOGO_PULSE_HALF_MS * 2);
   assert.equal(LOGO_ONE_CYCLE_MS, LOGO_STAGGER_MS * (LOGO_DOT_COUNT - 1) + LOGO_PULSE_MS);
-  assert.equal(LOGO_ONE_CYCLE_MS, 1240);
+  assert.equal(LOGO_ONE_CYCLE_MS, INTRO_LOGO_PULSE_MAX_MS);
+  assert.equal(INTRO_LOGO_PULSE_MAX_MS, 1200);
   assert.ok(MIN_INTRO_LOGO_MS >= LOGO_ONE_CYCLE_MS);
   assert.ok(MIN_INTRO_LOGO_MS >= 3000);
 });

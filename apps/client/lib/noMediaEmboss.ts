@@ -30,13 +30,15 @@ export function resolveNoMediaEmbossHeight(options: {
     return { height: 0, fadeStart: 0 };
   }
   const maxByRatio = options.cardHeight * maxHeightRatio;
-  // 0 / negative / NaN come from measureInWindow on a hidden flipped face.
-  const measuredTextY =
-    options.firstTextY != null && Number.isFinite(options.firstTextY) && options.firstTextY > minGap
-      ? options.firstTextY
-      : null;
-  const maxByText = measuredTextY != null ? measuredTextY - minGap : maxByRatio;
-  const height = Math.max(0, Math.min(maxByRatio, maxByText));
+  // Unmeasured or a first line within the 24 px gap → do not draw (covers 200% text).
+  if (
+    options.firstTextY == null ||
+    !Number.isFinite(options.firstTextY) ||
+    options.firstTextY <= minGap
+  ) {
+    return { height: 0, fadeStart: 0 };
+  }
+  const height = Math.max(0, Math.min(maxByRatio, options.firstTextY - minGap));
   return {
     height,
     fadeStart: height * (1 - fadeRatio),

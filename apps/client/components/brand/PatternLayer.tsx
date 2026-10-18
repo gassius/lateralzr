@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Svg, { Line } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { connectorPulseAllowed } from '@/lib/connectorPulse';
+import { connectorPulseAllowed, type ConnectorGlowLine } from '@/lib/connectorPulse';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
   buildPatternSvgXml,
@@ -11,6 +14,9 @@ import {
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
+import { PATTERN_CARD_UNITS, PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
+import { motion } from '@/theme/tokens';
+import type { SharedValue } from 'react-native-reanimated';
 
 type PatternLayerProps = {
   /** Concept key for stable variant assignment (`hash % 3`). */
@@ -40,9 +46,57 @@ type PatternLayerProps = {
   frontScrolling?: boolean;
 };
 
+function ConnectorGlowOverlay({
+  geometry,
+  opacity,
+  width,
+  height,
+}: {
+  geometry: ConnectorGlowLine;
+  opacity: SharedValue<number>;
+  width: number;
+  height: number;
+}) {
+  const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const haloWidth = geometry.strokeWidth + 2 * motion.glow.haloPx;
+  const haloStrokeOpacity = motion.glow.haloOpacity / motion.glow.peakOpacity;
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
+      <Svg
+        width={width}
+        height={height}
+        viewBox={`0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}`}
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <Line
+          x1={geometry.x1}
+          y1={geometry.y1}
+          x2={geometry.x2}
+          y2={geometry.y2}
+          stroke={PATTERN_PULSE_GLOW_FILL}
+          strokeWidth={haloWidth}
+          strokeLinecap="round"
+          strokeOpacity={haloStrokeOpacity}
+        />
+        <Line
+          x1={geometry.x1}
+          y1={geometry.y1}
+          x2={geometry.x2}
+          y2={geometry.y2}
+          stroke={PATTERN_PULSE_GLOW_FILL}
+          strokeWidth={geometry.strokeWidth}
+          strokeLinecap="round"
+          strokeOpacity={1}
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
 /**
- * Card-front pattern master (Lz-25) + optional connector breath (Lz-40).
+ * Card-front pattern master (Lz-25) + required connector glow (Lz-58 / §11.3).
  * Decorative only — no pointer events, excluded from the accessibility tree.
+ * Base XML is memoized; glow is a small overlay animated on the UI thread.
  */
 export function PatternLayer({
   conceptKey,
@@ -56,28 +110,41 @@ export function PatternLayer({
   frontScrolling = false,
 }: PatternLayerProps) {
   const reduceMotion = useReducedMotion();
-  // M1: `?e2ePulsePeak=1` is ignored outside test/dev builds (not production web).
   const forcePeak = resolveE2ePulsePeak(readJourneyTestParams().e2ePulsePeak);
   const ready = faceWidth >= 8 && faceHeight >= 8;
+  const titleKey = titleFaceRect
+    ? `${titleFaceRect.x},${titleFaceRect.y},${titleFaceRect.width},${titleFaceRect.height}`
+    : 'none';
 
-  const built = ready
-    ? buildPatternSvgXml({
-        conceptKey,
-        titleFaceRect,
-        faceWidth,
-        faceHeight,
-        variantOverride,
-      })
-    : null;
+  const built = useMemo(
+    () =>
+      ready
+        ? buildPatternSvgXml({
+            conceptKey,
+            titleFaceRect,
+            faceWidth,
+            faceHeight,
+            variantOverride,
+          })
+        : null,
+    // titleFaceRect is keyed via titleKey.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- titleKey stands in for titleFaceRect
+    [ready, conceptKey, titleKey, faceWidth, faceHeight, variantOverride],
+  );
 
-  const clearArea = ready
-    ? resolvePatternClearArea({
-        variant: built!.variant,
-        titleFaceRect,
-        faceWidth,
-        faceHeight,
-      })
-    : null;
+  const clearArea = useMemo(
+    () =>
+      ready && built != null
+        ? resolvePatternClearArea({
+            variant: built.variant,
+            titleFaceRect,
+            faceWidth,
+            faceHeight,
+          })
+        : { x: 0, y: 0, width: 1, height: 1 },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- titleKey stands in for titleFaceRect
+    [ready, built, titleKey, faceWidth, faceHeight],
+  );
 
   const allowed =
     ready &&
@@ -96,7 +163,7 @@ export function PatternLayer({
     allowed: Boolean(allowed),
     xml: built?.xml ?? '',
     variant: built?.variant ?? 0,
-    clearArea: clearArea ?? { x: 0, y: 0, width: 1, height: 1 },
+    clearArea,
     conceptKey,
     forcePeak,
   });
@@ -121,15 +188,28 @@ export function PatternLayer({
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
-      // Expose variant for Critiquito / Playwright without affecting a11y tree.
       nativeID={exposeTestId ? `pattern-variant-${built.variant}` : undefined}
     >
+      {exposeTestId ? (
+        <View
+          testID={pulse.armed ? 'card-front-pulse-armed' : 'card-front-pulse-idle'}
+          collapsable={false}
+        />
+      ) : null}
       <SvgXml
-        xml={pulse.pulsedXml || built.xml}
+        xml={built.xml}
         width={faceWidth}
         height={faceHeight}
         preserveAspectRatio="xMidYMid slice"
       />
+      {pulse.armed && pulse.geometry ? (
+        <ConnectorGlowOverlay
+          geometry={pulse.geometry}
+          opacity={pulse.opacity}
+          width={faceWidth}
+          height={faceHeight}
+        />
+      ) : null}
     </View>
   );
 }

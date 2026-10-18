@@ -13,6 +13,7 @@ import {
   randomIntInclusive,
   randomPulseCycleMs,
   randomPulsePauseMs,
+  readConnectorGlowLine,
   readConnectorPulseOpacity,
 } from './connectorPulse.ts';
 import {
@@ -177,5 +178,9 @@ describe('list / pick / apply connector opacity', () => {
     assert.equal(before, after);
     const rest = applyConnectorPulseOpacity(next, id!, 0);
     assert.equal(readConnectorPulseOpacity(rest, id!), 0);
+    const line = readConnectorGlowLine(built.xml, id!);
+    assert.ok(line);
+    assert.ok(line!.strokeWidth > 0);
+    assert.notEqual(line!.x1, line!.x2);
   });
 });

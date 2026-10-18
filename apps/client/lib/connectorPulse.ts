@@ -126,6 +126,36 @@ export function listVisiblePulseConnectors(xml: string): PulseConnector[] {
   return out;
 }
 
+export type ConnectorGlowLine = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  strokeWidth: number;
+};
+
+/** Core inter-bulb line for the UI-thread glow overlay (no SVG rewrite). */
+export function readConnectorGlowLine(xml: string, connectorId: string): ConnectorGlowLine | null {
+  if (!connectorId) return null;
+  const groupRe = new RegExp(
+    `<g\\b[^>]*\\bid="${connectorId}"[^>]*>[\\s\\S]*?<line class="core"([^/]*)/>`,
+  );
+  const attrs = groupRe.exec(xml)?.[1];
+  if (!attrs) return null;
+  const num = (name: string): number | null => {
+    const match = new RegExp(`\\b${name}="([^"]+)"`).exec(attrs);
+    const n = match ? Number(match[1]) : NaN;
+    return Number.isFinite(n) ? n : null;
+  };
+  const x1 = num('x1');
+  const y1 = num('y1');
+  const x2 = num('x2');
+  const y2 = num('y2');
+  const strokeWidth = num('stroke-width') ?? 1.1;
+  if (x1 == null || y1 == null || x2 == null || y2 == null) return null;
+  return { x1, y1, x2, y2, strokeWidth };
+}
+
 function motifCenter(
   variant: PatternVariantIndex,
   motifId: string,

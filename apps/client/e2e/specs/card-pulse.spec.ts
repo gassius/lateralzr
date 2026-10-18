@@ -45,6 +45,7 @@ test.describe('card front connector pulse', () => {
     );
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(cardFrontPattern(page)).toBeAttached();
+    await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
 
     const pulse = await readPulseDom(page);
     expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
@@ -69,27 +70,21 @@ test.describe('card front connector pulse', () => {
   test('glow scheduler stays off under OS reduced motion', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&patternVariant=1');
     await expect(cardFrontPattern(page)).toBeAttached();
+    await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
+    await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
     const pulse = await readPulseDom(page);
     expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
     expect(pulse.connectorGroupCount).toBeGreaterThan(0);
-    const live = await page.evaluate(() => {
-      const groups = document.querySelectorAll('[data-testid="card-front-pattern"] #connectors > g[id^="c"]');
-      return Array.from(groups).map((g) => ({
-        id: g.id,
-        opacity: g.getAttribute('opacity'),
-        fillOpacity: g.getAttribute('fill-opacity'),
-      }));
-    });
-    expect(live.length).toBeGreaterThan(0);
-    for (const row of live) {
-      expect(row.opacity === '0' || row.opacity === null).toBeTruthy();
-      expect(row.fillOpacity === '0' || row.fillOpacity === null).toBeTruthy();
-    }
   });
 });
 
 test.describe('card front connector pulse — Motion reduced', () => {
-  test.use({ reducedMotion: 'no-preference' });
+  // Project default lives on `contextOptions.reducedMotion`; the first-class
+  // option alone does not override it.
+  test.use({
+    reducedMotion: 'no-preference',
+    contextOptions: { reducedMotion: 'no-preference' },
+  });
 
   test('glow stays off when Motion is Reduced', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&patternVariant=1');
@@ -101,13 +96,14 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await page.getByTestId('app-menu-close').click();
     await expect(page.getByTestId('app-menu')).toHaveCount(0);
     await expect(cardFrontPattern(page)).toBeAttached();
-    const live = await page.evaluate(() => {
-      const groups = document.querySelectorAll('[data-testid="card-front-pattern"] #connectors > g[id^="c"]');
-      return Array.from(groups).map((g) => g.getAttribute('opacity') ?? g.getAttribute('fill-opacity'));
-    });
-    expect(live.length).toBeGreaterThan(0);
-    for (const opacity of live) {
-      expect(opacity === '0' || opacity === null).toBeTruthy();
-    }
+    await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
+    await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
+  });
+
+  test('glow is armed under no-preference Motion system', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&patternVariant=1');
+    await expect(cardFrontPattern(page)).toBeAttached();
+    await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
+    await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(0);
   });
 });

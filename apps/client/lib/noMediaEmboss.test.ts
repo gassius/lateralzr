@@ -18,13 +18,15 @@ describe('resolveNoMediaEmbossHeight', () => {
     assert.ok(plan.height < 560 * 0.55);
   });
 
-  it('ignores unmeasured or zero firstTextY and keeps the 55% band', () => {
+  it('does not draw until measured, and height is 0 when text is ≤ 24 px', () => {
     const unknown = resolveNoMediaEmbossHeight({ cardHeight: 560, firstTextY: null });
     const zero = resolveNoMediaEmbossHeight({ cardHeight: 560, firstTextY: 0 });
     const tooClose = resolveNoMediaEmbossHeight({ cardHeight: 560, firstTextY: 20 });
-    assert.equal(unknown.height, 560 * 0.55);
-    assert.equal(zero.height, 560 * 0.55);
-    assert.equal(tooClose.height, 560 * 0.55);
+    const onGap = resolveNoMediaEmbossHeight({ cardHeight: 560, firstTextY: 24 });
+    assert.equal(unknown.height, 0);
+    assert.equal(zero.height, 0);
+    assert.equal(tooClose.height, 0);
+    assert.equal(onGap.height, 0);
   });
 
   it('reads the §23 no-media emboss tokens', () => {

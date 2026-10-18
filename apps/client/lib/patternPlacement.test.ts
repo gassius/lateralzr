@@ -12,7 +12,7 @@ import {
   PATTERN_SVG_FILENAMES,
 } from '../assets/images/pattern/patternXml.ts';
 import { PATTERN_CARD_FILL, PATTERN_RELIEF, PATTERN_TITLE_CLEAR_MARGIN_PX } from '../theme/pattern.ts';
-import { color } from '../theme/tokens.ts';
+import { color, pattern } from '../theme/tokens.ts';
 import {
   buildPatternSvgXml,
   defaultTitleClearForVariant,
@@ -46,11 +46,11 @@ const MASTER_SHA256 = {
 
 const EXPECTED_SHA256 = {
   'lateralzr-pattern-01-descending-current.svg':
-    'b93d5ee42deaf8c90911c96e02af5ccfce69c3e8bd36a2d19d25ee72506167d0',
+    '675a5417ed040160d772f882c2f4770355415208e37e012c819fc7ab4e32b22c',
   'lateralzr-pattern-02-ascending-current.svg':
-    '6ba0b6ffdbcbad6b86f5dda3aebc9fc8909e897966c2d45d6664161bc17ea31b',
+    '95e31214fa64b564da8520b31c1604c83b7bf5d1a320ed7d92ffc77a78a86f6d',
   'lateralzr-pattern-03-edge-current.svg':
-    'ae2454441c6797f63eb6f7631b1820cd66c6eda1ad38470436342dc3f6f8c6bd',
+    'b89eacc258fbb4c34539de3073af64ce7d53ee1c6c3ca0c4d417e21ea49cd809',
 } as const;
 
 function assertRectClose(actual: PatternRect, expected: PatternRect, tol = 0.5) {
@@ -113,6 +113,9 @@ describe('pattern SVG assets (v3.4 masters + regenerated production)', () => {
     assert.equal(PATTERN_RELIEF.core.fill, '#EC8318');
     assert.match(PATTERN_SVG_01_DESCENDING, /id="relief-shade"[^>]*fill="#C9670F"/);
     assert.doesNotMatch(JSON.stringify(color), /C9670F|FFB867|EC8318/);
+    assert.doesNotMatch(PATTERN_SVG_01_DESCENDING, /feGaussianBlur|glow-halo/);
+    assert.doesNotMatch(PATTERN_SVG_02_ASCENDING, /feGaussianBlur|glow-halo/);
+    assert.doesNotMatch(PATTERN_SVG_03_EDGE, /feGaussianBlur|glow-halo/);
   });
 });
 
@@ -156,20 +159,86 @@ describe('variantFor', () => {
   });
 });
 
+function motifScale(m: { sx: number; sy: number }): number {
+  return Math.max(Math.abs(m.sx), Math.abs(m.sy));
+}
+
+function segmentsProperlyCross(
+  a: { x1: number; y1: number; x2: number; y2: number },
+  b: { x1: number; y1: number; x2: number; y2: number },
+): boolean {
+  const same = (x: number, y: number, u: number, v: number) =>
+    Math.hypot(x - u, y - v) < 0.01;
+  if (
+    same(a.x1, a.y1, b.x1, b.y1) ||
+    same(a.x1, a.y1, b.x2, b.y2) ||
+    same(a.x2, a.y2, b.x1, b.y1) ||
+    same(a.x2, a.y2, b.x2, b.y2)
+  ) {
+    return false;
+  }
+  const orient = (
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    x3: number,
+    y3: number,
+  ) => (y2 - y1) * (x3 - x2) - (x2 - x1) * (y3 - y2);
+  const o1 = orient(a.x1, a.y1, a.x2, a.y2, b.x1, b.y1);
+  const o2 = orient(a.x1, a.y1, a.x2, a.y2, b.x2, b.y2);
+  const o3 = orient(b.x1, b.y1, b.x2, b.y2, a.x1, a.y1);
+  const o4 = orient(b.x1, b.y1, b.x2, b.y2, a.x2, a.y2);
+  return o1 * o2 < 0 && o3 * o4 < 0;
+}
+
 describe('v3.4 network constraints', () => {
-  it('joins bulbs node-to-node and keeps echoes at 1–3', () => {
+  // Master counts (ClickUp 1amjtrevebb): descending 10+2, ascending 8+2, edge 7+2.
+  const MASTER_COUNTS = [
+    { current: 10, echo: 2, connectors: 10 },
+    { current: 8, echo: 2, connectors: 8 },
+    { current: 7, echo: 2, connectors: 8 },
+  ] as const;
+
+  it('pins motif counts to the v3.4 masters', () => {
     for (const [index, table] of PATTERN_VARIANT_PLACEMENTS.entries()) {
       const current = table.motifs.filter((m) => m.cy <= 400);
       const echo = table.motifs.filter((m) => m.cy > 400);
-      assert.ok(current.length >= 4, `variant ${index} current ${current.length}`);
-      // Descending master's main network is 10 joined bulbs (authority over the 4–7 envelope).
-      assert.ok(current.length <= 10, `variant ${index} current ${current.length}`);
-      assert.ok(echo.length >= 1 && echo.length <= 3, `variant ${index} echo ${echo.length}`);
-      assert.ok(table.connectors.length >= 1, `variant ${index} needs inter-bulb connectors`);
+      const expected = MASTER_COUNTS[index]!;
+      assert.equal(current.length, expected.current, `variant ${index} current`);
+      assert.equal(echo.length, expected.echo, `variant ${index} echo`);
+      assert.equal(table.connectors.length, expected.connectors, `variant ${index} connectors`);
       const ids = new Set(table.motifs.map((m) => m.id));
       for (const c of table.connectors) {
         assert.ok(ids.has(c.from) && ids.has(c.to), `${c.id} must be node-to-node`);
         assert.notEqual(c.from, c.to);
+      }
+    }
+  });
+
+  it('keeps connectors from crossing and arms within 1.6× stretch', () => {
+    for (const [index, table] of PATTERN_VARIANT_PLACEMENTS.entries()) {
+      const scales = table.motifs.map(motifScale);
+      const minScale = Math.min(...scales);
+      for (const motif of table.motifs) {
+        assert.ok(
+          motifScale(motif) / minScale <= pattern.maxArmStretch + 1e-9,
+          `variant ${index} ${motif.id} stretch ${motifScale(motif) / minScale}`,
+        );
+      }
+      const lines = table.connectors.map((c) => {
+        const from = table.motifs.find((m) => m.id === c.from)!;
+        const to = table.motifs.find((m) => m.id === c.to)!;
+        return { id: c.id, x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy };
+      });
+      for (let i = 0; i < lines.length; i += 1) {
+        for (let j = i + 1; j < lines.length; j += 1) {
+          assert.equal(
+            segmentsProperlyCross(lines[i]!, lines[j]!),
+            false,
+            `variant ${index} ${lines[i]!.id} crosses ${lines[j]!.id}`,
+          );
+        }
       }
     }
   });

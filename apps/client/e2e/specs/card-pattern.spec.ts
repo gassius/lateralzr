@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { capture, flipCard, swipeBack, swipeForward } from '../helpers/capture';
 import { cardFrontPattern, cardFrontTitle, visibleText } from '../helpers/locators';
-import { openApp } from '../helpers/preparePage';
+import { openApp, settleAfterNavigation } from '../helpers/preparePage';
 
 /**
  * Lz-25 pattern variants — forced via `?patternVariant=1|2|3` on a short title
@@ -78,6 +78,10 @@ test.describe('card front pattern stability', () => {
     await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
     await swipeForward(page, 'Mycelium');
     await swipeBack(page, 'Mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page);
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(page.locator('#pattern-variant-2')).toHaveCount(1);
   });

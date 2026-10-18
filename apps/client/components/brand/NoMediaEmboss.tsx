@@ -6,7 +6,10 @@ import { color } from '@/theme/tokens';
 type NoMediaEmbossProps = {
   xml: string;
   width: number;
+  /** Clipped emboss band (≤ 55% of the card). */
   height: number;
+  /** Full face height — pattern is drawn at card scale from the top (§9.4). */
+  faceHeight: number;
   fadeStart: number;
 };
 
@@ -14,8 +17,14 @@ type NoMediaEmbossProps = {
  * Mirrored Paper blind emboss for no-media and missing-description backs.
  * Decorative only — excluded from the accessibility tree and never glows.
  */
-export function NoMediaEmboss({ xml, width, height, fadeStart }: NoMediaEmbossProps) {
-  if (width < 8 || height < 8 || !xml) return null;
+export function NoMediaEmboss({
+  xml,
+  width,
+  height,
+  faceHeight,
+  fadeStart,
+}: NoMediaEmbossProps) {
+  if (width < 8 || height < 8 || faceHeight < 8 || !xml) return null;
   const fadeHeight = Math.max(0, height - fadeStart);
 
   return (
@@ -27,7 +36,12 @@ export function NoMediaEmboss({ xml, width, height, fadeStart }: NoMediaEmbossPr
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
       style={[styles.layer, { width, height, transform: [{ scaleX: -1 }] }]}
     >
-      <SvgXml xml={xml} width={width} height={height} preserveAspectRatio="xMidYMid slice" />
+      <SvgXml
+        xml={xml}
+        width={width}
+        height={faceHeight}
+        preserveAspectRatio="xMidYMin slice"
+      />
       {fadeHeight > 0 ? (
         <View style={[styles.fade, { top: fadeStart, height: fadeHeight }]} pointerEvents="none">
           <Svg width="100%" height="100%">

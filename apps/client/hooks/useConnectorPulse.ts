@@ -1,17 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
-  applyConnectorPulseOpacity,
+  cancelAnimation,
+  Easing,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import {
   CONNECTOR_PULSE_FIRST_DELAY_MS,
   CONNECTOR_PULSE_PEAK_OPACITY,
   pickPulseConnectorId,
-  pulseOpacityAt,
-  randomPulseCycleMs,
   randomPulsePauseMs,
+  readConnectorGlowLine,
+  type ConnectorGlowLine,
 } from '@/lib/connectorPulse';
+import { motion } from '@/theme/tokens';
 import type { PatternRect, PatternVariantIndex } from '@/lib/patternPlacement';
 
 export type UseConnectorPulseOptions = {
-  /** When false, opacity snaps to 0 within one frame and timers cancel. */
+  /** When false, opacity snaps to 0 and timers cancel. */
   allowed: boolean;
   xml: string;
   variant: PatternVariantIndex;
@@ -26,15 +36,16 @@ export type UseConnectorPulseOptions = {
 
 export type ConnectorPulseState = {
   connectorId: string | null;
-  opacity: number;
-  /** XML with the active connector's fill-opacity applied (or original when 0). */
-  pulsedXml: string;
+  /** Gate is open (or force-peak). E2E asserts this instead of waiting 1500 ms. */
+  armed: boolean;
+  opacity: SharedValue<number>;
+  geometry: ConnectorGlowLine | null;
 };
 
 /**
- * Schedules the §11.3 glow: 2400 ms cycle, 7–12 s pause, max one concurrent.
+ * Schedules the §11.3 glow on the UI thread: 2400 ms cycle, 7–12 s pause, max one.
  * First breath waits `CONNECTOR_PULSE_FIRST_DELAY_MS` after settle.
- * Starts only while `allowed`; stop is immediate (opacity → 0).
+ * Does not rewrite the 57 KB pattern XML.
  */
 export function useConnectorPulse(options: UseConnectorPulseOptions): ConnectorPulseState {
   const { allowed, xml, variant, clearArea, conceptKey, forcePeak = false } = options;
@@ -52,86 +63,53 @@ export function useConnectorPulse(options: UseConnectorPulseOptions): ConnectorP
     [xml, variant, clearKey, conceptKey],
   );
 
-  const [opacity, setOpacity] = useState(0);
-  const opacityRef = useRef(0);
-  const rafRef = useRef<number | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const generationRef = useRef(0);
+  const geometry = useMemo(
+    () => (connectorId ? readConnectorGlowLine(xml, connectorId) : null),
+    [xml, connectorId],
+  );
 
-  const clearTimers = () => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (timeoutRef.current != null) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  };
-
-  const snapTo = (next: number) => {
-    opacityRef.current = next;
-    setOpacity(next);
-  };
+  const opacity = useSharedValue(0);
+  const armed = Boolean((allowed || forcePeak) && connectorId);
 
   useEffect(() => {
-    generationRef.current += 1;
-    const gen = generationRef.current;
-    clearTimers();
-
+    cancelAnimation(opacity);
     if (forcePeak && connectorId) {
-      snapTo(CONNECTOR_PULSE_PEAK_OPACITY);
+      opacity.value = CONNECTOR_PULSE_PEAK_OPACITY;
       return () => {
-        clearTimers();
+        cancelAnimation(opacity);
+        opacity.value = 0;
       };
     }
-
     if (!allowed || !connectorId) {
-      snapTo(0);
+      opacity.value = 0;
       return () => {
-        clearTimers();
+        cancelAnimation(opacity);
+        opacity.value = 0;
       };
     }
 
-    const runBreath = () => {
-      if (generationRef.current !== gen) return;
-      const cycleMs = randomPulseCycleMs();
-      const started = performance.now();
-
-      const tick = (now: number) => {
-        if (generationRef.current !== gen) return;
-        const t = Math.min(1, (now - started) / cycleMs);
-        snapTo(pulseOpacityAt(t));
-        if (t < 1) {
-          rafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-        snapTo(0);
-        const pauseMs = randomPulsePauseMs();
-        timeoutRef.current = setTimeout(() => {
-          if (generationRef.current !== gen) return;
-          runBreath();
-        }, pauseMs);
-      };
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    // First breath shortly after settle (decorative; not a loading cue).
-    timeoutRef.current = setTimeout(runBreath, CONNECTOR_PULSE_FIRST_DELAY_MS);
+    const half = motion.glow.cycleMs / 2;
+    const pause = randomPulsePauseMs();
+    const ease = Easing.inOut(Easing.sin);
+    opacity.value = 0;
+    opacity.value = withDelay(
+      CONNECTOR_PULSE_FIRST_DELAY_MS,
+      withRepeat(
+        withSequence(
+          withTiming(CONNECTOR_PULSE_PEAK_OPACITY, { duration: half, easing: ease }),
+          withTiming(0, { duration: half, easing: ease }),
+          withDelay(pause, withTiming(0, { duration: 0 })),
+        ),
+        -1,
+        false,
+      ),
+    );
 
     return () => {
-      generationRef.current += 1;
-      clearTimers();
-      opacityRef.current = 0;
-      setOpacity(0);
+      cancelAnimation(opacity);
+      opacity.value = 0;
     };
-  }, [allowed, connectorId, forcePeak]);
+  }, [allowed, connectorId, forcePeak, opacity]);
 
-  const pulsedXml = useMemo(() => {
-    if (!connectorId || opacity <= 0) return xml;
-    return applyConnectorPulseOpacity(xml, connectorId, opacity);
-  }, [xml, connectorId, opacity]);
-
-  return { connectorId, opacity, pulsedXml };
+  return { connectorId, armed, opacity, geometry };
 }
