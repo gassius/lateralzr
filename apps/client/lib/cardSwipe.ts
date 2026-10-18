@@ -107,6 +107,15 @@ export function deckReturnOverlayZIndex(covering: boolean): number {
 }
 
 /**
+ * Android elevation beats zIndex across siblings. Front rest uses
+ * `shadow.card.elevation` (4); the overlay must sit above that while covering.
+ */
+export function deckReturnOverlayElevation(covering: boolean): number {
+  'worklet';
+  return covering ? shadow.card.elevation + 1 : 0;
+}
+
+/**
  * Settled non-bouncy ease-out for exit / settle / RM cross-fade.
  * Matches Reanimated `Easing.out(Easing.cubic)` (1 − (1−t)³) without importing
  * reanimated into this pure module (keeps `node:test` loadable).

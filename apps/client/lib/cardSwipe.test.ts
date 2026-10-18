@@ -61,6 +61,7 @@ import {
   deckLayerVisibility,
   deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
+  deckReturnOverlayElevation,
   deckReturnOverlayZIndex,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
@@ -74,7 +75,7 @@ import {
   swipeEnterShiftPx,
   swipeShouldSlideOutOnCommit,
 } from './cardSwipe.ts';
-import { motion, spacing } from '../theme/tokens.ts';
+import { motion, shadow, spacing } from '../theme/tokens.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const stackSrc = readFileSync(path.join(here, '../components/ConceptCardStack.tsx'), 'utf8');
@@ -434,6 +435,12 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.match(stackSrc, /zIndex: deckFrontWrapZIndex\(covering, moving\)/);
     assert.match(stackSrc, /zIndex: deckReturnOverlayZIndex\(covering\)/);
     assert.match(stackSrc, /const shadowLift = covering \? 0 : lift/);
+  });
+
+  it('Previous covering overlay elevation beats Android rest card elevation', () => {
+    assert.ok(deckReturnOverlayElevation(true) > shadow.card.elevation);
+    assert.equal(deckReturnOverlayElevation(false), 0);
+    assert.match(stackSrc, /elevation: deckReturnOverlayElevation\(covering\)/);
   });
 
   it('RM cross-fades opt out of Reanimated System skip so 150 ms actually runs', () => {

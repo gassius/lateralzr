@@ -79,6 +79,7 @@ import {
   deckLayerVisibility,
   deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
+  deckReturnOverlayElevation,
   deckReturnOverlayZIndex,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
@@ -1234,6 +1235,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       opacity: hidden ? 0 : overlayPeer > 0 ? overlayPeer : 1,
       visibility: deckLayerVisibility(hidden),
       zIndex: deckReturnOverlayZIndex(covering),
+      elevation: deckReturnOverlayElevation(covering),
       transform: cardSwipeReturnOverlayTransform(tx, h, progress, rm),
     };
   });
