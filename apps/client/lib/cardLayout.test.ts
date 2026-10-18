@@ -136,16 +136,29 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.ok(result.topSurplus >= 0);
   });
 
-  it('narrows rather than squashing at 200% text (taller laterality chrome)', () => {
-    // 200% type grows the label and can grow the rail/chip; pick a chrome
-    // height that no longer fits 1.30 × 366.
-    const result = phoneLayout({ lateralityLabelAndRailHeight: 192 });
+  it('narrows rather than squashing at 200% text without dropping padding early', () => {
+    // Available just below 1.30 × 366 so we narrow, but stay above 360 so
+    // face padding remains 24. §16.2 drops to 20 only at minCardWidth.
+    const available = 472;
+    const result = resolveCardAspectLayout({
+      columnWidth: PHONE_WIDTH,
+      availableHeight: available,
+    });
     assert.equal(result.narrowed, true);
+    assert.ok(result.width > 360);
+    assert.ok(result.width < 366);
     assert.ok(result.aspect >= cardAspect.min - 1e-9);
     assert.ok(result.aspect <= cardAspect.max + 1e-9);
+    assert.equal(result.padding, layout.cardPadding);
+    assert.equal(result.padding, cardPadding(result.width));
+  });
+
+  it('keeps width-based padding when 200% chrome narrows above 288', () => {
+    const result = phoneLayout({ lateralityLabelAndRailHeight: 192 });
+    assert.equal(result.narrowed, true);
     assert.ok(result.width >= cardAspect.minCardWidth);
     assert.ok(result.width < 366);
-    assert.equal(result.padding, layout.cardPaddingNarrow);
+    assert.equal(result.padding, cardPadding(result.width));
   });
 
   it('narrows to ≥ 288 and never squashes when 1.30 × full width does not fit', () => {
@@ -157,8 +170,9 @@ describe('v3.4 native card aspect (§16.2)', () => {
     });
     assert.equal(result.narrowed, true);
     assert.ok(result.width >= cardAspect.minCardWidth);
+    assert.ok(result.width > cardAspect.minCardWidth);
     assert.ok(result.aspect >= cardAspect.min - 1e-9);
-    assert.equal(result.padding, layout.cardPaddingNarrow);
+    assert.equal(result.padding, cardPadding(result.width));
     assert.ok(result.height / result.width >= cardAspect.min - 1e-9);
   });
 
@@ -171,5 +185,7 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.equal(result.width, cardAspect.minCardWidth);
     assert.ok(result.height + 1e-9 >= result.width * cardAspect.min);
     assert.equal(result.topSurplus, 0);
+    assert.ok(200 < result.width * cardAspect.min);
+    assert.equal(result.padding, layout.cardPaddingNarrow);
   });
 });

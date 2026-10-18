@@ -82,7 +82,7 @@ import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
-import { remoteImageSource, requestedMediaWidth } from '@/lib/remoteImage';
+import { remoteImageSource } from '@/lib/remoteImage';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 const LINK_HIT = layout.recommendedTouchTarget;
@@ -131,8 +131,13 @@ type ConceptCardProps = {
    * sheet/background). PatternLayer still gates RM + scroll.
    */
   pulseGateActive?: boolean;
-  /** Face padding from the §16.2 aspect helper (20 when the card narrowed). */
+  /** Face padding from the §16.2 aspect helper. */
   facePadding?: number;
+  /**
+   * Shared Wikimedia request width from `cardLayout.width` (same value as
+   * preload). Zero until the stack has measured; then the URI is stable.
+   */
+  mediaRequestWidth?: number;
 };
 
 export function ConceptCard({
@@ -146,6 +151,7 @@ export function ConceptCard({
   onBackInteractivePress,
   pulseGateActive = false,
   facePadding,
+  mediaRequestWidth = 0,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const { width: windowWidth } = useWindowDimensions();
@@ -158,6 +164,7 @@ export function ConceptCard({
     width: number;
     height: number;
   } | null>(null);
+  const [mediaSourceType, setMediaSourceType] = useState<string | null>(null);
   const [backFaceH, setBackFaceH] = useState(0);
   const [faceWidth, setFaceWidth] = useState(0);
   const [frontFaceH, setFrontFaceH] = useState(0);
@@ -190,16 +197,15 @@ export function ConceptCard({
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
-  const requestWidth = requestedMediaWidth(
-    faceWidth > 0 ? faceWidth : windowWidth,
-    PixelRatio.get(),
-  );
-  const imageSource = remoteImageSource(
-    item.mediaUrl,
-    Platform.OS,
-    resolveApiBaseUrl(),
-    requestWidth,
-  );
+  const imageSource =
+    mediaRequestWidth > 0
+      ? remoteImageSource(
+          item.mediaUrl,
+          Platform.OS,
+          resolveApiBaseUrl(),
+          mediaRequestWidth,
+        )
+      : null;
   const mediaUri = imageSource?.uri ?? '';
   const creditedMedia = item.media?.find((media) => media.url === item.mediaUrl);
 
@@ -331,6 +337,7 @@ export function ConceptCard({
   // fake clock swallows the 8s decode timeout.
   useLayoutEffect(() => {
     setMediaSourceSize(null);
+    setMediaSourceType(null);
     setBackTextBlockH(0);
     if (mediaUri.length === 0) {
       setMediaDecoded(true);
@@ -363,7 +370,6 @@ export function ConceptCard({
       try {
         const res = await fetch(mediaUri, {
           signal: ac.signal,
-          cache: 'no-store',
           credentials: 'omit',
         });
         if (cancelled) return;
@@ -641,6 +647,7 @@ export function ConceptCard({
     purpose: creditedMedia?.purpose,
     sourceWidth: mediaSourceSize?.width,
     sourceHeight: mediaSourceSize?.height,
+    mediaType: mediaSourceType,
     slotWidth: mediaSlotWidth,
     slotHeight: bandHeight,
   });
@@ -801,11 +808,14 @@ export function ConceptCard({
     </View>
   );
 
-  const onMediaLoad = (event: { source?: { width?: number; height?: number } }) => {
+  const onMediaLoad = (event: {
+    source?: { width?: number; height?: number; mediaType?: string | null };
+  }) => {
     const src = event.source;
     if (src?.width && src?.height) {
       setMediaSourceSize({ width: src.width, height: src.height });
     }
+    setMediaSourceType(src?.mediaType ?? null);
     setMediaDecoded(true);
     setMediaError(false);
   };

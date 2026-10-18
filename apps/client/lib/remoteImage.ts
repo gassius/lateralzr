@@ -78,6 +78,12 @@ export function requestedMediaWidth(
   return Math.max(1, Math.min(cap, Math.round(w * pr)));
 }
 
+/**
+ * Widths Wikimedia's upload CDN currently serves. Other `Npx-` values
+ * (640, 780, 800, 1098, 1170, 1600, …) return 400.
+ */
+export const WIKIMEDIA_THUMB_WIDTHS = [330, 500, 960, 1280, 1920] as const;
+
 function isWikimediaUploadUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
@@ -87,28 +93,65 @@ function isWikimediaUploadUrl(url: string): boolean {
   }
 }
 
+/** Stored `Npx-` from a Wikimedia thumb path, or null for originals. */
+export function wikimediaStoredThumbWidth(url: string): number | null {
+  try {
+    const match = new URL(url).pathname.match(/\/(\d+)px-[^/]+$/);
+    if (!match) return null;
+    const n = Number(match[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Prefer a raster Wikimedia thumb (especially for SVG on native) at `width` px.
- * Unknown hosts are left unchanged.
+ * Round requested width UP to the next standard Wikimedia size, never above
+ * the stored thumb (or original) width, and never above the 1600 request cap
+ * — so 1920 is unused and 1280 is the largest we ask for.
+ */
+export function snapWikimediaThumbWidth(
+  requested: number,
+  storedWidth: number | null = null,
+): number {
+  const need = Math.max(1, Math.round(requested));
+  const cap = Math.min(
+    mediaTokens.maxRequestWidth,
+    storedWidth != null && storedWidth > 0 ? storedWidth : Number.POSITIVE_INFINITY,
+  );
+  const allowed = WIKIMEDIA_THUMB_WIDTHS.filter((w) => w <= cap);
+  if (allowed.length === 0) {
+    return storedWidth != null && storedWidth > 0 ? storedWidth : need;
+  }
+  return allowed.find((w) => w >= need) ?? allowed[allowed.length - 1]!;
+}
+
+/**
+ * Prefer a raster Wikimedia thumb (especially for SVG on native) at a standard
+ * width. Never rewrite to a size Wikimedia will 400. Unknown hosts stay as-is.
  */
 export function rewriteWikimediaRequestUrl(url: string, width: number): string {
-  const w = Math.max(1, Math.round(width));
-  if (!isWikimediaUploadUrl(url) || !(w > 0)) return url;
+  if (!isWikimediaUploadUrl(url)) return url;
+  const stored = wikimediaStoredThumbWidth(url);
+  const snapped = snapWikimediaThumbWidth(width, stored);
   try {
     const parsed = new URL(url);
     const path = parsed.pathname;
     if (path.includes('/thumb/')) {
-      parsed.pathname = path.replace(/\/\d+px-([^/]+)$/, `/${w}px-$1`);
+      if (stored != null && snapped === stored) return url;
+      const next = path.replace(/\/\d+px-([^/]+)$/, `/${snapped}px-$1`);
+      if (next === path) return url;
+      parsed.pathname = next;
       return parsed.toString();
     }
+    // Original file: only invent a thumb for native SVG rasterisation.
     const original = path.match(
       /^\/wikipedia\/commons\/([0-9a-f])\/([0-9a-f]{2})\/([^/]+)$/i,
     );
     if (!original) return url;
     const file = original[3];
-    const isSvg = file.toLowerCase().endsWith('.svg');
-    const thumbFile = isSvg ? `${file}.png` : file;
-    parsed.pathname = `/wikipedia/commons/thumb/${original[1]}/${original[2]}/${file}/${w}px-${thumbFile}`;
+    if (!file.toLowerCase().endsWith('.svg')) return url;
+    parsed.pathname = `/wikipedia/commons/thumb/${original[1]}/${original[2]}/${file}/${snapped}px-${file}.png`;
     return parsed.toString();
   } catch {
     return url;

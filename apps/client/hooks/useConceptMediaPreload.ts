@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { PixelRatio, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   remoteImageHeadersForPlatform,
-  requestedMediaWidth,
   resolveCardMediaUrl,
 } from '@/lib/remoteImage';
 
@@ -19,15 +18,10 @@ function prefetchOpts() {
   };
 }
 
-function preloadRequestWidth(): number {
-  return requestedMediaWidth(390, PixelRatio.get());
-}
-
-function uniqueMediaUrls(concepts: ConceptItem[]): string[] {
+function uniqueMediaUrls(concepts: ConceptItem[], requestWidth: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   const apiBaseUrl = resolveApiBaseUrl();
-  const requestWidth = preloadRequestWidth();
   for (const c of concepts) {
     const u = resolveCardMediaUrl({
       mediaUrl: c.mediaUrl,
@@ -60,17 +54,23 @@ function mergeReady(prev: ReadonlySet<string>, urls: string[]): ReadonlySet<stri
 /**
  * Prefetches concept images: immediate load for the visible card, debounced batch for the rest.
  * Tracks URLs that prefetched successfully for UI (e.g. shorter image transition).
+ * `requestWidth` must be the same value ConceptCard uses (from cardLayout.width).
  */
-export function useConceptMediaPreload(concepts: ConceptItem[], currentIndex: number) {
+export function useConceptMediaPreload(
+  concepts: ConceptItem[],
+  currentIndex: number,
+  requestWidth: number,
+) {
   const [preloadedMediaUrls, setPreloadedMediaUrls] = useState<ReadonlySet<string>>(() => new Set());
 
   /** Current card first — helps first flip after load or after swipe before batch finishes. */
   useEffect(() => {
+    if (!(requestWidth > 0)) return;
     const url = resolveCardMediaUrl({
       mediaUrl: concepts[currentIndex]?.mediaUrl,
       platform: Platform.OS,
       apiBaseUrl: resolveApiBaseUrl(),
-      requestWidth: preloadRequestWidth(),
+      requestWidth,
     });
     if (!url) return;
 
@@ -84,11 +84,12 @@ export function useConceptMediaPreload(concepts: ConceptItem[], currentIndex: nu
     return () => {
       cancelled = true;
     };
-  }, [concepts, currentIndex]);
+  }, [concepts, currentIndex, requestWidth]);
 
   /** Remaining URLs after payload settles (debounced so rapid refetches don’t thrash). */
   useEffect(() => {
-    const urls = uniqueMediaUrls(concepts);
+    if (!(requestWidth > 0)) return;
+    const urls = uniqueMediaUrls(concepts, requestWidth);
     if (urls.length === 0) return;
 
     let cancelled = false;
@@ -106,7 +107,7 @@ export function useConceptMediaPreload(concepts: ConceptItem[], currentIndex: nu
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [concepts]);
+  }, [concepts, requestWidth]);
 
   return { preloadedMediaUrls };
 }

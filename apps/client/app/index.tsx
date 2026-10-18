@@ -18,7 +18,6 @@ import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
-import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
@@ -292,8 +291,6 @@ export default function HomeScreen() {
     const timer = setTimeout(() => setIntroGateOpen(true), remaining);
     return () => clearTimeout(timer);
   }, []);
-
-  const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
   const fetchBatch = useCallback(
     async (
@@ -1058,7 +1055,6 @@ export default function HomeScreen() {
                   lateralityChromeReserve(usableHeight, lateralityControlHeight) -
                   (accessibleNavVisible ? accessibleNavHeight : 0),
               )}
-              preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
               showInitialLoading={showInitialLoading}
               loadMoreError={loadMoreError || noNextIdea}

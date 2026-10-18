@@ -163,7 +163,13 @@ export function resolveCardAspectLayout(input: {
 
   const topSurplus = Math.max(0, available - height);
   const aspect = width > 0 ? height / width : 0;
-  const padding = narrowed ? layout.cardPaddingNarrow : cardPadding(width);
+  // §16.2: drop to cardPaddingNarrow only at min width when 1.30 still
+  // does not fit. Any earlier narrowing keeps the width-based padding.
+  const minDidNotFit = available < width * minR;
+  const padding =
+    narrowed && width === minW && minDidNotFit
+      ? layout.cardPaddingNarrow
+      : cardPadding(width);
 
   return { width, height, topSurplus, padding, narrowed, aspect };
 }

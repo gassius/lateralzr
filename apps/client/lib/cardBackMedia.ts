@@ -110,6 +110,12 @@ export function mediaUrlIsJpegOrWebp(url: string): boolean {
   return path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.webp');
 }
 
+/** Decoded MIME from expo-image `onLoad` `source.mediaType`. */
+export function mediaTypeIsJpegOrWebp(mediaType: string): boolean {
+  const t = mediaType.toLowerCase();
+  return t.includes('jpeg') || t.includes('jpg') || t.includes('webp');
+}
+
 export function isCardBackMediaPurpose(value: unknown): value is CardBackMediaPurpose {
   return (
     typeof value === 'string' &&
@@ -143,6 +149,8 @@ export function resolveCardBackMediaFit(input: {
   purpose?: string | null;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
+  /** Decoded MIME from `onLoad`; extension is used only when this is null. */
+  mediaType?: string | null;
   slotWidth: number;
   slotHeight: number;
 }): CardBackMediaFitPlan {
@@ -151,7 +159,11 @@ export function resolveCardBackMediaFit(input: {
     return { contentFit: mapped, reason: 'purpose' };
   }
 
-  if (!mediaUrlIsJpegOrWebp(input.mediaUrl)) {
+  const jpegOrWebp =
+    input.mediaType != null && input.mediaType.length > 0
+      ? mediaTypeIsJpegOrWebp(input.mediaType)
+      : mediaUrlIsJpegOrWebp(input.mediaUrl);
+  if (!jpegOrWebp) {
     return { contentFit: 'contain', reason: 'format' };
   }
 

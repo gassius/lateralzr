@@ -77,10 +77,11 @@ describe('native isolation', () => {
   const webSrc = readFileSync(join(here, '../components/WebPhoneFrame.web.tsx'), 'utf8');
 
   it('native WebPhoneFrame is a passthrough with a null size hook', () => {
-    assert.match(nativeSrc, /SafeAreaProvider/);
+    assert.match(nativeSrc, /return children/);
     assert.match(nativeSrc, /return null/);
     assert.equal(nativeSrc.includes('webPhoneFrameSize('), false);
     assert.equal(nativeSrc.includes('StyleSheet'), false);
+    assert.equal(nativeSrc.includes('SafeAreaProvider'), false);
     assert.equal(nativeSrc.includes('webPreview'), false);
   });
 

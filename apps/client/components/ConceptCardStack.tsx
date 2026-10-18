@@ -29,6 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { ConceptCard } from './ConceptCard';
 import { LoadingCard } from './LoadingCard';
+import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useDiscoveryCoaching } from '@/hooks/useDiscoveryCoaching';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
@@ -88,7 +89,6 @@ type ConceptCardStackProps = {
   /** Same forward motion as swipe left; also adjusts complexity for the next API call. */
   onSwipeForwardVertical: (direction: 'up' | 'down') => void;
   availableHeight: number;
-  preloadedMediaUrls: ReadonlySet<string>;
   /** End-of-deck loading silhouette — only when waiting for more (see HomeScreen). */
   showDeckLoading: boolean;
   /** Initial empty-deck quiet silhouette (Lz-35) — shell + control stay up. */
@@ -121,7 +121,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   onSwipeRight,
   onSwipeForwardVertical,
   availableHeight,
-  preloadedMediaUrls,
   showDeckLoading,
   showInitialLoading = false,
   loadMoreError,
@@ -210,6 +209,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   });
   const cardWidth = cardLayout.width;
   const cardAreaHeight = cardLayout.height;
+  const mediaRequestWidth =
+    cardLayout.width > 0 ? requestedMediaWidth(cardLayout.width, PixelRatio.get()) : 0;
+  const { preloadedMediaUrls } = useConceptMediaPreload(
+    concepts,
+    currentIndex,
+    mediaRequestWidth,
+  );
 
   useEffect(() => {
     cardWidthSV.value = Math.max(1, cardWidth);
@@ -1042,6 +1048,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                 reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
                 facePadding={cardLayout.padding}
+                mediaRequestWidth={mediaRequestWidth}
               />
             </Animated.View>
           ) : null}
@@ -1086,6 +1093,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   onBackInteractivePress={noteBackInteractivePress}
                   pulseGateActive={pulseGateActive}
                   facePadding={cardLayout.padding}
+                  mediaRequestWidth={mediaRequestWidth}
                 />
               )}
             </View>
@@ -1106,6 +1114,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                 reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
                 facePadding={cardLayout.padding}
+                mediaRequestWidth={mediaRequestWidth}
               />
             </Animated.View>
           ) : null}
@@ -1127,6 +1136,7 @@ function ConceptCardForIndex({
   onBackInteractivePress,
   pulseGateActive = false,
   facePadding,
+  mediaRequestWidth,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -1138,14 +1148,18 @@ function ConceptCardForIndex({
   onBackInteractivePress?: () => void;
   pulseGateActive?: boolean;
   facePadding: number;
+  mediaRequestWidth: number;
 }) {
   const item = concepts[currentIndex]!;
-  const mediaUri = resolveCardMediaUrl({
-    mediaUrl: item.mediaUrl,
-    platform: Platform.OS,
-    apiBaseUrl: resolveApiBaseUrl(),
-    requestWidth: requestedMediaWidth(390, PixelRatio.get()),
-  });
+  const mediaUri =
+    mediaRequestWidth > 0
+      ? resolveCardMediaUrl({
+          mediaUrl: item.mediaUrl,
+          platform: Platform.OS,
+          apiBaseUrl: resolveApiBaseUrl(),
+          requestWidth: mediaRequestWidth,
+        })
+      : '';
   const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
   return (
     <ConceptCard
@@ -1158,6 +1172,7 @@ function ConceptCardForIndex({
       onBackInteractivePress={onBackInteractivePress}
       pulseGateActive={pulseGateActive}
       facePadding={facePadding}
+      mediaRequestWidth={mediaRequestWidth}
     />
   );
 }

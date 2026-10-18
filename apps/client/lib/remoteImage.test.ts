@@ -10,6 +10,8 @@ import {
   requestedMediaWidth,
   resolveCardMediaUrl,
   rewriteWikimediaRequestUrl,
+  snapWikimediaThumbWidth,
+  WIKIMEDIA_THUMB_WIDTHS,
   REMOTE_IMAGE_HEADERS,
 } from './remoteImage';
 
@@ -57,20 +59,36 @@ test('requestedMediaWidth is band × pixel ratio capped at 1600', () => {
   assert.equal(requestedMediaWidth(0, 2, 1600), 1600);
 });
 
-test('rewriteWikimediaRequestUrl sizes thumbs and rasterises SVG originals', () => {
+test('snapWikimediaThumbWidth rounds up to a served size and caps at stored/1600', () => {
+  assert.deepEqual([...WIKIMEDIA_THUMB_WIDTHS], [330, 500, 960, 1280, 1920]);
+  assert.equal(snapWikimediaThumbWidth(1098, 1280), 1280);
+  assert.equal(snapWikimediaThumbWidth(640, 1280), 960);
+  assert.equal(snapWikimediaThumbWidth(1600, 1280), 1280);
+  assert.equal(snapWikimediaThumbWidth(1600, null), 1280);
+  assert.equal(snapWikimediaThumbWidth(800, 320), 320);
+});
+
+test('rewriteWikimediaRequestUrl uses standard thumb widths and rasterises SVG originals', () => {
+  assert.equal(
+    rewriteWikimediaRequestUrl(
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/1280px-Example.jpg',
+      960,
+    ),
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/960px-Example.jpg',
+  );
   assert.equal(
     rewriteWikimediaRequestUrl(
       'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/320px-Example.jpg',
       800,
     ),
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/800px-Example.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/320px-Example.jpg',
   );
   assert.equal(
     rewriteWikimediaRequestUrl(
       'https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg',
       1200,
     ),
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Diagram.svg/1200px-Diagram.svg.png',
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Diagram.svg/1280px-Diagram.svg.png',
   );
   assert.equal(
     rewriteWikimediaRequestUrl('https://cdn.example/pic.jpg', 800),
@@ -79,9 +97,25 @@ test('rewriteWikimediaRequestUrl sizes thumbs and rasterises SVG originals', () 
   assert.equal(mediaUrlLooksLikeSvg('https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg'), true);
 });
 
+test('resolveCardMediaUrl keeps a 1280px thumb at 3× 366 (does not ask 1098)', () => {
+  const thumb =
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/1280px-Example.jpg';
+  assert.equal(requestedMediaWidth(366, 3), 1098);
+  assert.equal(
+    resolveCardMediaUrl({
+      mediaUrl: thumb,
+      platform: 'ios',
+      apiBaseUrl: 'http://localhost',
+      requestWidth: requestedMediaWidth(366, 3),
+    }),
+    thumb,
+  );
+});
+
 test('resolveCardMediaUrl rasterises SVG on native and still proxies Wikimedia on web', () => {
   const svg = 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg';
   const raster = rewriteWikimediaRequestUrl(svg, 800);
+  assert.match(raster, /\/960px-Diagram\.svg\.png$/);
   assert.equal(
     resolveCardMediaUrl({
       mediaUrl: svg,

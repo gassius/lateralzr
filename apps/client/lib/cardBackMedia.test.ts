@@ -8,6 +8,7 @@ import {
   CARD_BACK_MEDIA_MIN_READING_STRIP,
   CARD_BACK_MEDIA_SEAM_OVERLAP,
   coverUpscaleFactor,
+  mediaTypeIsJpegOrWebp,
   mediaUrlIsJpegOrWebp,
   mediaUrlPathname,
   resolveCardBackMediaBand,
@@ -32,6 +33,9 @@ test('measured format gate is jpeg/webp only — never an extension-as-purpose h
   assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.jpg'), true);
   assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.jpeg'), true);
   assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.webp'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/jpeg'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/webp'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/png'), false);
 });
 
 test('coverUpscaleFactor is the max axis scale', () => {
@@ -84,6 +88,34 @@ test('fit: unknown purpose never uses extension-only; png/svg contain via format
       slotHeight: 200,
     }),
     { contentFit: 'contain', reason: 'format' },
+  );
+});
+
+test('fit: decoded mediaType wins; extension only when mediaType is null', () => {
+  const slot = { slotWidth: 320, slotHeight: 200, sourceWidth: 800, sourceHeight: 600 };
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/photo.jpg',
+      mediaType: 'image/png',
+    }),
+    { contentFit: 'contain', reason: 'format' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/diagram.png',
+      mediaType: 'image/jpeg',
+    }),
+    { contentFit: 'cover', reason: 'measured' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/photo.jpg',
+      mediaType: null,
+    }),
+    { contentFit: 'cover', reason: 'measured' },
   );
 });
 
