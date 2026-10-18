@@ -111,11 +111,11 @@
   },
   {
     "file": "card-front_pattern-03-edge_390x844_en.png",
-    "ratio": 0.021102199538218496,
-    "percent": 2.11021995382185,
+    "ratio": 0.025041772997934135,
+    "percent": 2.5041772997934135,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 27784,
+    "mismatchedPixels": 32971,
     "diffImage": "card-front_pattern-03-edge_390x844_en.diff.png"
   },
   {
@@ -128,20 +128,20 @@
   },
   {
     "file": "card-front_pattern-pulse-peak_390x844_en.png",
-    "ratio": 0.040680064406367726,
-    "percent": 4.068006440636773,
+    "ratio": 0.04555915056507474,
+    "percent": 4.555915056507474,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 53561,
+    "mismatchedPixels": 59985,
     "diffImage": "card-front_pattern-pulse-peak_390x844_en.diff.png"
   },
   {
     "file": "card-front_short-label_390x844_en.png",
-    "ratio": 0.021102199538218496,
-    "percent": 2.11021995382185,
+    "ratio": 0.025041772997934135,
+    "percent": 2.5041772997934135,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 27784,
+    "mismatchedPixels": 32971,
     "diffImage": "card-front_short-label_390x844_en.diff.png"
   },
   {
