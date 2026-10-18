@@ -189,6 +189,20 @@ test.describe('keyboard a11y', () => {
     await expect(laterality).toBeInViewport();
   });
 
+  test('Motion view close returns focus to the Motion row 10 times (F7)', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await expect(page.getByTestId('app-menu-title')).toBeFocused();
+    for (let i = 0; i < 10; i += 1) {
+      await page.getByTestId('app-menu-row-motion').click();
+      await expect(page.getByTestId('app-menu-motion')).toBeVisible();
+      await expect(page.getByTestId('app-menu-title')).toBeFocused();
+      await page.getByTestId('app-menu-back').click();
+      await expect(page.getByTestId('app-menu-row-motion')).toBeFocused();
+    }
+  });
+
   test('focused card + nav button captures', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;
     test.skip(vp !== '390x844', 'one viewport for focus captures');

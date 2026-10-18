@@ -20,10 +20,18 @@ test.describe('app menu', () => {
       await expect(page.getByTestId('app-menu-trigger')).toBeVisible();
       await openAppMenu(page);
       await expect(page.getByTestId('app-menu-title')).toBeVisible();
+      await expect(page.getByTestId('app-menu-title')).toBeFocused();
+      await expect(page.getByTestId('app-menu-group-settings')).toBeVisible();
+      await expect(page.getByTestId('app-menu-group-replay')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-label-motion')).toHaveText(
+        locale === 'es' ? 'Movimiento' : 'Motion',
+      );
+      await expect(page.getByTestId('app-menu-row-reference')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-chevron-replayTips')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-handle')).toBeVisible();
+      await expect(page.getByTestId('app-menu-handle-strip')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-label-language')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-value-language')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-chevron-language')).toBeVisible();
@@ -46,6 +54,8 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
+    await expect(page.getByTestId('app-menu-group-settings')).toBeVisible();
+    await expect(page.getByTestId('app-menu-group-replay')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-label-complexity')).toHaveText('Complejidad');
     await expect(page.getByTestId('app-menu-row-label-motion')).toHaveText('Movimiento');
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Según el sistema');
@@ -179,13 +189,26 @@ test.describe('app menu', () => {
     });
   });
 
-  test('opening Language picker moves focus into the view', async ({ page }) => {
+  test('opening Language picker moves focus to the title (F7)', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');
     await openAppMenu(page);
     await page.getByTestId('app-menu-row-language').click();
     await expect(page.getByTestId('app-menu-language')).toBeVisible();
-    // Shared Sheet header back (Language + Complexity + Motion) — focused on mount.
-    await expect(page.getByTestId('app-menu-back')).toBeFocused();
+    await expect(page.getByTestId('app-menu-title')).toBeFocused();
+    await expect(page.getByTestId('app-menu-back')).toBeVisible();
+  });
+
+  test('closing Motion view returns focus to the Motion row 10 times (F7)', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    for (let i = 0; i < 10; i += 1) {
+      await page.getByTestId('app-menu-row-motion').click();
+      await expect(page.getByTestId('app-menu-motion')).toBeVisible();
+      await expect(page.getByTestId('app-menu-title')).toBeFocused();
+      await page.getByTestId('app-menu-back').click();
+      await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-motion')).toBeFocused();
+    }
   });
 
   test('Complexity header back returns to root without closing the sheet', async ({ page }) => {

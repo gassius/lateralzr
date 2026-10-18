@@ -13,11 +13,14 @@ import {
   appMenuRowA11yLabel,
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
-  focusLanguagePickerOnOpen,
+  focusMotionRowOnClose,
+  focusSheetTitleOnOpen,
+  groupedAppMenuRows,
   visibleAppMenuRows,
   withAppMenuRowPress,
   type AppMenuFeatures,
 } from './appMenu.ts';
+import { layout } from '../theme/tokens.ts';
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
@@ -166,23 +169,76 @@ describe('appMenuRowA11yLabel value field', () => {
   });
 });
 
-describe('focusLanguagePickerOnOpen', () => {
-  it('moves focus onto the Back host (not the Language row)', () => {
+describe('groupedAppMenuRows', () => {
+  it('puts Language / Complexity / Motion / About in one group and Replay alone', () => {
+    const groups = groupedAppMenuRows();
+    assert.deepEqual(
+      groups.map((g) => g.key),
+      ['settings', 'replay'],
+    );
+    assert.deepEqual(
+      groups[0]!.rows.map((r) => r.key),
+      ['language', 'complexity', 'motion', 'about'],
+    );
+    assert.deepEqual(
+      groups[1]!.rows.map((r) => r.key),
+      ['replayTips'],
+    );
+  });
+
+  it('omits empty groups when features hide Replay', () => {
+    const groups = groupedAppMenuRows(
+      visibleAppMenuRows({
+        language: true,
+        complexity: true,
+        motion: true,
+        about: true,
+        replayTips: false,
+      }),
+    );
+    assert.deepEqual(
+      groups.map((g) => g.key),
+      ['settings'],
+    );
+  });
+});
+
+describe('focusSheetTitleOnOpen / focusMotionRowOnClose (F7)', () => {
+  it('moves focus onto the title host (not Back) when a nested view opens', () => {
     const focused: unknown[] = [];
+    const titleRef = { current: { id: 'title' } };
     const backRef = { current: { id: 'back' } };
-    const languageRowRef = { current: { id: 'language-row' } };
-    focusLanguagePickerOnOpen((ref) => {
+    focusSheetTitleOnOpen((ref) => {
       focused.push(ref);
-    }, backRef);
-    assert.deepEqual(focused, [backRef]);
-    assert.notEqual(focused[0], languageRowRef);
+    }, titleRef);
+    assert.deepEqual(focused, [titleRef]);
+    assert.notEqual(focused[0], backRef);
+  });
+
+  it('returns focus to the Motion row when the Motion view closes, every time', () => {
+    const motionRowRef = { current: { id: 'motion-row' } };
+    for (let i = 0; i < 10; i += 1) {
+      const focused: unknown[] = [];
+      focusMotionRowOnClose((ref) => {
+        focused.push(ref);
+      }, motionRowRef);
+      assert.deepEqual(focused, [motionRowRef]);
+    }
   });
 });
 
 describe('app menu metrics', () => {
   it('pins row min height 56 and value size 15', () => {
     assert.equal(APP_MENU_ROW_MIN_HEIGHT, 56);
+    assert.equal(APP_MENU_ROW_MIN_HEIGHT, layout.sheetRowHeight);
     assert.equal(APP_MENU_VALUE_FONT_SIZE, 15);
+  });
+
+  it('has no Reference links row (build switch lives in Lz-60)', () => {
+    for (const row of APP_MENU_ROW_ORDER) {
+      assert.equal(row.key.includes('reference'), false);
+      assert.equal(row.labelKey.toLowerCase().includes('reference'), false);
+    }
   });
 
   it('lets labels shrink for space-wrap but pins web minWidth to longest word (PRR B3)', () => {

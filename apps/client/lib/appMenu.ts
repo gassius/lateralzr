@@ -1,7 +1,8 @@
+import { layout } from '../theme/tokens';
 import type { MessageKey } from './i18n';
 
-/** Menu row min height (guide §12.2 / Critiquito Lz-32). */
-export const APP_MENU_ROW_MIN_HEIGHT = 56;
+/** Menu row min height (guide §12.2 / `layout.sheetRowHeight`). */
+export const APP_MENU_ROW_MIN_HEIGHT = layout.sheetRowHeight;
 
 /** Value column size — not a §23 type role; Critiquito pins 15 px. */
 export const APP_MENU_VALUE_FONT_SIZE = 15;
@@ -89,11 +90,39 @@ export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
 export type AppMenuView = 'root' | 'language' | 'complexity' | 'motion' | 'about';
 
+/** Visual groups in the floating Paper menu (§12.2). */
+export type AppMenuGroupKey = 'settings' | 'replay';
+
+export const APP_MENU_GROUP_ORDER: readonly AppMenuGroupKey[] = ['settings', 'replay'];
+
+export const APP_MENU_ROW_GROUP: Record<AppMenuRowKey, AppMenuGroupKey> = {
+  language: 'settings',
+  complexity: 'settings',
+  motion: 'settings',
+  about: 'settings',
+  replayTips: 'replay',
+};
+
+export type AppMenuRowGroup = {
+  key: AppMenuGroupKey;
+  rows: AppMenuRowDef[];
+};
+
 /** Rows whose feature is enabled, preserving {@link APP_MENU_ROW_ORDER}. */
 export function visibleAppMenuRows(
   features: AppMenuFeatures = DEFAULT_APP_MENU_FEATURES,
 ): AppMenuRowDef[] {
   return APP_MENU_ROW_ORDER.filter((row) => features[row.key]);
+}
+
+/** Settings group then Replay group; empty groups omitted. */
+export function groupedAppMenuRows(
+  rows: readonly AppMenuRowDef[] = visibleAppMenuRows(),
+): AppMenuRowGroup[] {
+  return APP_MENU_GROUP_ORDER.map((key) => ({
+    key,
+    rows: rows.filter((row) => APP_MENU_ROW_GROUP[row.key] === key),
+  })).filter((group) => group.rows.length > 0);
 }
 
 /** Whether `view` is a nested in-sheet picker (not root). */
@@ -106,12 +135,20 @@ export function appMenuRowShowsChevron(row: Pick<AppMenuRowDef, 'opensView'>): b
   return row.opensView === true;
 }
 
-/** AC: opening the language picker moves focus into the view (Back control). */
-export function focusLanguagePickerOnOpen<T>(
+/** F7: opening the menu or a nested view moves focus onto the sheet title. */
+export function focusSheetTitleOnOpen<T>(
   focus: (ref: { current: T | null }) => void,
-  backRef: { current: T | null },
+  titleRef: { current: T | null },
 ): void {
-  focus(backRef);
+  focus(titleRef);
+}
+
+/** F7: closing the Motion view returns focus to the Motion row. */
+export function focusMotionRowOnClose<T>(
+  focus: (ref: { current: T | null }) => void,
+  motionRowRef: { current: T | null },
+): void {
+  focus(motionRowRef);
 }
 
 /** Screen-reader label: “Name” or “Name, value”. */

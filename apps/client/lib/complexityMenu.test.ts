@@ -97,8 +97,8 @@ describe('applyMenuComplexitySelection', () => {
 });
 
 describe('complexity menu layout constants', () => {
-  it('row min height matches Laterality radios (52)', () => {
-    assert.ok(COMPLEXITY_MENU_ROW_MIN_HEIGHT >= 48);
-    assert.equal(COMPLEXITY_MENU_ROW_MIN_HEIGHT, 52);
+  it('row min height matches Laterality radios (56)', () => {
+    assert.ok(COMPLEXITY_MENU_ROW_MIN_HEIGHT >= 56);
+    assert.equal(COMPLEXITY_MENU_ROW_MIN_HEIGHT, 56);
   });
 });

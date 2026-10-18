@@ -1,8 +1,9 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-60 subset).
- * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-60 adds `build` and
- * media fade/provenance fields. Later Lz-54 tickets add their own groups
- * (motion.swipe, decorative, sheets, …) on top.
+ * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-59 + Lz-60).
+ * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-59 adds sheet layout
+ * tokens, `color.sheetGroup` / `color.scrim`, and `type.sheetTitle` 22.
+ * Lz-60 adds `build` and media fade/provenance fields. Later Lz-54 tickets add
+ * their own groups (motion.swipe, decorative, …) on top.
  * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
  */
 export const GUIDE_SECTION_23 = {
@@ -21,6 +22,8 @@ export const GUIDE_SECTION_23 = {
     divider: '#D8D2C8',
     selectedSoft: '#FBE2C5',
     error: '#9F3530',
+    sheetGroup: '#FFFFFF8C',
+    scrim: '#00000073',
   },
   decorative: {
     reliefFront: {
@@ -57,7 +60,13 @@ export const GUIDE_SECTION_23 = {
     cardPadding: 24,
     cardPaddingNarrow: 20,
     cardRadius: 22,
-    sheetTopRadius: 24,
+    sheetRadius: 22,
+    sheetInset: 12,
+    sheetBottomGap: 12,
+    sheetGroupRadius: 16,
+    sheetRowHeight: 56,
+    sheetHandleStrip: 48,
+    sheetPattern: 'none',
     cardToControlGap: 12,
     cardToControlGapTall: 16,
     recommendedTouchTarget: 48,
@@ -67,7 +76,7 @@ export const GUIDE_SECTION_23 = {
     family: 'system-sans',
     concept: 32,
     conceptMinOnOrange: 24,
-    sheetTitle: 24,
+    sheetTitle: 22,
     body: 18,
     row: 17,
     label: 14,

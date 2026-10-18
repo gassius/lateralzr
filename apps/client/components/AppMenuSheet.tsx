@@ -35,7 +35,9 @@ import {
   appMenuRowA11yLabel,
   appMenuRowShowsChevron,
   DEFAULT_APP_MENU_FEATURES,
-  focusLanguagePickerOnOpen,
+  focusMotionRowOnClose,
+  focusSheetTitleOnOpen,
+  groupedAppMenuRows,
   isAppMenuNestedView,
   visibleAppMenuRows,
   withAppMenuRowPress,
@@ -56,7 +58,11 @@ import {
   t,
   type AppLocale,
 } from '@/lib/i18n';
-import { LATERALITY_SHEET_ROW_MIN_HEIGHT } from '@/lib/lateralitySheet';
+import {
+  LATERALITY_SHEET_RADIO_SIZE,
+  LATERALITY_SHEET_ROW_MIN_HEIGHT,
+  LATERALITY_SHEET_ROW_RADIUS,
+} from '@/lib/lateralitySheet';
 import {
   DEFAULT_MOTION_PREFERENCE,
   MOTION_PREFERENCE_OPTIONS,
@@ -64,10 +70,10 @@ import {
   type MotionPreference,
 } from '@/lib/motionStorage';
 import { focusSheetHost } from '@/lib/sheetFocus';
+import { resolveSheetFocusIntent } from '@/lib/sheetFocusIntent';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
-const RADIO_SIZE = 22;
 const RADIO_DOT = 8;
 
 /** viewBox from lateralzr-logo-on-paper.svg (includes clear space). */
@@ -274,6 +280,7 @@ export function AppMenuSheet({
   const complexityRowRef = useRef<ViewType | null>(null);
   const motionRowRef = useRef<ViewType | null>(null);
   const sheetBackRef = useRef<ViewType | null>(null);
+  const sheetTitleRef = useRef<ViewType | null>(null);
   const reduceMotion = useReducedMotion(motionPreference);
   const complexityValue = complexityCueText(currentComplexity);
   const pickerRows = useMemo(
@@ -323,28 +330,48 @@ export function AppMenuSheet({
 
   const viewRef = useRef(view);
   viewRef.current = view;
+  const pendingMotionRowFocusRef = useRef(false);
 
-  // Single focus-Back path (PRR B1): only when `view` enters a nested picker.
-  // Retries cover the back control mounting after the title swap — never wired
-  // through Sheet's open effect (unstable onBack must not restart animation).
-  useEffect(() => {
-    if (view !== 'language' && view !== 'complexity' && view !== 'motion') return;
-    let cancelled = false;
-    const focusBack = () => {
-      if (cancelled) return;
-      focusLanguagePickerOnOpen(focusSheetHost, sheetBackRef);
-      if (Platform.OS === 'web' && typeof document !== 'undefined') {
-        document.querySelector<HTMLElement>('[data-testid="app-menu-back"]')?.focus?.();
-      }
-    };
-    const frame = requestAnimationFrame(focusBack);
-    const timers = [0, 48, 120].map((ms) => setTimeout(focusBack, ms));
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-      for (const id of timers) clearTimeout(id);
-    };
-  }, [view]);
+  const focusMenuTitle = useCallback(() => {
+    if (resolveSheetFocusIntent('nestedOpen') !== 'title') return;
+    focusSheetTitleOnOpen(focusSheetHost, sheetTitleRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.querySelector<HTMLElement>('[data-testid="app-menu-title"]')?.focus?.({
+        preventScroll: true,
+      });
+    }
+  }, []);
+
+  /**
+   * Focus Motion row after preference-driven re-render (fake-clock safe; no setTimeout).
+   * Sheet open used to delay title focus with setTimeout; that timer stole this
+   * row when the e2e clock pumped. Title focus is now a one-shot layout effect.
+   */
+  const focusMotionMenuRow = useCallback(() => {
+    if (resolveSheetFocusIntent('motionViewClose') !== 'motionRow') return;
+    focusMotionRowOnClose(focusSheetHost, motionRowRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document
+        .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
+        ?.focus?.();
+    }
+  }, []);
+
+  // F7: nested open → title; Motion close → Motion row. useLayoutEffect so
+  // Playwright does not need rAF/timer ticks under page.clock.
+  useLayoutEffect(() => {
+    if (!visible) {
+      pendingMotionRowFocusRef.current = false;
+      return;
+    }
+    if (view !== 'root') {
+      pendingMotionRowFocusRef.current = false;
+      focusMenuTitle();
+      return;
+    }
+    if (!pendingMotionRowFocusRef.current) return;
+    focusMotionMenuRow();
+  }, [view, visible, motionPreference, reduceMotion, focusMenuTitle, focusMotionMenuRow]);
 
   const onRowPress = (row: AppMenuRowDef) => {
     if (row.onPress) {
@@ -368,64 +395,24 @@ export function AppMenuSheet({
   /** Stable so Sheet open/close effects never restart on parent re-renders (PRR B1). */
   const goBackToRoot = useCallback(() => {
     const current = viewRef.current;
-    const returnRef =
-      current === 'complexity'
-        ? complexityRowRef
-        : current === 'motion'
-          ? motionRowRef
-          : languageRowRef;
+    if (current === 'motion') {
+      pendingMotionRowFocusRef.current = true;
+      setView('root');
+      return;
+    }
+    const returnRef = current === 'complexity' ? complexityRowRef : languageRowRef;
     setView('root');
     requestAnimationFrame(() => focusSheetHost(returnRef));
   }, []);
 
-  /**
-   * Focus Motion row after preference-driven re-render (fake-clock safe; no setTimeout).
-   * Hold across several rAF frames so a later reduceMotion remount cannot leave focus
-   * on the dialog title (first tabbable) when the selected radio unmounts.
-   */
-  const pendingMotionRowFocusRef = useRef(false);
-  const focusMotionMenuRow = useCallback(() => {
-    focusSheetHost(motionRowRef);
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      document
-        .querySelector<HTMLElement>('[data-testid="app-menu-row-motion"]')
-        ?.focus?.();
-    }
-  }, []);
-
   const selectMotion = useCallback(
     (pref: MotionPreference) => {
-      setView('root');
       pendingMotionRowFocusRef.current = true;
+      setView('root');
       onMotionPreferenceChange?.(pref);
     },
     [onMotionPreferenceChange],
   );
-
-  useLayoutEffect(() => {
-    if (view !== 'root' || !pendingMotionRowFocusRef.current) return;
-    let frames = 0;
-    let raf = 0;
-    let cancelled = false;
-    const holdFrames = 45;
-    const tick = () => {
-      if (cancelled) return;
-      focusMotionMenuRow();
-      frames += 1;
-      if (frames >= holdFrames) {
-        pendingMotionRowFocusRef.current = false;
-        return;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    focusMotionMenuRow();
-    raf = requestAnimationFrame(tick);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      // Keep pending so a follow-up commit (motionPreference / reduceMotion) restarts hold.
-    };
-  }, [view, motionPreference, focusMotionMenuRow]);
 
   const sheetTitle =
     view === 'language'
@@ -451,32 +438,37 @@ export function AppMenuSheet({
       backAccessibilityLabel={t('back')}
       backTestID="app-menu-back"
       backRef={sheetBackRef}
+      titleHostRef={sheetTitleRef}
       reduceMotion={reduceMotion}
     >
       {view === 'root' ? (
         <View style={styles.list} testID="app-menu-rows">
-          {rows.map((row, index) => (
-            <AppMenuRow
-              key={row.key}
-              row={row}
-              showDivider={index > 0}
-              onPress={() => onRowPress(row)}
-              rowRef={
-                row.key === 'language'
-                  ? languageRowRef
-                  : row.key === 'complexity'
-                    ? complexityRowRef
-                    : row.key === 'motion'
-                      ? motionRowRef
-                      : undefined
-              }
-            />
+          {groupedAppMenuRows(rows).map((group) => (
+            <View key={group.key} style={styles.group} testID={`app-menu-group-${group.key}`}>
+              {group.rows.map((row, index) => (
+                <AppMenuRow
+                  key={row.key}
+                  row={row}
+                  showDivider={index > 0}
+                  onPress={() => onRowPress(row)}
+                  rowRef={
+                    row.key === 'language'
+                      ? languageRowRef
+                      : row.key === 'complexity'
+                        ? complexityRowRef
+                        : row.key === 'motion'
+                          ? motionRowRef
+                          : undefined
+                  }
+                />
+              ))}
+            </View>
           ))}
         </View>
       ) : null}
       {view === 'language' ? (
         <View style={styles.languageView} testID="app-menu-language">
-          <View style={styles.languageList} testID="app-menu-language-rows">
+          <View style={[styles.languageList, styles.group]} testID="app-menu-language-rows">
             {SUPPORTED_LOCALES.map((option) => {
               const checked = option === locale;
               const label = t(localeDisplayKey(option));
@@ -517,6 +509,7 @@ export function AppMenuSheet({
           keyboardShouldPersistTaps="handled"
           testID="app-menu-complexity-rows"
         >
+          <View style={styles.group} testID="app-menu-complexity-group">
           {pickerRows.map((row) => (
             <Pressable
               key={row.grade}
@@ -547,11 +540,12 @@ export function AppMenuSheet({
               </Text>
             </Pressable>
           ))}
+          </View>
         </ScrollView>
       ) : null}
       {view === 'motion' ? (
         <View style={styles.languageView} testID="app-menu-motion">
-          <View style={styles.languageList} testID="app-menu-motion-rows">
+          <View style={[styles.languageList, styles.group]} testID="app-menu-motion-rows">
             {MOTION_PREFERENCE_OPTIONS.map((pref) => {
               const checked = motionPreference === pref;
               const labelKey = motionPreferenceLabelKey(pref);
@@ -612,6 +606,13 @@ const styles = StyleSheet.create({
   /** Content-height list — do not stretch the short sheet. */
   list: {
     paddingBottom: 8,
+    gap: 12,
+  },
+  group: {
+    backgroundColor: color.sheetGroup,
+    borderRadius: layout.sheetGroupRadius,
+    overflow: 'hidden',
+    paddingHorizontal: 4,
   },
   row: {
     minHeight: APP_MENU_ROW_MIN_HEIGHT,
@@ -681,7 +682,7 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: LATERALITY_SHEET_ROW_RADIUS,
   },
   languageRowSelected: {
     backgroundColor: color.selectedSoft,
@@ -694,9 +695,9 @@ const styles = StyleSheet.create({
     color: color.ink,
   },
   radio: {
-    width: RADIO_SIZE,
-    height: RADIO_SIZE,
-    borderRadius: RADIO_SIZE / 2,
+    width: LATERALITY_SHEET_RADIO_SIZE,
+    height: LATERALITY_SHEET_RADIO_SIZE,
+    borderRadius: LATERALITY_SHEET_RADIO_SIZE / 2,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -771,7 +772,7 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: LATERALITY_SHEET_ROW_RADIUS,
   },
   pickerRowSelected: {
     backgroundColor: color.selectedSoft,

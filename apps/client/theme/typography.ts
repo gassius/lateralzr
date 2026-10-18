@@ -3,7 +3,7 @@ import type { TextStyle } from 'react-native';
 import { type } from './tokens';
 
 /**
- * v3.3 type roles (Lz-22 / guide §7.2 + §23 `type.*`).
+ * v3.4 type roles (Lz-22 / guide §7.2 + §23 `type.*`; Lz-59 `sheetTitle` 22).
  * Platform system sans — leave `fontFamily` unset (never `'System'` on web).
  *
  * Return unscaled `fontSize` / `lineHeight`. React Native already multiplies both

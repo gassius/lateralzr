@@ -12,7 +12,7 @@ import {
 
 const ROLES: TypeRole[] = ['concept', 'sheetTitle', 'body', 'row', 'label', 'meta'];
 
-describe('v3.3 typography roles', () => {
+describe('v3.4 typography roles', () => {
   it('maps sizes to §23 type tokens', () => {
     assert.equal(typeSize('concept'), type.concept);
     assert.equal(typeSize('sheetTitle'), type.sheetTitle);
@@ -21,7 +21,7 @@ describe('v3.3 typography roles', () => {
     assert.equal(typeSize('label'), type.label);
     assert.equal(typeSize('meta'), type.meta);
     assert.equal(type.concept, 32);
-    assert.equal(type.sheetTitle, 24);
+    assert.equal(type.sheetTitle, 22);
     assert.equal(type.body, 18);
     assert.equal(type.row, 17);
     assert.equal(type.label, 14);

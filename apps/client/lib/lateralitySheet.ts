@@ -1,4 +1,4 @@
-import { motion } from '../theme/tokens';
+import { color, layout, motion } from '../theme/tokens';
 import {
   clampLaterality,
   LATERALITY_LABEL_KEYS,
@@ -9,11 +9,26 @@ import {
 } from './laterality';
 import type { MessageKey } from './i18n';
 
-/** Decorative handle only — drag-to-dismiss is out of scope (Critiquito). */
-export const LATERALITY_SHEET_ROW_MIN_HEIGHT = 52;
+/** Sheet radio / menu rows — guide §12 / `layout.sheetRowHeight`. */
+export const LATERALITY_SHEET_ROW_MIN_HEIGHT = layout.sheetRowHeight;
 
-/** Dimmed shell behind the paper panel (~60%). */
-export const SHEET_BACKDROP_ALPHA = 0.6;
+/** Decorative mini rail under the Laterality helper (§12.1). Hidden from AT. */
+export const LATERALITY_MINI_RAIL_DOT_COUNT = 5;
+export const LATERALITY_MINI_RAIL_HEIGHT = 28;
+
+/** Selected radio ring + row radius (guide §12.1). */
+export const LATERALITY_SHEET_RADIO_SIZE = 24;
+export const LATERALITY_SHEET_ROW_RADIUS = 14;
+
+/** Parse `#RRGGBBAA` (or opaque hex) alpha for the sheet scrim. */
+export function sheetScrimAlpha(scrimHex: string = color.scrim): number {
+  const n = scrimHex.replace('#', '');
+  if (n.length === 8) return parseInt(n.slice(6, 8), 16) / 255;
+  return 1;
+}
+
+/** Dimmed shell behind the floating Paper card (`color.scrim` ≈ 45%). */
+export const SHEET_BACKDROP_ALPHA = sheetScrimAlpha();
 
 export type LateralitySheetRow = {
   grade: LateralityGrade;
@@ -40,6 +55,11 @@ export function lateralitySheetRows(selected: number): LateralitySheetRow[] {
 
 /** Tap a row → that grade (caller commits via onSelectLaterality, then closes). */
 export function lateralitySheetCommitValue(grade: number): LateralityGrade {
+  return clampLaterality(grade);
+}
+
+/** Mini-rail selected dot is the 1–5 grade (left = 1). */
+export function lateralityMiniRailSelectedDot(grade: number): LateralityGrade {
   return clampLaterality(grade);
 }
 

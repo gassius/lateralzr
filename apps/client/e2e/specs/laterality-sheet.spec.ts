@@ -36,8 +36,17 @@ test.describe('laterality sheet', () => {
       await expect(page.getByTestId('laterality-label')).toBeVisible();
       await openLateralitySheet(page);
       await expect(page.getByTestId('laterality-sheet-title')).toBeVisible();
+      await expect(page.getByTestId('laterality-sheet-title')).toBeFocused();
+      await expect(page.getByTestId('laterality-sheet-helper')).toBeVisible();
+      await expect(page.getByTestId('laterality-sheet-mini-rail')).toBeVisible();
+      await expect(page.getByTestId('laterality-sheet-mini-rail')).toHaveAttribute(
+        'aria-hidden',
+        'true',
+      );
+      await expect(page.getByTestId('laterality-sheet-group')).toBeVisible();
       await expect(page.getByTestId('laterality-sheet-row-4')).toBeVisible();
       await expect(page.getByTestId('laterality-sheet-handle')).toBeVisible();
+      await expect(page.getByTestId('laterality-sheet-handle-strip')).toBeVisible();
 
       await capture(page, testInfo, {
         screen: 'laterality-sheet',
@@ -56,6 +65,8 @@ test.describe('laterality sheet', () => {
     await openLateralitySheet(page);
     await expect(page.getByTestId('laterality-sheet')).toBeVisible();
     await expect(page.getByTestId('laterality-sheet-row-4')).toBeVisible();
+    await expect(page.getByTestId('laterality-sheet-mini-rail')).toBeVisible();
+    await expect(page.getByTestId('laterality-sheet-group')).toBeVisible();
 
     const title = page.getByTestId('laterality-sheet-title');
     // Wait for measured (or fallback) paint — toBeVisible ignores opacity:0.
