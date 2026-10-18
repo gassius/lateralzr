@@ -40,6 +40,7 @@ import {
   cardReturnOverlayTiltZDeg,
   cardSwipeDragTiltZDeg,
   cardSwipeExitTiltZDeg,
+  cardSwipeAndroidLiftFill,
   cardSwipeFollowY,
   cardSwipeFrontTransform,
   cardSwipeLiftShadowPx,
@@ -243,6 +244,16 @@ describe('directional tilt transforms', () => {
     assert.equal(lifted.shadowOpacity, 0.18);
     assert.equal(lifted.shadowColor, rest.shadowColor);
   });
+
+  it('Android wrap fill is only while lifted, never mid-flip / peek / deck status', () => {
+    const lifted = { liftPx: 6, flipProgress: 0, flipPeek: 0, showDeckStatus: false };
+    assert.equal(cardSwipeAndroidLiftFill(lifted), true);
+    assert.equal(cardSwipeAndroidLiftFill({ ...lifted, liftPx: 0 }), false);
+    assert.equal(cardSwipeAndroidLiftFill({ ...lifted, showDeckStatus: true }), false);
+    assert.equal(cardSwipeAndroidLiftFill({ ...lifted, flipPeek: 0.2 }), false);
+    assert.equal(cardSwipeAndroidLiftFill({ ...lifted, flipProgress: 0.5 }), false);
+    assert.equal(cardSwipeAndroidLiftFill({ ...lifted, flipProgress: 1 }), true);
+  });
 });
 
 describe('start-of-history resistance', () => {
@@ -387,7 +398,8 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
   it('RM Previous keeps frontCommitOpacity at 1 (overlay fades in on top)', () => {
     assert.match(stackSrc, /deckReducedMotionFadesOutgoingFront\('right'\)/);
     assert.match(stackSrc, /borderRadius: cardRadius\(\)/);
-    assert.match(stackSrc, /backgroundColor: color\.front/);
+    assert.equal(/frontWrap:\s*\{[^}]*backgroundColor: color\.front/.test(stackSrc), false);
+    assert.match(stackSrc, /cardSwipeAndroidLiftFill/);
   });
 
   it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {

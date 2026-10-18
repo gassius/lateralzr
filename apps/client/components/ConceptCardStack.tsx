@@ -67,6 +67,7 @@ import {
   cardCoveredTint,
   cardSwipeFollowY,
   cardSwipeFrontTransform,
+  cardSwipeAndroidLiftFill,
   cardSwipeLiftShadowPx,
   cardSwipeLiftShadowStyle,
   cardSwipeReturnOverlayTransform,
@@ -1120,6 +1121,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     // Covered card (right swipe) keeps rest elevation so Android does not
     // stack it above the incoming overlay (z 3, no elevation).
     const shadowLift = coverP > 0 ? 0 : lift;
+    const androidFill = cardSwipeAndroidLiftFill({
+      liftPx: shadowLift,
+      flipProgress: flipProgress.value,
+      flipPeek: flipPeek.value,
+      showDeckStatus: showDeckStatusSV.value > 0.5,
+    });
     return {
       opacity: enterOpacity.value * frontCommitOpacity.value,
       transform: [
@@ -1136,6 +1143,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         { scale },
       ],
       ...cardSwipeLiftShadowStyle(shadowLift),
+      backgroundColor:
+        Platform.OS === 'android' && androidFill ? color.front : 'transparent',
     };
   });
 
@@ -1475,7 +1484,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 2,
     borderRadius: cardRadius(),
-    backgroundColor: color.front,
     overflow: 'visible',
   },
   frontWrapMoving: {

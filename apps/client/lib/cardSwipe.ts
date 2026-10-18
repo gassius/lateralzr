@@ -324,6 +324,25 @@ export function cardSwipeLiftShadowStyle(liftPx: number): CardSwipeShadowStyle {
   };
 }
 
+/**
+ * Android elevation only draws on an opaque view. Fill the wrap with the
+ * front colour while lifted — never mid-flip, during the coach peek, or on
+ * the loading silhouette (those must stay transparent).
+ */
+export function cardSwipeAndroidLiftFill(opts: {
+  liftPx: number;
+  flipProgress: number;
+  flipPeek: number;
+  showDeckStatus: boolean;
+}): boolean {
+  'worklet';
+  if (opts.liftPx <= 0) return false;
+  if (opts.showDeckStatus) return false;
+  if (opts.flipPeek > 0.01) return false;
+  if (opts.flipProgress > 0.02 && opts.flipProgress < 0.98) return false;
+  return true;
+}
+
 /** Covered current card while the previous card enters on top. */
 export function cardCoveredScale(coverProgress: number, reduceMotion: boolean): number {
   'worklet';
