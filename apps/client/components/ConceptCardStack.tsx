@@ -183,6 +183,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const backScrollViewportH = useSharedValue(0);
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
+  /** 1 = finger Y at the scroll edge is latched in edgeStartY. */
+  const edgeLatched = useSharedValue(0);
+  const edgeStartY = useSharedValue(0);
   /** While swipe-right commit runs, pin overlay to this index so it doesn't jump when currentIndex updates before translateX resets. */
   const [returnOverlayLockedIndex, setReturnOverlayLockedIndex] = useState<number | null>(null);
   /** While swipe-left commit runs, pin behind card to this index (the “next” card under the front) before index advances. */
@@ -415,6 +418,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       swipeAnimating.value = false;
       exitingSV.value = 0;
       handoffOriginY.value = 0;
+      edgeLatched.value = 0;
       coachPeekX.value = 0;
       flipPeek.value = 0;
       frontCommitOpacity.value = 1;
@@ -425,6 +429,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     swipeAnimating.value = false;
     exitingSV.value = 0;
     handoffOriginY.value = 0;
+    edgeLatched.value = 0;
     coachPeekX.value = 0;
     flipPeek.value = 0;
     frontCommitOpacity.value = 1;
@@ -808,15 +813,6 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     [onDeckMotionChange],
   );
 
-  const onBackScrollMetrics = useCallback(
-    (metrics: { offsetY: number; contentH: number; viewportH: number }) => {
-      backScrollY.value = metrics.offsetY;
-      backScrollContentH.value = metrics.contentH;
-      backScrollViewportH.value = metrics.viewportH;
-    },
-    [backScrollContentH, backScrollViewportH, backScrollY],
-  );
-
   const springHome = () => {
     'worklet';
     const spring = {
@@ -937,6 +933,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       if (!touch) return;
       touchStartX.value = touch.absoluteX;
       touchStartY.value = touch.absoluteY;
+      edgeLatched.value = 0;
+      handoffOriginY.value = 0;
     })
     .onTouchesMove((e, manager) => {
       if (swipeAnimating.value) return;
@@ -958,7 +956,22 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       }
       const atTop = backScrollY.value <= 1;
       const atBottom = backScrollY.value + viewportH >= contentH - 1;
-      const origin = backFaceVerticalHandoffOrigin(dy, atTop, atBottom, SWIPE_BACK_FACE_SCROLL_HANDOFF_PX);
+      const atEdge = atTop || atBottom;
+      if (!atEdge) {
+        edgeLatched.value = 0;
+        return;
+      }
+      if (edgeLatched.value === 0) {
+        edgeStartY.value = touch.absoluteY;
+        edgeLatched.value = 1;
+      }
+      const origin = backFaceVerticalHandoffOrigin(
+        dy,
+        edgeStartY.value - touchStartY.value,
+        atTop,
+        atBottom,
+        SWIPE_BACK_FACE_SCROLL_HANDOFF_PX,
+      );
       if (origin != null) {
         handoffOriginY.value = origin;
         manager.activate();
@@ -1247,7 +1260,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   pulseGateActive={pulseGateActive}
                   facePadding={cardLayout.padding}
                   mediaRequestWidth={mediaRequestWidth}
-                  onBackScrollMetrics={onBackScrollMetrics}
+                  backScrollOffsetY={backScrollY}
+                  backScrollContentH={backScrollContentH}
+                  backScrollViewportH={backScrollViewportH}
                 />
               )}
             </View>
@@ -1292,7 +1307,9 @@ function ConceptCardForIndex({
   pulseGateActive = false,
   facePadding,
   mediaRequestWidth,
-  onBackScrollMetrics,
+  backScrollOffsetY,
+  backScrollContentH,
+  backScrollViewportH,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -1305,11 +1322,9 @@ function ConceptCardForIndex({
   pulseGateActive?: boolean;
   facePadding: number;
   mediaRequestWidth: number;
-  onBackScrollMetrics?: (metrics: {
-    offsetY: number;
-    contentH: number;
-    viewportH: number;
-  }) => void;
+  backScrollOffsetY?: SharedValue<number>;
+  backScrollContentH?: SharedValue<number>;
+  backScrollViewportH?: SharedValue<number>;
 }) {
   const item = concepts[currentIndex]!;
   const mediaUri =
@@ -1334,7 +1349,9 @@ function ConceptCardForIndex({
       pulseGateActive={pulseGateActive}
       facePadding={facePadding}
       mediaRequestWidth={mediaRequestWidth}
-      onBackScrollMetrics={onBackScrollMetrics}
+      backScrollOffsetY={backScrollOffsetY}
+      backScrollContentH={backScrollContentH}
+      backScrollViewportH={backScrollViewportH}
     />
   );
 }

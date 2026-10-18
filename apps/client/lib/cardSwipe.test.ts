@@ -240,12 +240,21 @@ describe('deck underlay', () => {
 });
 
 describe('back-face scroll hand-off', () => {
-  it('hands off after 24 px past the scroll edge', () => {
-    assert.equal(backFaceVerticalHandoffOrigin(-24, false, true), null);
-    assert.equal(backFaceVerticalHandoffOrigin(-25, false, true), -24);
-    assert.equal(backFaceVerticalHandoffOrigin(25, true, false), 24);
-    assert.equal(backFaceVerticalHandoffOrigin(-80, true, false), null);
+  it('hands off after 24 px past the latched scroll edge, not from touch-down', () => {
+    // Already at the edge: latch is 0 (edgeStartY === touchStartY).
+    assert.equal(backFaceVerticalHandoffOrigin(-24, 0, false, true), null);
+    assert.equal(backFaceVerticalHandoffOrigin(-25, 0, false, true), -24);
+    assert.equal(backFaceVerticalHandoffOrigin(25, 0, true, false), 24);
+    assert.equal(backFaceVerticalHandoffOrigin(-80, 0, true, false), null);
     assert.equal(cardSwipeTranslationAfterHandoff(-80, -24), -56);
+  });
+
+  it('200 px of scroll then 30 px past the edge yields ~6 px of card travel', () => {
+    const edgeTranslationY = -200;
+    const translationY = -230;
+    const origin = backFaceVerticalHandoffOrigin(translationY, edgeTranslationY, false, true);
+    assert.equal(origin, -224);
+    assert.equal(cardSwipeTranslationAfterHandoff(translationY, origin!), -6);
   });
 });
 

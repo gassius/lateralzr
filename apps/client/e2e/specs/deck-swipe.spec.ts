@@ -55,6 +55,15 @@ test.describe('deck swipe (Lz-56)', () => {
     await expect(page.getByTestId('complexity-cue')).toBeVisible();
   });
 
+  test('back face vertical swipe commits Complexity', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await flipCard(page);
+    await expect(cardBackCopy(page)).toBeVisible();
+    await swipeVertical(page, 'up');
+    await expect(page.getByTestId('complexity-cue')).toBeVisible({ timeout: 10_000 });
+  });
+
   test('flip toggles front → back → front', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
     await expect(visibleText(page, 'Mushroom')).toBeVisible();

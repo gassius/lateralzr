@@ -15,6 +15,7 @@ import Animated, {
   Easing,
   runOnJS,
   useAnimatedReaction,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -99,6 +100,8 @@ import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 const LINK_HIT = layout.recommendedTouchTarget;
 
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -150,12 +153,10 @@ type ConceptCardProps = {
    * preload). Zero until the stack has measured; then the URI is stable.
    */
   mediaRequestWidth?: number;
-  /** Lz-56: back-face scroll metrics for the 24 px vertical hand-off. */
-  onBackScrollMetrics?: (metrics: {
-    offsetY: number;
-    contentH: number;
-    viewportH: number;
-  }) => void;
+  /** Lz-56: UI-thread back-face scroll metrics for the 24 px vertical hand-off. */
+  backScrollOffsetY?: SharedValue<number>;
+  backScrollContentH?: SharedValue<number>;
+  backScrollViewportH?: SharedValue<number>;
 };
 
 export function ConceptCard({
@@ -170,7 +171,9 @@ export function ConceptCard({
   pulseGateActive = false,
   facePadding,
   mediaRequestWidth = 0,
-  onBackScrollMetrics,
+  backScrollOffsetY,
+  backScrollContentH,
+  backScrollViewportH,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const { width: windowWidth } = useWindowDimensions();
@@ -216,6 +219,19 @@ export function ConceptCard({
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+  const fallbackScrollY = useSharedValue(0);
+  const fallbackScrollContentH = useSharedValue(0);
+  const fallbackScrollViewportH = useSharedValue(0);
+  const scrollY = backScrollOffsetY ?? fallbackScrollY;
+  const scrollContentH = backScrollContentH ?? fallbackScrollContentH;
+  const scrollViewportH = backScrollViewportH ?? fallbackScrollViewportH;
+  const onBackScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+      scrollContentH.value = event.contentSize.height;
+      scrollViewportH.value = event.layoutMeasurement.height;
+    },
+  });
   /** AT / pointer face after the flip midpoint — not the `flipped` boolean. */
   const [presentedFace, setPresentedFace] = useState<'front' | 'back'>(
     flipped ? 'back' : 'front',
@@ -1098,7 +1114,7 @@ export function ConceptCard({
         {t('aboutConcept', { concept: title })}
       </Text>
       {backMediaLayer}
-      <ScrollView
+      <AnimatedScrollView
         style={[
           styles.backScroll,
           // Keep the image/fade outside the reading scroll viewport. Scrolling
@@ -1111,12 +1127,12 @@ export function ConceptCard({
         nestedScrollEnabled
         testID="card-back-scroll"
         scrollEventThrottle={16}
-        onScroll={(event) => {
-          onBackScrollMetrics?.({
-            offsetY: event.nativeEvent.contentOffset.y,
-            contentH: event.nativeEvent.contentSize.height,
-            viewportH: event.nativeEvent.layoutMeasurement.height,
-          });
+        onScroll={onBackScroll}
+        onLayout={(event) => {
+          scrollViewportH.value = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_w, h) => {
+          scrollContentH.value = h;
         }}
       >
         <View
@@ -1137,7 +1153,7 @@ export function ConceptCard({
         >
           {backCopy}
         </View>
-      </ScrollView>
+      </AnimatedScrollView>
       {showMediaLayer ? (
         <View
           style={{ height: facePad, backgroundColor: color.paper }}

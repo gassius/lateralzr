@@ -312,19 +312,25 @@ export function deckUnderlayReveal(
 }
 
 /**
- * Back-face vertical hand-off: once the scroll is at the edge in the drag
- * direction, extra travel beyond `handoffPx` starts the card swipe from 0.
- * Returns the origin to subtract from translationY, or null if not handed off.
+ * Back-face vertical hand-off origin in touch-down coordinates.
+ *
+ * `edgeTranslationY` is `edgeStartY − touchStartY`, latched the first time
+ * the scroll sits at the relevant edge during this touch. Activate only after
+ * `handoffPx` past that latch. Origin is `(edgeStartY − touchStartY) ± 24`
+ * so a 200 px scroll plus 30 px past the edge yields ~6 px of card travel,
+ * not the full finger delta from touch-down.
  */
 export function backFaceVerticalHandoffOrigin(
   translationY: number,
+  edgeTranslationY: number,
   atTop: boolean,
   atBottom: boolean,
   handoffPx: number = SWIPE_BACK_FACE_SCROLL_HANDOFF_PX,
 ): number | null {
   'worklet';
-  if (translationY < 0 && atBottom && -translationY > handoffPx) return -handoffPx;
-  if (translationY > 0 && atTop && translationY > handoffPx) return handoffPx;
+  const pastEdge = translationY - edgeTranslationY;
+  if (atBottom && pastEdge < -handoffPx) return edgeTranslationY - handoffPx;
+  if (atTop && pastEdge > handoffPx) return edgeTranslationY + handoffPx;
   return null;
 }
 
