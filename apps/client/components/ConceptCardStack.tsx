@@ -481,8 +481,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     indexMotionSerialSV.value = resetSerial;
     runOnUI(() => {
       'worklet';
-      // A newer keyboard/gesture commit may have started before this reset lands.
-      if (indexMotionSerialSV.value !== resetSerial || swipeAnimating.value) {
+      // Serial is bumped on keyboard and gesture commits so a late reset cannot
+      // clobber an in-flight fade. Do not gate on swipeAnimating — after a
+      // commit it is still true on native and the worklet would never run.
+      if (indexMotionSerialSV.value !== resetSerial) {
         return;
       }
       translateX.value = 0;
@@ -714,6 +716,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     });
   };
 
+  const beginMotionCommit = () => {
+    'worklet';
+    swipeAnimating.value = true;
+    indexMotionSerialSV.value += 1;
+  };
+
   const focusCard = useCallback(() => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const surface = document.querySelector('[data-testid="card-a11y-surface"]');
@@ -732,8 +740,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const animateThenCommit = useCallback(
     (kind: 'next' | 'previous' | 'complexityUp' | 'complexityDown') => {
       if (swipeAnimating.value) return;
-      swipeAnimating.value = true;
-      indexMotionSerialSV.value += 1;
+      beginMotionCommit();
       coachPeekX.value = 0;
       flipPeek.value = 0;
       setPulseDragging(true);
@@ -818,7 +825,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       coachPeekX,
       flipPeek,
       frontCommitOpacity,
-      indexMotionSerialSV,
+      beginMotionCommit,
       peerCommitOpacity,
       swipeAnimating,
       translateX,
@@ -1025,7 +1032,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             springHome();
             return;
           }
-          swipeAnimating.value = true;
+          beginMotionCommit();
           startHorizontalExit(-1);
           runOnJS(lockBehindIndexForLeftCommit)();
           if (!swipeShouldSlideOutOnCommit(rm)) {
@@ -1050,7 +1057,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             return;
           }
           if (showDeckStatusSV.value === 1) {
-            swipeAnimating.value = true;
+            beginMotionCommit();
             exitingSV.value = 1;
             if (!swipeShouldSlideOutOnCommit(rm)) {
               frontCommitOpacity.value = 1;
@@ -1065,7 +1072,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             });
             return;
           }
-          swipeAnimating.value = true;
+          beginMotionCommit();
           exitingSV.value = 1;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
           runOnJS(lockBehindIndexForRightCommit)();
@@ -1176,7 +1183,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           return;
         }
         const vertical: 'up' | 'down' = direction < 0 ? 'up' : 'down';
-        swipeAnimating.value = true;
+        beginMotionCommit();
         exitingSV.value = 1;
         runOnJS(lockBehindIndexForLeftCommit)();
         const rm = reduceMotionSV.value > 0.5;
