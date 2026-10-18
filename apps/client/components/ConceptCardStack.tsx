@@ -91,7 +91,7 @@ import {
 } from '@/lib/cardSwipe';
 import { flipDurationMs } from '@/lib/cardFlip';
 import { clampComplexity } from '@/lib/complexityStorage';
-import { deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
+import { deckEnterLandsSettled, deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
 import {
   resolveNavSettleIntent,
   returnOverlayIndexForEndLoading,
@@ -427,8 +427,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
   useLayoutEffect(() => {
     // Lz-36: loading → concept without a swipe intent (append settle, or back cleared pending).
+    const committedNavIntent = navIntentRef.current;
     const intent = resolveNavSettleIntent({
-      navIntent: navIntentRef.current,
+      navIntent: committedNavIntent,
       wasDeckStatus: wasDeckStatusRef.current,
       showDeckStatus,
       prevIndex: loadingClearPrevIndexRef.current,
@@ -478,9 +479,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
     const rm = reduceMotionSV.value > 0.5;
     if (intent === 'forward' || intent === 'backward' || intent === 'backwardGesture') {
-      // RM / backwardGesture: cross-fade or return overlay already completed — land settled.
-      // Full motion: fade 0→1 + ±8 → 0 over settle token (260 ms; Lz-36 loading replace).
-      if (rm || intent === 'backwardGesture') {
+      // Underlay-revealed Next/Complexity, RM, Previous overlay: already on screen — land settled.
+      // Loading-replace (derived forward / back-from-status): fade 0→1 + ±8 → 0 over 260 ms.
+      if (deckEnterLandsSettled(rm, intent, committedNavIntent)) {
         enterX.value = 0;
         enterOpacity.value = 1;
       } else {

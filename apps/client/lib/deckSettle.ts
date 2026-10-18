@@ -10,6 +10,7 @@ import {
   swipeCommitDurationMs,
   swipeEnterShiftPx,
 } from '@/lib/cardSwipe';
+import type { NavSettleIntent } from '@/lib/deckSlotState';
 
 /** Full-motion settle when the next card replaces loading (token: motion.swipeSettleMs). */
 export const DECK_SETTLE_MS = SWIPE_SETTLE_MS;
@@ -23,6 +24,21 @@ export function deckSettleDurationMs(reduceMotion: boolean): number {
 
 export function deckSettleEnterShiftPx(reduceMotion: boolean, forward: boolean): number {
   return swipeEnterShiftPx(reduceMotion, forward);
+}
+
+/**
+ * True when the incoming card is already on screen, so skip the 0→1 settle fade.
+ * RM, Previous overlay (`backwardGesture`), and underlay-revealed Next/Complexity
+ * (`forward` committed this frame). Loading-replace still fades.
+ */
+export function deckEnterLandsSettled(
+  reduceMotion: boolean,
+  intent: NavSettleIntent,
+  committedNavIntent: NavSettleIntent | null,
+): boolean {
+  if (reduceMotion) return true;
+  if (intent === 'backwardGesture') return true;
+  return intent === 'forward' && committedNavIntent === 'forward';
 }
 
 /** Pin helpers to theme tokens (unit tests). */
