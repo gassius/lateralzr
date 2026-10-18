@@ -116,6 +116,33 @@ export function deckReturnOverlayElevation(covering: boolean): number {
 }
 
 /**
+ * Previous overlay X: stay at the drag pose when `translateX > 0`; keyboard
+ * Previous (`overlayPeer` while tx is 0) fades in-place at rest covering.
+ */
+export function deckReturnOverlayTranslateX(
+  translateX: number,
+  width: number,
+  overlayPeer: number,
+): number {
+  'worklet';
+  if (translateX > 0) return -width + translateX;
+  if (overlayPeer > 0) return 0;
+  return -width;
+}
+
+/** Drag pose keeps opacity 1 so overlayPeer starting at 0 cannot flash the overlay out. */
+export function deckReturnOverlayOpacity(
+  hidden: boolean,
+  translateX: number,
+  overlayPeer: number,
+): number {
+  'worklet';
+  if (hidden) return 0;
+  if (translateX > 0) return 1;
+  return overlayPeer > 0 ? overlayPeer : 1;
+}
+
+/**
  * Settled non-bouncy ease-out for exit / settle / RM cross-fade.
  * Matches Reanimated `Easing.out(Easing.cubic)` (1 − (1−t)³) without importing
  * reanimated into this pure module (keeps `node:test` loadable).
@@ -442,8 +469,8 @@ export function deckUnderlayDragProgress(
 }
 
 /**
- * RM commit zeros translate, so drag progress is 0. Reveal the incoming layer
- * from `peerCommitOpacity` (0→1 over the 150 ms cross-fade) instead.
+ * Combine drag reveal with the RM peer fade. A release that keeps translate
+ * still has drag progress; keyboard / in-place fades use peer opacity.
  */
 export function deckCommitCrossfadeProgress(
   dragProgress: number,

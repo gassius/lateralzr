@@ -62,6 +62,8 @@ import {
   deckPreviousCovering,
   deckReducedMotionFadesOutgoingFront,
   deckReturnOverlayElevation,
+  deckReturnOverlayOpacity,
+  deckReturnOverlayTranslateX,
   deckReturnOverlayZIndex,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
@@ -390,6 +392,16 @@ describe('underlay axis lock and RM cross-fade', () => {
     const mid = deckUnderlayReveal(deckCommitCrossfadeProgress(0, 0.5), true, false);
     assert.equal(mid.opacity, 1);
   });
+
+  it('RM Previous overlay stays at the release pose instead of snapping to centre', () => {
+    assert.equal(deckReturnOverlayTranslateX(80, CARD_W, 0.1), -CARD_W + 80);
+    assert.equal(deckReturnOverlayTranslateX(0, CARD_W, 0.4), 0);
+    assert.equal(deckReturnOverlayTranslateX(0, CARD_W, 0), -CARD_W);
+    assert.equal(deckReturnOverlayOpacity(false, 80, 0), 1);
+    assert.equal(deckReturnOverlayOpacity(false, 80, 0.01), 1);
+    assert.equal(deckReturnOverlayOpacity(false, 0, 0.4), 0.4);
+    assert.equal(deckReturnOverlayOpacity(true, 80, 1), 0);
+  });
 });
 
 describe('stack / shell wiring (AD B2–B4, M3)', () => {
@@ -456,6 +468,14 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
       stackSrc,
       /translateY\.value = withTiming\(target, \{ duration: commitMs, easing: SWIPE_EASING \}/,
     );
+  });
+
+  it('RM Next/Previous fade from the release translation (no snap to centre)', () => {
+    assert.match(stackSrc, /deckReturnOverlayTranslateX\(translateX\.value, w, overlayPeer\)/);
+    assert.match(stackSrc, /deckReturnOverlayOpacity\(hidden, translateX\.value, overlayPeer\)/);
+    assert.equal(/if \(!slide\) \{\s*translateX\.value = 0/.test(stackSrc), false);
+    assert.equal(/if \(!swipeShouldSlideOutOnCommit\(rm\)\) \{\s*translateX\.value = 0/.test(stackSrc), false);
+    assert.equal(/if \(!swipeShouldSlideOutOnCommit\(rm\)\) \{\s*translateY\.value = 0/.test(stackSrc), false);
   });
 });
 
