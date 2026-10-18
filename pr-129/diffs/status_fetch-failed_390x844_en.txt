@@ -1,4 +1,4 @@
 Baseline diff for status_fetch-failed_390x844_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/status_fetch-failed_390x844_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/status_fetch-failed_390x844_en.png
-diff ratio 0.3320 > 0.01 (437155 px)
+diff ratio 0.2605 > 0.01 (343013 px)
