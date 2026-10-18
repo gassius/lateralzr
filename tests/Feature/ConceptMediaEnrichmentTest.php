@@ -66,7 +66,7 @@ class ConceptMediaEnrichmentTest extends TestCase
 
         $photo = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'GEM_Khufus_Boat_front_2025.jpg'));
         $this->assertNotNull($photo);
-        $this->assertSame('photo', $photo->purpose);
+        $this->assertNull($photo->purpose);
         $this->assertSame('Front of Khufu’s reconstructed solar boat.', $photo->alt);
         $this->assertSame('Khufu photographer', $photo->creator);
         $this->assertSame('https://commons.wikimedia.org/wiki/File:GEM_Khufus_Boat_front_2025.jpg', $photo->source_page_url);
@@ -90,10 +90,96 @@ class ConceptMediaEnrichmentTest extends TestCase
         ] as $key) {
             $this->assertArrayHasKey($key, $serialized);
         }
-        $this->assertSame('photo', $serialized['purpose']);
+        $this->assertNull($serialized['purpose']);
         $this->assertSame('Khufu photographer', $serialized['creator']);
         $this->assertSame('https://creativecommons.org/publicdomain/zero/1.0/', $serialized['licenceUrl']);
         $this->assertSame('resized', $serialized['changeNotice']);
+    }
+
+    public function test_keywordless_jpg_and_png_store_null_purpose(): void
+    {
+        Http::fake(function (Request $request) {
+            $params = $this->params($request);
+            $host = (string) parse_url($request->url(), PHP_URL_HOST);
+            $prop = (string) ($params['prop'] ?? '');
+
+            if (($params['generator'] ?? '') === 'search') {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => [
+                                'title' => 'Stone lantern',
+                                'index' => 1,
+                                'extract' => 'A stone lantern is a traditional lantern carved from stone.',
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if ($host !== 'commons.wikimedia.org' && str_contains($prop, 'images')) {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => [
+                                'title' => 'Stone lantern',
+                                'images' => [
+                                    ['title' => 'File:Stone lantern garden.jpg'],
+                                    ['title' => 'File:Stone lantern garden.png'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if (str_contains($prop, 'imageinfo')) {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => $this->imagePage(
+                                'File:Stone lantern garden.jpg',
+                                'https://upload.wikimedia.org/wikipedia/commons/1/11/Stone_lantern_garden.jpg',
+                                'image/jpeg',
+                                400000,
+                                'CC0',
+                                'false',
+                            ),
+                            '2' => $this->imagePage(
+                                'File:Stone lantern garden.png',
+                                'https://upload.wikimedia.org/wikipedia/commons/2/22/Stone_lantern_garden.png',
+                                'image/png',
+                                200000,
+                                'Public domain',
+                                'false',
+                            ),
+                        ],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['query' => ['pages' => []]], 200);
+        });
+
+        $term = $this->makeTerm(
+            'stone lantern',
+            'A traditional garden lantern made of stone.',
+        );
+
+        $stats = app(ConceptCompleteInfoService::class)->complete([$term->id], 'both');
+
+        $this->assertSame(1, $stats['wikiUpdated']);
+        $this->assertSame(1, $stats['mediaUpdated']);
+        $this->assertSame(0, $stats['failed']);
+
+        $stored = ConceptMedia::query()->where('concept_id', $term->concept_id)->orderBy('position')->get();
+        $this->assertCount(2, $stored);
+        $jpg = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'Stone_lantern_garden.jpg'));
+        $png = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'Stone_lantern_garden.png'));
+        $this->assertNotNull($jpg);
+        $this->assertNotNull($png);
+        $this->assertNull($jpg->purpose);
+        $this->assertNull($png->purpose);
     }
 
     public function test_concept_media_provenance_columns_exist(): void

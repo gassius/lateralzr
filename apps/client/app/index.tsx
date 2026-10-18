@@ -1125,9 +1125,10 @@ export default function HomeScreen() {
             style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
             contentContainerStyle={{
               minHeight: usableHeight,
-              // Keep the 2+2 px focus ring inside the scroll clip (Lz-53 / keyboard both-faces).
-              paddingTop: focusRingPad,
-              paddingBottom: focusRingPad,
+              // Web E2E only: keep the 2+2 px focus ring inside the scroll clip.
+              ...(Platform.OS === 'web'
+                ? { paddingTop: focusRingPad, paddingBottom: focusRingPad }
+                : {}),
             }}
             testID="practice-column"
             importantForAccessibility={backgroundA11yHide}

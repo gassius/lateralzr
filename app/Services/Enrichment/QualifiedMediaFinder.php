@@ -202,7 +202,7 @@ class QualifiedMediaFinder
                 kind: $kind,
                 license: $license,
                 source: 'wikimedia',
-                purpose: $this->inferPurpose($title, MediaLicense::alt($ext) ?? '', $mime),
+                purpose: $this->inferPurpose($title, MediaLicense::alt($ext) ?? ''),
                 alt: MediaLicense::alt($ext),
                 creator: MediaLicense::creator($ext),
                 sourcePageUrl: $sourcePageUrl,
@@ -247,7 +247,7 @@ class QualifiedMediaFinder
         return $url;
     }
 
-    private function inferPurpose(string $fileTitle, string $description, string $mime): string
+    private function inferPurpose(string $fileTitle, string $description): ?string
     {
         $name = preg_replace('/^File:/i', '', $fileTitle) ?? $fileTitle;
         $blob = strtolower(str_replace('_', ' ', $name).' '.$description);
@@ -263,11 +263,8 @@ class QualifiedMediaFinder
         if (preg_match('/\b(inscription|manuscript|caption|labelled|labeled text)\b/', $blob) === 1) {
             return 'text-bearing';
         }
-        if (in_array($mime, ['image/png', 'image/svg+xml', 'image/gif'], true)) {
-            return 'diagram';
-        }
 
-        return 'photo';
+        return null;
     }
 
     /**

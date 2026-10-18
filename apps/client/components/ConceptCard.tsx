@@ -822,16 +822,18 @@ export function ConceptCard({
   const licenceNameNode = creditModel.licenceName
     ? flipped && creditModel.licenceUrl
       ? (
-          <Text
+          <Pressable
             accessibilityRole="link"
             accessibilityLabel={t('licenceLinkA11y', { name: creditModel.licenceName })}
+            onPressIn={onBackInteractivePress}
             onPress={openLicence}
+            hitSlop={{ top: linkHitSlop, bottom: linkHitSlop, left: 8, right: 8 }}
+            style={styles.linkHit}
             testID="card-back-licence"
-            style={[textStyle('meta'), styles.creditInk]}
             {...licenceWebKeyProps}
           >
-            {creditModel.licenceName}
-          </Text>
+            <Text style={[textStyle('meta'), styles.creditInk]}>{creditModel.licenceName}</Text>
+          </Pressable>
         )
       : (
           <Text
@@ -851,12 +853,21 @@ export function ConceptCard({
         onPointerDown={onBackInteractivePress}
         style={styles.credit}
       >
-        <Text style={[textStyle('meta'), styles.creditInk]} testID="card-back-credit">
-          {creditLead}
-          {creditLead && licenceNameNode ? ' · ' : null}
+        <View
+          style={styles.creditRow}
+          testID="card-back-credit"
+        >
+          {creditLead ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{creditLead}</Text>
+          ) : null}
+          {creditLead && licenceNameNode ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{' · '}</Text>
+          ) : null}
           {licenceNameNode}
-          {changeNoticeLabel ? ` · ${changeNoticeLabel}` : null}
-        </Text>
+          {changeNoticeLabel ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{` · ${changeNoticeLabel}`}</Text>
+          ) : null}
+        </View>
       </View>
     ) : null;
 
@@ -1329,6 +1340,11 @@ const styles = StyleSheet.create({
   },
   credit: {
     marginTop: 12,
+  },
+  creditRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
   },
   creditInk: {
     color: color.mutedOnPaper,
