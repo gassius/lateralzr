@@ -1,4 +1,4 @@
-import { color, layout, motion } from '../theme/tokens';
+import { layout, motion } from '../theme/tokens';
 import {
   clampLaterality,
   LATERALITY_LABEL_KEYS,
@@ -19,16 +19,6 @@ export const LATERALITY_MINI_RAIL_HEIGHT = 28;
 /** Selected radio ring + row radius (guide §12.1). */
 export const LATERALITY_SHEET_RADIO_SIZE = 24;
 export const LATERALITY_SHEET_ROW_RADIUS = 14;
-
-/** Parse `#RRGGBBAA` (or opaque hex) alpha for the sheet scrim. */
-export function sheetScrimAlpha(scrimHex: string = color.scrim): number {
-  const n = scrimHex.replace('#', '');
-  if (n.length === 8) return parseInt(n.slice(6, 8), 16) / 255;
-  return 1;
-}
-
-/** Dimmed shell behind the floating Paper card (`color.scrim` ≈ 45%). */
-export const SHEET_BACKDROP_ALPHA = sheetScrimAlpha();
 
 export type LateralitySheetRow = {
   grade: LateralityGrade;

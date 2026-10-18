@@ -80,6 +80,16 @@ test.describe('laterality sheet', () => {
     });
   });
 
+  test('at 200% text the last row is reachable by scrolling', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=4&locale=en&e2eTextScale=2');
+    await openLateralitySheet(page);
+    const last = page.getByTestId('laterality-sheet-row-5');
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await expect(page.getByTestId('laterality-sheet')).toHaveCount(0);
+    await expect(page.getByTestId('laterality-label')).toContainText('Random entry');
+  });
+
   test('tapping row 5 commits Random entry, closes, and POSTs laterality 5', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&laterality=4&locale=en');
     await expect(page.getByTestId('laterality-label')).toContainText('Laterality · Provocation');

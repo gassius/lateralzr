@@ -11,6 +11,7 @@ import {
 import Svg, { Circle, Line } from 'react-native-svg';
 import { Sheet } from '@/components/Sheet';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { t } from '@/lib/i18n';
 import {
   LATERALITY_MINI_RAIL_DOT_COUNT,
@@ -189,7 +190,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.sheetGroup,
     borderRadius: layout.sheetGroupRadius,
     overflow: 'hidden',
-    paddingVertical: 4,
+    padding: A11Y_FOCUS_RING.widthPx + A11Y_FOCUS_RING.offsetPx,
   },
   row: {
     minHeight: LATERALITY_SHEET_ROW_MIN_HEIGHT,

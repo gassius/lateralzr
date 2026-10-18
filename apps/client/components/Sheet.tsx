@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import {
   AccessibilityInfo,
   BackHandler,
+  InteractionManager,
   PixelRatio,
   Platform,
   Pressable,
@@ -129,6 +130,8 @@ export function Sheet({
   const titleHostOpacity = sheetTitleHostOpacity(titleMeasure);
   const wasVisibleRef = useRef(visible);
   const focusedTitleThisOpenRef = useRef(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const progress = useSharedValue(visible ? 1 : 0);
   const reduceMotionRef = useRef(reduceMotion);
   const returnFocusRefStable = useRef(returnFocusRef);
@@ -173,15 +176,8 @@ export function Sheet({
     return () => clearTimeout(timer);
   }, [mounted, titleMeasure.frozenWidth]);
 
-  // F7: title focus on the rising edge of a mounted open — not a delayed
-  // timer. Playwright's fake clock pumps leftover setTimeout/rAF and would
-  // steal focus back from the Motion row (Lz-59).
-  useLayoutEffect(() => {
-    if (!visible) {
-      focusedTitleThisOpenRef.current = false;
-      return;
-    }
-    if (!mounted || focusedTitleThisOpenRef.current) return;
+  const focusOpenTitle = () => {
+    if (focusedTitleThisOpenRef.current || !visibleRef.current) return;
     focusedTitleThisOpenRef.current = true;
     focusSheetHost(titleRef);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -189,6 +185,18 @@ export function Sheet({
         preventScroll: true,
       });
     }
+  };
+
+  // F7 web: focus immediately so Playwright's fake clock never has a leftover
+  // timer to steal the Motion row. Native waits until the open animation
+  // commits — setAccessibilityFocus before that is often a no-op (PRR B2).
+  useLayoutEffect(() => {
+    if (!visible) {
+      focusedTitleThisOpenRef.current = false;
+      return;
+    }
+    if (!mounted || Platform.OS !== 'web') return;
+    focusOpenTitle();
   }, [visible, mounted, titleTestID]);
 
   // Open/close animation — deps are visibility only (PRR B1: unstable onBack must
@@ -198,10 +206,22 @@ export function Sheet({
       wasVisibleRef.current = true;
       setMounted(true);
       const duration = sheetMotionDurationMs(reduceMotionRef.current);
-      progress.value = withTiming(1, {
-        duration,
-        easing: Easing.out(Easing.cubic),
-      });
+      const focusNativeTitle = () => {
+        if (Platform.OS === 'web') return;
+        focusOpenTitle();
+      };
+      if (duration <= 0) {
+        progress.value = 1;
+        const handle = InteractionManager.runAfterInteractions(focusNativeTitle);
+        return () => handle.cancel();
+      }
+      progress.value = withTiming(
+        1,
+        { duration, easing: Easing.out(Easing.cubic) },
+        (finished) => {
+          if (finished) runOnJS(focusNativeTitle)();
+        },
+      );
       return;
     }
 
@@ -447,6 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: layout.sheetRadius,
     overflow: 'hidden',
     minHeight: 0,
+    flexShrink: 1,
   },
   handleStrip: {
     height: layout.sheetHandleStrip,

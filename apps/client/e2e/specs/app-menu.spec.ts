@@ -67,6 +67,18 @@ test.describe('app menu', () => {
     });
   });
 
+  test('at 200% text the Complexity last row is reachable by scrolling', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en&e2eTextScale=2');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-complexity').click();
+    const last = page.getByTestId('app-menu-complexity-row-5');
+    await last.scrollIntoViewIfNeeded();
+    await last.click();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-complexity-rows')).toHaveCount(0);
+    await expect(page.getByTestId('app-menu-row-value-complexity')).toBeVisible();
+  });
+
   // AD: Complexity picker radios for Lz-31 parity review.
   for (const locale of ['en', 'es'] as const) {
     test(`complexity picker (${locale})`, async ({ page }, testInfo) => {

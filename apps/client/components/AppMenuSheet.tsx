@@ -8,6 +8,7 @@ import {
   type RefObject,
 } from 'react';
 import {
+  InteractionManager,
   Platform,
   Pressable,
   ScrollView,
@@ -69,8 +70,8 @@ import {
   motionPreferenceLabelKey,
   type MotionPreference,
 } from '@/lib/motionStorage';
+import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { focusSheetHost } from '@/lib/sheetFocus';
-import { resolveSheetFocusIntent } from '@/lib/sheetFocusIntent';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
@@ -333,7 +334,6 @@ export function AppMenuSheet({
   const pendingMotionRowFocusRef = useRef(false);
 
   const focusMenuTitle = useCallback(() => {
-    if (resolveSheetFocusIntent('nestedOpen') !== 'title') return;
     focusSheetTitleOnOpen(focusSheetHost, sheetTitleRef);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document.querySelector<HTMLElement>('[data-testid="app-menu-title"]')?.focus?.({
@@ -342,13 +342,7 @@ export function AppMenuSheet({
     }
   }, []);
 
-  /**
-   * Focus Motion row after preference-driven re-render (fake-clock safe; no setTimeout).
-   * Sheet open used to delay title focus with setTimeout; that timer stole this
-   * row when the e2e clock pumped. Title focus is now a one-shot layout effect.
-   */
   const focusMotionMenuRow = useCallback(() => {
-    if (resolveSheetFocusIntent('motionViewClose') !== 'motionRow') return;
     focusMotionRowOnClose(focusSheetHost, motionRowRef);
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document
@@ -357,8 +351,9 @@ export function AppMenuSheet({
     }
   }, []);
 
-  // F7: nested open → title; Motion close → Motion row. useLayoutEffect so
-  // Playwright does not need rAF/timer ticks under page.clock.
+  // F7: nested open → title; Motion close → Motion row.
+  // Web: layout-effect (Playwright fake clock). Native: after interactions so
+  // VoiceOver/TalkBack see the committed host (PRR B2).
   useLayoutEffect(() => {
     if (!visible) {
       pendingMotionRowFocusRef.current = false;
@@ -366,11 +361,24 @@ export function AppMenuSheet({
     }
     if (view !== 'root') {
       pendingMotionRowFocusRef.current = false;
-      focusMenuTitle();
-      return;
+      if (Platform.OS === 'web') {
+        focusMenuTitle();
+        return;
+      }
+      const handle = InteractionManager.runAfterInteractions(focusMenuTitle);
+      return () => handle.cancel();
     }
     if (!pendingMotionRowFocusRef.current) return;
-    focusMotionMenuRow();
+    const applyMotionRow = () => {
+      focusMotionMenuRow();
+      pendingMotionRowFocusRef.current = false;
+    };
+    if (Platform.OS === 'web') {
+      applyMotionRow();
+      return;
+    }
+    const handle = InteractionManager.runAfterInteractions(applyMotionRow);
+    return () => handle.cancel();
   }, [view, visible, motionPreference, reduceMotion, focusMenuTitle, focusMotionMenuRow]);
 
   const onRowPress = (row: AppMenuRowDef) => {
@@ -442,7 +450,12 @@ export function AppMenuSheet({
       reduceMotion={reduceMotion}
     >
       {view === 'root' ? (
-        <View style={styles.list} testID="app-menu-rows">
+        <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          testID="app-menu-rows"
+        >
           {groupedAppMenuRows(rows).map((group) => (
             <View key={group.key} style={styles.group} testID={`app-menu-group-${group.key}`}>
               {group.rows.map((row, index) => (
@@ -464,7 +477,7 @@ export function AppMenuSheet({
               ))}
             </View>
           ))}
-        </View>
+        </ScrollView>
       ) : null}
       {view === 'language' ? (
         <View style={styles.languageView} testID="app-menu-language">
@@ -603,8 +616,13 @@ export function AppMenuSheet({
 }
 
 const styles = StyleSheet.create({
-  /** Content-height list — do not stretch the short sheet. */
+  /** Grow into the panel body; scroll when 200% text overflows the 92% cap. */
   list: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  listContent: {
     paddingBottom: 8,
     gap: 12,
   },
@@ -612,7 +630,7 @@ const styles = StyleSheet.create({
     backgroundColor: color.sheetGroup,
     borderRadius: layout.sheetGroupRadius,
     overflow: 'hidden',
-    paddingHorizontal: 4,
+    padding: A11Y_FOCUS_RING.widthPx + A11Y_FOCUS_RING.offsetPx,
   },
   row: {
     minHeight: APP_MENU_ROW_MIN_HEIGHT,

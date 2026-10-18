@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { setActiveLocale, t } from './i18n.ts';
-import { color, layout, motion } from '../theme/tokens.ts';
+import { layout, motion } from '../theme/tokens.ts';
 import {
   lateralityMiniRailSelectedDot,
   lateralitySheetCommitValue,
@@ -11,9 +11,7 @@ import {
   LATERALITY_SHEET_RADIO_SIZE,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
   LATERALITY_SHEET_ROW_RADIUS,
-  SHEET_BACKDROP_ALPHA,
   sheetMotionDurationMs,
-  sheetScrimAlpha,
 } from './lateralitySheet.ts';
 
 describe('lateralitySheetRows', () => {
@@ -80,13 +78,6 @@ describe('laterality sheet layout constants', () => {
     assert.equal(LATERALITY_SHEET_ROW_MIN_HEIGHT, layout.sheetRowHeight);
     assert.equal(LATERALITY_SHEET_RADIO_SIZE, 24);
     assert.equal(LATERALITY_SHEET_ROW_RADIUS, 14);
-  });
-
-  it('scrim is color.scrim (~45% black)', () => {
-    assert.equal(color.scrim, '#00000073');
-    assert.equal(sheetScrimAlpha(), 0x73 / 255);
-    assert.equal(SHEET_BACKDROP_ALPHA, 0x73 / 255);
-    assert.ok(Math.abs(SHEET_BACKDROP_ALPHA - 0.45) < 0.002);
   });
 
   it('mini rail is a 5-dot echo of the selected grade', () => {

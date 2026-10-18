@@ -204,25 +204,20 @@ describe('groupedAppMenuRows', () => {
 });
 
 describe('focusSheetTitleOnOpen / focusMotionRowOnClose (F7)', () => {
-  it('moves focus onto the title host (not Back) when a nested view opens', () => {
-    const focused: unknown[] = [];
+  it('10× nested open focuses the title host, Motion close focuses the Motion row (not Back)', () => {
     const titleRef = { current: { id: 'title' } };
     const backRef = { current: { id: 'back' } };
-    focusSheetTitleOnOpen((ref) => {
-      focused.push(ref);
-    }, titleRef);
-    assert.deepEqual(focused, [titleRef]);
-    assert.notEqual(focused[0], backRef);
-  });
-
-  it('returns focus to the Motion row when the Motion view closes, every time', () => {
     const motionRowRef = { current: { id: 'motion-row' } };
     for (let i = 0; i < 10; i += 1) {
-      const focused: unknown[] = [];
-      focusMotionRowOnClose((ref) => {
-        focused.push(ref);
-      }, motionRowRef);
-      assert.deepEqual(focused, [motionRowRef]);
+      const focused: Array<{ id: string }> = [];
+      const focus = (ref: { current: { id: string } | null }) => {
+        if (ref.current) focused.push(ref.current);
+      };
+      focusSheetTitleOnOpen(focus, titleRef);
+      assert.equal(focused.at(-1)?.id, 'title');
+      assert.notEqual(focused.at(-1)?.id, backRef.current.id);
+      focusMotionRowOnClose(focus, motionRowRef);
+      assert.equal(focused.at(-1)?.id, 'motion-row');
     }
   });
 });

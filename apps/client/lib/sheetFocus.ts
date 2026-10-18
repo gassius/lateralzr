@@ -1,12 +1,6 @@
 import { AccessibilityInfo, findNodeHandle, Platform, type View } from 'react-native';
 import type { RefObject } from 'react';
 
-export {
-  resolveSheetFocusIntent,
-  type SheetFocusEvent,
-  type SheetFocusTarget,
-} from './sheetFocusIntent';
-
 /** Move a11y / keyboard focus onto a host View (title on open, label on close). */
 export function focusSheetHost(ref: RefObject<View | null> | null | undefined): void {
   const node = ref?.current;
