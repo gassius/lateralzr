@@ -199,6 +199,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   /** Peer (behind / return overlay) opacity during RM commit cross-fade (0 → 1). */
   const peerCommitOpacity = useSharedValue(0);
   const swipeAnimating = useSharedValue(false);
+  /** Invalidates a late index-change `runOnUI` reset after a new commit starts. */
+  const indexMotionSerialSV = useSharedValue(0);
   const canSwipeRightSV = useSharedValue(0);
   const showDeckStatusSV = useSharedValue(0);
   const cardWidthSV = useSharedValue(360);
@@ -475,8 +477,14 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
     returnOverlaySuppressSV.value = 1;
 
+    const resetSerial = indexMotionSerialSV.value + 1;
+    indexMotionSerialSV.value = resetSerial;
     runOnUI(() => {
       'worklet';
+      // A newer keyboard/gesture commit may have started before this reset lands.
+      if (indexMotionSerialSV.value !== resetSerial || swipeAnimating.value) {
+        return;
+      }
       translateX.value = 0;
       translateY.value = 0;
       swipeAnimating.value = false;
@@ -725,6 +733,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     (kind: 'next' | 'previous' | 'complexityUp' | 'complexityDown') => {
       if (swipeAnimating.value) return;
       swipeAnimating.value = true;
+      indexMotionSerialSV.value += 1;
       coachPeekX.value = 0;
       flipPeek.value = 0;
       setPulseDragging(true);
@@ -809,6 +818,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       coachPeekX,
       flipPeek,
       frontCommitOpacity,
+      indexMotionSerialSV,
       peerCommitOpacity,
       swipeAnimating,
       translateX,
