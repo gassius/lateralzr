@@ -37,38 +37,38 @@
   },
   {
     "file": "app-menu_complexity-picker_390x844_en.png",
-    "ratio": 0.8879374772147284,
-    "percent": 88.79374772147284,
+    "ratio": 0.8996172074371126,
+    "percent": 89.96172074371125,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 1169094,
+    "mismatchedPixels": 1184472,
     "diffImage": "app-menu_complexity-picker_390x844_en.diff.png"
   },
   {
     "file": "app-menu_motion-picker_390x844_en.png",
-    "ratio": 0.9163370397375137,
-    "percent": 91.63370397375137,
+    "ratio": 0.9264012942034269,
+    "percent": 92.64012942034269,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 1206486,
+    "mismatchedPixels": 1219737,
     "diffImage": "app-menu_motion-picker_390x844_en.diff.png"
   },
   {
     "file": "app-menu_open_390x844_en.png",
-    "ratio": 0.8889088892939604,
-    "percent": 88.89088892939604,
+    "ratio": 0.9049018714303074,
+    "percent": 90.49018714303074,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 1170373,
+    "mismatchedPixels": 1191430,
     "diffImage": "app-menu_open_390x844_en.diff.png"
   },
   {
     "file": "laterality-sheet_open_390x844_en.png",
-    "ratio": 0.8884136893911776,
-    "percent": 88.84136893911776,
+    "ratio": 0.8885891359825009,
+    "percent": 88.85891359825008,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 1169721,
+    "mismatchedPixels": 1169952,
     "diffImage": "laterality-sheet_open_390x844_en.diff.png"
   },
   {
