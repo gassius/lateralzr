@@ -185,7 +185,8 @@ describe('list / pick / apply connector opacity', () => {
     assert.notEqual(line!.x1, line!.x2);
     assert.ok(line!.endR >= 6);
     const overlay = buildConnectorGlowOverlayXml(line!);
-    assert.match(overlay, /feGaussianBlur/);
+    assert.doesNotMatch(overlay, /<filter/);
+    assert.doesNotMatch(overlay, /feGaussianBlur/);
     assert.match(overlay, /<circle /);
     assert.match(overlay, /#FFC98A/);
     assert.doesNotMatch(overlay, /motif-bulb/);

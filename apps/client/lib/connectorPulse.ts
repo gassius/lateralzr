@@ -171,25 +171,32 @@ export function readConnectorGlowLine(
   return { x1, y1, x2, y2, strokeWidth, endX, endY, endR };
 }
 
-/** Tiny overlay SVG: connector + terminal node, soft 3 px halo. Memoize; do not put this on the 57 KB pattern. */
+/**
+ * Fake a 3 px soft halo without SVG filters: stacked strokes at +6/+4/+2.
+ * Only used on the tiny active-connector overlay (not the 57 KB pattern).
+ */
+export const CONNECTOR_GLOW_HALO_RINGS = [
+  { extra: 6, opacity: 0.1 },
+  { extra: 4, opacity: 0.2 },
+  { extra: 2, opacity: 0.3 },
+] as const;
+
+/** Tiny overlay SVG: connector + terminal node, stacked-stroke halo. No `<filter>`. */
 export function buildConnectorGlowOverlayXml(geometry: ConnectorGlowLine): string {
-  const glow = motion.glow;
-  const halo = glow.haloPx;
-  const haloBlur = halo / 2;
-  const haloStroke = geometry.strokeWidth + halo;
+  const fill = PATTERN_PULSE_GLOW_FILL;
+  const line = (width: number, opacity: number) =>
+    `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke="${fill}" stroke-width="${width}" stroke-opacity="${opacity}" stroke-linecap="round" fill="none"/>`;
+  const ring = (r: number, width: number, opacity: number) =>
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${r}" fill="none" stroke="${fill}" stroke-width="${width}" stroke-opacity="${opacity}"/>`;
+  const rings = CONNECTOR_GLOW_HALO_RINGS.flatMap(({ extra, opacity }) => [
+    line(geometry.strokeWidth + extra, opacity),
+    ring(geometry.endR, extra, opacity),
+  ]);
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}">`,
-    `<defs><filter id="lz-glow-halo" x="-80%" y="-80%" width="260%" height="260%">`,
-    `<feGaussianBlur in="SourceGraphic" stdDeviation="${haloBlur}"/>`,
-    `</filter></defs>`,
-    `<g filter="url(#lz-glow-halo)" fill="${PATTERN_PULSE_GLOW_FILL}" fill-opacity="${glow.haloOpacity}" stroke="${PATTERN_PULSE_GLOW_FILL}" stroke-opacity="${glow.haloOpacity}">`,
-    `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke-width="${haloStroke}" stroke-linecap="round"/>`,
-    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR + haloBlur}"/>`,
-    `</g>`,
-    `<g fill="${PATTERN_PULSE_GLOW_FILL}" stroke="${PATTERN_PULSE_GLOW_FILL}">`,
-    `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke-width="${geometry.strokeWidth}" stroke-linecap="round"/>`,
-    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR}"/>`,
-    `</g>`,
+    ...rings,
+    line(geometry.strokeWidth, 1),
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR}" fill="${fill}" stroke="${fill}"/>`,
     `</svg>`,
   ].join('');
 }
