@@ -132,17 +132,30 @@ export type ConnectorGlowLine = {
   x2: number;
   y2: number;
   strokeWidth: number;
-  /** Terminal node (data-motif-end) in card units. */
+  /** Terminal node ring the connector ends on — always (`x2`,`y2`), never the bulb centre. */
   endX: number;
   endY: number;
   endR: number;
 };
 
+/** Mark node ring in card units (§11.3). Never a whole bulb. */
+export const CONNECTOR_GLOW_NODE_R = 2.5;
+export const CONNECTOR_GLOW_NODE_R_MAX = 4;
+
+/**
+ * Fake a 3 px soft halo without SVG filters.
+ * Line extras +2/+4/+6; node rings r+1/+2/+3. Inner → outer opacities.
+ * Overlay-only (not the 57 KB pattern).
+ */
+export const CONNECTOR_GLOW_HALO_OPACITIES = [0.55, 0.35, 0.18] as const;
+export const CONNECTOR_GLOW_LINE_EXTRAS = [2, 4, 6] as const;
+export const CONNECTOR_GLOW_NODE_RING_EXTRAS = [1, 2, 3] as const;
+export const CONNECTOR_GLOW_NODE_RING_STROKE = 2;
+
 /** Core inter-bulb line + terminal node for the UI-thread glow overlay (no SVG rewrite). */
 export function readConnectorGlowLine(
   xml: string,
   connectorId: string,
-  variant: PatternVariantIndex = 0,
 ): ConnectorGlowLine | null {
   if (!connectorId) return null;
   const groupRe = new RegExp(
@@ -150,7 +163,6 @@ export function readConnectorGlowLine(
   );
   const match = groupRe.exec(xml);
   if (!match) return null;
-  const groupAttrs = match[1] ?? '';
   const attrs = match[2] ?? '';
   const num = (name: string, source: string = attrs): number | null => {
     const found = new RegExp(`\\b${name}="([^"]+)"`).exec(source);
@@ -163,40 +175,34 @@ export function readConnectorGlowLine(
   const y2 = num('y2');
   const strokeWidth = num('stroke-width') ?? 1.1;
   if (x1 == null || y1 == null || x2 == null || y2 == null) return null;
-  const endId = /\bdata-motif-end="(m\d+)"/.exec(groupAttrs)?.[1];
-  const end = endId ? motifCenter(variant, endId) : null;
-  const endX = end?.cx ?? x2;
-  const endY = end?.cy ?? y2;
-  const endR = Math.max(6, Math.hypot(endX - x2, endY - y2));
-  return { x1, y1, x2, y2, strokeWidth, endX, endY, endR };
+  const endR = Math.min(CONNECTOR_GLOW_NODE_R_MAX, CONNECTOR_GLOW_NODE_R);
+  return { x1, y1, x2, y2, strokeWidth, endX: x2, endY: y2, endR };
 }
-
-/**
- * Fake a 3 px soft halo without SVG filters: stacked strokes at +6/+4/+2.
- * Only used on the tiny active-connector overlay (not the 57 KB pattern).
- */
-export const CONNECTOR_GLOW_HALO_RINGS = [
-  { extra: 6, opacity: 0.1 },
-  { extra: 4, opacity: 0.2 },
-  { extra: 2, opacity: 0.3 },
-] as const;
 
 /** Tiny overlay SVG: connector + terminal node, stacked-stroke halo. No `<filter>`. */
 export function buildConnectorGlowOverlayXml(geometry: ConnectorGlowLine): string {
   const fill = PATTERN_PULSE_GLOW_FILL;
+  const endR = Math.min(CONNECTOR_GLOW_NODE_R_MAX, geometry.endR);
   const line = (width: number, opacity: number) =>
     `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke="${fill}" stroke-width="${width}" stroke-opacity="${opacity}" stroke-linecap="round" fill="none"/>`;
-  const ring = (r: number, width: number, opacity: number) =>
-    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${r}" fill="none" stroke="${fill}" stroke-width="${width}" stroke-opacity="${opacity}"/>`;
-  const rings = CONNECTOR_GLOW_HALO_RINGS.flatMap(({ extra, opacity }) => [
-    line(geometry.strokeWidth + extra, opacity),
-    ring(geometry.endR, extra, opacity),
-  ]);
+  const ring = (r: number, opacity: number) =>
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${r}" fill="none" stroke="${fill}" stroke-width="${CONNECTOR_GLOW_NODE_RING_STROKE}" stroke-opacity="${opacity}"/>`;
+  const layers: string[] = [];
+  for (let i = CONNECTOR_GLOW_LINE_EXTRAS.length - 1; i >= 0; i -= 1) {
+    const extra = CONNECTOR_GLOW_LINE_EXTRAS[i]!;
+    const opacity = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+    layers.push(line(geometry.strokeWidth + extra, opacity));
+  }
+  for (let i = CONNECTOR_GLOW_NODE_RING_EXTRAS.length - 1; i >= 0; i -= 1) {
+    const extra = CONNECTOR_GLOW_NODE_RING_EXTRAS[i]!;
+    const opacity = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+    layers.push(ring(endR + extra, opacity));
+  }
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}">`,
-    ...rings,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}" preserveAspectRatio="xMidYMid slice">`,
+    ...layers,
     line(geometry.strokeWidth, 1),
-    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR}" fill="${fill}" stroke="${fill}"/>`,
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${endR}" fill="${fill}" fill-opacity="1" stroke="none"/>`,
     `</svg>`,
   ].join('');
 }

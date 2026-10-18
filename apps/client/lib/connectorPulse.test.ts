@@ -14,6 +14,12 @@ import {
   randomPulseCycleMs,
   randomPulsePauseMs,
   buildConnectorGlowOverlayXml,
+  CONNECTOR_GLOW_HALO_OPACITIES,
+  CONNECTOR_GLOW_LINE_EXTRAS,
+  CONNECTOR_GLOW_NODE_R,
+  CONNECTOR_GLOW_NODE_R_MAX,
+  CONNECTOR_GLOW_NODE_RING_EXTRAS,
+  CONNECTOR_GLOW_NODE_RING_STROKE,
   readConnectorGlowLine,
   readConnectorPulseOpacity,
 } from './connectorPulse.ts';
@@ -179,16 +185,68 @@ describe('list / pick / apply connector opacity', () => {
     assert.equal(before, after);
     const rest = applyConnectorPulseOpacity(next, id!, 0);
     assert.equal(readConnectorPulseOpacity(rest, id!), 0);
-    const line = readConnectorGlowLine(built.xml, id!, 1);
+    const line = readConnectorGlowLine(built.xml, id!);
     assert.ok(line);
     assert.ok(line!.strokeWidth > 0);
     assert.notEqual(line!.x1, line!.x2);
-    assert.ok(line!.endR >= 6);
+    assert.equal(line!.endX, line!.x2);
+    assert.equal(line!.endY, line!.y2);
+    assert.equal(line!.endR, CONNECTOR_GLOW_NODE_R);
+    assert.ok(line!.endR <= CONNECTOR_GLOW_NODE_R_MAX);
     const overlay = buildConnectorGlowOverlayXml(line!);
     assert.doesNotMatch(overlay, /<filter/);
     assert.doesNotMatch(overlay, /feGaussianBlur/);
     assert.match(overlay, /<circle /);
     assert.match(overlay, /#FFC98A/);
     assert.doesNotMatch(overlay, /motif-bulb/);
+  });
+
+  it('registers the overlay on the pattern and lights the connector endpoint, not the bulb', () => {
+    const xml = patternSvgForVariant(0);
+    const line = readConnectorGlowLine(xml, 'c01');
+    assert.ok(line);
+    assert.equal(line!.x2, 81.2);
+    assert.equal(line!.y2, 49.5);
+    assert.equal(line!.endX, line!.x2);
+    assert.equal(line!.endY, line!.y2);
+    assert.equal(line!.endR, 2.5);
+    assert.ok(line!.endR <= 4);
+
+    const bulb = PATTERN_VARIANT_PLACEMENTS[0].motifs.find((m) => m.id === 'm02');
+    assert.ok(bulb);
+    assert.notEqual(line!.endX, bulb!.cx);
+    assert.notEqual(line!.endY, bulb!.cy);
+
+    const overlay = buildConnectorGlowOverlayXml(line!);
+    assert.match(overlay, /preserveAspectRatio="xMidYMid slice"/);
+    assert.doesNotMatch(overlay, /<filter/);
+    assert.doesNotMatch(overlay, /feGaussianBlur/);
+    assert.match(
+      overlay,
+      new RegExp(
+        `<circle cx="${line!.x2}" cy="${line!.y2}" r="${line!.endR}" fill="#FFC98A" fill-opacity="1"`,
+      ),
+    );
+    assert.doesNotMatch(overlay, new RegExp(`cx="${bulb!.cx}"`));
+    assert.doesNotMatch(overlay, /<circle[^>]*r="(?:[6-9]|\d{2,})(?:\.\d+)?"/);
+
+    for (let i = 0; i < CONNECTOR_GLOW_LINE_EXTRAS.length; i += 1) {
+      const width = line!.strokeWidth + CONNECTOR_GLOW_LINE_EXTRAS[i]!;
+      const opacity = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+      assert.match(
+        overlay,
+        new RegExp(`stroke-width="${width}" stroke-opacity="${opacity}" stroke-linecap="round"`),
+      );
+    }
+    for (let i = 0; i < CONNECTOR_GLOW_NODE_RING_EXTRAS.length; i += 1) {
+      const r = line!.endR + CONNECTOR_GLOW_NODE_RING_EXTRAS[i]!;
+      const opacity = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+      assert.match(
+        overlay,
+        new RegExp(
+          `<circle cx="${line!.x2}" cy="${line!.y2}" r="${r}" fill="none" stroke="#FFC98A" stroke-width="${CONNECTOR_GLOW_NODE_RING_STROKE}" stroke-opacity="${opacity}"/>`,
+        ),
+      );
+    }
   });
 });

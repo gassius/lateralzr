@@ -62,7 +62,7 @@ function ConnectorGlowOverlay({
   const xml = useMemo(() => buildConnectorGlowOverlayXml(geometry), [geometry]);
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
-      <SvgXml xml={xml} width={width} height={height} />
+      <SvgXml xml={xml} width={width} height={height} preserveAspectRatio="xMidYMid slice" />
     </Animated.View>
   );
 }
