@@ -14,11 +14,13 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { t } from '@/lib/i18n';
 import {
-  LATERALITY_MINI_RAIL_DOT_COUNT,
+  LATERALITY_MINI_RAIL_DOT_RADIUS,
   LATERALITY_MINI_RAIL_HEIGHT,
   LATERALITY_SHEET_RADIO_SIZE,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
   LATERALITY_SHEET_ROW_RADIUS,
+  lateralityMiniRailContentWidth,
+  lateralityMiniRailDotCenters,
   lateralityMiniRailSelectedDot,
   lateralitySheetCommitValue,
   lateralitySheetRows,
@@ -54,39 +56,42 @@ function LateralityRadio({ checked }: { checked: boolean }) {
 function LateralityMiniRail({ grade }: { grade: LateralityGrade }) {
   const [width, setWidth] = useState(0);
   const selected = lateralityMiniRailSelectedDot(grade);
-  const inset = 5;
-  const usable = Math.max(0, width - inset * 2);
-  const step = LATERALITY_MINI_RAIL_DOT_COUNT > 1 ? usable / (LATERALITY_MINI_RAIL_DOT_COUNT - 1) : 0;
+  const centers = lateralityMiniRailDotCenters(width);
   const cy = LATERALITY_MINI_RAIL_HEIGHT / 2;
+  const first = centers[0] ?? 0;
+  const last = centers[centers.length - 1] ?? 0;
 
   return (
     <View
       accessible={false}
       importantForAccessibility="no-hide-descendants"
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
-      onLayout={(event) => setWidth(Math.round(event.nativeEvent.layout.width))}
+      onLayout={(event) => {
+        const measured = Math.round(event.nativeEvent.layout.width);
+        setWidth(lateralityMiniRailContentWidth(measured, layout.screenGutter));
+      }}
       style={styles.miniRail}
       testID="laterality-sheet-mini-rail"
     >
       {width > 0 ? (
         <Svg width={width} height={LATERALITY_MINI_RAIL_HEIGHT} accessible={false}>
           <Line
-            x1={inset}
+            x1={first}
             y1={cy}
-            x2={width - inset}
+            x2={last}
             y2={cy}
             stroke={color.rail}
             strokeWidth={1.75}
             strokeLinecap="round"
           />
-          {Array.from({ length: LATERALITY_MINI_RAIL_DOT_COUNT }, (_, i) => {
+          {centers.map((cx, i) => {
             const n = (i + 1) as LateralityGrade;
             return (
               <Circle
                 key={n}
-                cx={inset + step * i}
+                cx={cx}
                 cy={cy}
-                r={4.5}
+                r={LATERALITY_MINI_RAIL_DOT_RADIUS}
                 fill={n === selected ? color.front : color.rail}
               />
             );

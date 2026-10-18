@@ -15,6 +15,32 @@ export const LATERALITY_SHEET_ROW_MIN_HEIGHT = layout.sheetRowHeight;
 /** Decorative mini rail under the Laterality helper (§12.1). Hidden from AT. */
 export const LATERALITY_MINI_RAIL_DOT_COUNT = 5;
 export const LATERALITY_MINI_RAIL_HEIGHT = 28;
+export const LATERALITY_MINI_RAIL_DOT_RADIUS = 4.5;
+/** Keep each circle inside the Svg (radius 4.5). */
+export const LATERALITY_MINI_RAIL_DOT_INSET = 5;
+
+/**
+ * Svg width is the mini-rail content box. `onLayout` reports the padded view,
+ * so subtract `paddingHorizontal` or the 5th dot clips (AD W1).
+ */
+export function lateralityMiniRailContentWidth(
+  layoutWidth: number,
+  paddingHorizontal: number = layout.screenGutter,
+): number {
+  return Math.max(0, layoutWidth - paddingHorizontal * 2);
+}
+
+/** Five evenly spaced centre Xs for a connected rail of `svgWidth`. */
+export function lateralityMiniRailDotCenters(svgWidth: number): number[] {
+  const inset = LATERALITY_MINI_RAIL_DOT_INSET;
+  const usable = Math.max(0, svgWidth - inset * 2);
+  const step =
+    LATERALITY_MINI_RAIL_DOT_COUNT > 1 ? usable / (LATERALITY_MINI_RAIL_DOT_COUNT - 1) : 0;
+  return Array.from(
+    { length: LATERALITY_MINI_RAIL_DOT_COUNT },
+    (_, i) => inset + step * i,
+  );
+}
 
 /** Selected radio ring + row radius (guide §12.1). */
 export const LATERALITY_SHEET_RADIO_SIZE = 24;

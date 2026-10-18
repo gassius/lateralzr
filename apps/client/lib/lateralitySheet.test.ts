@@ -3,10 +3,13 @@ import { describe, it } from 'node:test';
 import { setActiveLocale, t } from './i18n.ts';
 import { layout, motion } from '../theme/tokens.ts';
 import {
+  lateralityMiniRailContentWidth,
+  lateralityMiniRailDotCenters,
   lateralityMiniRailSelectedDot,
   lateralitySheetCommitValue,
   lateralitySheetRows,
   LATERALITY_MINI_RAIL_DOT_COUNT,
+  LATERALITY_MINI_RAIL_DOT_RADIUS,
   LATERALITY_MINI_RAIL_HEIGHT,
   LATERALITY_SHEET_RADIO_SIZE,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
@@ -86,5 +89,22 @@ describe('laterality sheet layout constants', () => {
     assert.equal(lateralityMiniRailSelectedDot(4), 4);
     assert.equal(lateralityMiniRailSelectedDot(0), 1);
     assert.equal(lateralityMiniRailSelectedDot(9), 5);
+  });
+
+  it('sizes the Svg inside paddingHorizontal so all five dots fit (AD W1)', () => {
+    const layoutWidth = 358;
+    const svgWidth = lateralityMiniRailContentWidth(layoutWidth, layout.screenGutter);
+    assert.equal(svgWidth, layoutWidth - layout.screenGutter * 2);
+    const clippedIfUnpadded = lateralityMiniRailDotCenters(layoutWidth);
+    assert.ok(
+      clippedIfUnpadded[4]! + LATERALITY_MINI_RAIL_DOT_RADIUS > svgWidth,
+      'using the padded onLayout width must overflow the content box',
+    );
+    const centers = lateralityMiniRailDotCenters(svgWidth);
+    assert.equal(centers.length, 5);
+    for (const cx of centers) {
+      assert.ok(cx - LATERALITY_MINI_RAIL_DOT_RADIUS >= 0);
+      assert.ok(cx + LATERALITY_MINI_RAIL_DOT_RADIUS <= svgWidth);
+    }
   });
 });
