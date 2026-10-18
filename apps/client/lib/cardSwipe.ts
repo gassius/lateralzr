@@ -6,7 +6,7 @@
  * Timing and angles come from `motion.swipe` / `motion.deck` tokens.
  */
 
-import { motion, spacing } from '@/theme/tokens';
+import { motion, shadow, spacing } from '@/theme/tokens';
 import { REDUCED_MOTION_CROSSFADE_MS } from '@/lib/reducedMotion';
 
 /** Re-export shared RM first-paint helpers (Lz-34). Prefer `@/lib/reducedMotion`. */
@@ -174,13 +174,12 @@ export function swipeAxisProgress(translation: number, extent: number): number {
 }
 
 /**
- * Horizontal rotateZ: 8° at 50% width, max 12° while dragging, 14° on exit.
+ * Horizontal rotateZ while dragging: 8° at 50% width, max 12°.
  * Sign follows the swipe (left / negative tx → negative rotateZ).
  */
-export function cardSwipeTiltZDeg(
+export function cardSwipeDragTiltZDeg(
   tx: number,
   width: number,
-  exiting: boolean,
   reduceMotion: boolean,
 ): number {
   'worklet';
@@ -192,10 +191,48 @@ export function cardSwipeTiltZDeg(
   } else {
     mag = SWIPE_TILT_Z_DEG_AT_HALF + (SWIPE_TILT_Z_DEG_MAX - SWIPE_TILT_Z_DEG_AT_HALF) * Math.min(1, (p - 0.5) / 0.5);
   }
-  if (exiting) mag = Math.max(mag, SWIPE_TILT_Z_DEG_EXIT);
-  mag = Math.min(mag, exiting ? SWIPE_TILT_Z_DEG_EXIT : SWIPE_TILT_Z_DEG_MAX);
+  mag = Math.min(mag, SWIPE_TILT_Z_DEG_MAX);
   const signed = tx < 0 ? -mag : mag;
   return signed === 0 ? 0 : signed;
+}
+
+/**
+ * Exit rotateZ: lerp the signed release angle to ±14° over exitProgress 0→1.
+ * `exitSign` is −1 (next / left) or 1 (previous / right) when release was 0
+ * (keyboard / a11y Next starts at 0° and must still ramp, not jump).
+ */
+export function cardSwipeExitTiltZDeg(
+  releaseTiltZDeg: number,
+  exitProgress: number,
+  exitSign: number,
+): number {
+  'worklet';
+  const p = clampSigned(exitProgress, 0, 1);
+  const sign =
+    releaseTiltZDeg !== 0 ? (releaseTiltZDeg < 0 ? -1 : 1) : exitSign < 0 ? -1 : exitSign > 0 ? 1 : -1;
+  const mag = lerp(Math.abs(releaseTiltZDeg), SWIPE_TILT_Z_DEG_EXIT, p);
+  const signed = sign * mag;
+  return signed === 0 ? 0 : signed;
+}
+
+/**
+ * Horizontal rotateZ: drag curve, or a 260 ms ramp from the release angle to 14°
+ * while `exitProgress` is in (0, 1].
+ */
+export function cardSwipeTiltZDeg(
+  tx: number,
+  width: number,
+  reduceMotion: boolean,
+  exitProgress: number = 0,
+  releaseTiltZDeg: number = 0,
+  exitSign: number = 0,
+): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  if (exitProgress > 0) {
+    return cardSwipeExitTiltZDeg(releaseTiltZDeg, exitProgress, exitSign);
+  }
+  return cardSwipeDragTiltZDeg(tx, width, reduceMotion);
 }
 
 /** Horizontal rotateY ≤ 3°, signed with travel. */
@@ -225,10 +262,10 @@ export function cardSwipeVerticalRollDeg(ty: number, height: number, reduceMotio
   return signed === 0 ? 0 : signed;
 }
 
-/** Dampened finger-Y while dragging horizontally. */
+/** Dampened finger-Y while dragging horizontally. RM stays axis-locked (no Y). */
 export function cardSwipeFollowY(translationY: number, reduceMotion: boolean): number {
   'worklet';
-  if (reduceMotion) return translationY;
+  if (reduceMotion) return 0;
   return translationY * SWIPE_FOLLOW_Y_FACTOR;
 }
 
@@ -247,6 +284,33 @@ export function cardSwipeLiftShadowPx(progress: number, reduceMotion: boolean): 
   'worklet';
   if (reduceMotion) return 0;
   return SWIPE_LIFT_SHADOW_PX * clampSigned(progress, 0, 1);
+}
+
+export type CardSwipeShadowStyle = {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
+};
+
+/**
+ * Card lift shadow with full §23 tokens (color / opacity / radius / elevation).
+ * Incomplete offset+elevation-only shadows render as a hard black bar on RN-web.
+ */
+export function cardSwipeLiftShadowStyle(liftPx: number): CardSwipeShadowStyle {
+  'worklet';
+  const lift = Math.max(0, liftPx);
+  return {
+    shadowColor: shadow.card.color,
+    shadowOffset: {
+      width: shadow.card.offsetWidth,
+      height: shadow.card.offsetHeight + lift,
+    },
+    shadowOpacity: shadow.card.opacity,
+    shadowRadius: shadow.card.radius,
+    elevation: shadow.card.elevation + lift,
+  };
 }
 
 /** Covered current card while the previous card enters on top. */
@@ -289,6 +353,36 @@ export type DeckUnderlayReveal = {
  * Drag progress 0 → 1 rises scale 0.95 → 1, offset 10 → 0, tint 0.22 → 0.
  * Reduced motion keeps scale/offset at rest values (no scale motion).
  */
+/**
+ * Next-card underlay drag progress. Ignore vertical drift during a right
+ * (back) swipe so the next card cannot show under the covered card.
+ */
+export function deckUnderlayDragProgress(
+  translateX: number,
+  translateY: number,
+  width: number,
+  height: number,
+): number {
+  'worklet';
+  const leftP = translateX < 0 ? swipeAxisProgress(translateX, width) : 0;
+  const vertP = translateX <= 0 ? swipeAxisProgress(translateY, height) : 0;
+  return Math.max(leftP, vertP);
+}
+
+/**
+ * RM commit zeros translate, so drag progress is 0. Reveal the incoming layer
+ * from `peerCommitOpacity` (0→1 over the 150 ms cross-fade) instead.
+ */
+export function deckCommitCrossfadeProgress(
+  dragProgress: number,
+  peerCommitOpacity: number,
+): number {
+  'worklet';
+  const drag = Math.max(0, dragProgress);
+  const peer = Math.min(1, Math.max(0, peerCommitOpacity));
+  return Math.max(drag, peer);
+}
+
 export function deckUnderlayReveal(
   dragProgress: number,
   reduceMotion: boolean,
@@ -399,7 +493,9 @@ export function cardSwipeFrontTransform(
   width: number,
   height: number,
   reduceMotion: boolean,
-  exiting: boolean = false,
+  exitProgress: number = 0,
+  releaseTiltZDeg: number = 0,
+  exitSign: number = 0,
 ): CardSwipeTransform {
   'worklet';
   if (!shouldUseCardSwipe3d(reduceMotion)) {
@@ -407,7 +503,14 @@ export function cardSwipeFrontTransform(
   }
   const horizontal = Math.abs(translateX) >= Math.abs(translateY);
   if (horizontal) {
-    const tiltZ = cardSwipeTiltZDeg(translateX, width, exiting, reduceMotion);
+    const tiltZ = cardSwipeTiltZDeg(
+      translateX,
+      width,
+      reduceMotion,
+      exitProgress,
+      releaseTiltZDeg,
+      exitSign,
+    );
     const tiltY = cardSwipeTiltYDeg(translateX, width, reduceMotion);
     return bottomCenterPivot(translateX, translateY, height, 0, tiltY, tiltZ);
   }

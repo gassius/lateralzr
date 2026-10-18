@@ -75,6 +75,18 @@ describe('app-wide Motion preference wiring (PRR B1)', () => {
   });
 });
 
+describe('back→front flip progress lives on the stack (AD B1)', () => {
+  it('stack animates flipProgress on toggle and passes the shared value into the card', () => {
+    const cardSrc = readFileSync(path.join(here, '../components/ConceptCard.tsx'), 'utf8');
+    const flipSrc = readFileSync(path.join(here, 'cardFlip.ts'), 'utf8');
+    assert.match(stackSrc, /const flipProgress = useSharedValue\(0\)/);
+    assert.match(stackSrc, /flipProgress\.value = withTiming\(next \? 1 : 0/);
+    assert.match(stackSrc, /flipProgress=\{flipProgress\}/);
+    assert.match(cardSrc, /flipProgressShared/);
+    assert.match(flipSrc, /rotateY: `\$\{-180 \+ 180 \* p\}deg`/);
+  });
+});
+
 describe('cardFlipFaceStyle', () => {
   it('under RM: opacity only, no rotate / perspective', () => {
     const front = cardFlipFaceStyle(0.4, 'front', true);
@@ -117,7 +129,7 @@ describe('cardFlipFaceStyle', () => {
     assert.ok(back.transform.some((s) => 'perspective' in s));
   });
 
-  it('pins rotateY 0→180 front and 180→360 back (both directions)', () => {
+  it('pins rotateY 0→180 front and −180→0 back (symmetric both directions)', () => {
     const rotateY = (
       progress: number,
       face: 'front' | 'back',
@@ -133,9 +145,14 @@ describe('cardFlipFaceStyle', () => {
     assert.equal(rotateY(0.5, 'front'), '90deg');
     assert.equal(rotateY(1, 'front'), '180deg');
 
-    assert.equal(rotateY(0, 'back'), '180deg');
-    assert.equal(rotateY(0.5, 'back'), '270deg');
-    assert.equal(rotateY(1, 'back'), '360deg');
+    assert.equal(rotateY(0, 'back'), '-180deg');
+    assert.equal(rotateY(0.5, 'back'), '-90deg');
+    assert.equal(rotateY(1, 'back'), '0deg');
+
+    // Reverse samples match the same curve (no 360deg wrap that snaps on web).
+    assert.equal(rotateY(0.99, 'front'), rotateY(0.99, 'front'));
+    assert.notEqual(rotateY(1, 'back'), '360deg');
+    assert.notEqual(rotateY(0, 'back'), '180deg');
   });
 
   it('exposes only one AT face after the midpoint', () => {

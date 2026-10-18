@@ -1053,28 +1053,30 @@ export default function HomeScreen() {
                 } as Record<string, unknown>)
               : null)}
           >
-            <ConceptCardStack
-              ref={cardStackRef}
-              concepts={concepts}
-              currentIndex={currentIndex}
-              complexity={complexity}
-              onSwipeLeft={onSwipeLeft}
-              onSwipeRight={onSwipeRight}
-              onSwipeForwardVertical={onSwipeForwardVertical}
-              onDeckMotionChange={setDeckMoving}
-              availableHeight={Math.max(
-                0,
-                usableHeight -
-                  lateralityChromeReserve(usableHeight, lateralityControlHeight) -
-                  (accessibleNavVisible ? accessibleNavHeight : 0),
-              )}
-              showDeckLoading={showDeckLoading}
-              showInitialLoading={showInitialLoading}
-              loadMoreError={loadMoreError || noNextIdea}
-              sheetOpen={lateralitySheetOpen || appMenuOpen}
-              onReplayGestureTipsReady={onReplayGestureTipsReady}
-              onCoachTipChange={onCoachTipChange}
-            />
+            <View style={styles.deckStackLayer} testID="deck-stack-layer">
+              <ConceptCardStack
+                ref={cardStackRef}
+                concepts={concepts}
+                currentIndex={currentIndex}
+                complexity={complexity}
+                onSwipeLeft={onSwipeLeft}
+                onSwipeRight={onSwipeRight}
+                onSwipeForwardVertical={onSwipeForwardVertical}
+                onDeckMotionChange={setDeckMoving}
+                availableHeight={Math.max(
+                  0,
+                  usableHeight -
+                    lateralityChromeReserve(usableHeight, lateralityControlHeight) -
+                    (accessibleNavVisible ? accessibleNavHeight : 0),
+                )}
+                showDeckLoading={showDeckLoading}
+                showInitialLoading={showInitialLoading}
+                loadMoreError={loadMoreError || noNextIdea}
+                sheetOpen={lateralitySheetOpen || appMenuOpen}
+                onReplayGestureTipsReady={onReplayGestureTipsReady}
+                onCoachTipChange={onCoachTipChange}
+              />
+            </View>
             {accessibleNavVisible ? (
               <View pointerEvents={deckMoving ? 'none' : 'auto'}>
                 <AccessibleNavRow
@@ -1090,6 +1092,7 @@ export default function HomeScreen() {
             ) : null}
             <View
               pointerEvents={deckMoving ? 'none' : 'auto'}
+              style={styles.lateralityChrome}
               testID="laterality-chrome"
             >
               <LateralityControl
@@ -1144,6 +1147,7 @@ export default function HomeScreen() {
             style={[
               styles.practiceColumn,
               { maxHeight: usableHeight, flex: 1, overflow: 'visible' },
+              deckMoving ? styles.deckMovingGroup : null,
             ]}
             contentContainerStyle={{
               minHeight: usableHeight,
@@ -1263,6 +1267,20 @@ const styles = StyleSheet.create({
   cardLateralityGroup: {
     width: '100%',
     position: 'relative',
+  },
+  /**
+   * Stack wrapper is a sibling of laterality-chrome. zIndex only works between
+   * siblings, so the moving card must raise THIS wrapper (not only frontWrap).
+   */
+  deckStackLayer: {
+    position: 'relative',
+    zIndex: 40,
+    elevation: 40,
+  },
+  lateralityChrome: {
+    position: 'relative',
+    zIndex: 1,
+    elevation: 1,
   },
   /** While dragging / exiting, the card stacks above the ellipsis (zIndex 30). */
   deckMovingGroup: {

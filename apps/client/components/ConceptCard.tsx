@@ -157,6 +157,11 @@ type ConceptCardProps = {
   backScrollOffsetY?: SharedValue<number>;
   backScrollContentH?: SharedValue<number>;
   backScrollViewportH?: SharedValue<number>;
+  /**
+   * Stack-owned 0–1 flip progress. Lives above this card so a remount on
+   * back→front (a11y role / wiki tree) cannot snap progress to 0.
+   */
+  flipProgress?: SharedValue<number>;
 };
 
 export function ConceptCard({
@@ -174,6 +179,7 @@ export function ConceptCard({
   backScrollOffsetY,
   backScrollContentH,
   backScrollViewportH,
+  flipProgress: flipProgressShared,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const { width: windowWidth } = useWindowDimensions();
@@ -215,7 +221,8 @@ export function ConceptCard({
   /** True once B2 fallback is painted — late onTextLayout must not resize. */
   const nativeFallbackVisibleRef = useRef(false);
   /** 0 = front, 1 = back — opacity + rotate crossfade (reliable vs single rotateY + overflow on RN). */
-  const flipProgress = useSharedValue(0);
+  const fallbackFlipProgress = useSharedValue(0);
+  const flipProgress = flipProgressShared ?? fallbackFlipProgress;
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
@@ -364,11 +371,12 @@ export function ConceptCard({
   const nativeProbeText = conceptFrontTitleNativeProbeText(title);
 
   useEffect(() => {
+    if (flipProgressShared) return;
     flipProgress.value = withTiming(flipped ? 1 : 0, {
       duration: flipDurationMs(reduceMotion),
       easing: Easing.out(Easing.cubic),
     });
-  }, [flipped, flipProgress, reduceMotion]);
+  }, [flipped, flipProgress, flipProgressShared, reduceMotion]);
 
   useAnimatedReaction(
     () => cardFlipA11yFace(flipProgress.value),
@@ -805,7 +813,7 @@ export function ConceptCard({
   const showReferenceLinks = resolveShowReferenceLinks(journeyTestParams);
   const showMediaCredits = resolveShowMediaCredits(journeyTestParams);
   const backWiki = showReferenceLinks && item.wikiUrl ? (
-    flipped ? (
+    presentedFace === 'back' ? (
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={t('wikipedia')}

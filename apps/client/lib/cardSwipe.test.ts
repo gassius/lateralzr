@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   DECK_NEXT_OFFSET_Y,
   DECK_NEXT_SCALE,
@@ -35,9 +38,12 @@ import {
   cardCoveredTint,
   cardReturnOverlayTiltYDeg,
   cardReturnOverlayTiltZDeg,
+  cardSwipeDragTiltZDeg,
+  cardSwipeExitTiltZDeg,
   cardSwipeFollowY,
   cardSwipeFrontTransform,
   cardSwipeLiftShadowPx,
+  cardSwipeLiftShadowStyle,
   cardSwipePitchDeg,
   cardSwipeReturnOverlayTransform,
   cardSwipeTiltYDeg,
@@ -45,7 +51,9 @@ import {
   cardSwipeTransformHasRotateOrPerspective,
   cardSwipeTranslationAfterHandoff,
   cardSwipeVerticalRollDeg,
+  deckCommitCrossfadeProgress,
   deckLayerVisibility,
+  deckUnderlayDragProgress,
   deckUnderlayReveal,
   deckUnderlayTransform,
   initialPrefersReducedMotion,
@@ -58,6 +66,10 @@ import {
   swipeShouldSlideOutOnCommit,
 } from './cardSwipe.ts';
 import { motion, spacing } from '../theme/tokens.ts';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const stackSrc = readFileSync(path.join(here, '../components/ConceptCardStack.tsx'), 'utf8');
+const indexSrc = readFileSync(path.join(here, '../app/index.tsx'), 'utf8');
 
 const CARD_W = 360;
 const CARD_H = 500;
@@ -132,7 +144,7 @@ describe('shouldCommitSwipe', () => {
 
 describe('directional tilt transforms', () => {
   it('is exactly 0 at rest (no rotate / perspective)', () => {
-    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, false), 0);
+    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false), 0);
     assert.equal(cardSwipeTiltYDeg(0, CARD_W, false), 0);
     assert.equal(cardSwipePitchDeg(0, CARD_H, false), 0);
     assert.equal(cardSwipeVerticalRollDeg(0, CARD_H, false), 0);
@@ -145,13 +157,28 @@ describe('directional tilt transforms', () => {
     assert.equal(x?.rotateX, '0deg');
   });
 
-  it('left swipe: 8° rotateZ at 50% width, max 12°, exit 14°, rotateY ≤ 3°', () => {
-    assert.equal(cardSwipeTiltZDeg(-0.5 * CARD_W, CARD_W, false, false), -8);
-    assert.equal(cardSwipeTiltZDeg(-CARD_W, CARD_W, false, false), -12);
-    assert.equal(cardSwipeTiltZDeg(-CARD_W, CARD_W, true, false), -14);
+  it('left swipe: 8° rotateZ at 50% width, max 12°, rotateY ≤ 3°', () => {
+    assert.equal(cardSwipeTiltZDeg(-0.5 * CARD_W, CARD_W, false), -8);
+    assert.equal(cardSwipeTiltZDeg(-CARD_W, CARD_W, false), -12);
+    assert.equal(cardSwipeDragTiltZDeg(-CARD_W, CARD_W, false), -12);
     const yaw = cardSwipeTiltYDeg(-CARD_W, CARD_W, false);
     assert.ok(Math.abs(yaw) <= 3);
     assert.ok(yaw < 0);
+  });
+
+  it('interpolates exit tilt from the release angle to 14° over 260 ms', () => {
+    const release = cardSwipeTiltZDeg(-0.3 * CARD_W, CARD_W, false);
+    assert.equal(release, -4.8);
+    assert.equal(cardSwipeExitTiltZDeg(release, 0, -1), -4.8);
+    assert.ok(Math.abs(cardSwipeExitTiltZDeg(release, 0.5, -1) - -9.4) < 1e-10);
+    assert.equal(cardSwipeExitTiltZDeg(release, 1, -1), -14);
+    assert.equal(cardSwipeTiltZDeg(-0.3 * CARD_W, CARD_W, false, 1, release, -1), -14);
+    // Keyboard / a11y Next: release 0° ramps to −14°, never jumps on frame 0.
+    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 0, 0, -1), 0);
+    assert.equal(cardSwipeExitTiltZDeg(0, 0, -1), 0);
+    assert.equal(cardSwipeExitTiltZDeg(0, 0.5, -1), -7);
+    assert.equal(cardSwipeExitTiltZDeg(0, 1, -1), -14);
+    assert.equal(cardSwipeExitTiltZDeg(0, 1, 1), 14);
   });
 
   it('right overlay starts at −10° Z and −3° Y and settles to 0', () => {
@@ -189,6 +216,20 @@ describe('directional tilt transforms', () => {
     assert.equal(cardSwipeLiftShadowPx(0, false), 0);
     assert.equal(cardSwipeLiftShadowPx(1, false), 6);
     assert.equal(cardSwipeLiftShadowPx(1, true), 0);
+  });
+
+  it('lift shadow style carries §23 color / opacity / radius (no hard black bar)', () => {
+    const rest = cardSwipeLiftShadowStyle(0);
+    assert.equal(rest.shadowColor, '#000000');
+    assert.equal(rest.shadowOffset.height, 4);
+    assert.equal(rest.shadowOpacity, 0.18);
+    assert.equal(rest.shadowRadius, 12);
+    assert.equal(rest.elevation, 4);
+    const lifted = cardSwipeLiftShadowStyle(6);
+    assert.equal(lifted.shadowOffset.height, 10);
+    assert.equal(lifted.elevation, 10);
+    assert.equal(lifted.shadowOpacity, 0.18);
+    assert.equal(lifted.shadowColor, rest.shadowColor);
   });
 });
 
@@ -272,9 +313,10 @@ describe('reduced-motion swipe commit branch', () => {
     assert.deepEqual(ret, [{ translateX: -CARD_W * 0.4 }]);
     assert.equal(cardSwipeTransformHasRotateOrPerspective(front), false);
     assert.equal(cardSwipeTransformHasRotateOrPerspective(ret), false);
-    assert.equal(cardSwipeTiltZDeg(-180, CARD_W, true, true), 0);
+    assert.equal(cardSwipeTiltZDeg(-180, CARD_W, true, 1, -8, -1), 0);
     assert.equal(cardSwipePitchDeg(-200, CARD_H, true), 0);
-    assert.equal(cardSwipeFollowY(40, true), 40);
+    assert.equal(cardSwipeFollowY(40, true), 0);
+    assert.equal(cardSwipeFollowY(-30, true), 0);
   });
 
   it('keeps settle timing / ±8 shift / slide-out when RM is off', () => {
@@ -290,6 +332,45 @@ describe('reduced-motion swipe commit branch', () => {
     assert.equal(SWIPE_EASING(1), 1);
     assert.ok(SWIPE_EASING(0.5) > 0.5);
     assert.ok(Math.abs(SWIPE_EASING(0.5) - (1 - 0.5 ** 3)) < 1e-12);
+  });
+});
+
+describe('underlay axis lock and RM cross-fade', () => {
+  it('ignores vertical drift while translating right (back swipe)', () => {
+    assert.equal(deckUnderlayDragProgress(-80, 0, CARD_W, CARD_H), 80 / CARD_W);
+    assert.equal(deckUnderlayDragProgress(80, 40, CARD_W, CARD_H), 0);
+    assert.equal(deckUnderlayDragProgress(0, 100, CARD_W, CARD_H), 100 / CARD_H);
+    assert.equal(deckUnderlayDragProgress(-10, 100, CARD_W, CARD_H), Math.max(10 / CARD_W, 100 / CARD_H));
+  });
+
+  it('RM commit reveal uses peer opacity when drag is zeroed', () => {
+    assert.equal(deckCommitCrossfadeProgress(0, 0), 0);
+    assert.equal(deckCommitCrossfadeProgress(0, 0.4), 0.4);
+    assert.equal(deckCommitCrossfadeProgress(0, 1), 1);
+    assert.equal(deckCommitCrossfadeProgress(0.8, 0.2), 0.8);
+    const rest = deckUnderlayReveal(deckCommitCrossfadeProgress(0, 0), true, false);
+    assert.equal(rest.opacity, 0);
+    const mid = deckUnderlayReveal(deckCommitCrossfadeProgress(0, 0.5), true, false);
+    assert.equal(mid.opacity, 1);
+  });
+});
+
+describe('stack / shell wiring (AD B2–B4, M3)', () => {
+  it('raises the stack wrapper above laterality-chrome and the ellipsis while moving', () => {
+    assert.match(indexSrc, /style=\{styles\.deckStackLayer\}/);
+    assert.match(indexSrc, /deckStackLayer:\s*\{[\s\S]*zIndex:\s*40/);
+    assert.match(indexSrc, /lateralityChrome:\s*\{[\s\S]*zIndex:\s*1/);
+    assert.match(indexSrc, /style=\{styles\.lateralityChrome\}/);
+    const movingGroupHits = indexSrc.split('deckMoving ? styles.deckMovingGroup').length - 1;
+    assert.ok(movingGroupHits >= 3, `expected deckMovingGroup on group + both practice columns, got ${movingGroupHits}`);
+  });
+
+  it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {
+    assert.match(stackSrc, /rmPeerLayerSV\.value < 0 \? peerCommitOpacity\.value/);
+    assert.match(stackSrc, /rmPeerLayerSV\.value > 0 \? peerCommitOpacity\.value/);
+    assert.match(stackSrc, /deckCommitCrossfadeProgress/);
+    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(lift\)/);
+    assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
   });
 });
 

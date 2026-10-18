@@ -9,8 +9,10 @@
  * only rotated 90° (door) and `flipped` swapped pointerEvents + a11y at the
  * *start* of the reverse animation. Combined with an opacity cut at 0.48–0.52
  * while both faces were edge-on, back→front could read as a snap. This module
- * uses a 180° rotateY on both directions and exposes the AT face only after
- * the midpoint (`cardFlipA11yFace`).
+ * uses a 180° rotateY on both directions (front 0→180, back −180→0 so reverse
+ * never wraps 360deg≡0deg) and exposes the AT face only after the midpoint
+ * (`cardFlipA11yFace`). The 0–1 progress shared value lives on the stack so a
+ * card remount cannot snap reverse to a flat front.
  */
 
 import { motion } from '@/theme/tokens';
@@ -66,7 +68,9 @@ function flipFaceOpacity(progress: number, face: 'front' | 'back'): number {
 /**
  * Front / back face presentation for a 0–1 flip progress.
  * Peek is already folded into `progress` by the caller.
- * Full motion: rotateY 0→180 (front) and 180→360 (back), both directions.
+ * Full motion: rotateY 0→180 (front) and −180→0 (back), both directions.
+ * Back uses −180→0 rather than 180→360 so reverse does not wrap through
+ * 360deg≡0deg (RN-web would snap the first reverse frame to a flat front).
  */
 export function cardFlipFaceStyle(
   progress: number,
@@ -99,7 +103,7 @@ export function cardFlipFaceStyle(
   return {
     opacity,
     backfaceVisibility: 'hidden',
-    transform: [{ perspective: 1200 }, { rotateY: `${180 + 180 * p}deg` }],
+    transform: [{ perspective: 1200 }, { rotateY: `${-180 + 180 * p}deg` }],
   };
 }
 
