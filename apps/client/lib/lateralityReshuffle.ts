@@ -53,12 +53,14 @@ export const RESHUFFLE_CARD_INPUT_DURING_SHUFFLE = reshuffle.cardInputDuringShuf
 
 /** 0 = even fan, 1 = odd fan. Ping-pongs on the fractional riffle tick. */
 export function riffleFanMix(riffle: number): number {
+  'worklet';
   if (!Number.isFinite(riffle)) return 0;
   const phase = ((riffle % 2) + 2) % 2;
   return phase <= 1 ? phase : 2 - phase;
 }
 
 export function riffleFanOffset(index: number, riffle: number): number {
+  'worklet';
   const even = (index - 1) * RESHUFFLE_FAN_OFFSET_PX;
   const odd = -even;
   const mix = riffleFanMix(riffle);
@@ -66,6 +68,7 @@ export function riffleFanOffset(index: number, riffle: number): number {
 }
 
 export function riffleFanDeg(index: number, riffle: number): number {
+  'worklet';
   const even = RESHUFFLE_FAN_DEG[index] ?? 0;
   const odd = -even;
   const mix = riffleFanMix(riffle);

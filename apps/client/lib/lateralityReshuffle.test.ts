@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { motion } from '../theme/tokens.ts';
 import { resolveReducedMotion } from './reducedMotion.ts';
 import {
@@ -68,6 +71,14 @@ describe('riffle interpolation', () => {
     assert.notEqual(mid, even);
     assert.notEqual(mid, odd);
     assert.equal(riffleFanDeg(0, 0.5), (riffleFanDeg(0, 0) + riffleFanDeg(0, 1)) / 2);
+  });
+
+  it('marks riffle helpers as worklets for the Silhouette UI thread', () => {
+    const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'lateralityReshuffle.ts'), 'utf8');
+    for (const name of ['riffleFanMix', 'riffleFanOffset', 'riffleFanDeg'] as const) {
+      const match = src.match(new RegExp(`export function ${name}\\([^)]*\\): number \\{\\n  'worklet';`));
+      assert.ok(match, `${name} must start with 'worklet'`);
+    }
   });
 });
 
