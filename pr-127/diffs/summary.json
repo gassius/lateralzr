@@ -128,11 +128,11 @@
   },
   {
     "file": "card-front_pattern-pulse-peak_390x844_en.png",
-    "ratio": 0.045278891724389356,
-    "percent": 4.527889172438935,
+    "ratio": 0.04071120427755499,
+    "percent": 4.071120427755499,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 59616,
+    "mismatchedPixels": 53602,
     "diffImage": "card-front_pattern-pulse-peak_390x844_en.diff.png"
   },
   {
