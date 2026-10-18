@@ -5,7 +5,6 @@ import Animated, {
   cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -15,7 +14,13 @@ import {
   LOGO_SVG_WHITE_REST,
 } from '@/assets/images/lateralzrLogoLayers';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { introLogoPulseAllowed, LOGO_PULSE_HALF_MS, LOGO_STAGGER_MS } from '@/lib/introLogo';
+import {
+  introLogoPulseAllowed,
+  INTRO_LOGO_PULSE_NODE_ID,
+  INTRO_LOGO_PULSE_PEAK_OPACITY,
+  LOGO_PULSE_HALF_MS,
+  recolouredIntroPulsePath,
+} from '@/lib/introLogo';
 
 /** Opacity on the parent View often does not affect SvgXml on native; animate SvgXml directly. */
 const AnimatedSvgXml = Animated.createAnimatedComponent(SvgXml);
@@ -31,11 +36,15 @@ function wrapDotPath(fragment: string) {
   return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VB_W} ${VB_H}"><g transform="translate(-5758.4912,-272.80185)">${fragment}</g></svg>`;
 }
 
+const PULSE_NODE_INDEX = LOGO_SVG_WHITE_DOT_PATHS.findIndex((fragment) =>
+  fragment.includes(`id="${INTRO_LOGO_PULSE_NODE_ID}"`),
+);
+
 type LateralzrLogoProps = {
   animate?: boolean;
 };
 
-/** Four white circle paths (path188–190 + path202) pulse in sequence over the static white rest layer. */
+/** Static lockup; optional §5.2 pulse lights one terminal mark node in #FFC98A once. */
 export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
   const reduceMotion = useReducedMotion();
   const runPulse = animate && introLogoPulseAllowed(reduceMotion);
@@ -43,43 +52,31 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
   const w = Math.min(Math.max(winW * 0.48, LOCKUP_MIN), LOCKUP_MAX);
   const h = w * (VB_H / VB_W);
 
-  const o0 = useSharedValue(1);
-  const o1 = useSharedValue(1);
-  const o2 = useSharedValue(1);
-  const o3 = useSharedValue(1);
-
+  const glow = useSharedValue(0);
   const dots = LOGO_SVG_WHITE_DOT_PATHS.map((fragment) => wrapDotPath(fragment));
+  const pulseNode = PULSE_NODE_INDEX >= 0 ? LOGO_SVG_WHITE_DOT_PATHS[PULSE_NODE_INDEX]! : null;
+  const pulseXml = pulseNode
+    ? wrapDotPath(recolouredIntroPulsePath(pulseNode))
+    : null;
 
   useEffect(() => {
-    const opacities = [o0, o1, o2, o3];
-    if (!runPulse) {
-      opacities.forEach((s) => {
-        cancelAnimation(s);
-        s.value = 1;
-      });
+    cancelAnimation(glow);
+    if (!runPulse || pulseXml == null) {
+      glow.value = 0;
       return;
     }
-    // One sequence only — last stagger + pulse = INTRO_LOGO_PULSE_MAX_MS (§5.2).
-    const pulse = withSequence(
-      withTiming(0.28, { duration: LOGO_PULSE_HALF_MS }),
-      withTiming(1, { duration: LOGO_PULSE_HALF_MS }),
+    glow.value = 0;
+    glow.value = withSequence(
+      withTiming(INTRO_LOGO_PULSE_PEAK_OPACITY, { duration: LOGO_PULSE_HALF_MS }),
+      withTiming(0, { duration: LOGO_PULSE_HALF_MS }),
     );
-    opacities.forEach((s, i) => {
-      s.value = withDelay(i * LOGO_STAGGER_MS, pulse);
-    });
     return () => {
-      opacities.forEach((s) => {
-        cancelAnimation(s);
-        s.value = 1;
-      });
+      cancelAnimation(glow);
+      glow.value = 0;
     };
-  }, [runPulse, o0, o1, o2, o3]);
+  }, [runPulse, pulseXml, glow]);
 
-  const s0 = useAnimatedStyle(() => ({ opacity: o0.value }));
-  const s1 = useAnimatedStyle(() => ({ opacity: o1.value }));
-  const s2 = useAnimatedStyle(() => ({ opacity: o2.value }));
-  const s3 = useAnimatedStyle(() => ({ opacity: o3.value }));
-  const dotStyles = [s0, s1, s2, s3];
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
 
   const dotWrap = {
     position: 'absolute' as const,
@@ -102,9 +99,18 @@ export function LateralzrLogo({ animate = false }: LateralzrLogoProps) {
           pointerEvents="none"
           {...(Platform.OS === 'android' ? { needsOffscreenAlphaCompositing: true } : {})}
         >
-          <AnimatedSvgXml xml={xml} width={w} height={h} style={dotStyles[i]!} />
+          <SvgXml xml={xml} width={w} height={h} />
         </View>
       ))}
+      {pulseXml ? (
+        <AnimatedSvgXml
+          xml={pulseXml}
+          width={w}
+          height={h}
+          style={[dotWrap, glowStyle]}
+          pointerEvents="none"
+        />
+      ) : null}
     </View>
   );
 }

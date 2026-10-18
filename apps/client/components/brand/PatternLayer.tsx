@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import Svg, { Line } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
-import { connectorPulseAllowed, type ConnectorGlowLine } from '@/lib/connectorPulse';
+import {
+  buildConnectorGlowOverlayXml,
+  connectorPulseAllowed,
+  type ConnectorGlowLine,
+} from '@/lib/connectorPulse';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
   buildPatternSvgXml,
@@ -14,8 +17,6 @@ import {
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
-import { PATTERN_CARD_UNITS, PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
-import { motion } from '@/theme/tokens';
 import type { SharedValue } from 'react-native-reanimated';
 
 type PatternLayerProps = {
@@ -58,37 +59,10 @@ function ConnectorGlowOverlay({
   height: number;
 }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const haloWidth = geometry.strokeWidth + 2 * motion.glow.haloPx;
-  const haloStrokeOpacity = motion.glow.haloOpacity / motion.glow.peakOpacity;
+  const xml = useMemo(() => buildConnectorGlowOverlayXml(geometry), [geometry]);
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
-      <Svg
-        width={width}
-        height={height}
-        viewBox={`0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}`}
-        preserveAspectRatio="xMidYMid slice"
-      >
-        <Line
-          x1={geometry.x1}
-          y1={geometry.y1}
-          x2={geometry.x2}
-          y2={geometry.y2}
-          stroke={PATTERN_PULSE_GLOW_FILL}
-          strokeWidth={haloWidth}
-          strokeLinecap="round"
-          strokeOpacity={haloStrokeOpacity}
-        />
-        <Line
-          x1={geometry.x1}
-          y1={geometry.y1}
-          x2={geometry.x2}
-          y2={geometry.y2}
-          stroke={PATTERN_PULSE_GLOW_FILL}
-          strokeWidth={geometry.strokeWidth}
-          strokeLinecap="round"
-          strokeOpacity={1}
-        />
-      </Svg>
+      <SvgXml xml={xml} width={width} height={height} />
     </Animated.View>
   );
 }

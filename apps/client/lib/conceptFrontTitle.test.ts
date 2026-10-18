@@ -20,6 +20,7 @@ import {
   clearNativeTitleMeasureCache,
   conceptFrontTitleBlockHeight,
   conceptFrontTitleBottomSpacerMinHeight,
+  conceptFrontTitleInkWidth,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
   conceptFrontTitleOverflowTopSpacerHeight,
@@ -45,6 +46,15 @@ function measure(text: string, fontSize: number): number {
 
 test('front titles are left-aligned (v3.3; supersedes Lz-04/Lz-14 centre)', () => {
   assert.equal(CONCEPT_FRONT_TITLE_TEXT_ALIGN, 'left');
+});
+
+test('ink width is the longest line, not the column', () => {
+  assert.equal(conceptFrontTitleInkWidth('Mushroom', 10, measure), measure('Mushroom', 10));
+  assert.ok(conceptFrontTitleInkWidth('Mushroom', 32, measure) < 200);
+  assert.equal(
+    conceptFrontTitleInkWidth('Short\nA much longer line', 10, measure),
+    measure('A much longer line', 10),
+  );
 });
 
 test('default size and line height match type.concept / 1.15', () => {

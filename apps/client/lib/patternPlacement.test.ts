@@ -344,6 +344,33 @@ describe('title clearing', () => {
     assert.deepEqual(motifsIntersectingClearArea(2, clear), []);
   });
 
+  it('keeps the variant 03 right-edge chain when the title is ink-sized, not full-width', () => {
+    const mushroom = { x: 24, y: 268, width: 148, height: 37 };
+    const inkClear = resolvePatternClearArea({
+      variant: 2,
+      titleFaceRect: mushroom,
+      faceWidth: 358,
+      faceHeight: 560,
+    });
+    const hiddenInk = motifsIntersectingClearArea(2, inkClear);
+    for (const id of ['m03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09']) {
+      assert.equal(hiddenInk.includes(id), false, `ink clear hid ${id}`);
+    }
+
+    const fullBox = { x: 24, y: 236, width: 318, height: 80 };
+    const fullClear = resolvePatternClearArea({
+      variant: 2,
+      titleFaceRect: fullBox,
+      faceWidth: 358,
+      faceHeight: 560,
+    });
+    const hiddenFull = motifsIntersectingClearArea(2, fullClear);
+    assert.ok(
+      hiddenFull.some((id) => ['m05', 'm06'].includes(id)),
+      'full-width title box must be what splits the edge chain',
+    );
+  });
+
   it('sets display="none" on every data-motif element for hidden ids (incl. pulse <g>)', () => {
     const { xml, hiddenMotifs, variant } = buildPatternSvgXml({
       conceptKey: 'creativity',

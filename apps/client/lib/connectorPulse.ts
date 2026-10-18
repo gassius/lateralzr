@@ -5,7 +5,7 @@
  * `#connectors` (#FFC98A). No geometry movement.
  */
 
-import { PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
+import { PATTERN_CARD_UNITS, PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
 import { motion } from '@/theme/tokens';
 import type { PatternRect, PatternVariantIndex } from '@/lib/patternPlacement';
 import { PATTERN_VARIANT_PLACEMENTS } from '@/lib/patternVariantPlacements';
@@ -132,19 +132,29 @@ export type ConnectorGlowLine = {
   x2: number;
   y2: number;
   strokeWidth: number;
+  /** Terminal node (data-motif-end) in card units. */
+  endX: number;
+  endY: number;
+  endR: number;
 };
 
-/** Core inter-bulb line for the UI-thread glow overlay (no SVG rewrite). */
-export function readConnectorGlowLine(xml: string, connectorId: string): ConnectorGlowLine | null {
+/** Core inter-bulb line + terminal node for the UI-thread glow overlay (no SVG rewrite). */
+export function readConnectorGlowLine(
+  xml: string,
+  connectorId: string,
+  variant: PatternVariantIndex = 0,
+): ConnectorGlowLine | null {
   if (!connectorId) return null;
   const groupRe = new RegExp(
-    `<g\\b[^>]*\\bid="${connectorId}"[^>]*>[\\s\\S]*?<line class="core"([^/]*)/>`,
+    `<g\\b([^>]*\\bid="${connectorId}"[^>]*)>[\\s\\S]*?<line class="core"([^/]*)/>`,
   );
-  const attrs = groupRe.exec(xml)?.[1];
-  if (!attrs) return null;
-  const num = (name: string): number | null => {
-    const match = new RegExp(`\\b${name}="([^"]+)"`).exec(attrs);
-    const n = match ? Number(match[1]) : NaN;
+  const match = groupRe.exec(xml);
+  if (!match) return null;
+  const groupAttrs = match[1] ?? '';
+  const attrs = match[2] ?? '';
+  const num = (name: string, source: string = attrs): number | null => {
+    const found = new RegExp(`\\b${name}="([^"]+)"`).exec(source);
+    const n = found ? Number(found[1]) : NaN;
     return Number.isFinite(n) ? n : null;
   };
   const x1 = num('x1');
@@ -153,7 +163,35 @@ export function readConnectorGlowLine(xml: string, connectorId: string): Connect
   const y2 = num('y2');
   const strokeWidth = num('stroke-width') ?? 1.1;
   if (x1 == null || y1 == null || x2 == null || y2 == null) return null;
-  return { x1, y1, x2, y2, strokeWidth };
+  const endId = /\bdata-motif-end="(m\d+)"/.exec(groupAttrs)?.[1];
+  const end = endId ? motifCenter(variant, endId) : null;
+  const endX = end?.cx ?? x2;
+  const endY = end?.cy ?? y2;
+  const endR = Math.max(6, Math.hypot(endX - x2, endY - y2));
+  return { x1, y1, x2, y2, strokeWidth, endX, endY, endR };
+}
+
+/** Tiny overlay SVG: connector + terminal node, soft 3 px halo. Memoize; do not put this on the 57 KB pattern. */
+export function buildConnectorGlowOverlayXml(geometry: ConnectorGlowLine): string {
+  const glow = motion.glow;
+  const halo = glow.haloPx;
+  const haloBlur = halo / 2;
+  const haloStroke = geometry.strokeWidth + halo;
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${PATTERN_CARD_UNITS.width} ${PATTERN_CARD_UNITS.height}">`,
+    `<defs><filter id="lz-glow-halo" x="-80%" y="-80%" width="260%" height="260%">`,
+    `<feGaussianBlur in="SourceGraphic" stdDeviation="${haloBlur}"/>`,
+    `</filter></defs>`,
+    `<g filter="url(#lz-glow-halo)" fill="${PATTERN_PULSE_GLOW_FILL}" fill-opacity="${glow.haloOpacity}" stroke="${PATTERN_PULSE_GLOW_FILL}" stroke-opacity="${glow.haloOpacity}">`,
+    `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke-width="${haloStroke}" stroke-linecap="round"/>`,
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR + haloBlur}"/>`,
+    `</g>`,
+    `<g fill="${PATTERN_PULSE_GLOW_FILL}" stroke="${PATTERN_PULSE_GLOW_FILL}">`,
+    `<line x1="${geometry.x1}" y1="${geometry.y1}" x2="${geometry.x2}" y2="${geometry.y2}" stroke-width="${geometry.strokeWidth}" stroke-linecap="round"/>`,
+    `<circle cx="${geometry.endX}" cy="${geometry.endY}" r="${geometry.endR}"/>`,
+    `</g>`,
+    `</svg>`,
+  ].join('');
 }
 
 function motifCenter(

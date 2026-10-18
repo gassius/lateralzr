@@ -13,6 +13,7 @@ import {
   randomIntInclusive,
   randomPulseCycleMs,
   randomPulsePauseMs,
+  buildConnectorGlowOverlayXml,
   readConnectorGlowLine,
   readConnectorPulseOpacity,
 } from './connectorPulse.ts';
@@ -178,9 +179,15 @@ describe('list / pick / apply connector opacity', () => {
     assert.equal(before, after);
     const rest = applyConnectorPulseOpacity(next, id!, 0);
     assert.equal(readConnectorPulseOpacity(rest, id!), 0);
-    const line = readConnectorGlowLine(built.xml, id!);
+    const line = readConnectorGlowLine(built.xml, id!, 1);
     assert.ok(line);
     assert.ok(line!.strokeWidth > 0);
     assert.notEqual(line!.x1, line!.x2);
+    assert.ok(line!.endR >= 6);
+    const overlay = buildConnectorGlowOverlayXml(line!);
+    assert.match(overlay, /feGaussianBlur/);
+    assert.match(overlay, /<circle /);
+    assert.match(overlay, /#FFC98A/);
+    assert.doesNotMatch(overlay, /motif-bulb/);
   });
 });

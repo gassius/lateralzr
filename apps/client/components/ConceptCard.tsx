@@ -57,6 +57,7 @@ import {
   applyNativeTitleTextLayoutOnce,
   conceptFrontTitleBlockHeight,
   conceptFrontTitleBottomSpacerMinHeight,
+  conceptFrontTitleInkWidth,
   conceptFrontTitleLineCount,
   conceptFrontTitleNativeProbeText,
   conceptFrontTitleOverflowTopSpacerHeight,
@@ -363,16 +364,27 @@ export function ConceptCard({
         : conceptFrontTitleTopSpacerHeight(frontContentFaceH, titleBlockH)
       : undefined;
   /**
-   * Pattern clear box in face pixels — recompute from spacer + line metrics whenever
-   * layout/scale changes (onLayout alone can lag after the title rises or e2eTextScale).
-   * Width prefers ink-hugging onLayout so short titles do not wipe edge motifs.
+   * Pattern clear box in face pixels — the painted title ink + margin, never the
+   * full-width Text box (§11.1 / §16.2). Falling back to column width hid the
+   * edge-current chain beside short titles.
    */
+  const titleInkWidth = conceptFrontTitleInkWidth(
+    frontTitleLayout.displayText,
+    displayFontSize,
+  );
+  const titleLayoutLooksFullBleed =
+    titleInkSize != null && titleInkSize.width >= titleContentWidth - 1;
+  const titleClearWidth = titleLayoutLooksFullBleed
+    ? titleInkWidth
+    : titleInkSize != null && titleInkSize.width > 0
+      ? Math.min(titleInkSize.width, titleInkWidth > 0 ? titleInkWidth : titleInkSize.width)
+      : titleInkWidth;
   const titleFaceRect: PatternRect | null =
-    frontTopSpacerH != null && titleLineCount > 0
+    frontTopSpacerH != null && titleLineCount > 0 && titleClearWidth > 0
       ? {
           x: facePad,
           y: facePad + frontTopSpacerH,
-          width: titleInkSize != null && titleInkSize.width > 0 ? titleInkSize.width : titleContentWidth,
+          width: titleClearWidth,
           height: Math.max(titleBlockH, titleInkSize?.height ?? 0),
         }
       : null;

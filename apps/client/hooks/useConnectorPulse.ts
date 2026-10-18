@@ -64,8 +64,8 @@ export function useConnectorPulse(options: UseConnectorPulseOptions): ConnectorP
   );
 
   const geometry = useMemo(
-    () => (connectorId ? readConnectorGlowLine(xml, connectorId) : null),
-    [xml, connectorId],
+    () => (connectorId ? readConnectorGlowLine(xml, connectorId, variant) : null),
+    [xml, connectorId, variant],
   );
 
   const opacity = useSharedValue(0);
