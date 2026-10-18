@@ -1060,6 +1060,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             <View
               style={styles.a11ySurface}
               testID="card-a11y-surface"
+              {...(Platform.OS === 'web'
+                ? ({ dataSet: { flipped: flipped ? 'true' : 'false' } } as Record<string, unknown>)
+                : null)}
               accessible={surfaceIsButton}
               accessibilityRole={surfaceIsButton ? 'button' : undefined}
               accessibilityLabel={

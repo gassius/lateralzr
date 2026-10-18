@@ -52,6 +52,104 @@ final class MediaLicense
     }
 
     /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function name(?array $extmetadata): ?string
+    {
+        $short = self::plain(self::meta($extmetadata ?? [], 'LicenseShortName'));
+
+        return $short === '' ? null : $short;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function url(?array $extmetadata): ?string
+    {
+        $url = self::plain(self::meta($extmetadata ?? [], 'LicenseUrl'));
+        if ($url === '') {
+            return null;
+        }
+
+        return filter_var($url, FILTER_VALIDATE_URL) ? $url : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function creator(?array $extmetadata): ?string
+    {
+        $artist = self::plain(self::meta($extmetadata ?? [], 'Artist'));
+        if ($artist !== '') {
+            return self::truncate($artist, 255);
+        }
+
+        $credit = self::plain(self::meta($extmetadata ?? [], 'Credit'));
+
+        return $credit === '' ? null : self::truncate($credit, 255);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function alt(?array $extmetadata): ?string
+    {
+        $description = self::plain(self::meta($extmetadata ?? [], 'ImageDescription'));
+        if ($description === '') {
+            $description = self::plain(self::meta($extmetadata ?? [], 'ObjectName'));
+        }
+
+        return $description === '' ? null : self::truncate($description, 160);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function inferTone(?array $extmetadata): ?string
+    {
+        $blob = strtolower(trim(
+            self::plain(self::meta($extmetadata ?? [], 'ImageDescription')).' '.
+            self::plain(self::meta($extmetadata ?? [], 'Categories'))
+        ));
+        if ($blob === '') {
+            return null;
+        }
+        if (preg_match('/\b(dark|night|silhouette|low[- ]light)\b/', $blob) === 1) {
+            return 'dark';
+        }
+        if (preg_match('/\b(busy|crowded|crowds|traffic)\b/', $blob) === 1) {
+            return 'busy';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extmetadata
+     */
+    public static function inferChangeNotice(?array $extmetadata, bool $resized): ?string
+    {
+        $blob = strtolower(self::plain(self::meta($extmetadata ?? [], 'ImageDescription')));
+        if (preg_match('/\b(crop(?:ped)?|cropped)\b/', $blob) === 1) {
+            return 'cropped';
+        }
+        if ($resized) {
+            return 'resized';
+        }
+
+        return null;
+    }
+
+    private static function truncate(string $value, int $max): string
+    {
+        if (mb_strlen($value) <= $max) {
+            return $value;
+        }
+
+        return rtrim(mb_substr($value, 0, $max - 1)).'…';
+    }
+
+    /**
      * @param  array<string, mixed>  $extmetadata
      */
     private static function meta(array $extmetadata, string $key): string

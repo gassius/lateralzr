@@ -147,15 +147,7 @@ test.describe('status screens', () => {
     await expect(visibleText(page, 'Mycelium')).toBeVisible();
     await expect(page.getByTestId('loading-card')).toHaveCount(0);
 
-    const stack = page.getByTestId('card-laterality-group');
-    const box = await stack.boundingBox();
-    if (!box) throw new Error('card-laterality-group has no bounding box');
-    const y = box.y + box.height * 0.3;
-    await page.mouse.move(box.x + box.width * 0.2, y);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.85, y, { steps: 16 });
-    await page.mouse.up();
-    await expect(visibleText(page, 'Mushroom')).toBeVisible({ timeout: 8_000 });
+    await swipeBack(page, 'Mushroom');
     await expect(page.getByTestId('deck-status-line')).toContainText(/Offline/i);
 
     await disableMotionCss(page);

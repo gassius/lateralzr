@@ -39,7 +39,17 @@ import {
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
   resolveContainMediaBox,
+  resolveInformativeAlt,
 } from '@/lib/cardBackMedia';
+import {
+  cardBackCreditHasRow,
+  cardBackLicenceHitSlop,
+  resolveCardBackCredit,
+} from '@/lib/cardBackCredit';
+import {
+  resolveShowMediaCredits,
+  resolveShowReferenceLinks,
+} from '@/lib/buildFlags';
 import {
   CARD_FACE_FALLBACK_WIDTH,
   CARD_SHADOW,
@@ -636,11 +646,6 @@ export function ConceptCard({
   const { rhythm } = backLayout;
   const showMediaLayer = backLayout.showMediaZone && !mediaBand.dropImage;
   const bandHeight = showMediaLayer ? mediaBand.bandHeight : 0;
-  const fade = resolveCardBackMediaFade(bandHeight);
-  const readingPadTop =
-    showMediaLayer && bandHeight > 0
-      ? Math.max(0, bandHeight - CARD_BACK_MEDIA_SEAM_OVERLAP)
-      : 0;
   const mediaSlotWidth = faceWidth > 0 ? faceWidth : 0;
   const fitPlan = resolveCardBackMediaFit({
     mediaUrl: item.mediaUrl ?? '',
@@ -652,6 +657,18 @@ export function ConceptCard({
     slotHeight: bandHeight,
   });
   const contentFit = fitPlan.contentFit;
+  const fade = resolveCardBackMediaFade({
+    bandHeight,
+    faceHeight: backFaceH,
+    contentFit,
+    tone: creditedMedia?.tone,
+  });
+  const readingPadTop =
+    showMediaLayer && bandHeight > 0
+      ? fade.kind === 'none'
+        ? bandHeight
+        : Math.max(0, bandHeight - CARD_BACK_MEDIA_SEAM_OVERLAP)
+      : 0;
   const coverPosition = coverContentPosition(creditedMedia?.focalX, creditedMedia?.focalY);
   const imageTransition = reduceMotion ? 0 : CARD_BACK_MEDIA_FADE_IN_MS;
   const containBox =
@@ -723,6 +740,11 @@ export function ConceptCard({
   // 48 px target via hitSlop only — minHeight would pad the visible underline past the
   // guide’s 20–24 px gap under the paragraph (art director / Lz-27 AC1).
   const linkHitSlop = Math.max(0, Math.ceil((LINK_HIT - backLinkFontSize) / 2));
+  const creditMetaType = textStyle('meta');
+  const licenceFontSize = Math.round(
+    ((creditMetaType.fontSize as number) || 13) * osFontScale,
+  );
+  const licenceHitSlop = cardBackLicenceHitSlop(licenceFontSize);
   const openWiki = () => {
     onBackInteractivePress?.();
     void Linking.openURL(item.wikiUrl!);
@@ -743,7 +765,9 @@ export function ConceptCard({
       : {};
   // When the front is up the card surface is one button — do not mount a nested
   // link (Lz-41 axe nested-interactive). Paint a non-interactive twin for flip.
-  const backWiki = item.wikiUrl ? (
+  const showReferenceLinks = resolveShowReferenceLinks(journeyTestParams);
+  const showMediaCredits = resolveShowMediaCredits(journeyTestParams);
+  const backWiki = showReferenceLinks && item.wikiUrl ? (
     flipped ? (
       <Pressable
         accessibilityRole="link"
@@ -772,25 +796,103 @@ export function ConceptCard({
   ) : null;
 
   // Credit only the displayed asset; other graph media may belong to a different locale.
-  const creditParts = [creditedMedia?.creator?.trim(), creditedMedia?.source?.trim()]
-    .filter((value): value is string => Boolean(value));
-  const license = creditedMedia?.license?.trim();
-  if (creditedMedia && license && creditParts.length === 0 && item.mediaUrl) {
-    try {
-      const host = new URL(item.mediaUrl).hostname;
-      creditParts.push(host === 'upload.wikimedia.org' ? t('wikimediaCommons') : host);
-    } catch {
-      // An unusable URL cannot provide a reliable source label.
-    }
-  }
-  const credit = [...new Set(creditParts)].join(', ');
-  const creditText = [credit, license].filter(Boolean).join(' · ');
-  const backCredit = showMediaLayer && creditedMedia && creditText ? (
-    <View onTouchStart={onBackInteractivePress} onPointerDown={onBackInteractivePress}>
-      <Text style={[textStyle('meta'), styles.credit]} testID="card-back-credit">
-        {t('imageCredit', { credit: creditText })}
-      </Text>
-    </View>
+  const creditModel = resolveCardBackCredit(
+    creditedMedia,
+    item.mediaUrl,
+    t('wikimediaCommons'),
+  );
+  const changeNoticeLabel = creditModel.changeNoticeKey
+    ? t(
+        creditModel.changeNoticeKey === 'cropped'
+          ? 'changeNoticeCropped'
+          : 'changeNoticeResized',
+      )
+    : creditModel.changeNoticeRaw;
+  const creditLead = creditModel.creator
+    ? t('imageCredit', { credit: creditModel.creator })
+    : '';
+  const openLicence = () => {
+    if (!creditModel.licenceUrl) return;
+    onBackInteractivePress?.();
+    void Linking.openURL(creditModel.licenceUrl);
+  };
+  const licenceWebKeyProps =
+    Platform.OS === 'web'
+      ? ({
+          onKeyDown: (event: { nativeEvent?: { key?: string }; preventDefault?: () => void; stopPropagation?: () => void }) => {
+            const key = event.nativeEvent?.key;
+            if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+            event.preventDefault?.();
+            event.stopPropagation?.();
+            openLicence();
+          },
+        } as Record<string, unknown>)
+      : {};
+  const licenceNameNode = creditModel.licenceName
+    ? flipped && creditModel.licenceUrl
+      ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={t('licenceLinkA11y', { name: creditModel.licenceName })}
+            onPressIn={onBackInteractivePress}
+            onPress={openLicence}
+            hitSlop={{ top: licenceHitSlop, bottom: licenceHitSlop, left: 8, right: 8 }}
+            style={styles.linkHit}
+            testID="card-back-licence"
+            {...licenceWebKeyProps}
+          >
+            <Text style={[textStyle('meta'), styles.creditInk]}>{creditModel.licenceName}</Text>
+          </Pressable>
+        )
+      : (
+          <Text
+            testID="card-back-licence"
+            style={[textStyle('meta'), styles.creditInk]}
+            accessible={flipped}
+            accessibilityElementsHidden={!flipped}
+          >
+            {creditModel.licenceName}
+          </Text>
+        )
+    : null;
+  const backCredit =
+    showMediaCredits && showMediaLayer && creditedMedia && cardBackCreditHasRow(creditModel) ? (
+      <View
+        onTouchStart={onBackInteractivePress}
+        onPointerDown={onBackInteractivePress}
+        style={styles.credit}
+      >
+        <View
+          style={styles.creditRow}
+          testID="card-back-credit"
+        >
+          {creditLead ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{creditLead}</Text>
+          ) : null}
+          {creditLead && licenceNameNode ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{' · '}</Text>
+          ) : null}
+          {licenceNameNode}
+          {changeNoticeLabel ? (
+            <Text style={[textStyle('meta'), styles.creditInk]}>{` · ${changeNoticeLabel}`}</Text>
+          ) : null}
+        </View>
+      </View>
+    ) : null;
+
+  const informativeAlt = resolveInformativeAlt(
+    creditedMedia?.purpose,
+    creditedMedia?.alt,
+    item.shortDescription,
+  );
+  const backAlt = informativeAlt ? (
+    <Text
+      testID="card-back-media-alt"
+      style={styles.srOnlyAbout}
+      accessibilityRole="text"
+    >
+      {informativeAlt}
+    </Text>
   ) : null;
 
   const backCopy = (
@@ -803,6 +905,7 @@ export function ConceptCard({
       }}
     >
       {backDescription}
+      {backAlt}
       {backWiki}
       {backCredit}
     </View>
@@ -844,6 +947,7 @@ export function ConceptCard({
               dataSet: {
                 mediaFit: contentFit,
                 mediaFitReason: fitPlan.reason,
+                mediaFade: fade.kind,
               },
             } as Record<string, unknown>)
           : null)}
@@ -895,11 +999,14 @@ export function ConceptCard({
             />
           )
         ) : null}
-        {fade.height > 0 ? (
+        {fade.kind !== 'none' && fade.height > 0 ? (
           <View
             style={[styles.mediaFade, { top: fade.startY, height: fade.height }]}
             pointerEvents="none"
             testID="card-back-media-fade"
+            {...(Platform.OS === 'web'
+              ? ({ dataSet: { mediaFade: fade.kind } } as Record<string, unknown>)
+              : null)}
           >
             <Svg width="100%" height="100%">
               <Defs>
@@ -992,7 +1099,7 @@ export function ConceptCard({
             showMediaLayer
               ? {
                   paddingHorizontal: facePad,
-                  paddingTop: CARD_BACK_MEDIA_SEAM_OVERLAP,
+                  paddingTop: fade.kind === 'none' ? 0 : CARD_BACK_MEDIA_SEAM_OVERLAP,
                   paddingBottom: 0,
                 }
               : null,
@@ -1241,8 +1348,15 @@ const styles = StyleSheet.create({
     color: color.ink,
   },
   credit: {
-    color: color.mutedOnPaper,
     marginTop: 12,
+  },
+  creditRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  creditInk: {
+    color: color.mutedOnPaper,
   },
   linkHit: {
     alignSelf: 'flex-start',

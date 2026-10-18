@@ -418,7 +418,22 @@ class ConceptGraphQuery
     }
 
     /**
-     * @return list<array{url:string,kind:string,license:string}>
+     * @return list<array{
+     *     url:string,
+     *     kind:string,
+     *     license:string,
+     *     purpose:?string,
+     *     alt:?string,
+     *     creator:?string,
+     *     source:?string,
+     *     sourcePageUrl:?string,
+     *     licenceName:?string,
+     *     licenceUrl:?string,
+     *     changeNotice:?string,
+     *     focalX:?float,
+     *     focalY:?float,
+     *     tone:?string
+     * }>
      */
     protected function formatMedia(Concept $concept): array
     {
@@ -430,6 +445,17 @@ class ConceptGraphQuery
             'url' => (string) $item->url,
             'kind' => (string) $item->kind,
             'license' => (string) $item->license,
+            'purpose' => $item->purpose,
+            'alt' => $item->alt,
+            'creator' => $item->creator,
+            'source' => $item->source,
+            'sourcePageUrl' => $item->source_page_url,
+            'licenceName' => $item->licence_name ?: $item->license,
+            'licenceUrl' => $item->licence_url,
+            'changeNotice' => $item->change_notice,
+            'focalX' => $item->focal_x,
+            'focalY' => $item->focal_y,
+            'tone' => $item->tone,
         ])->values()->all();
     }
 

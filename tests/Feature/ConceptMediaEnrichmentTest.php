@@ -64,6 +64,17 @@ class ConceptMediaEnrichmentTest extends TestCase
         $this->assertFalse($stored->contains(fn (ConceptMedia $media) => str_contains($media->url, 'Barque_Solaire')));
         $this->assertFalse($stored->contains(fn (ConceptMedia $media) => str_contains($media->url, 'attribution')));
 
+        $photo = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'GEM_Khufus_Boat_front_2025.jpg'));
+        $this->assertNotNull($photo);
+        $this->assertNull($photo->purpose);
+        $this->assertSame('Front of Khufu’s reconstructed solar boat.', $photo->alt);
+        $this->assertSame('Khufu photographer', $photo->creator);
+        $this->assertSame('https://commons.wikimedia.org/wiki/File:GEM_Khufus_Boat_front_2025.jpg', $photo->source_page_url);
+        $this->assertSame('CC0', $photo->licence_name);
+        $this->assertSame('https://creativecommons.org/publicdomain/zero/1.0/', $photo->licence_url);
+        $this->assertSame('resized', $photo->change_notice);
+        $this->assertNull($photo->tone);
+
         $graph = app(ConceptGraphQuery::class)->getGraph('giza solar boat', 10, 1);
         $this->assertNotNull($graph);
         $node = collect($graph['nodes'])->firstWhere('id', $term->concept_id);
@@ -71,6 +82,120 @@ class ConceptMediaEnrichmentTest extends TestCase
         $this->assertSame($term->media_url, $node['mediaUrl']);
         $this->assertCount(3, $node['media']);
         $this->assertContains('clip', array_column($node['media'], 'kind'));
+        $serialized = collect($node['media'])->firstWhere(fn (array $row): bool => str_contains((string) $row['url'], 'GEM_Khufus_Boat_front_2025.jpg'));
+        $this->assertIsArray($serialized);
+        foreach ([
+            'purpose', 'alt', 'creator', 'sourcePageUrl', 'licenceName',
+            'licenceUrl', 'changeNotice', 'focalX', 'focalY', 'tone',
+        ] as $key) {
+            $this->assertArrayHasKey($key, $serialized);
+        }
+        $this->assertNull($serialized['purpose']);
+        $this->assertSame('Khufu photographer', $serialized['creator']);
+        $this->assertSame('https://creativecommons.org/publicdomain/zero/1.0/', $serialized['licenceUrl']);
+        $this->assertSame('resized', $serialized['changeNotice']);
+    }
+
+    public function test_keywordless_jpg_and_png_store_null_purpose(): void
+    {
+        Http::fake(function (Request $request) {
+            $params = $this->params($request);
+            $host = (string) parse_url($request->url(), PHP_URL_HOST);
+            $prop = (string) ($params['prop'] ?? '');
+
+            if (($params['generator'] ?? '') === 'search') {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => [
+                                'title' => 'Stone lantern',
+                                'index' => 1,
+                                'extract' => 'A stone lantern is a traditional lantern carved from stone.',
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if ($host !== 'commons.wikimedia.org' && str_contains($prop, 'images')) {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => [
+                                'title' => 'Stone lantern',
+                                'images' => [
+                                    ['title' => 'File:Stone lantern garden.jpg'],
+                                    ['title' => 'File:Stone lantern garden.png'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            if (str_contains($prop, 'imageinfo')) {
+                return Http::response([
+                    'query' => [
+                        'pages' => [
+                            '1' => $this->imagePage(
+                                'File:Stone lantern garden.jpg',
+                                'https://upload.wikimedia.org/wikipedia/commons/1/11/Stone_lantern_garden.jpg',
+                                'image/jpeg',
+                                400000,
+                                'CC0',
+                                'false',
+                            ),
+                            '2' => $this->imagePage(
+                                'File:Stone lantern garden.png',
+                                'https://upload.wikimedia.org/wikipedia/commons/2/22/Stone_lantern_garden.png',
+                                'image/png',
+                                200000,
+                                'Public domain',
+                                'false',
+                            ),
+                        ],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['query' => ['pages' => []]], 200);
+        });
+
+        $term = $this->makeTerm(
+            'stone lantern',
+            'A traditional garden lantern made of stone.',
+        );
+
+        $stats = app(ConceptCompleteInfoService::class)->complete([$term->id], 'both');
+
+        $this->assertSame(1, $stats['wikiUpdated']);
+        $this->assertSame(1, $stats['mediaUpdated']);
+        $this->assertSame(0, $stats['failed']);
+
+        $stored = ConceptMedia::query()->where('concept_id', $term->concept_id)->orderBy('position')->get();
+        $this->assertCount(2, $stored);
+        $jpg = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'Stone_lantern_garden.jpg'));
+        $png = $stored->first(fn (ConceptMedia $media) => str_contains($media->url, 'Stone_lantern_garden.png'));
+        $this->assertNotNull($jpg);
+        $this->assertNotNull($png);
+        $this->assertNull($jpg->purpose);
+        $this->assertNull($png->purpose);
+    }
+
+    public function test_concept_media_provenance_columns_exist(): void
+    {
+        $this->assertTrue(\Illuminate\Support\Facades\Schema::hasColumns('concept_media', [
+            'purpose',
+            'alt',
+            'creator',
+            'source_page_url',
+            'licence_name',
+            'licence_url',
+            'change_notice',
+            'focal_x',
+            'focal_y',
+            'tone',
+        ]));
     }
 
     public function test_spanish_term_uses_the_local_wikipedia_article(): void
@@ -278,6 +403,12 @@ class ConceptMediaEnrichmentTest extends TestCase
                             800000,
                             'CC0',
                             'false',
+                            [
+                                'Artist' => ['value' => 'Khufu photographer'],
+                                'ImageDescription' => ['value' => 'Front of Khufu’s reconstructed solar boat.'],
+                                'LicenseUrl' => ['value' => 'https://creativecommons.org/publicdomain/zero/1.0/'],
+                            ],
+                            'https://commons.wikimedia.org/wiki/File:GEM_Khufus_Boat_front_2025.jpg',
                         ),
                         '4' => $this->imagePage(
                             'File:Galley - Layard - Ninive page 324 detail.png',
@@ -319,8 +450,20 @@ class ConceptMediaEnrichmentTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function imagePage(string $title, string $original, string $mime, int $size, string $license, string $attribution): array
-    {
+    /**
+     * @param  array<string, mixed>  $extraMeta
+     * @return array<string, mixed>
+     */
+    private function imagePage(
+        string $title,
+        string $original,
+        string $mime,
+        int $size,
+        string $license,
+        string $attribution,
+        array $extraMeta = [],
+        ?string $descriptionUrl = null,
+    ): array {
         $path = (string) parse_url($original, PHP_URL_PATH);
         $thumb = 'https://thumb.wikimedia.org/wikipedia/commons/thumb'.preg_replace('#^/wikipedia/commons/#', '/', $path).'/1280px-'.basename($path);
 
@@ -329,14 +472,15 @@ class ConceptMediaEnrichmentTest extends TestCase
             'imageinfo' => [[
                 'url' => $original.'?utm_source=commons',
                 'thumburl' => $thumb,
+                'descriptionurl' => $descriptionUrl ?? ('https://commons.wikimedia.org/wiki/'.rawurlencode($title)),
                 'mime' => $mime,
                 'size' => $size,
-                'extmetadata' => [
+                'extmetadata' => array_merge([
                     'LicenseShortName' => ['value' => $license],
                     'UsageTerms' => ['value' => $license],
                     'AttributionRequired' => ['value' => $attribution],
                     'Restrictions' => ['value' => ''],
-                ],
+                ], $extraMeta),
             ]],
         ];
     }

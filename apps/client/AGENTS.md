@@ -87,6 +87,19 @@ Docs: https://docs.expo.dev/eas/index.md
 
 When native builds need GTM, map the same **names** from GitHub Environment `prod` into EAS secrets/env (see Analytics / GTM below). Do not paste container IDs into the repo.
 
+## Build switches (reference links / media credits)
+
+v3.4 §9.5. Both default **On**. There is no in-app setting. Do **not** add `eas.json` or `app.config.*` for these — Expo inlines `EXPO_PUBLIC_*` at bundle time from the environment (EAS env for native builds; Vercel project env for the web preview). Record each build’s values in its release notes.
+
+| Variable | Default | Effect when `"false"` or `"0"` |
+| --- | --- | --- |
+| `EXPO_PUBLIC_SHOW_REFERENCE_LINKS` | On (unset / invalid → On) | Hide the Wikipedia row and its 20–24 px gap |
+| `EXPO_PUBLIC_SHOW_MEDIA_CREDITS` | On (unset / invalid → On) | Hide the media credit row |
+
+Missing, blank, or any value other than `false` / `0` is On. Credits Off does not strip provenance from the API; the licence-guard for a credits-Off build is deferred.
+
+Test/dev only: `?e2eShowReferenceLinks=0` and `?e2eShowMediaCredits=0` (honoured when `EXPO_PUBLIC_E2E=1` or `__DEV__`).
+
 ## Analytics / GTM
 
 Client analytics reads these **at build time** (Expo `EXPO_PUBLIC_*`). Never commit real container IDs (keep `.env.example` empty).

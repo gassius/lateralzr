@@ -26,6 +26,12 @@ export type JourneyTestParams = {
    * the live breath scheduler — geometry stays static; only fill-opacity is set.
    */
   e2ePulsePeak?: boolean;
+  /**
+   * Test-only (Lz-60): force the reference-link / media-credit build switches.
+   * Honoured only in `__DEV__` or Client E2E exports (`EXPO_PUBLIC_E2E=1`).
+   */
+  e2eShowReferenceLinks?: boolean;
+  e2eShowMediaCredits?: boolean;
 };
 
 export type JourneyFetchOptions = {
@@ -54,6 +60,19 @@ function trimOrUndefined(value: string | null | undefined): string | undefined {
 function parseBooleanFlag(value: string | null): boolean {
   if (value == null) return false;
   return ['true', '1', 'yes'].includes(value.trim().toLowerCase());
+}
+
+/**
+ * Tri-state On/Off for E2E build-switch overrides. Blank / invalid → unset
+ * (use the baked-in env default).
+ */
+export function parseOnOffParam(value: string | null | undefined): boolean | undefined {
+  if (value == null) return undefined;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === '') return undefined;
+  if (['false', '0', 'off', 'no'].includes(trimmed)) return false;
+  if (['true', '1', 'on', 'yes'].includes(trimmed)) return true;
+  return undefined;
 }
 
 /** Integer 1–5 only. Blank, floats, and out-of-range values are ignored. */
@@ -116,6 +135,8 @@ export function parseJourneyTestParams(
     const patternVariant = parsePatternVariantParam(params.get('patternVariant'));
     const e2ePadBand = parseBooleanFlag(params.get('e2ePadBand'));
     const e2ePulsePeak = parseBooleanFlag(params.get('e2ePulsePeak'));
+    const e2eShowReferenceLinks = parseOnOffParam(params.get('e2eShowReferenceLinks'));
+    const e2eShowMediaCredits = parseOnOffParam(params.get('e2eShowMediaCredits'));
     return {
       localizedConcept: trimOrUndefined(params.get('localizedConcept')),
       canonicalConcept: trimOrUndefined(params.get('canonicalConcept')),
@@ -125,6 +146,8 @@ export function parseJourneyTestParams(
       ...(patternVariant != null ? { patternVariant } : {}),
       ...(e2ePadBand ? { e2ePadBand: true } : {}),
       ...(e2ePulsePeak ? { e2ePulsePeak: true } : {}),
+      ...(e2eShowReferenceLinks !== undefined ? { e2eShowReferenceLinks } : {}),
+      ...(e2eShowMediaCredits !== undefined ? { e2eShowMediaCredits } : {}),
     };
   } catch {
     return { onlyWithMedia: false };

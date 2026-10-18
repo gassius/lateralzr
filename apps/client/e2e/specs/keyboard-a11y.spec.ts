@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { capture, flipCard } from '../helpers/capture';
+import { capture, flipCard, isFrontCardFlipped } from '../helpers/capture';
 import { cardBackCopy, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
 
@@ -73,21 +73,7 @@ test.describe('keyboard a11y', () => {
       .toBe(true);
 
     await expect
-      .poll(
-        async () =>
-          page.evaluate(() => {
-            const nodes = Array.from(document.querySelectorAll('[data-testid="card-back-copy"]'));
-            return nodes.some((el) => {
-              let p: HTMLElement | null = el as HTMLElement;
-              while (p) {
-                if (getComputedStyle(p).opacity === '0') return false;
-                p = p.parentElement;
-              }
-              return true;
-            });
-          }),
-        { timeout: 1_000 },
-      )
+      .poll(async () => page.evaluate(isFrontCardFlipped), { timeout: 1_000 })
       .toBe(true);
     await expect(cardBackCopy(page)).toBeVisible();
   });
@@ -236,8 +222,10 @@ for (const concept of ['mushroom', 'diagram']) {
     await page.keyboard.press('Tab');
     await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
     const surface = page.getByTestId('card-a11y-surface');
+    await expect(surface).toBeVisible();
     for (const face of ['front', 'back']) {
       await page.getByTestId('a11y-nav-flip').focus();
+      await expect(surface).toBeVisible();
       const unfocusedBox = await surface.boundingBox();
       expect(unfocusedBox).not.toBeNull();
       await surface.focus();

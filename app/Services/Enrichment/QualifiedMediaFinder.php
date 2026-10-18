@@ -53,9 +53,9 @@ class QualifiedMediaFinder
                 'action' => 'query',
                 'titles' => implode('|', $chunk),
                 'prop' => 'imageinfo',
-                'iiprop' => 'url|mime|size|extmetadata',
+                'iiprop' => 'url|mime|size|extmetadata|descriptionurl',
                 'iiurlwidth' => 1280,
-                'iiextmetadatafilter' => 'LicenseShortName|LicenseUrl|UsageTerms|AttributionRequired|Restrictions',
+                'iiextmetadatafilter' => 'LicenseShortName|LicenseUrl|UsageTerms|AttributionRequired|Restrictions|Artist|Credit|ImageDescription|ObjectName|Categories',
             ]);
             foreach ($this->pagesOf($json) as $page) {
                 $media = $this->qualifyPage($page, $anchor, $descriptionTokens);
@@ -191,10 +191,80 @@ class QualifiedMediaFinder
             return null;
         }
 
+        $ext = is_array($info['extmetadata'] ?? null) ? $info['extmetadata'] : null;
+        $resized = $this->usedThumb($info, $kind, $url);
+        $sourcePageUrl = $this->cleanPageUrl(isset($info['descriptionurl']) ? (string) $info['descriptionurl'] : null);
+
         return [
             'score' => $score,
-            'media' => new QualifiedMedia($url, $kind, $license, 'wikimedia'),
+            'media' => new QualifiedMedia(
+                url: $url,
+                kind: $kind,
+                license: $license,
+                source: 'wikimedia',
+                purpose: $this->inferPurpose($title, MediaLicense::alt($ext) ?? ''),
+                alt: MediaLicense::alt($ext),
+                creator: MediaLicense::creator($ext),
+                sourcePageUrl: $sourcePageUrl,
+                licenceName: MediaLicense::name($ext) ?? $license,
+                licenceUrl: MediaLicense::url($ext),
+                changeNotice: MediaLicense::inferChangeNotice($ext, $resized),
+                tone: MediaLicense::inferTone($ext),
+            ),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $info
+     */
+    private function usedThumb(array $info, string $kind, string $url): bool
+    {
+        if ($kind !== 'image') {
+            return false;
+        }
+        $thumb = $this->cleanUploadUrl(isset($info['thumburl']) ? (string) $info['thumburl'] : null);
+
+        return $thumb !== null && $thumb === $url;
+    }
+
+    private function cleanPageUrl(?string $url): ?string
+    {
+        if ($url === null || trim($url) === '') {
+            return null;
+        }
+        if (! filter_var($url, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+        $parts = parse_url($url);
+        if (! is_array($parts) || ! isset($parts['scheme'], $parts['host'])) {
+            return null;
+        }
+        $host = strtolower((string) $parts['host']);
+        if (! str_ends_with($host, 'wikimedia.org') && ! str_ends_with($host, 'wikipedia.org')) {
+            return null;
+        }
+
+        return $url;
+    }
+
+    private function inferPurpose(string $fileTitle, string $description): ?string
+    {
+        $name = preg_replace('/^File:/i', '', $fileTitle) ?? $fileTitle;
+        $blob = strtolower(str_replace('_', ' ', $name).' '.$description);
+        if (preg_match('/\b(map|locator map|street map|planisphere)\b/', $blob) === 1) {
+            return 'map';
+        }
+        if (preg_match('/\b(diagram|schematic|chart|graph|lattice|flowchart|schema)\b/', $blob) === 1) {
+            return 'diagram';
+        }
+        if (preg_match('/\b(painting|artwork|engraving|etching|drawing|lithograph|woodcut)\b/', $blob) === 1) {
+            return 'artwork';
+        }
+        if (preg_match('/\b(inscription|manuscript|caption|labelled|labeled text)\b/', $blob) === 1) {
+            return 'text-bearing';
+        }
+
+        return null;
     }
 
     /**

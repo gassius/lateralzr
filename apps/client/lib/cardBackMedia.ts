@@ -4,6 +4,7 @@
  * v3.4 §9.3: purpose decides fit (photo → cover; diagram/map/artwork/text-bearing
  * → contain). Unknown purpose falls back to measurement (JPEG/WebP, aspect
  * 0.6–1.8, upscale ≤ 1.5 → cover; else contain). Never the file extension alone.
+ * Fade is cover-only; dark/busy tone raises the start (Lz-60).
  */
 
 import { media as mediaTokens } from '@/theme/tokens';
@@ -36,9 +37,16 @@ export type CardBackMediaPurpose = (typeof CARD_BACK_MEDIA_PURPOSES)[number];
 
 /**
  * Fade occupies this fraction of the image band (transparent → paper), ending
- * at the reading-block edge. No dark/busy +15% shift.
+ * at the reading-block edge. Dark/busy tone raises the start by
+ * `media.darkBusyFadeRaise` × card height (v3.4 §9.3).
  */
 export const CARD_BACK_MEDIA_FADE_RATIO = 0.4;
+
+export const CARD_BACK_MEDIA_DARK_BUSY_FADE_RAISE = mediaTokens.darkBusyFadeRaise;
+
+export const INFORMATIVE_MEDIA_PURPOSES = ['diagram', 'map', 'text-bearing'] as const;
+
+export type InformativeMediaPurpose = (typeof INFORMATIVE_MEDIA_PURPOSES)[number];
 
 /**
  * If forcing the 28% band would leave less than one body line for reading,
@@ -77,11 +85,45 @@ export type CardBackContainBox = {
   top: number;
 };
 
+export type CardBackMediaFadeKind = 'none' | 'cover' | 'raised';
+
 export type CardBackMediaFade = {
   /** Y offset of the fade overlay within the band (from band top). */
   startY: number;
   height: number;
+  kind: CardBackMediaFadeKind;
 };
+
+export function isDarkBusyTone(tone?: string | null): boolean {
+  const value = tone?.trim().toLowerCase();
+  return value === 'dark' || value === 'busy';
+}
+
+export function isInformativeMediaPurpose(
+  purpose?: string | null,
+): purpose is InformativeMediaPurpose {
+  return (
+    typeof purpose === 'string' &&
+    (INFORMATIVE_MEDIA_PURPOSES as readonly string[]).includes(purpose)
+  );
+}
+
+/**
+ * Informative media (diagram, map, text-bearing) exposes a short alt after the
+ * description. Decorative media and missing/duplicate alt stay silent.
+ */
+export function resolveInformativeAlt(
+  purpose?: string | null,
+  alt?: string | null,
+  description?: string | null,
+): string | null {
+  if (!isInformativeMediaPurpose(purpose)) return null;
+  const trimmed = alt?.trim() ?? '';
+  if (!trimmed) return null;
+  const desc = (description ?? '').trim().toLowerCase();
+  if (desc && trimmed.toLowerCase() === desc) return null;
+  return trimmed;
+}
 
 /**
  * Strip query/hash and return a lowercase pathname for extension checks.
@@ -221,19 +263,35 @@ export function resolveCardBackMediaBand(
 }
 
 /**
- * Fade overlay geometry inside the image band (no dark/busy offset).
- * Height reaches the band floor so the last gradient samples are fully paper.
+ * Fade overlay geometry inside the image band (v3.4 §9.3).
+ * Cover photos fade into Paper. Dark/busy tone starts 15% of card height higher.
+ * Contained media gets no fade (hard Paper edge). Height reaches the band floor.
  */
-export function resolveCardBackMediaFade(bandHeight: number): CardBackMediaFade {
-  if (!(bandHeight > 0)) {
-    return { startY: 0, height: 0 };
+export function resolveCardBackMediaFade(input: {
+  bandHeight: number;
+  faceHeight?: number;
+  contentFit?: CardBackMediaContentFit | null;
+  tone?: string | null;
+}): CardBackMediaFade {
+  const none = { startY: 0, height: 0, kind: 'none' as const };
+  if (!(input.bandHeight > 0)) {
+    return none;
   }
-  const height = bandHeight * CARD_BACK_MEDIA_FADE_RATIO;
-  const startY = Math.max(0, bandHeight - height);
+  if (mediaTokens.fadeOnlyOnCover && input.contentFit !== 'cover') {
+    return none;
+  }
+  const baseHeight = input.bandHeight * CARD_BACK_MEDIA_FADE_RATIO;
+  let startY = Math.max(0, input.bandHeight - baseHeight);
+  let kind: CardBackMediaFadeKind = 'cover';
+  if (isDarkBusyTone(input.tone)) {
+    const face = input.faceHeight ?? input.bandHeight;
+    startY = Math.max(0, startY - face * CARD_BACK_MEDIA_DARK_BUSY_FADE_RAISE);
+    kind = 'raised';
+  }
   return {
     startY,
-    // Reach the band edge (and a hair past via layout overlap in ConceptCard).
-    height: bandHeight - startY,
+    height: input.bandHeight - startY,
+    kind,
   };
 }
 

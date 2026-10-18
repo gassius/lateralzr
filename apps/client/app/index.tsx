@@ -21,6 +21,7 @@ import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
+import { A11Y_PASS_FOCUS } from '@/lib/a11yPass';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
@@ -1118,10 +1119,17 @@ export default function HomeScreen() {
               {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             />
           ) : null;
+        const focusRingPad = A11Y_PASS_FOCUS.widthPx + A11Y_PASS_FOCUS.offsetPx;
         const practiceColumn = accessibleNavVisible ? (
           <ScrollView
             style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
-            contentContainerStyle={{ minHeight: usableHeight }}
+            contentContainerStyle={{
+              minHeight: usableHeight,
+              // Web E2E only: keep the 2+2 px focus ring inside the scroll clip.
+              ...(Platform.OS === 'web'
+                ? { paddingTop: focusRingPad, paddingBottom: focusRingPad }
+                : {}),
+            }}
             testID="practice-column"
             importantForAccessibility={backgroundA11yHide}
             keyboardShouldPersistTaps="handled"
@@ -1224,6 +1232,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     justifyContent: 'flex-start',
     position: 'relative',
+    overflow: 'visible',
   },
   cardLateralityGroup: {
     width: '100%',

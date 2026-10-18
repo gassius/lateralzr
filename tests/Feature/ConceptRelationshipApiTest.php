@@ -368,7 +368,64 @@ class ConceptRelationshipApiTest extends TestCase
             $this->assertArrayHasKey('url', $node['media'][0]);
             $this->assertArrayHasKey('kind', $node['media'][0]);
             $this->assertArrayHasKey('license', $node['media'][0]);
+            foreach ([
+                'purpose', 'alt', 'creator', 'sourcePageUrl', 'licenceName',
+                'licenceUrl', 'changeNotice', 'focalX', 'focalY', 'tone',
+            ] as $key) {
+                $this->assertArrayHasKey($key, $node['media'][0]);
+            }
+            $this->assertNull($node['media'][0]['purpose']);
+            $this->assertNull($node['media'][0]['alt']);
+            $this->assertNull($node['media'][0]['licenceUrl']);
+            $this->assertSame('CC0', $node['media'][0]['licenceName']);
         }
+    }
+
+    public function test_relationship_media_serialises_full_provenance(): void
+    {
+        $concept = $this->makeConcept('harbour', 'harbour', 'https://example.com/harbour.jpg');
+        $other = $this->makeConcept('tide', 'tide', 'https://example.com/tide.jpg');
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $concept->id,
+            'to_concept_id' => $other->id,
+            'strength' => 0.72,
+            'last_laterality' => 3,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+        $media = ConceptMedia::query()->where('concept_id', $concept->id)->firstOrFail();
+        $media->fill([
+            'purpose' => 'photo',
+            'alt' => 'A quiet harbour at dusk',
+            'creator' => 'Ada Example',
+            'source_page_url' => 'https://commons.wikimedia.org/wiki/File:silence.jpg',
+            'licence_name' => 'CC0',
+            'licence_url' => 'https://creativecommons.org/publicdomain/zero/1.0/',
+            'change_notice' => 'cropped',
+            'focal_x' => 0.4,
+            'focal_y' => 0.6,
+            'tone' => 'dark',
+        ])->save();
+
+        $response = $this->postJson('/api/concepts/relationships', [
+            'start' => 'harbour',
+            'complexity' => 2,
+        ]);
+
+        $response->assertStatus(200);
+        $node = collect($response->json('data.nodes'))->firstWhere('id', $concept->id);
+        $this->assertIsArray($node);
+        $row = $node['media'][0];
+        $this->assertSame('photo', $row['purpose']);
+        $this->assertSame('A quiet harbour at dusk', $row['alt']);
+        $this->assertSame('Ada Example', $row['creator']);
+        $this->assertSame('https://commons.wikimedia.org/wiki/File:silence.jpg', $row['sourcePageUrl']);
+        $this->assertSame('CC0', $row['licenceName']);
+        $this->assertSame('https://creativecommons.org/publicdomain/zero/1.0/', $row['licenceUrl']);
+        $this->assertSame('cropped', $row['changeNotice']);
+        $this->assertEqualsWithDelta(0.4, $row['focalX'], 0.0001);
+        $this->assertEqualsWithDelta(0.6, $row['focalY'], 0.0001);
+        $this->assertSame('dark', $row['tone']);
     }
 
     /**

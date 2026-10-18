@@ -195,41 +195,77 @@ async function compareToBaseline(
   });
 }
 
-function cardPoint(box: { x: number; y: number; width: number; height: number }) {
-  return { x: box.x + box.width * 0.5, y: box.y + box.height * 0.3 };
+function swipePoint(
+  box: { x: number; y: number; width: number; height: number },
+  xRatio: number,
+): { x: number; y: number } {
+  return { x: box.x + box.width * xRatio, y: box.y + box.height * 0.5 };
 }
 
-function isBackFullyOpaque(): boolean {
-  const nodes = Array.from(document.querySelectorAll('[data-testid="card-back-copy"]'));
-  return nodes.some((el) => {
-    let p: HTMLElement | null = el as HTMLElement;
-    while (p) {
-      if (getComputedStyle(p).opacity === '0') return false;
-      p = p.parentElement;
-    }
-    return true;
-  });
+/**
+ * Front-of-stack flip from React state (`data-flipped` / back-face aria-hidden).
+ * Self-contained for `page.evaluate` — Playwright does not serialize siblings.
+ * Do not walk computed opacity: RN Web keeps behind/parked backs mounted, and
+ * Reanimated may still report opacity 1 before the rest style lands — that made
+ * flipCard wait for an un-flip that never came (200% text and CI flakes).
+ */
+export function isFrontCardFlipped(): boolean {
+  const surface = document.querySelector('[data-testid="card-a11y-surface"]');
+  if (!surface) return false;
+  const flagged = surface.getAttribute('data-flipped');
+  if (flagged === 'true' || flagged === 'false') return flagged === 'true';
+  const back = surface.querySelector('[data-testid="card-back-copy"]');
+  if (!back) return false;
+  let p: HTMLElement | null = back as HTMLElement;
+  while (p && p !== surface.parentElement) {
+    if (p.getAttribute('aria-hidden') === 'true') return false;
+    p = p.parentElement;
+  }
+  return true;
 }
 
-/** Flip the front card with a real mouse click (RNGH Tap on web). */
+async function cardGestureBox(page: Page): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}> {
+  const surface = page.getByTestId('card-a11y-surface');
+  // Playwright "visible" requires a non-zero box — wait through chrome remounts
+  // (assistive nav ScrollView, 200% text, 47/34 insets) instead of clicking a stale point.
+  await surface.waitFor({ state: 'visible', timeout: 8_000 });
+  const box = await surface.boundingBox();
+  if (!box) throw new Error('card-a11y-surface has no bounding box');
+  return box;
+}
+
+/** Flip the front card (RNGH Tap on web). Locator click waits for a stable hit target. */
 export async function flipCard(page: Page): Promise<void> {
-  const stack = page.getByTestId('card-laterality-group');
-  const box = await stack.boundingBox();
-  if (!box) throw new Error('card-laterality-group has no bounding box');
-  const wasFlipped = await page.evaluate(isBackFullyOpaque);
-  const { x, y } = cardPoint(box);
-  await page.mouse.click(x, y);
+  const wasFlipped = await page.evaluate(isFrontCardFlipped);
+  const frontTitle = page.locator('[data-testid="card-front-title"]:visible');
+  if (!wasFlipped && (await frontTitle.count()) > 0) {
+    await frontTitle.click();
+  } else {
+    await page.getByTestId('card-a11y-surface').click();
+  }
   await page.waitForFunction(
     (expectFlipped: boolean) => {
-      const nodes = Array.from(document.querySelectorAll('[data-testid="card-back-copy"]'));
-      const flipped = nodes.some((el) => {
-        let p: HTMLElement | null = el as HTMLElement;
-        while (p) {
-          if (getComputedStyle(p).opacity === '0') return false;
+      const surface = document.querySelector('[data-testid="card-a11y-surface"]');
+      if (!surface) return false;
+      const flagged = surface.getAttribute('data-flipped');
+      let flipped: boolean;
+      if (flagged === 'true' || flagged === 'false') {
+        flipped = flagged === 'true';
+      } else {
+        const back = surface.querySelector('[data-testid="card-back-copy"]');
+        if (!back) return false;
+        let p: HTMLElement | null = back as HTMLElement;
+        while (p && p !== surface.parentElement) {
+          if (p.getAttribute('aria-hidden') === 'true') return false;
           p = p.parentElement;
         }
-        return true;
-      });
+        flipped = true;
+      }
       return flipped === expectFlipped;
     },
     !wasFlipped,
@@ -245,15 +281,12 @@ export async function swipeForward(
   page: Page,
   expectLabel?: string | RegExp,
 ): Promise<void> {
-  const stack = page.getByTestId('card-laterality-group');
-  const box = await stack.boundingBox();
-  if (!box) throw new Error('card-laterality-group has no bounding box');
-  const y = box.y + box.height * 0.3;
-  const fromX = box.x + box.width * 0.8;
-  const toX = box.x + box.width * 0.15;
-  await page.mouse.move(fromX, y);
+  const box = await cardGestureBox(page);
+  const from = swipePoint(box, 0.8);
+  const to = swipePoint(box, 0.15);
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(toX, y, { steps: 16 });
+  await page.mouse.move(to.x, to.y, { steps: 16 });
   await page.mouse.up();
 
   if (expectLabel != null) {
@@ -269,15 +302,12 @@ export async function swipeBack(
   page: Page,
   expectLabel?: string | RegExp,
 ): Promise<void> {
-  const stack = page.getByTestId('card-laterality-group');
-  const box = await stack.boundingBox();
-  if (!box) throw new Error('card-laterality-group has no bounding box');
-  const y = box.y + box.height * 0.3;
-  const fromX = box.x + box.width * 0.2;
-  const toX = box.x + box.width * 0.85;
-  await page.mouse.move(fromX, y);
+  const box = await cardGestureBox(page);
+  const from = swipePoint(box, 0.2);
+  const to = swipePoint(box, 0.85);
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(toX, y, { steps: 16 });
+  await page.mouse.move(to.x, to.y, { steps: 16 });
   await page.mouse.up();
 
   if (expectLabel != null) {
