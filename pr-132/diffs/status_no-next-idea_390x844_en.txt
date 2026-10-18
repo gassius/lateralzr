@@ -1,4 +1,4 @@
 Baseline diff for status_no-next-idea_390x844_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/status_no-next-idea_390x844_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/status_no-next-idea_390x844_en.png
-diff ratio 0.2682 > 0.01 (353114 px)
+diff ratio 0.2768 > 0.01 (364426 px)

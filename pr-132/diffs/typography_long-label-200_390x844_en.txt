@@ -1,4 +1,4 @@
 Baseline diff for typography_long-label-200_390x844_en.png
 actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/typography_long-label-200_390x844_en.png
 baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/typography_long-label-200_390x844_en.png
-diff ratio 0.2790 > 0.01 (367312 px)
+diff ratio 0.2775 > 0.01 (365312 px)
