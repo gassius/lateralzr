@@ -133,6 +133,8 @@ export default function HomeScreen() {
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
   const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  /** Lz-56: moving card sits above chrome; chrome ignores presses until settle. */
+  const [deckMoving, setDeckMoving] = useState(false);
   const [motionPreference, setMotionPreference] =
     useState<MotionPreference>(DEFAULT_MOTION_PREFERENCE);
   const [motionHydrated, setMotionHydrated] = useState(false);
@@ -1039,8 +1041,17 @@ export default function HomeScreen() {
         ) : undefined;
         const cardLateralityGroup = (
           <View
-            style={[styles.cardLateralityGroup, { gap: controlGap }]}
+            style={[
+              styles.cardLateralityGroup,
+              { gap: controlGap },
+              deckMoving ? styles.deckMovingGroup : null,
+            ]}
             testID="card-laterality-group"
+            {...(Platform.OS === 'web'
+              ? ({
+                  dataSet: { deckMoving: deckMoving ? 'true' : 'false' },
+                } as Record<string, unknown>)
+              : null)}
           >
             <ConceptCardStack
               ref={cardStackRef}
@@ -1050,6 +1061,7 @@ export default function HomeScreen() {
               onSwipeLeft={onSwipeLeft}
               onSwipeRight={onSwipeRight}
               onSwipeForwardVertical={onSwipeForwardVertical}
+              onDeckMotionChange={setDeckMoving}
               availableHeight={Math.max(
                 0,
                 usableHeight -
@@ -1064,25 +1076,32 @@ export default function HomeScreen() {
               onCoachTipChange={onCoachTipChange}
             />
             {accessibleNavVisible ? (
-              <AccessibleNavRow
-                currentIndex={currentIndex}
-                showDeckStatus={showDeckLoading}
-                sheetOpen={lateralitySheetOpen || appMenuOpen}
-                onHeightChange={setAccessibleNavHeight}
-                onAction={(action) => {
-                  cardStackRef.current?.runAction(action);
-                }}
-              />
+              <View pointerEvents={deckMoving ? 'none' : 'auto'}>
+                <AccessibleNavRow
+                  currentIndex={currentIndex}
+                  showDeckStatus={showDeckLoading}
+                  sheetOpen={lateralitySheetOpen || appMenuOpen}
+                  onHeightChange={setAccessibleNavHeight}
+                  onAction={(action) => {
+                    cardStackRef.current?.runAction(action);
+                  }}
+                />
+              </View>
             ) : null}
-            <LateralityControl
-              laterality={laterality}
-              swapping={lateralitySwap != null}
-              onSelectLaterality={onSelectLaterality}
-              onHeightChange={setLateralityControlHeight}
-              onPressLabel={openLateralitySheet}
-              labelRef={lateralityLabelRef}
-              statusSlot={messagingSlot}
-            />
+            <View
+              pointerEvents={deckMoving ? 'none' : 'auto'}
+              testID="laterality-chrome"
+            >
+              <LateralityControl
+                laterality={laterality}
+                swapping={lateralitySwap != null}
+                onSelectLaterality={onSelectLaterality}
+                onHeightChange={setLateralityControlHeight}
+                onPressLabel={openLateralitySheet}
+                labelRef={lateralityLabelRef}
+                statusSlot={messagingSlot}
+              />
+            </View>
             {complexityCue ? (
               <View
                 style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
@@ -1122,9 +1141,13 @@ export default function HomeScreen() {
         const focusRingPad = A11Y_PASS_FOCUS.widthPx + A11Y_PASS_FOCUS.offsetPx;
         const practiceColumn = accessibleNavVisible ? (
           <ScrollView
-            style={[styles.practiceColumn, { maxHeight: usableHeight, flex: 1 }]}
+            style={[
+              styles.practiceColumn,
+              { maxHeight: usableHeight, flex: 1, overflow: 'visible' },
+            ]}
             contentContainerStyle={{
               minHeight: usableHeight,
+              overflow: 'visible',
               // Web E2E only: keep the 2+2 px focus ring inside the scroll clip.
               ...(Platform.OS === 'web'
                 ? { paddingTop: focusRingPad, paddingBottom: focusRingPad }
@@ -1141,7 +1164,11 @@ export default function HomeScreen() {
           </ScrollView>
         ) : (
           <View
-            style={[styles.practiceColumn, { minHeight: usableHeight, flex: 1 }]}
+            style={[
+              styles.practiceColumn,
+              { minHeight: usableHeight, flex: 1 },
+              deckMoving ? styles.deckMovingGroup : null,
+            ]}
             testID="practice-column"
             importantForAccessibility={backgroundA11yHide}
             {...backgroundInertProps}
@@ -1157,7 +1184,7 @@ export default function HomeScreen() {
               { height: menuChromeHeight, top: insets.top },
             ]}
             testID="app-menu-chrome"
-            pointerEvents={sheetOpen ? 'none' : 'box-none'}
+            pointerEvents={sheetOpen || deckMoving ? 'none' : 'box-none'}
             importantForAccessibility={backgroundA11yHide}
             {...backgroundInertProps}
           >
@@ -1237,6 +1264,12 @@ const styles = StyleSheet.create({
   cardLateralityGroup: {
     width: '100%',
     position: 'relative',
+  },
+  /** While dragging / exiting, the card stacks above the ellipsis (zIndex 30). */
+  deckMovingGroup: {
+    zIndex: 40,
+    elevation: 40,
+    overflow: 'visible',
   },
   /** Above the laterality control, never on that row. */
   complexityCueSlot: {

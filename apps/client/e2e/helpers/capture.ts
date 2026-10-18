@@ -314,3 +314,41 @@ export async function swipeBack(
     await visibleText(page, expectLabel).waitFor({ state: 'visible', timeout: 8_000 });
   }
 }
+
+/**
+ * Vertical card swipe (Complexity). `direction` is the finger travel.
+ */
+export async function swipeVertical(
+  page: Page,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const stack = page.getByTestId('card-laterality-group');
+  const box = await stack.boundingBox();
+  if (!box) throw new Error('card-laterality-group has no bounding box');
+  const x = box.x + box.width * 0.5;
+  const fromY = direction === 'up' ? box.y + box.height * 0.7 : box.y + box.height * 0.3;
+  const toY = direction === 'up' ? box.y + box.height * 0.2 : box.y + box.height * 0.8;
+  await page.mouse.move(x, fromY);
+  await page.mouse.down();
+  await page.mouse.move(x, toY, { steps: 16 });
+  await page.mouse.up();
+}
+
+/** Hold a short horizontal drag (below commit) so chrome-lock can be asserted. */
+export async function holdHorizontalDrag(
+  page: Page,
+  direction: 'left' | 'right',
+  fraction = 0.2,
+): Promise<{ x: number; y: number }> {
+  const stack = page.getByTestId('card-laterality-group');
+  const box = await stack.boundingBox();
+  if (!box) throw new Error('card-laterality-group has no bounding box');
+  const y = box.y + box.height * 0.3;
+  const fromX = box.x + box.width * 0.5;
+  const toX =
+    direction === 'left' ? fromX - box.width * fraction : fromX + box.width * fraction;
+  await page.mouse.move(fromX, y);
+  await page.mouse.down();
+  await page.mouse.move(toX, y, { steps: 10 });
+  return { x: toX, y };
+}

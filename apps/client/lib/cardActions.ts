@@ -162,14 +162,26 @@ export function shouldClearKeyboardModalityOnPointer(
 }
 
 /**
- * Card surface key handler must ignore bubbled keys from nested controls
- * (e.g. the Wikipedia link on the back face).
+ * Card surface key handler. RN-web often targets an inner heading while the
+ * surface is focused; still handle those. Nested controls (Wikipedia, credits)
+ * keep Enter/Space.
  */
 export function shouldHandleCardSurfaceKey(
   target: EventTarget | null | undefined,
   currentTarget: EventTarget | null | undefined,
 ): boolean {
-  return target != null && currentTarget != null && target === currentTarget;
+  if (target == null || currentTarget == null) return false;
+  if (target === currentTarget) return true;
+  const currentEl = currentTarget as { contains?: (node: unknown) => boolean };
+  if (typeof currentEl.contains !== 'function') return false;
+  if (!currentEl.contains(target)) return false;
+  const maybeEl = target as { closest?: (sel: string) => unknown; parentElement?: { closest?: (sel: string) => unknown } };
+  const targetEl = typeof maybeEl.closest === 'function' ? maybeEl : maybeEl.parentElement;
+  if (targetEl == null || typeof targetEl.closest !== 'function') return false;
+  if (targetEl.closest('[data-testid="card-back-wikipedia"]')) return false;
+  if (targetEl.closest('[data-testid="card-back-credit"]')) return false;
+  if (targetEl.closest('a[href]')) return false;
+  return true;
 }
 
 /** Resolve an a11y action name through the shared gate into a runnable CardAction. */

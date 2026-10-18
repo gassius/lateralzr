@@ -1,9 +1,10 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-59 + Lz-60).
- * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-59 adds sheet layout
+ * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-56 + Lz-59 + Lz-60).
+ * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-56 adds `motion.flip`,
+ * `motion.swipe`, and `motion.deck`. Lz-59 adds sheet layout
  * tokens, `color.sheetGroup` / `color.scrim`, and `type.sheetTitle` 22.
  * Lz-60 adds `build` and media fade/provenance fields. Later Lz-54 tickets add
- * their own groups (motion.swipe, decorative, …) on top.
+ * their own groups (decorative, …) on top.
  * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
  */
 export const GUIDE_SECTION_23 = {
@@ -116,6 +117,41 @@ export const GUIDE_SECTION_23 = {
       cycles: 1,
       maxMs: 1200,
       underReducedMotion: false,
+    },
+    flip: { ms: 360, bidirectional: true },
+    swipe: {
+      commitRatio: 0.3,
+      flingPxPerMs: 0.5,
+      exitMs: 260,
+      returnSpring: { damping: 26, stiffness: 260 },
+      perspective: 1200,
+      pivotHorizontal: 'bottom-center',
+      pivotVertical: 'center',
+      tiltZDegAtHalf: 8,
+      tiltZDegMax: 12,
+      tiltZDegExit: 14,
+      tiltYDegMax: 3,
+      followYFactor: 0.15,
+      liftShadowPx: 6,
+      backEnterTiltZDeg: -10,
+      backEnterTiltYDeg: -3,
+      backCoveredScale: 0.97,
+      backCoveredTint: 0.22,
+      verticalPitchDegMax: 6,
+      verticalRollDegMax: 3,
+      startOfHistoryResistance: 0.35,
+      backFaceScrollHandoffPx: 24,
+      aboveChromeWhileMoving: true,
+      chromeLockedWhileMoving: true,
+    },
+    deck: {
+      underlays: 1,
+      nextVisibleAtRest: false,
+      nextScale: 0.95,
+      nextOffsetY: 10,
+      nextTint: 0.22,
+      revealToScale: 1,
+      revealTint: 0,
     },
   },
   pattern: {

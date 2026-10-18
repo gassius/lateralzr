@@ -13,6 +13,8 @@ import {
 import { ScrollView } from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -89,7 +91,7 @@ import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMedia
 import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
 import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
-import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
+import { cardFlipA11yFace, cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
 import { remoteImageSource } from '@/lib/remoteImage';
@@ -148,6 +150,12 @@ type ConceptCardProps = {
    * preload). Zero until the stack has measured; then the URI is stable.
    */
   mediaRequestWidth?: number;
+  /** Lz-56: back-face scroll metrics for the 24 px vertical hand-off. */
+  onBackScrollMetrics?: (metrics: {
+    offsetY: number;
+    contentH: number;
+    viewportH: number;
+  }) => void;
 };
 
 export function ConceptCard({
@@ -162,6 +170,7 @@ export function ConceptCard({
   pulseGateActive = false,
   facePadding,
   mediaRequestWidth = 0,
+  onBackScrollMetrics,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
   const { width: windowWidth } = useWindowDimensions();
@@ -207,6 +216,10 @@ export function ConceptCard({
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+  /** AT / pointer face after the flip midpoint — not the `flipped` boolean. */
+  const [presentedFace, setPresentedFace] = useState<'front' | 'back'>(
+    flipped ? 'back' : 'front',
+  );
   const imageSource =
     mediaRequestWidth > 0
       ? remoteImageSource(
@@ -340,6 +353,14 @@ export function ConceptCard({
       easing: Easing.out(Easing.cubic),
     });
   }, [flipped, flipProgress, reduceMotion]);
+
+  useAnimatedReaction(
+    () => cardFlipA11yFace(flipProgress.value),
+    (face, previous) => {
+      if (face !== previous) runOnJS(setPresentedFace)(face);
+    },
+    [setPresentedFace],
+  );
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
   // Native: prefetched URLs are treated as ready so deck handoff never briefly resets.
@@ -1089,6 +1110,14 @@ export function ConceptCard({
         bounces
         nestedScrollEnabled
         testID="card-back-scroll"
+        scrollEventThrottle={16}
+        onScroll={(event) => {
+          onBackScrollMetrics?.({
+            offsetY: event.nativeEvent.contentOffset.y,
+            contentH: event.nativeEvent.contentSize.height,
+            viewportH: event.nativeEvent.layoutMeasurement.height,
+          });
+        }}
       >
         <View
           style={[
@@ -1121,8 +1150,8 @@ export function ConceptCard({
     </View>
   );
 
-  const frontA11yHidden = flipped;
-  const backA11yHidden = !flipped;
+  const frontA11yHidden = presentedFace === 'back';
+  const backA11yHidden = presentedFace === 'front';
 
   return (
     <View
@@ -1153,7 +1182,7 @@ export function ConceptCard({
         <View style={styles.flipRoot}>
           <Animated.View
             style={[styles.faceSide, styles.faceFront, frontFaceStyle]}
-            pointerEvents={flipped ? 'none' : 'auto'}
+            pointerEvents={presentedFace === 'back' ? 'none' : 'auto'}
             accessibilityElementsHidden={frontA11yHidden}
             importantForAccessibility={frontA11yHidden ? 'no-hide-descendants' : 'auto'}
             {...(Platform.OS === 'web' ? { 'aria-hidden': frontA11yHidden } : null)}
@@ -1162,7 +1191,7 @@ export function ConceptCard({
           </Animated.View>
           <Animated.View
             style={[styles.faceSide, styles.faceBack, backFaceStyle]}
-            pointerEvents={flipped ? 'auto' : 'none'}
+            pointerEvents={presentedFace === 'back' ? 'auto' : 'none'}
             accessibilityElementsHidden={backA11yHidden}
             importantForAccessibility={backA11yHidden ? 'no-hide-descendants' : 'auto'}
             {...(Platform.OS === 'web' ? { 'aria-hidden': backA11yHidden } : null)}

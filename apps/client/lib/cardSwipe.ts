@@ -1,9 +1,9 @@
 /**
- * Quiet card swipe (ClickUp Lz-33 / 869ff5gbw).
+ * Quiet-current deck swipe (ClickUp Lz-56 / guide §17.1–§17.5).
  *
- * 1:1 horizontal drag, token thresholds, no tilt / rotate / depth stack.
- * Timing and commit ratios come from `motion.*` tokens.
- * Reduced motion: cross-fade commits over `motion.reducedMotionCrossfadeMs` (no 8 px shift / slide-out).
+ * Directional tilt + translation in four directions. Reduced motion is
+ * translate-only (no rotate, perspective, scale, or lift).
+ * Timing and angles come from `motion.swipe` / `motion.deck` tokens.
  */
 
 import { motion, spacing } from '@/theme/tokens';
@@ -16,26 +16,65 @@ export {
   resolveInitialReducedMotion,
 } from '@/lib/reducedMotion';
 
-/** |tx| / width at or above this commits (token: motion.swipeCommitRatio). */
-export const SWIPE_COMMIT_RATIO = motion.swipeCommitRatio;
+const swipe = motion.swipe;
+const deck = motion.deck;
 
-/** RNGH velocity is px/s; commit when |v|/1000 >= this (token: motion.swipeFlingPxPerMs). */
-export const SWIPE_FLING_PX_PER_MS = motion.swipeFlingPxPerMs;
+/** |tx| / extent at or above this commits (token: motion.swipe.commitRatio). */
+export const SWIPE_COMMIT_RATIO = swipe.commitRatio;
 
-/** Non-commit spring-back duration (token: motion.swipeReturnMs). */
+/** RNGH velocity is px/s; commit when |v|/1000 >= this (token: motion.swipe.flingPxPerMs). */
+export const SWIPE_FLING_PX_PER_MS = swipe.flingPxPerMs;
+
+/** Commit exit duration (token: motion.swipe.exitMs). Alias of historical swipeSettleMs. */
+export const SWIPE_SETTLE_MS = swipe.exitMs;
+
+/** Historical return duration — full motion uses the spring below. */
 export const SWIPE_RETURN_MS = motion.swipeReturnMs;
-
-/** Commit settle: fade + 8 px shift (token: motion.swipeSettleMs). */
-export const SWIPE_SETTLE_MS = motion.swipeSettleMs;
 
 /** Reduced-motion commit cross-fade (token: motion.reducedMotionCrossfadeMs). */
 export const SWIPE_REDUCED_MOTION_CROSSFADE_MS = REDUCED_MOTION_CROSSFADE_MS;
 
-/** Incoming-card shift distance (spacing step 8). */
+/** Incoming-card shift distance (spacing step 8) for loading-replace settle. */
 export const SWIPE_ENTER_SHIFT_PX = spacing[1];
 
+export const SWIPE_PERSPECTIVE = swipe.perspective;
+export const SWIPE_TILT_Z_DEG_AT_HALF = swipe.tiltZDegAtHalf;
+export const SWIPE_TILT_Z_DEG_MAX = swipe.tiltZDegMax;
+export const SWIPE_TILT_Z_DEG_EXIT = swipe.tiltZDegExit;
+export const SWIPE_TILT_Y_DEG_MAX = swipe.tiltYDegMax;
+export const SWIPE_FOLLOW_Y_FACTOR = swipe.followYFactor;
+export const SWIPE_LIFT_SHADOW_PX = swipe.liftShadowPx;
+export const SWIPE_BACK_ENTER_TILT_Z_DEG = swipe.backEnterTiltZDeg;
+export const SWIPE_BACK_ENTER_TILT_Y_DEG = swipe.backEnterTiltYDeg;
+export const SWIPE_BACK_COVERED_SCALE = swipe.backCoveredScale;
+export const SWIPE_BACK_COVERED_TINT = swipe.backCoveredTint;
+export const SWIPE_VERTICAL_PITCH_DEG_MAX = swipe.verticalPitchDegMax;
+export const SWIPE_VERTICAL_ROLL_DEG_MAX = swipe.verticalRollDegMax;
+export const SWIPE_START_OF_HISTORY_RESISTANCE = swipe.startOfHistoryResistance;
+export const SWIPE_BACK_FACE_SCROLL_HANDOFF_PX = swipe.backFaceScrollHandoffPx;
+
+export const SWIPE_RETURN_SPRING = {
+  damping: swipe.returnSpring.damping,
+  stiffness: swipe.returnSpring.stiffness,
+  overshootClamping: true as const,
+};
+
+export const DECK_UNDERLAYS = deck.underlays;
+export const DECK_NEXT_VISIBLE_AT_REST = deck.nextVisibleAtRest;
+export const DECK_NEXT_SCALE = deck.nextScale;
+export const DECK_NEXT_OFFSET_Y = deck.nextOffsetY;
+export const DECK_NEXT_TINT = deck.nextTint;
+export const DECK_REVEAL_TO_SCALE = deck.revealToScale;
+export const DECK_REVEAL_TINT = deck.revealTint;
+
 /**
- * Settled non-bouncy ease-out for return / settle / RM cross-fade.
+ * Park a hidden next-card underlay off-screen. Opacity 0 still composites
+ * (and Playwright treats opacity-0 as visible); this matches the Lz-36 peek.
+ */
+export const DECK_UNDERLAY_HIDDEN_X = -4096;
+
+/**
+ * Settled non-bouncy ease-out for exit / settle / RM cross-fade.
  * Matches Reanimated `Easing.out(Easing.cubic)` (1 − (1−t)³) without importing
  * reanimated into this pure module (keeps `node:test` loadable).
  */
@@ -45,7 +84,7 @@ export function SWIPE_EASING(t: number): number {
   return 1 - x * x * x;
 }
 
-/** Commit exit / settle duration: RM cross-fade token, else settle token. */
+/** Commit exit / settle duration: RM cross-fade token, else exit token. */
 export function swipeCommitDurationMs(reduceMotion: boolean): number {
   'worklet';
   return reduceMotion ? SWIPE_REDUCED_MOTION_CROSSFADE_MS : SWIPE_SETTLE_MS;
@@ -63,6 +102,11 @@ export function swipeEnterShiftPx(reduceMotion: boolean, forward: boolean): numb
 
 /** Under RM commits cross-fade in place — no slide-out translate. */
 export function swipeShouldSlideOutOnCommit(reduceMotion: boolean): boolean {
+  'worklet';
+  return !reduceMotion;
+}
+
+export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
   'worklet';
   return !reduceMotion;
 }
@@ -106,23 +150,308 @@ export function shouldCommitSwipe(
   return swipeCommitDirection(translation, velocityPxPerS, cardExtent) !== 0;
 }
 
-/** Exclusive translate-only steps — no perspective / rotate keys. */
-export type CardSwipeTransform = [{ translateX: number }, { translateY: number }];
+function clampSigned(value: number, min: number, max: number): number {
+  'worklet';
+  const next = Math.max(min, Math.min(max, value));
+  return next === 0 ? 0 : next;
+}
 
+function lerp(a: number, b: number, t: number): number {
+  'worklet';
+  return a + (b - a) * t;
+}
+
+function deg(value: number): string {
+  'worklet';
+  const n = value === 0 ? 0 : value;
+  return `${n}deg`;
+}
+
+/** Axis progress 0…1+ from travel vs card extent. */
+export function swipeAxisProgress(translation: number, extent: number): number {
+  'worklet';
+  return Math.abs(translation) / Math.max(1, extent);
+}
+
+/**
+ * Horizontal rotateZ: 8° at 50% width, max 12° while dragging, 14° on exit.
+ * Sign follows the swipe (left / negative tx → negative rotateZ).
+ */
+export function cardSwipeTiltZDeg(
+  tx: number,
+  width: number,
+  exiting: boolean,
+  reduceMotion: boolean,
+): number {
+  'worklet';
+  if (reduceMotion || tx === 0) return 0;
+  const p = swipeAxisProgress(tx, width);
+  let mag: number;
+  if (p <= 0.5) {
+    mag = SWIPE_TILT_Z_DEG_AT_HALF * (p / 0.5);
+  } else {
+    mag = SWIPE_TILT_Z_DEG_AT_HALF + (SWIPE_TILT_Z_DEG_MAX - SWIPE_TILT_Z_DEG_AT_HALF) * Math.min(1, (p - 0.5) / 0.5);
+  }
+  if (exiting) mag = Math.max(mag, SWIPE_TILT_Z_DEG_EXIT);
+  mag = Math.min(mag, exiting ? SWIPE_TILT_Z_DEG_EXIT : SWIPE_TILT_Z_DEG_MAX);
+  const signed = tx < 0 ? -mag : mag;
+  return signed === 0 ? 0 : signed;
+}
+
+/** Horizontal rotateY ≤ 3°, signed with travel. */
+export function cardSwipeTiltYDeg(tx: number, width: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion || tx === 0) return 0;
+  const p = Math.min(1, swipeAxisProgress(tx, width));
+  const signed = (tx < 0 ? -1 : 1) * SWIPE_TILT_Y_DEG_MAX * p;
+  return signed === 0 ? 0 : signed;
+}
+
+/** Vertical pitch (rotateX) ≤ 6°, mirrored for down. Swipe up (negative ty) tilts top away. */
+export function cardSwipePitchDeg(ty: number, height: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion || ty === 0) return 0;
+  const p = Math.min(1, swipeAxisProgress(ty, height));
+  const signed = (-ty / Math.max(1, Math.abs(ty))) * SWIPE_VERTICAL_PITCH_DEG_MAX * p;
+  return signed === 0 ? 0 : signed;
+}
+
+/** Vertical roll (rotateZ) ≤ 3°, mirrored for down. */
+export function cardSwipeVerticalRollDeg(ty: number, height: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion || ty === 0) return 0;
+  const p = Math.min(1, swipeAxisProgress(ty, height));
+  const signed = (ty < 0 ? -1 : 1) * SWIPE_VERTICAL_ROLL_DEG_MAX * p;
+  return signed === 0 ? 0 : signed;
+}
+
+/** Dampened finger-Y while dragging horizontally. */
+export function cardSwipeFollowY(translationY: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return translationY;
+  return translationY * SWIPE_FOLLOW_Y_FACTOR;
+}
+
+/** Right-swipe resistance at the start of history (0.35×). */
+export function applyStartOfHistoryResistance(
+  translationX: number,
+  canGoBack: boolean,
+): number {
+  'worklet';
+  if (canGoBack || translationX <= 0) return translationX;
+  return translationX * SWIPE_START_OF_HISTORY_RESISTANCE;
+}
+
+/** Lift shadow extra offset, 0 at rest. */
+export function cardSwipeLiftShadowPx(progress: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  return SWIPE_LIFT_SHADOW_PX * clampSigned(progress, 0, 1);
+}
+
+/** Covered current card while the previous card enters on top. */
+export function cardCoveredScale(coverProgress: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return 1;
+  return lerp(1, SWIPE_BACK_COVERED_SCALE, clampSigned(coverProgress, 0, 1));
+}
+
+export function cardCoveredTint(coverProgress: number): number {
+  'worklet';
+  return lerp(0, SWIPE_BACK_COVERED_TINT, clampSigned(coverProgress, 0, 1));
+}
+
+export function cardReturnOverlayTiltZDeg(progress: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  const p = clampSigned(progress, 0, 1);
+  const value = SWIPE_BACK_ENTER_TILT_Z_DEG * (1 - p);
+  return value === 0 ? 0 : value;
+}
+
+export function cardReturnOverlayTiltYDeg(progress: number, reduceMotion: boolean): number {
+  'worklet';
+  if (reduceMotion) return 0;
+  const p = clampSigned(progress, 0, 1);
+  const value = SWIPE_BACK_ENTER_TILT_Y_DEG * (1 - p);
+  return value === 0 ? 0 : value;
+}
+
+export type DeckUnderlayReveal = {
+  opacity: number;
+  scale: number;
+  offsetY: number;
+  tint: number;
+};
+
+/**
+ * Next-card underlay: hidden at rest unless `nextVisibleAtRest`.
+ * Drag progress 0 → 1 rises scale 0.95 → 1, offset 10 → 0, tint 0.22 → 0.
+ * Reduced motion keeps scale/offset at rest values (no scale motion).
+ */
+export function deckUnderlayReveal(
+  dragProgress: number,
+  reduceMotion: boolean,
+  nextVisibleAtRest: boolean = DECK_NEXT_VISIBLE_AT_REST,
+): DeckUnderlayReveal {
+  'worklet';
+  const p = clampSigned(dragProgress, 0, 1);
+  const visible = nextVisibleAtRest || p > 0;
+  if (!visible) {
+    return { opacity: 0, scale: DECK_NEXT_SCALE, offsetY: DECK_NEXT_OFFSET_Y, tint: DECK_NEXT_TINT };
+  }
+  if (reduceMotion) {
+    return { opacity: 1, scale: 1, offsetY: 0, tint: DECK_NEXT_TINT * (1 - p) };
+  }
+  return {
+    opacity: 1,
+    scale: lerp(DECK_NEXT_SCALE, DECK_REVEAL_TO_SCALE, p),
+    offsetY: lerp(DECK_NEXT_OFFSET_Y, 0, p),
+    tint: lerp(DECK_NEXT_TINT, DECK_REVEAL_TINT, p),
+  };
+}
+
+/**
+ * Back-face vertical hand-off: once the scroll is at the edge in the drag
+ * direction, extra travel beyond `handoffPx` starts the card swipe from 0.
+ * Returns the origin to subtract from translationY, or null if not handed off.
+ */
+export function backFaceVerticalHandoffOrigin(
+  translationY: number,
+  atTop: boolean,
+  atBottom: boolean,
+  handoffPx: number = SWIPE_BACK_FACE_SCROLL_HANDOFF_PX,
+): number | null {
+  'worklet';
+  if (translationY < 0 && atBottom && -translationY > handoffPx) return -handoffPx;
+  if (translationY > 0 && atTop && translationY > handoffPx) return handoffPx;
+  return null;
+}
+
+export function cardSwipeTranslationAfterHandoff(translation: number, origin: number): number {
+  'worklet';
+  return translation - origin;
+}
+
+export type CardSwipeTransformStep =
+  | { perspective: number }
+  | { translateX: number }
+  | { translateY: number }
+  | { rotateX: string }
+  | { rotateY: string }
+  | { rotateZ: string }
+  | { scale: number };
+
+export type CardSwipeTransform = CardSwipeTransformStep[];
+
+function bottomCenterPivot(
+  translateX: number,
+  translateY: number,
+  height: number,
+  rotateXDeg: number,
+  rotateYDeg: number,
+  rotateZDeg: number,
+): CardSwipeTransform {
+  'worklet';
+  return [
+    { perspective: SWIPE_PERSPECTIVE },
+    { translateX },
+    { translateY },
+    { translateY: height / 2 },
+    { rotateX: deg(rotateXDeg) },
+    { rotateY: deg(rotateYDeg) },
+    { rotateZ: deg(rotateZDeg) },
+    { translateY: -height / 2 },
+  ];
+}
+
+function centerPivot(
+  translateX: number,
+  translateY: number,
+  rotateXDeg: number,
+  rotateYDeg: number,
+  rotateZDeg: number,
+): CardSwipeTransform {
+  'worklet';
+  return [
+    { perspective: SWIPE_PERSPECTIVE },
+    { translateX },
+    { translateY },
+    { rotateX: deg(rotateXDeg) },
+    { rotateY: deg(rotateYDeg) },
+    { rotateZ: deg(rotateZDeg) },
+  ];
+}
+
+/**
+ * Front-card swipe transform. Horizontal uses the bottom-centre pivot;
+ * vertical uses the card centre. Reduced motion is translate-only.
+ */
 export function cardSwipeFrontTransform(
   translateX: number,
   translateY: number,
+  width: number,
+  height: number,
+  reduceMotion: boolean,
+  exiting: boolean = false,
 ): CardSwipeTransform {
   'worklet';
-  return [{ translateX }, { translateY }];
+  if (!shouldUseCardSwipe3d(reduceMotion)) {
+    return [{ translateX }, { translateY }];
+  }
+  const horizontal = Math.abs(translateX) >= Math.abs(translateY);
+  if (horizontal) {
+    const tiltZ = cardSwipeTiltZDeg(translateX, width, exiting, reduceMotion);
+    const tiltY = cardSwipeTiltYDeg(translateX, width, reduceMotion);
+    return bottomCenterPivot(translateX, translateY, height, 0, tiltY, tiltZ);
+  }
+  const pitch = cardSwipePitchDeg(translateY, height, reduceMotion);
+  const roll = cardSwipeVerticalRollDeg(translateY, height, reduceMotion);
+  return centerPivot(translateX, translateY, pitch, 0, roll);
 }
 
-export function cardSwipeReturnOverlayTransform(translateX: number): [{ translateX: number }] {
+/** Previous-card overlay entering from the left (starts −10° Z / −3° Y). */
+export function cardSwipeReturnOverlayTransform(
+  translateX: number,
+  height: number,
+  progress: number,
+  reduceMotion: boolean,
+): CardSwipeTransform {
   'worklet';
-  return [{ translateX }];
+  if (!shouldUseCardSwipe3d(reduceMotion)) {
+    return [{ translateX }];
+  }
+  const tiltZ = cardReturnOverlayTiltZDeg(progress, reduceMotion);
+  const tiltY = cardReturnOverlayTiltYDeg(progress, reduceMotion);
+  return bottomCenterPivot(translateX, 0, height, 0, tiltY, tiltZ);
 }
 
-/** True when any step uses perspective or a rotate* key (forbidden in quiet swipe). */
+export function deckUnderlayTransform(
+  scale: number,
+  offsetY: number,
+  reduceMotion: boolean,
+  hidden: boolean = false,
+): CardSwipeTransform {
+  'worklet';
+  if (hidden) {
+    return [{ translateX: DECK_UNDERLAY_HIDDEN_X }];
+  }
+  if (reduceMotion) {
+    return [{ translateY: 0 }, { scale: 1 }];
+  }
+  return [{ translateY: offsetY }, { scale }];
+}
+
+/**
+ * Opacity 0 still has a bounding box (Playwright `visible=true`, RN-web
+ * compositor flash). Pair it with CSS `visibility: hidden` while parked.
+ */
+export function deckLayerVisibility(hidden: boolean): 'hidden' | 'visible' {
+  'worklet';
+  return hidden ? 'hidden' : 'visible';
+}
+
+/** True when any step uses perspective or a rotate* key (forbidden under RM). */
 export function cardSwipeTransformHasRotateOrPerspective(
   transform: ReadonlyArray<Record<string, unknown>>,
 ): boolean {
