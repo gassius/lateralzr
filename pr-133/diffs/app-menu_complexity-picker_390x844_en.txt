@@ -1,0 +1,4 @@
+Baseline diff for app-menu_complexity-picker_390x844_en.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/app-menu_complexity-picker_390x844_en.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/app-menu_complexity-picker_390x844_en.png
+diff ratio 0.8879 > 0.01 (1169094 px)
