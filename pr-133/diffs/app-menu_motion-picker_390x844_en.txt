@@ -1,4 +1,0 @@
-Baseline diff for app-menu_motion-picker_390x844_en.png
-actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/app-menu_motion-picker_390x844_en.png
-baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/app-menu_motion-picker_390x844_en.png
-diff ratio 0.9281 > 0.01 (1221991 px)
