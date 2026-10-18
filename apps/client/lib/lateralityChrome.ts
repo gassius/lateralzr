@@ -55,9 +55,6 @@ export const LATERALITY_BAR_MIN_ROW_WIDTH = 320;
  */
 export const STATUS_SLOT_MIN_WIDTH = 120;
 
-/** Top inset on the card stack (above the card, not in the card–row gap). */
-export const CARD_STACK_PADDING_TOP = 8;
-
 export const MIN_CARD_AREA_HEIGHT = 260;
 
 /**

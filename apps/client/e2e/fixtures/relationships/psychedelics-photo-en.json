@@ -17,6 +17,7 @@
           {
             "url": "https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-photo.jpg",
             "kind": "image",
+            "purpose": "photo",
             "creator": "Lateralzr fixture photographer",
             "source": "Wikimedia Commons",
             "license": "CC BY-SA 4.0"

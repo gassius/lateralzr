@@ -3,9 +3,13 @@ import { test } from 'node:test';
 import {
   displayMediaUrl,
   isProxyableMediaUrl,
+  mediaUrlLooksLikeSvg,
   proxiedMediaUrl,
   remoteImageHeadersForPlatform,
   remoteImageSource,
+  requestedMediaWidth,
+  resolveCardMediaUrl,
+  rewriteWikimediaRequestUrl,
   REMOTE_IMAGE_HEADERS,
 } from './remoteImage';
 
@@ -45,4 +49,55 @@ test('web does not attach custom User-Agent headers (they fail Wikimedia CORS pr
   assert.equal(remoteImageSource(wiki, 'web', 'http://localhost')?.headers, undefined);
   assert.deepEqual(remoteImageSource(wiki, 'ios', 'http://localhost')?.headers, REMOTE_IMAGE_HEADERS);
   assert.equal(remoteImageSource(null, 'web', 'http://localhost'), null);
+});
+
+test('requestedMediaWidth is band × pixel ratio capped at 1600', () => {
+  assert.equal(requestedMediaWidth(320, 2, 1600), 640);
+  assert.equal(requestedMediaWidth(900, 3, 1600), 1600);
+  assert.equal(requestedMediaWidth(0, 2, 1600), 1600);
+});
+
+test('rewriteWikimediaRequestUrl sizes thumbs and rasterises SVG originals', () => {
+  assert.equal(
+    rewriteWikimediaRequestUrl(
+      'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/320px-Example.jpg',
+      800,
+    ),
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/800px-Example.jpg',
+  );
+  assert.equal(
+    rewriteWikimediaRequestUrl(
+      'https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg',
+      1200,
+    ),
+    'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Diagram.svg/1200px-Diagram.svg.png',
+  );
+  assert.equal(
+    rewriteWikimediaRequestUrl('https://cdn.example/pic.jpg', 800),
+    'https://cdn.example/pic.jpg',
+  );
+  assert.equal(mediaUrlLooksLikeSvg('https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg'), true);
+});
+
+test('resolveCardMediaUrl rasterises SVG on native and still proxies Wikimedia on web', () => {
+  const svg = 'https://upload.wikimedia.org/wikipedia/commons/4/4a/Diagram.svg';
+  const raster = rewriteWikimediaRequestUrl(svg, 800);
+  assert.equal(
+    resolveCardMediaUrl({
+      mediaUrl: svg,
+      platform: 'ios',
+      apiBaseUrl: 'http://localhost',
+      requestWidth: 800,
+    }),
+    raster,
+  );
+  assert.equal(
+    resolveCardMediaUrl({
+      mediaUrl: svg,
+      platform: 'web',
+      apiBaseUrl: 'http://localhost',
+      requestWidth: 800,
+    }),
+    proxiedMediaUrl(raster, 'http://localhost'),
+  );
 });

@@ -32,6 +32,8 @@ import {
   type CardBackLayout,
 } from '@/lib/cardBackLayout';
 import {
+  CARD_BACK_MEDIA_DECODE_TIMEOUT_MS,
+  CARD_BACK_MEDIA_FADE_IN_MS,
   CARD_BACK_MEDIA_SEAM_OVERLAP,
   resolveCardBackMediaBand,
   resolveCardBackMediaFade,
@@ -80,7 +82,7 @@ import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
 import { FLIP_COACH_PEEK_AMOUNT } from '@/lib/discoveryCoaching';
 import { t } from '@/lib/i18n';
-import { remoteImageSource } from '@/lib/remoteImage';
+import { remoteImageSource, requestedMediaWidth } from '@/lib/remoteImage';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
 
 const LINK_HIT = layout.recommendedTouchTarget;
@@ -88,6 +90,18 @@ const LINK_HIT = layout.recommendedTouchTarget;
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function coverContentPosition(
+  focalX?: number | null,
+  focalY?: number | null,
+): typeof CARD_BACK_MEDIA_CONTENT_POSITION | { left: string; top: string } {
+  const hasX = typeof focalX === 'number' && Number.isFinite(focalX);
+  const hasY = typeof focalY === 'number' && Number.isFinite(focalY);
+  if (!hasX && !hasY) return CARD_BACK_MEDIA_CONTENT_POSITION;
+  const x = hasX ? Math.min(1, Math.max(0, focalX as number)) : 0.5;
+  const y = hasY ? Math.min(1, Math.max(0, focalY as number)) : 0.5;
+  return { left: `${Math.round(x * 100)}%`, top: `${Math.round(y * 100)}%` };
 }
 
 type ConceptCardProps = {
@@ -117,6 +131,8 @@ type ConceptCardProps = {
    * sheet/background). PatternLayer still gates RM + scroll.
    */
   pulseGateActive?: boolean;
+  /** Face padding from the §16.2 aspect helper (20 when the card narrowed). */
+  facePadding?: number;
 };
 
 export function ConceptCard({
@@ -129,12 +145,11 @@ export function ConceptCard({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
+  facePadding,
 }: ConceptCardProps) {
   const title = capitalizeFirstLetter(item.concept);
-  const imageSource = remoteImageSource(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
-  const mediaUri = imageSource?.uri ?? '';
   const { width: windowWidth } = useWindowDimensions();
-  const facePad = cardPadding(windowWidth);
+  const facePad = facePadding ?? cardPadding(windowWidth);
   const radius = cardRadius();
 
   const [mediaDecoded, setMediaDecoded] = useState(false);
@@ -175,6 +190,18 @@ export function ConceptCard({
   const fallbackFlipPeek = useSharedValue(0);
   const flipPeekSV = flipPeek ?? fallbackFlipPeek;
   const reduceMotionSV = useSharedValue(reduceMotion ? 1 : 0);
+  const requestWidth = requestedMediaWidth(
+    faceWidth > 0 ? faceWidth : windowWidth,
+    PixelRatio.get(),
+  );
+  const imageSource = remoteImageSource(
+    item.mediaUrl,
+    Platform.OS,
+    resolveApiBaseUrl(),
+    requestWidth,
+  );
+  const mediaUri = imageSource?.uri ?? '';
+  const creditedMedia = item.media?.find((media) => media.url === item.mediaUrl);
 
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
@@ -299,7 +326,9 @@ export function ConceptCard({
   }, [flipped, flipProgress, reduceMotion]);
 
   // Before paint: avoids one post-paint frame where the old decoded flag pairs with a new URI.
-  // Prefetched URLs are treated as ready so deck handoff (same card promoted from behind → front) never briefly resets.
+  // Native: prefetched URLs are treated as ready so deck handoff never briefly resets.
+  // Web: never trust prefetch — expo-image prefetch/onError miss 404s, and Playwright's
+  // fake clock swallows the 8s decode timeout.
   useLayoutEffect(() => {
     setMediaSourceSize(null);
     setBackTextBlockH(0);
@@ -308,7 +337,7 @@ export function ConceptCard({
       setMediaError(false);
       return;
     }
-    if (isMediaPrefetched) {
+    if (Platform.OS !== 'web' && isMediaPrefetched) {
       setMediaDecoded(true);
       setMediaError(false);
     } else {
@@ -316,6 +345,45 @@ export function ConceptCard({
       setMediaError(false);
     }
   }, [mediaUri, isMediaPrefetched]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !mediaUri || mediaDecoded || mediaError) return;
+    const handle = setTimeout(() => {
+      setMediaError(true);
+    }, CARD_BACK_MEDIA_DECODE_TIMEOUT_MS);
+    return () => clearTimeout(handle);
+  }, [mediaUri, mediaDecoded, mediaError]);
+
+  // Web: fetch is a real network event (clock-safe). 404 / non-image → no-media back.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !mediaUri || mediaDecoded || mediaError) return;
+    let cancelled = false;
+    const ac = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(mediaUri, {
+          signal: ac.signal,
+          cache: 'no-store',
+          credentials: 'omit',
+        });
+        if (cancelled) return;
+        const contentType = res.headers.get('content-type') ?? '';
+        if (!res.ok || (contentType.length > 0 && !contentType.startsWith('image/'))) {
+          setMediaError(true);
+          return;
+        }
+        setMediaDecoded(true);
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof Error && err.name === 'AbortError') return;
+        setMediaError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [mediaUri, mediaDecoded, mediaError]);
 
   const frontFaceStyle = useAnimatedStyle(() => {
     const peek =
@@ -570,12 +638,15 @@ export function ConceptCard({
   const mediaSlotWidth = faceWidth > 0 ? faceWidth : 0;
   const fitPlan = resolveCardBackMediaFit({
     mediaUrl: item.mediaUrl ?? '',
+    purpose: creditedMedia?.purpose,
     sourceWidth: mediaSourceSize?.width,
     sourceHeight: mediaSourceSize?.height,
     slotWidth: mediaSlotWidth,
     slotHeight: bandHeight,
   });
   const contentFit = fitPlan.contentFit;
+  const coverPosition = coverContentPosition(creditedMedia?.focalX, creditedMedia?.focalY);
+  const imageTransition = reduceMotion ? 0 : CARD_BACK_MEDIA_FADE_IN_MS;
   const containBox =
     contentFit === 'contain' &&
     mediaSourceSize != null &&
@@ -694,7 +765,6 @@ export function ConceptCard({
   ) : null;
 
   // Credit only the displayed asset; other graph media may belong to a different locale.
-  const creditedMedia = item.media?.find((media) => media.url === item.mediaUrl);
   const creditParts = [creditedMedia?.creator?.trim(), creditedMedia?.source?.trim()]
     .filter((value): value is string => Boolean(value));
   const license = creditedMedia?.license?.trim();
@@ -731,6 +801,25 @@ export function ConceptCard({
     </View>
   );
 
+  const onMediaLoad = (event: { source?: { width?: number; height?: number } }) => {
+    const src = event.source;
+    if (src?.width && src?.height) {
+      setMediaSourceSize({ width: src.width, height: src.height });
+    }
+    setMediaDecoded(true);
+    setMediaError(false);
+  };
+  const showVisibleMediaImage = Boolean(
+    showMediaLayer && backLayout.showMediaImage && imageSource,
+  );
+  const showMediaDecoder = Boolean(
+    Platform.OS !== 'web' &&
+      mediaUri.length > 0 &&
+      imageSource &&
+      !showVisibleMediaImage &&
+      !mediaError,
+  );
+
   const backMediaLayer =
     showMediaLayer && imageSource ? (
       <View
@@ -739,9 +828,17 @@ export function ConceptCard({
         pointerEvents="none"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        {...(Platform.OS === 'web' ? { 'aria-hidden': true } : null)}
+        {...(Platform.OS === 'web'
+          ? ({
+              'aria-hidden': true,
+              dataSet: {
+                mediaFit: contentFit,
+                mediaFitReason: fitPlan.reason,
+              },
+            } as Record<string, unknown>)
+          : null)}
       >
-        {backLayout.showMediaImage ? (
+        {showVisibleMediaImage ? (
           contentFit === 'contain' ? (
             <Image
               source={imageSource}
@@ -759,20 +856,10 @@ export function ConceptCard({
               contentFit="contain"
               contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
               cachePolicy="memory-disk"
+              recyclingKey={mediaUri}
               priority="high"
-              loading="eager"
-              transition={0}
-              onLoad={(event) => {
-                const src = event.source;
-                if (src?.width && src?.height) {
-                  setMediaSourceSize({ width: src.width, height: src.height });
-                }
-                setMediaDecoded(true);
-                setMediaError(false);
-              }}
-              onLoadEnd={() => {
-                setMediaDecoded(true);
-              }}
+              transition={imageTransition}
+              onLoad={onMediaLoad}
               onError={() => {
                 setMediaError(true);
               }}
@@ -784,22 +871,12 @@ export function ConceptCard({
               source={imageSource}
               style={StyleSheet.absoluteFill}
               contentFit={CARD_BACK_MEDIA_CONTENT_FIT}
-              contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
+              contentPosition={coverPosition}
               cachePolicy="memory-disk"
+              recyclingKey={mediaUri}
               priority="high"
-              loading="eager"
-              transition={0}
-              onLoad={(event) => {
-                const src = event.source;
-                if (src?.width && src?.height) {
-                  setMediaSourceSize({ width: src.width, height: src.height });
-                }
-                setMediaDecoded(true);
-                setMediaError(false);
-              }}
-              onLoadEnd={() => {
-                setMediaDecoded(true);
-              }}
+              transition={imageTransition}
+              onLoad={onMediaLoad}
               onError={() => {
                 setMediaError(true);
               }}
@@ -936,25 +1013,21 @@ export function ConceptCard({
       accessibilityHint={accessibilityHint}
       accessible={accessibilityHint != null ? true : undefined}
     >
-      {mediaUri.length > 0 && imageSource ? (
+      {showMediaDecoder ? (
         <Image
           source={imageSource}
-          style={styles.eagerPreload}
+          style={styles.mediaDecoder}
+          contentFit="contain"
           cachePolicy="memory-disk"
+          recyclingKey={`${mediaUri}-decoder`}
           priority="high"
-          loading="eager"
           transition={0}
-          onLoad={(event) => {
-            const src = event.source;
-            if (src?.width && src?.height) {
-              setMediaSourceSize({ width: src.width, height: src.height });
-            }
-            setMediaDecoded(true);
-            setMediaError(false);
-          }}
+          testID="card-back-media-decoder"
+          onLoad={onMediaLoad}
           onError={() => {
             setMediaError(true);
           }}
+          pointerEvents="none"
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
@@ -1002,13 +1075,19 @@ const styles = StyleSheet.create({
     opacity: 0,
     zIndex: 0,
   },
-  eagerPreload: {
+  /**
+   * Off-screen decoder. Unmounted once the visible back image is showing so
+   * native never has two expo-image views of the same URI (Lz-55). 1×1 so the
+   * native/web loader actually runs (0×0 can skip decode and miss onError).
+   */
+  mediaDecoder: {
     position: 'absolute',
     width: 1,
     height: 1,
     opacity: 0,
-    bottom: 0,
-    right: 0,
+    overflow: 'hidden',
+    left: -4096,
+    top: 0,
     zIndex: 0,
   },
   face: {

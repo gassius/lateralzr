@@ -12,6 +12,11 @@ export type ConceptMedia = {
   license?: string | null;
   creator?: string | null;
   source?: string | null;
+  /** Lz-55: purpose-based fit. Absent in production until Lz-60 provenance lands. */
+  purpose?: string | null;
+  /** Cover focal point 0–1; centre when absent. */
+  focalX?: number | null;
+  focalY?: number | null;
 };
 
 export type ConceptItem = {

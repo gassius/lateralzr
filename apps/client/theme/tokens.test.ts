@@ -6,10 +6,26 @@ import { logoNearBlack } from './logo.ts';
 import { GUIDE_SECTION_23 } from './section23.ts';
 import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
-describe('v3.3 design tokens', () => {
-  it('matches guide §23 exactly (plus shared shadow.card pin for Lz-24)', () => {
-    // Independent pin copied from v3.3 §23 values — not loaded from tokens.json.
+describe('v3.4 design tokens', () => {
+  it('matches the Lz-55 §23 pin (cardAspect, media, webPreview on the v3.3 base)', () => {
+    // Independent pin — not loaded from tokens.json.
     assert.deepEqual(tokens, GUIDE_SECTION_23);
+    assert.equal(tokens.version, '3.4');
+    assert.equal(tokens.cardAspect.preferred, 1.4);
+    assert.equal(tokens.cardAspect.min, 1.3);
+    assert.equal(tokens.cardAspect.max, 1.5);
+    assert.equal(tokens.cardAspect.minCardWidth, 288);
+    assert.equal(tokens.cardAspect.surplusGoes, 'above-card');
+    assert.equal(tokens.cardAspect.neverSquash, true);
+    assert.deepEqual(tokens.media.fitBy, ['purpose', 'measured']);
+    assert.equal(tokens.media.purposes.photo, 'cover');
+    assert.equal(tokens.media.purposes.diagram, 'contain');
+    assert.equal(tokens.media.maxRequestWidth, 1600);
+    assert.equal(tokens.media.decodeTimeoutMs, 8000);
+    assert.equal(tokens.webPreview.outside, '#0E1012');
+    assert.equal(tokens.webPreview.frameEdge, '#FFFFFF1A');
+    assert.equal(tokens.webPreview.simulatedSafeAreaTop, 47);
+    assert.equal(tokens.webPreview.simulatedSafeAreaBottom, 34);
   });
 
   it('pins subdued card shadow tokens for ConceptCard / swirl', () => {

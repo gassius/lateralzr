@@ -13,6 +13,7 @@ import {
   type AccessibilityActionEvent,
   type AppStateStatus,
   type NativeSyntheticEvent,
+  PixelRatio,
   Platform,
   StyleSheet,
   View,
@@ -39,7 +40,7 @@ import {
 } from '@/lib/analytics';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
-import { cardRadius } from '@/lib/cardLayout';
+import { CARD_STACK_GUTTER, cardRadius, resolveCardAspectLayout } from '@/lib/cardLayout';
 import {
   buildCardAccessibilityActions,
   canRunCardAction,
@@ -70,8 +71,7 @@ import {
 import { coachMessageKey } from '@/lib/discoveryCoaching';
 import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
-import { CARD_STACK_PADDING_TOP } from '@/lib/lateralityChrome';
-import { displayMediaUrl } from '@/lib/remoteImage';
+import { requestedMediaWidth, resolveCardMediaUrl } from '@/lib/remoteImage';
 
 export type ConceptCardStackHandle = {
   /** Run a non-swipe action through the same commit path as gestures. */
@@ -112,7 +112,6 @@ type ConceptCardStackProps = {
 const PAN_ACTIVE_OFFSET = 18;
 /** Move behind peek off-screen instead of opacity:0 — opacity toggles caused a sibling alpha compositor flash on handoff. */
 const BEHIND_PEEK_OFFSCREEN_X = -4096;
-const CARD_ASPECT = 1.4;
 
 export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardStackProps>(function ConceptCardStack({
   concepts,
@@ -205,9 +204,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     reduceMotionSV.value = reduceMotion ? 1 : 0;
   }, [reduceMotion, reduceMotionSV]);
 
-  const cardWidth = Math.max(0, containerW);
-  const desiredCardHeight = cardWidth > 0 ? cardWidth * CARD_ASPECT : 0;
-  const cardAreaHeight = Math.max(260, Math.min(availableHeight * 0.78, desiredCardHeight || availableHeight * 0.78));
+  const cardLayout = resolveCardAspectLayout({
+    columnWidth: containerW,
+    availableHeight,
+  });
+  const cardWidth = cardLayout.width;
+  const cardAreaHeight = cardLayout.height;
 
   useEffect(() => {
     cardWidthSV.value = Math.max(1, cardWidth);
@@ -966,12 +968,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     if (!showInitialLoading) return null;
     return (
       <View
-        style={styles.outer}
+        style={[styles.outer, { paddingTop: cardLayout.topSurplus }]}
         onLayout={(e) => {
           setContainerW(e.nativeEvent.layout.width);
         }}
       >
-        <View style={[styles.cardWrap, { height: cardAreaHeight }]}>
+        <View
+          style={[
+            styles.cardWrap,
+            { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+          ]}
+        >
           <View style={styles.gestureFill}>
             <View style={styles.frontWrap}>
               <LoadingCard />
@@ -1007,12 +1014,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   return (
     <View
-      style={styles.outer}
+      style={[styles.outer, { paddingTop: cardLayout.topSurplus }]}
       onLayout={(e) => {
         setContainerW(e.nativeEvent.layout.width);
       }}
     >
-      <View style={[styles.cardWrap, { height: cardAreaHeight }]}>
+      <View
+        style={[
+          styles.cardWrap,
+          { height: cardAreaHeight, width: cardWidth > 0 ? cardWidth : '100%' },
+        ]}
+      >
         <GestureDetector gesture={composed}>
           <View style={styles.gestureFill}>
           {showBehindNext ? (
@@ -1029,6 +1041,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                 flipped={false}
                 reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
+                facePadding={cardLayout.padding}
               />
             </Animated.View>
           ) : null}
@@ -1072,6 +1085,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   exposeFrontTitleTestId
                   onBackInteractivePress={noteBackInteractivePress}
                   pulseGateActive={pulseGateActive}
+                  facePadding={cardLayout.padding}
                 />
               )}
             </View>
@@ -1091,6 +1105,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                 flipped={false}
                 reduceMotion={reduceMotion}
                 preloadedMediaUrls={preloadedMediaUrls}
+                facePadding={cardLayout.padding}
               />
             </Animated.View>
           ) : null}
@@ -1111,6 +1126,7 @@ function ConceptCardForIndex({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
+  facePadding,
 }: {
   concepts: ConceptItem[];
   currentIndex: number;
@@ -1121,9 +1137,15 @@ function ConceptCardForIndex({
   exposeFrontTitleTestId?: boolean;
   onBackInteractivePress?: () => void;
   pulseGateActive?: boolean;
+  facePadding: number;
 }) {
   const item = concepts[currentIndex]!;
-  const mediaUri = displayMediaUrl(item.mediaUrl, Platform.OS, resolveApiBaseUrl());
+  const mediaUri = resolveCardMediaUrl({
+    mediaUrl: item.mediaUrl,
+    platform: Platform.OS,
+    apiBaseUrl: resolveApiBaseUrl(),
+    requestWidth: requestedMediaWidth(390, PixelRatio.get()),
+  });
   const isMediaPrefetched = mediaUri !== '' && preloadedMediaUrls.has(mediaUri);
   return (
     <ConceptCard
@@ -1135,6 +1157,7 @@ function ConceptCardForIndex({
       exposeFrontTitleTestId={exposeFrontTitleTestId}
       onBackInteractivePress={onBackInteractivePress}
       pulseGateActive={pulseGateActive}
+      facePadding={facePadding}
     />
   );
 }
@@ -1143,10 +1166,7 @@ const styles = StyleSheet.create({
   outer: {
     width: '100%',
     // Agreed exception (Lz-21 / Lz-24 AD): keep 12 here, not layout.screenGutter 16.
-    // 16 narrows the front at 320 and regresses ES long-label title fit until Lz-26.
-    // Screen gutter 16 applies to the control row; revisit after #84 lands title fit.
-    paddingHorizontal: 12,
-    paddingTop: CARD_STACK_PADDING_TOP,
+    paddingHorizontal: CARD_STACK_GUTTER,
     justifyContent: 'flex-start',
     flexGrow: 0,
     flexShrink: 0,

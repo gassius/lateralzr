@@ -66,9 +66,9 @@ import {
   type LateralityGrade,
 } from '@/lib/laterality';
 import {
-  cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
   lateralityCardGap,
+  lateralityChromeReserve,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
@@ -1052,10 +1052,12 @@ export default function HomeScreen() {
               onSwipeLeft={onSwipeLeft}
               onSwipeRight={onSwipeRight}
               onSwipeForwardVertical={onSwipeForwardVertical}
-              availableHeight={
-                cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-                (accessibleNavVisible ? accessibleNavHeight : 0)
-              }
+              availableHeight={Math.max(
+                0,
+                usableHeight -
+                  lateralityChromeReserve(usableHeight, lateralityControlHeight) -
+                  (accessibleNavVisible ? accessibleNavHeight : 0),
+              )}
               preloadedMediaUrls={preloadedMediaUrls}
               showDeckLoading={showDeckLoading}
               showInitialLoading={showInitialLoading}

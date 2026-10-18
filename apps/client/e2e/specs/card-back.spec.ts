@@ -82,6 +82,9 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.getByTestId('card-back-emboss')).toHaveCount(0);
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'cover');
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
+    await expect(page.locator('[data-testid="card-back-media-decoder"]:visible')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
   });
 
@@ -170,7 +173,19 @@ test.describe('card back', () => {
     await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /schematic lattice/i);
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'contain');
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-diagram', locale: 'en' });
+  });
+
+  test('broken media URL falls back to the no-media back', async ({ page }) => {
+    await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
+      mock: { brokenMedia: true },
+    });
+    await flipCard(page);
+    await expect(page.locator('[data-testid="card-back-without-media"]:visible')).toBeVisible();
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(0);
+    await expect(cardBackCopy(page)).toBeVisible();
   });
 
   test('with transparent media', async ({ page }, testInfo) => {

@@ -1,9 +1,13 @@
 import { Image } from 'expo-image';
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { PixelRatio, Platform } from 'react-native';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
-import { displayMediaUrl, remoteImageHeadersForPlatform } from '@/lib/remoteImage';
+import {
+  remoteImageHeadersForPlatform,
+  requestedMediaWidth,
+  resolveCardMediaUrl,
+} from '@/lib/remoteImage';
 
 const BATCH_DEBOUNCE_MS = 200;
 
@@ -15,12 +19,22 @@ function prefetchOpts() {
   };
 }
 
+function preloadRequestWidth(): number {
+  return requestedMediaWidth(390, PixelRatio.get());
+}
+
 function uniqueMediaUrls(concepts: ConceptItem[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   const apiBaseUrl = resolveApiBaseUrl();
+  const requestWidth = preloadRequestWidth();
   for (const c of concepts) {
-    const u = displayMediaUrl(c.mediaUrl, Platform.OS, apiBaseUrl);
+    const u = resolveCardMediaUrl({
+      mediaUrl: c.mediaUrl,
+      platform: Platform.OS,
+      apiBaseUrl,
+      requestWidth,
+    });
     if (!u || seen.has(u)) continue;
     seen.add(u);
     out.push(u);
@@ -52,7 +66,12 @@ export function useConceptMediaPreload(concepts: ConceptItem[], currentIndex: nu
 
   /** Current card first — helps first flip after load or after swipe before batch finishes. */
   useEffect(() => {
-    const url = displayMediaUrl(concepts[currentIndex]?.mediaUrl, Platform.OS, resolveApiBaseUrl());
+    const url = resolveCardMediaUrl({
+      mediaUrl: concepts[currentIndex]?.mediaUrl,
+      platform: Platform.OS,
+      apiBaseUrl: resolveApiBaseUrl(),
+      requestWidth: preloadRequestWidth(),
+    });
     if (!url) return;
 
     let cancelled = false;

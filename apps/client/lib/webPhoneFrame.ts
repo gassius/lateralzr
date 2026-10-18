@@ -1,3 +1,5 @@
+import { webPreview } from '@/theme/tokens';
+
 /** Logical CSS width of a large modern iPhone (e.g. 14/15/16 Pro Max). */
 export const WEB_PHONE_MAX_WIDTH = 430;
 
@@ -48,4 +50,19 @@ export function webPhoneFrameSize(viewportWidth: number, viewportHeight: number)
   }
 
   return { width, height, framed: true };
+}
+
+/** v3.4 §16.3: simulated native safe areas inside the web preview frame. */
+export function webPreviewSimulatedInsets(): {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+} {
+  return {
+    top: webPreview.simulatedSafeAreaTop,
+    left: 0,
+    right: 0,
+    bottom: webPreview.simulatedSafeAreaBottom,
+  };
 }
