@@ -242,6 +242,7 @@ for (const concept of ['mushroom', 'diagram']) {
       await expect(surface).toBeVisible();
       const unfocusedBox = await surface.boundingBox();
       expect(unfocusedBox).not.toBeNull();
+      expect(unfocusedBox?.height ?? 0, face).toBeGreaterThan(0);
       await surface.focus();
       await expect(surface).toBeFocused();
       const ring = await surface.evaluate((el) => {

@@ -322,9 +322,7 @@ export async function swipeVertical(
   page: Page,
   direction: 'up' | 'down',
 ): Promise<void> {
-  const stack = page.getByTestId('card-laterality-group');
-  const box = await stack.boundingBox();
-  if (!box) throw new Error('card-laterality-group has no bounding box');
+  const box = await cardGestureBox(page);
   const x = box.x + box.width * 0.5;
   const fromY = direction === 'up' ? box.y + box.height * 0.7 : box.y + box.height * 0.3;
   const toY = direction === 'up' ? box.y + box.height * 0.2 : box.y + box.height * 0.8;
@@ -340,15 +338,12 @@ export async function holdHorizontalDrag(
   direction: 'left' | 'right',
   fraction = 0.2,
 ): Promise<{ x: number; y: number }> {
-  const stack = page.getByTestId('card-laterality-group');
-  const box = await stack.boundingBox();
-  if (!box) throw new Error('card-laterality-group has no bounding box');
-  const y = box.y + box.height * 0.3;
-  const fromX = box.x + box.width * 0.5;
+  const box = await cardGestureBox(page);
+  const from = swipePoint(box, 0.5);
   const toX =
-    direction === 'left' ? fromX - box.width * fraction : fromX + box.width * fraction;
-  await page.mouse.move(fromX, y);
+    direction === 'left' ? from.x - box.width * fraction : from.x + box.width * fraction;
+  await page.mouse.move(from.x, from.y);
   await page.mouse.down();
-  await page.mouse.move(toX, y, { steps: 10 });
-  return { x: toX, y };
+  await page.mouse.move(toX, from.y, { steps: 10 });
+  return { x: toX, y: from.y };
 }
