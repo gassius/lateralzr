@@ -2,9 +2,10 @@ import tokensJson from './tokens.json';
 import { GUIDE_SECTION_23, type DesignTokens } from './section23';
 
 /**
- * Art Direction v3.3 design tokens (ClickUp Lz-20 / guide §23).
+ * Art Direction v3.4 design tokens (ClickUp Lz-55 / guide §23).
  * Runtime values come from `tokens.json`; types are the §23 literal shape.
  * Logo near-black lives in `./logo` — not in `color`.
+ * Later Lz-54 tickets add further §23 groups; do not dump the whole v3.4 map here.
  */
 /** JSON import widens arrays/strings; cast through unknown onto the §23 literal shape (M1). */
 export const tokens = tokensJson as unknown as DesignTokens;
@@ -18,6 +19,9 @@ export const laterality = tokens.laterality;
 export const pattern = tokens.pattern;
 export const shadow = tokens.shadow;
 export const decorative = tokens.decorative;
+export const cardAspect = tokens.cardAspect;
+export const media = tokens.media;
+export const webPreview = tokens.webPreview;
 
 export type { DesignTokens };
 export type ColorToken = keyof typeof color;

@@ -32,7 +32,7 @@ export type CardBackCopyRhythm = {
 
 /**
  * Default paint mode for adequate photos (Lz-28). Runtime fit may switch to
- * `contain` via `resolveCardBackMediaFit` (png/svg or >1.5× upscale).
+ * `contain` via `resolveCardBackMediaFit` (purpose, or measured JPEG/WebP).
  */
 export type CardBackMediaContentFit = 'cover' | 'contain';
 

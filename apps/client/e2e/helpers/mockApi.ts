@@ -16,6 +16,8 @@ export type MockOptions = {
   delayLoadMoreMs?: number;
   /** Hold the first relationships call open this long (intro / logo capture). */
   delayFirstMs?: number;
+  /** Serve a 404 from `/api/media` so the card falls back to the no-media back. */
+  brokenMedia?: boolean;
 };
 
 type RelationshipsBody = {
@@ -220,10 +222,17 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
     }
 
     let payload = pickRelationshipsFixture(body, relationshipsCalls);
-    if (options.omitWikipedia || options.licenseOnlyMedia) {
+    if (options.omitWikipedia || options.licenseOnlyMedia || options.brokenMedia) {
       const graph = JSON.parse(payload);
       for (const node of graph.data.nodes) {
         if (options.omitWikipedia) node.wikiUrl = null;
+        if (options.brokenMedia && node.mediaUrl) {
+          const broken = 'https://upload.wikimedia.org/wikipedia/commons/e2e/fixture-broken.jpg';
+          node.mediaUrl = broken;
+          node.media = (node.media ?? []).map((entry: { url: string }) =>
+            entry.url ? { ...entry, url: broken } : entry,
+          );
+        }
         if (options.licenseOnlyMedia) {
           node.media = node.media.map(
             ({ url, kind, license }: { url: string; kind: string; license: string }) =>
@@ -241,8 +250,12 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
   });
 
   await page.route('**/api/media**', async (route: Route) => {
-    const url = new URL(route.request().url());
-    const target = url.searchParams.get('url');
+    const reqUrl = new URL(route.request().url());
+    const target = reqUrl.searchParams.get('url') ?? '';
+    if (options.brokenMedia || target.includes('fixture-broken')) {
+      await route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' });
+      return;
+    }
     const image = imageForMediaUrl(target);
     await route.fulfill({
       status: 200,

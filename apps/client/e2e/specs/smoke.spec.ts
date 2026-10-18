@@ -9,6 +9,8 @@ test.describe('smoke', () => {
 
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(page.getByTestId('laterality-control')).toBeVisible();
+    await expect(page.getByTestId('web-phone-frame')).toHaveAttribute('data-safe-top', '47');
+    await expect(page.getByTestId('web-phone-frame')).toHaveAttribute('data-safe-bottom', '34');
 
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();

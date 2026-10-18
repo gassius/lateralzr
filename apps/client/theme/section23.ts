@@ -1,10 +1,12 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.3).
+ * Independent pin of Art Direction guide §23 (v3.4 Lz-55 subset).
+ * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Later Lz-54 tickets add
+ * their own groups (motion.swipe, decorative, sheets, build, …) on top.
  * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
  */
 export const GUIDE_SECTION_23 = {
-  version: '3.3',
-  status: 'Approved v3.3',
+  version: '3.4',
+  status: 'Approved v3.4 (Carlos González Rico, 2026-10-17)',
   color: {
     shell: '#082D3D',
     front: '#F78D1E',
@@ -141,6 +143,40 @@ export const GUIDE_SECTION_23 = {
       radius: 12,
       elevation: 4,
     },
+  },
+  cardAspect: {
+    preferred: 1.4,
+    min: 1.3,
+    max: 1.5,
+    minCardWidth: 288,
+    surplusGoes: 'above-card',
+    neverSquash: true,
+  },
+  media: {
+    fitBy: ['purpose', 'measured'],
+    purposes: {
+      photo: 'cover',
+      diagram: 'contain',
+      map: 'contain',
+      artwork: 'contain',
+      'text-bearing': 'contain',
+    },
+    measuredCoverAspect: [0.6, 1.8],
+    maxUpscale: 1.5,
+    containInset: 16,
+    containFill: 'paper',
+    singleInstance: true,
+    repeat: 'never',
+    maxRequestWidth: 1600,
+    nativePreferRasterForSvg: true,
+    decodeTimeoutMs: 8000,
+    imageFadeInMs: 150,
+  },
+  webPreview: {
+    outside: '#0E1012',
+    frameEdge: '#FFFFFF1A',
+    simulatedSafeAreaTop: 47,
+    simulatedSafeAreaBottom: 34,
   },
 } as const;
 

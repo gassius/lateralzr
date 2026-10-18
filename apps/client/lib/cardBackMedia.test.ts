@@ -8,8 +8,9 @@ import {
   CARD_BACK_MEDIA_MIN_READING_STRIP,
   CARD_BACK_MEDIA_SEAM_OVERLAP,
   coverUpscaleFactor,
+  mediaTypeIsJpegOrWebp,
+  mediaUrlIsJpegOrWebp,
   mediaUrlPathname,
-  mediaUrlPrefersContain,
   resolveCardBackMediaBand,
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
@@ -25,13 +26,16 @@ test('mediaUrlPathname strips query/hash and lowercases', () => {
   assert.equal(mediaUrlPathname(''), '');
 });
 
-test('png and svg URLs prefer contain; jpeg/webp stay cover-eligible', () => {
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.png'), true);
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.PNG?w=1'), true);
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.svg'), true);
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.jpg'), false);
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.jpeg'), false);
-  assert.equal(mediaUrlPrefersContain('https://x.test/a.webp'), false);
+test('measured format gate is jpeg/webp only — never an extension-as-purpose heuristic', () => {
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.png'), false);
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.PNG?w=1'), false);
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.svg'), false);
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.jpg'), true);
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.jpeg'), true);
+  assert.equal(mediaUrlIsJpegOrWebp('https://x.test/a.webp'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/jpeg'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/webp'), true);
+  assert.equal(mediaTypeIsJpegOrWebp('image/png'), false);
 });
 
 test('coverUpscaleFactor is the max axis scale', () => {
@@ -40,14 +44,42 @@ test('coverUpscaleFactor is the max axis scale', () => {
   assert.equal(coverUpscaleFactor(0, 100, 200, 150), 1);
 });
 
-test('fit: extension forces contain before upscale is known', () => {
+test('fit: purpose photo covers; diagram/map/artwork/text-bearing contain', () => {
+  const slot = { slotWidth: 320, slotHeight: 200, mediaUrl: 'https://x.test/photo.jpg' };
+  assert.deepEqual(resolveCardBackMediaFit({ ...slot, purpose: 'photo' }), {
+    contentFit: 'cover',
+    reason: 'purpose',
+  });
+  for (const purpose of ['diagram', 'map', 'artwork', 'text-bearing'] as const) {
+    assert.deepEqual(
+      resolveCardBackMediaFit({ ...slot, mediaUrl: 'https://x.test/x.jpg', purpose }),
+      { contentFit: 'contain', reason: 'purpose' },
+    );
+  }
+});
+
+test('fit: purpose wins over a jpeg URL that would otherwise cover', () => {
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      mediaUrl: 'https://x.test/photo.jpg',
+      purpose: 'diagram',
+      sourceWidth: 800,
+      sourceHeight: 600,
+      slotWidth: 320,
+      slotHeight: 200,
+    }),
+    { contentFit: 'contain', reason: 'purpose' },
+  );
+});
+
+test('fit: unknown purpose never uses extension-only; png/svg contain via format', () => {
   assert.deepEqual(
     resolveCardBackMediaFit({
       mediaUrl: 'https://x.test/fixture-transparent.png',
       slotWidth: 320,
       slotHeight: 200,
     }),
-    { contentFit: 'contain', reason: 'extension' },
+    { contentFit: 'contain', reason: 'format' },
   );
   assert.deepEqual(
     resolveCardBackMediaFit({
@@ -55,11 +87,39 @@ test('fit: extension forces contain before upscale is known', () => {
       slotWidth: 320,
       slotHeight: 200,
     }),
-    { contentFit: 'contain', reason: 'extension' },
+    { contentFit: 'contain', reason: 'format' },
   );
 });
 
-test('fit: jpeg covers when upscale ≤ 1.5×; contain when above', () => {
+test('fit: decoded mediaType wins; extension only when mediaType is null', () => {
+  const slot = { slotWidth: 320, slotHeight: 200, sourceWidth: 800, sourceHeight: 600 };
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/photo.jpg',
+      mediaType: 'image/png',
+    }),
+    { contentFit: 'contain', reason: 'format' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/diagram.png',
+      mediaType: 'image/jpeg',
+    }),
+    { contentFit: 'cover', reason: 'measured' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      ...slot,
+      mediaUrl: 'https://x.test/photo.jpg',
+      mediaType: null,
+    }),
+    { contentFit: 'cover', reason: 'measured' },
+  );
+});
+
+test('fit: unknown jpeg covers when aspect 0.6–1.8 and upscale ≤ 1.5×', () => {
   assert.deepEqual(
     resolveCardBackMediaFit({
       mediaUrl: 'https://x.test/photo.jpg',
@@ -68,7 +128,7 @@ test('fit: jpeg covers when upscale ≤ 1.5×; contain when above', () => {
       slotWidth: 320,
       slotHeight: 200,
     }),
-    { contentFit: 'cover', reason: null },
+    { contentFit: 'cover', reason: 'measured' },
   );
   assert.deepEqual(
     resolveCardBackMediaFit({
@@ -79,6 +139,16 @@ test('fit: jpeg covers when upscale ≤ 1.5×; contain when above', () => {
       slotHeight: 200,
     }),
     { contentFit: 'contain', reason: 'upscale' },
+  );
+  assert.deepEqual(
+    resolveCardBackMediaFit({
+      mediaUrl: 'https://x.test/pano.jpg',
+      sourceWidth: 2000,
+      sourceHeight: 400,
+      slotWidth: 320,
+      slotHeight: 200,
+    }),
+    { contentFit: 'contain', reason: 'aspect' },
   );
 });
 

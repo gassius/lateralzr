@@ -1,7 +1,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 
 import { gtmNoscriptUrl, parseGtmWebId } from '@/lib/gtmWeb';
-import { color } from '@/theme/tokens';
+import { webPreview } from '@/theme/tokens';
 
 // Expo `web.output: "single"` (current Vercel SPA) does not emit this file
 // into dist HTML. GTM still injects at runtime via `ensureGtmWebLoaded`.
@@ -59,7 +59,7 @@ html, body {
 }
 body {
   /* Letterbox around the web-only phone frame (see WebPhoneFrame.web.tsx). */
-  background-color: ${color.shell};
+  background-color: ${webPreview.outside};
 }
 body > div {
   height: 100%;

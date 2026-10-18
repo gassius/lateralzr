@@ -1,21 +1,38 @@
 /**
- * Lz-28 card-back media layer: band maths, fit selection, fade geometry.
+ * Lz-28 / Lz-55 card-back media layer: band maths, fit selection, fade geometry.
  *
- * Settled heuristic (Critiquito / Carlos): SVG and transparent PNG, or more than
- * 1.5× upscale → contain on paper (16 px inset, centred, ≤1.5×). Everything else
- * cover on focal point (centre when none). No dark/busy fade shift.
+ * v3.4 §9.3: purpose decides fit (photo → cover; diagram/map/artwork/text-bearing
+ * → contain). Unknown purpose falls back to measurement (JPEG/WebP, aspect
+ * 0.6–1.8, upscale ≤ 1.5 → cover; else contain). Never the file extension alone.
  */
 
+import { media as mediaTokens } from '@/theme/tokens';
 import type { CardBackMediaContentFit } from './cardBackLayout';
 
 /** Minimum visible image band as a fraction of face height. */
 export const CARD_BACK_MEDIA_MIN_BAND_RATIO = 0.28;
 
-/** Inset for contain-fit media on paper (guide §9.3). */
-export const CARD_BACK_MEDIA_CONTAIN_INSET = 16;
+/** Inset for contain-fit media on paper (guide §9.3 / tokens.media). */
+export const CARD_BACK_MEDIA_CONTAIN_INSET = mediaTokens.containInset;
 
 /** Cap display scale for contain / low-res paths (no blur-fill). */
-export const CARD_BACK_MEDIA_MAX_UPSCALE = 1.5;
+export const CARD_BACK_MEDIA_MAX_UPSCALE = mediaTokens.maxUpscale;
+
+export const CARD_BACK_MEDIA_DECODE_TIMEOUT_MS = mediaTokens.decodeTimeoutMs;
+export const CARD_BACK_MEDIA_FADE_IN_MS = mediaTokens.imageFadeInMs;
+export const CARD_BACK_MEDIA_MAX_REQUEST_WIDTH = mediaTokens.maxRequestWidth;
+export const CARD_BACK_MEDIA_COVER_ASPECT_MIN = mediaTokens.measuredCoverAspect[0];
+export const CARD_BACK_MEDIA_COVER_ASPECT_MAX = mediaTokens.measuredCoverAspect[1];
+
+export const CARD_BACK_MEDIA_PURPOSES = [
+  'photo',
+  'diagram',
+  'map',
+  'artwork',
+  'text-bearing',
+] as const;
+
+export type CardBackMediaPurpose = (typeof CARD_BACK_MEDIA_PURPOSES)[number];
 
 /**
  * Fade occupies this fraction of the image band (transparent → paper), ending
@@ -41,10 +58,16 @@ export type CardBackMediaBand = {
   dropImage: boolean;
 };
 
+export type CardBackMediaFitReason =
+  | 'purpose'
+  | 'measured'
+  | 'format'
+  | 'aspect'
+  | 'upscale';
+
 export type CardBackMediaFitPlan = {
   contentFit: CardBackMediaContentFit;
-  /** Why contain was chosen; null when covering. */
-  reason: 'extension' | 'upscale' | null;
+  reason: CardBackMediaFitReason;
 };
 
 export type CardBackContainBox = {
@@ -79,12 +102,25 @@ export function mediaUrlPathname(url: string): string {
 }
 
 /**
- * SVG or PNG → contain on paper (proxy for transparent / diagram-like media).
- * JPEG/WebP/etc. stay on the cover path unless upscale forces contain.
+ * Measured-fallback format gate (§9.3): cover is allowed only for JPEG/WebP.
+ * PNG/SVG still contain, but because they fail this gate — not as a purpose proxy.
  */
-export function mediaUrlPrefersContain(url: string): boolean {
+export function mediaUrlIsJpegOrWebp(url: string): boolean {
   const path = mediaUrlPathname(url);
-  return path.endsWith('.svg') || path.endsWith('.png');
+  return path.endsWith('.jpg') || path.endsWith('.jpeg') || path.endsWith('.webp');
+}
+
+/** Decoded MIME from expo-image `onLoad` `source.mediaType`. */
+export function mediaTypeIsJpegOrWebp(mediaType: string): boolean {
+  const t = mediaType.toLowerCase();
+  return t.includes('jpeg') || t.includes('jpg') || t.includes('webp');
+}
+
+export function isCardBackMediaPurpose(value: unknown): value is CardBackMediaPurpose {
+  return (
+    typeof value === 'string' &&
+    (CARD_BACK_MEDIA_PURPOSES as readonly string[]).includes(value)
+  );
 }
 
 /**
@@ -110,23 +146,46 @@ export function coverUpscaleFactor(
 
 export function resolveCardBackMediaFit(input: {
   mediaUrl: string;
+  purpose?: string | null;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
+  /** Decoded MIME from `onLoad`; extension is used only when this is null. */
+  mediaType?: string | null;
   slotWidth: number;
   slotHeight: number;
 }): CardBackMediaFitPlan {
-  if (mediaUrlPrefersContain(input.mediaUrl)) {
-    return { contentFit: 'contain', reason: 'extension' };
+  if (isCardBackMediaPurpose(input.purpose)) {
+    const mapped = mediaTokens.purposes[input.purpose];
+    return { contentFit: mapped, reason: 'purpose' };
   }
+
+  const jpegOrWebp =
+    input.mediaType != null && input.mediaType.length > 0
+      ? mediaTypeIsJpegOrWebp(input.mediaType)
+      : mediaUrlIsJpegOrWebp(input.mediaUrl);
+  if (!jpegOrWebp) {
+    return { contentFit: 'contain', reason: 'format' };
+  }
+
   const sw = input.sourceWidth ?? 0;
   const sh = input.sourceHeight ?? 0;
   if (sw > 0 && sh > 0) {
+    const aspect = sw / sh;
+    if (
+      aspect < CARD_BACK_MEDIA_COVER_ASPECT_MIN ||
+      aspect > CARD_BACK_MEDIA_COVER_ASPECT_MAX
+    ) {
+      return { contentFit: 'contain', reason: 'aspect' };
+    }
     const upscale = coverUpscaleFactor(sw, sh, input.slotWidth, input.slotHeight);
     if (upscale > CARD_BACK_MEDIA_MAX_UPSCALE) {
       return { contentFit: 'contain', reason: 'upscale' };
     }
+    return { contentFit: 'cover', reason: 'measured' };
   }
-  return { contentFit: 'cover', reason: null };
+
+  // JPEG/WebP with no measurements yet — optimistic cover until onLoad.
+  return { contentFit: 'cover', reason: 'measured' };
 }
 
 /**

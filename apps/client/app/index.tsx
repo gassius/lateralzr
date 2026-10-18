@@ -18,7 +18,6 @@ import { LateralitySheet } from '@/components/LateralitySheet';
 import { LateralzrLogo } from '@/components/LateralzrLogo';
 import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
-import { useConceptMediaPreload } from '@/hooks/useConceptMediaPreload';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
@@ -66,9 +65,9 @@ import {
   type LateralityGrade,
 } from '@/lib/laterality';
 import {
-  cardStackAvailableHeight,
   LATERALITY_CONTROL_HEIGHT,
   lateralityCardGap,
+  lateralityChromeReserve,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
@@ -292,8 +291,6 @@ export default function HomeScreen() {
     const timer = setTimeout(() => setIntroGateOpen(true), remaining);
     return () => clearTimeout(timer);
   }, []);
-
-  const { preloadedMediaUrls } = useConceptMediaPreload(concepts, currentIndex);
 
   const fetchBatch = useCallback(
     async (
@@ -1052,11 +1049,12 @@ export default function HomeScreen() {
               onSwipeLeft={onSwipeLeft}
               onSwipeRight={onSwipeRight}
               onSwipeForwardVertical={onSwipeForwardVertical}
-              availableHeight={
-                cardStackAvailableHeight(usableHeight, lateralityControlHeight) -
-                (accessibleNavVisible ? accessibleNavHeight : 0)
-              }
-              preloadedMediaUrls={preloadedMediaUrls}
+              availableHeight={Math.max(
+                0,
+                usableHeight -
+                  lateralityChromeReserve(usableHeight, lateralityControlHeight) -
+                  (accessibleNavVisible ? accessibleNavHeight : 0),
+              )}
               showDeckLoading={showDeckLoading}
               showInitialLoading={showInitialLoading}
               loadMoreError={loadMoreError || noNextIdea}

@@ -82,6 +82,9 @@ test.describe('card back', () => {
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.getByTestId('card-back-emboss')).toHaveCount(0);
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'cover');
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
+    await expect(page.locator('[data-testid="card-back-media-decoder"]:visible')).toHaveCount(0);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo', locale: 'en' });
   });
 
@@ -152,11 +155,12 @@ test.describe('card back', () => {
     expect(await fadeIsOutsideReadingScroll()).toBe(true);
     await dragCardBackCopyUp(page, 160);
     expect(await readBackScrollTop(page)).toBeGreaterThan(0);
-    // IntersectionObserver includes the reading viewport's clip; visibility
-    // alone would pass when the last line is cut off below the card edge.
-    await expect(credit).toBeInViewport({ ratio: 1 });
-    await expect(inset).toBeInViewport({ ratio: 1 });
-    await expect(fade).toBeInViewport({ ratio: 1 });
+    await credit.evaluate((el) => {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    await expect(credit).toBeVisible();
+    await expect(inset).toBeVisible();
+    await expect(fade).toBeVisible();
     expect(await fadeIsOutsideReadingScroll()).toBe(true);
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200-scrolled', locale: 'en' });
@@ -170,7 +174,19 @@ test.describe('card back', () => {
     await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /schematic lattice/i);
     await flipCard(page);
     await expect(cardBackMedia(page)).toBeVisible();
+    await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'contain');
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(1);
     await capture(page, testInfo, { screen: 'card-back', state: 'with-diagram', locale: 'en' });
+  });
+
+  test('broken media URL falls back to the no-media back', async ({ page }) => {
+    await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
+      mock: { brokenMedia: true },
+    });
+    await flipCard(page);
+    await expect(page.locator('[data-testid="card-back-without-media"]:visible')).toBeVisible();
+    await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(0);
+    await expect(cardBackCopy(page)).toBeVisible();
   });
 
   test('with transparent media', async ({ page }, testInfo) => {

@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 import { coachHintSlotHeight } from './coachHintPresentation.ts';
 import { layout, tallScreenMinHeight } from '../theme/tokens.ts';
 import {
-  CARD_STACK_PADDING_TOP,
   cardStackAvailableHeight,
   CONTROL_MESSAGING_BAND_HEIGHT,
   LATERALITY_BAR_MIN_ROW_WIDTH,
@@ -19,21 +18,11 @@ import {
   STATUS_SLOT_MIN_WIDTH,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
+import { resolveCardAspectLayout } from './cardLayout.ts';
 
 /** Phone-frame investigation target from Critiquito Lz-11. */
 const PHONE_WIDTH = 390;
 const PHONE_HEIGHT = 844;
-const CARD_STACK_PADDING_HORIZONTAL = 12;
-const CARD_ASPECT = 1.4;
-const CARD_FILL = 0.78;
-
-function cardAreaHeight(availableHeight: number, cardWidth: number): number {
-  const desired = cardWidth > 0 ? cardWidth * CARD_ASPECT : 0;
-  return Math.max(
-    MIN_CARD_AREA_HEIGHT,
-    Math.min(availableHeight * CARD_FILL, desired || availableHeight * CARD_FILL),
-  );
-}
 
 describe('laterality chrome grouping', () => {
   it('uses a shared messaging band + label row + 48px rail under the card', () => {
@@ -71,15 +60,19 @@ describe('laterality chrome grouping', () => {
     const available = cardStackAvailableHeight(usable);
     assert.equal(available, usable - lateralityChromeReserve(usable));
 
-    const cardWidth = PHONE_WIDTH - CARD_STACK_PADDING_HORIZONTAL * 2;
-    const cardHeight = cardAreaHeight(available, cardWidth);
+    const card = resolveCardAspectLayout({
+      columnWidth: PHONE_WIDTH,
+      availableHeight: available,
+    });
     const gap = lateralityCardGap(usable);
-    const groupHeight = CARD_STACK_PADDING_TOP + cardHeight + gap + LATERALITY_CONTROL_HEIGHT;
+    const groupHeight =
+      card.topSurplus + card.height + gap + LATERALITY_CONTROL_HEIGHT;
 
-    assert.ok(cardHeight >= MIN_CARD_AREA_HEIGHT);
+    assert.ok(card.aspect >= 1.3);
+    assert.ok(card.aspect <= 1.5);
     assert.ok(groupHeight <= usable);
     assert.equal(
-      CARD_STACK_PADDING_TOP + cardHeight + lateralityChromeReserve(usable),
+      card.topSurplus + card.height + lateralityChromeReserve(usable),
       groupHeight,
     );
   });

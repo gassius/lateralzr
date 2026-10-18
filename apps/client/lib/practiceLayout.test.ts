@@ -10,6 +10,13 @@ import {
   practiceMenuTriggerSize,
   practiceScreenGutter,
 } from './practiceLayout.ts';
+import { resolveNativeCardLayout } from './cardLayout.ts';
+import {
+  CONTROL_MESSAGING_BAND_HEIGHT,
+  LATERALITY_LABEL_ROW_HEIGHT,
+  LATERALITY_RAIL_HEIGHT,
+  lateralityCardGap,
+} from './lateralityChrome.ts';
 
 describe('practiceLayout shell column', () => {
   it('uses the 16 px screen gutter token', () => {
@@ -51,5 +58,25 @@ describe('practiceLayout menu trigger slot', () => {
   it('reserves a 48 px petrol band above the card for the ellipsis', () => {
     assert.equal(practiceMenuChromeHeight(), 48);
     assert.equal(practiceMenuChromeHeight(), practiceMenuTriggerSize());
+  });
+
+  it('feeds the 390 column into the v3.4 aspect helper', () => {
+    const column = practiceColumnWidth(390);
+    assert.equal(column, 390);
+    const menu = practiceMenuChromeHeight();
+    const usable = 844 - 47 - 34 - menu;
+    const layout = resolveNativeCardLayout({
+      columnWidth: column,
+      screenHeight: 844,
+      insetTop: 47,
+      insetBottom: 34,
+      menuBandHeight: menu,
+      cardGap: lateralityCardGap(usable),
+      messagingBandHeight: CONTROL_MESSAGING_BAND_HEIGHT,
+      lateralityLabelAndRailHeight: LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT,
+    });
+    assert.ok(layout.aspect >= 1.3);
+    assert.ok(layout.aspect <= 1.5);
+    assert.ok(layout.topSurplus > 0);
   });
 });
