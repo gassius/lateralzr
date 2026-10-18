@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefO
 import {
   AccessibilityInfo,
   BackHandler,
+  InteractionManager,
   PixelRatio,
   Platform,
   Pressable,
@@ -10,6 +11,7 @@ import {
   View,
   type View as ViewType,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   runOnJS,
@@ -20,7 +22,7 @@ import Animated, {
 import { ensureA11yFocusRingStyles } from '@/lib/cardActions';
 import { readWebPrefersReducedMotion } from '@/lib/cardSwipe';
 import { measureConceptFrontTitleWidth } from '@/lib/conceptFrontTitle';
-import { sheetMotionDurationMs, SHEET_BACKDROP_ALPHA } from '@/lib/lateralitySheet';
+import { sheetMotionDurationMs } from '@/lib/lateralitySheet';
 import { PRACTICE_COLUMN_MAX_WIDTH } from '@/lib/practiceLayout';
 import { resolveSheetHardwareBack } from '@/lib/sheetBack';
 import { focusSheetHost } from '@/lib/sheetFocus';
@@ -35,7 +37,7 @@ import {
   SHEET_TITLE_MEASURE_FALLBACK_MS,
 } from '@/lib/sheetTitle';
 import { t } from '@/lib/i18n';
-import { color, layout } from '@/theme/tokens';
+import { color, layout, shadow } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
 export type SheetProps = {
@@ -45,6 +47,10 @@ export type SheetProps = {
   children: ReactNode;
   /** Optional helper line under the title (Laterality sheet). */
   helper?: string;
+  /** Decorative content under the helper (Laterality mini rail). Hidden from AT by the child. */
+  afterHelper?: ReactNode;
+  /** Parent-owned title host (F7 nested-view re-focus). */
+  titleHostRef?: RefObject<ViewType | null>;
   /**
    * When set, Android hardware back prefers this over dismiss, and a header
    * back control is shown (in-sheet nested views). Escape still dismisses.
@@ -70,15 +76,16 @@ export type SheetProps = {
 };
 
 /**
- * Bottom sheet primitive for the practice column / phone frame.
- * Absolute overlay (not a body portal) so web letterboxing stays uncovered.
- * Reused by Lz-32 app-menu sheets.
+ * Floating Paper sheet (guide §12): inset, all-corner radius, card shadow,
+ * plain handle strip, scrim. Overlay stays inside the phone frame.
  */
 export function Sheet({
   visible,
   onDismiss,
   title,
   helper,
+  afterHelper,
+  titleHostRef,
   children,
   onBack,
   backAccessibilityLabel,
@@ -100,7 +107,9 @@ export function Sheet({
     return true;
   });
   const reduceMotion = reduceMotionProp ?? localReduceMotion;
-  const titleRef = useRef<ViewType | null>(null);
+  const insets = useSafeAreaInsets();
+  const internalTitleRef = useRef<ViewType | null>(null);
+  const titleRef = titleHostRef ?? internalTitleRef;
   const panelRef = useRef<ViewType | null>(null);
   const titleBaseStyle = textStyle('sheetTitle');
   /** e2eTextScale multiplies display size only; measure uses size × scale (#82). */
@@ -120,6 +129,9 @@ export function Sheet({
   const titleLineHeight = Math.round(titleLayout.lineHeight * e2eScale);
   const titleHostOpacity = sheetTitleHostOpacity(titleMeasure);
   const wasVisibleRef = useRef(visible);
+  const focusedTitleThisOpenRef = useRef(false);
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const progress = useSharedValue(visible ? 1 : 0);
   const reduceMotionRef = useRef(reduceMotion);
   const returnFocusRefStable = useRef(returnFocusRef);
@@ -164,6 +176,29 @@ export function Sheet({
     return () => clearTimeout(timer);
   }, [mounted, titleMeasure.frozenWidth]);
 
+  const focusOpenTitle = () => {
+    if (focusedTitleThisOpenRef.current || !visibleRef.current) return;
+    focusedTitleThisOpenRef.current = true;
+    focusSheetHost(titleRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document.querySelector<HTMLElement>(`[data-testid="${titleTestID}"]`)?.focus?.({
+        preventScroll: true,
+      });
+    }
+  };
+
+  // F7 web: focus immediately so Playwright's fake clock never has a leftover
+  // timer to steal the Motion row. Native waits until the open animation
+  // commits — setAccessibilityFocus before that is often a no-op (PRR B2).
+  useLayoutEffect(() => {
+    if (!visible) {
+      focusedTitleThisOpenRef.current = false;
+      return;
+    }
+    if (!mounted || Platform.OS !== 'web') return;
+    focusOpenTitle();
+  }, [visible, mounted, titleTestID]);
+
   // Open/close animation — deps are visibility only (PRR B1: unstable onBack must
   // not restart the sheet). Nested Back focus lives in AppMenuSheet via `view`.
   useEffect(() => {
@@ -171,12 +206,23 @@ export function Sheet({
       wasVisibleRef.current = true;
       setMounted(true);
       const duration = sheetMotionDurationMs(reduceMotionRef.current);
-      progress.value = withTiming(1, {
-        duration,
-        easing: Easing.out(Easing.cubic),
-      });
-      const focusTimer = setTimeout(() => focusSheetHost(titleRef), Math.max(16, duration));
-      return () => clearTimeout(focusTimer);
+      const focusNativeTitle = () => {
+        if (Platform.OS === 'web') return;
+        focusOpenTitle();
+      };
+      if (duration <= 0) {
+        progress.value = 1;
+        const handle = InteractionManager.runAfterInteractions(focusNativeTitle);
+        return () => handle.cancel();
+      }
+      progress.value = withTiming(
+        1,
+        { duration, easing: Easing.out(Easing.cubic) },
+        (finished) => {
+          if (finished) runOnJS(focusNativeTitle)();
+        },
+      );
+      return;
     }
 
     // Skip the initial mount when the sheet starts closed.
@@ -240,7 +286,7 @@ export function Sheet({
   }, [visible, onDismiss, testID]);
 
   const backdropStyle = useAnimatedStyle(() => ({
-    opacity: progress.value * SHEET_BACKDROP_ALPHA,
+    opacity: progress.value,
   }));
 
   const panelStyle = useAnimatedStyle(() => {
@@ -295,10 +341,20 @@ export function Sheet({
 
       <Animated.View
         ref={panelRef}
-        style={[styles.panel, panelStyle]}
+        style={[
+          styles.panel,
+          {
+            marginHorizontal: layout.sheetInset,
+            marginBottom: layout.sheetBottomGap + insets.bottom,
+          },
+          panelStyle,
+        ]}
         testID={`${testID}-panel`}
       >
-        <View style={styles.handle} accessible={false} testID={`${testID}-handle`} />
+        <View style={styles.panelClip}>
+        <View style={styles.handleStrip} accessible={false} testID={`${testID}-handle-strip`}>
+          <View style={styles.handle} accessible={false} testID={`${testID}-handle`} />
+        </View>
         <View style={styles.header}>
           {onBack ? (
             <Pressable
@@ -371,7 +427,9 @@ export function Sheet({
             </Text>
           </Pressable>
         </View>
+        {afterHelper}
         <View style={styles.body}>{children}</View>
+        </View>
       </Animated.View>
     </View>
   );
@@ -387,25 +445,41 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: color.shell,
+    backgroundColor: color.scrim,
   },
   panel: {
-    width: '100%',
+    alignSelf: 'stretch',
     maxWidth: PRACTICE_COLUMN_MAX_WIDTH,
     backgroundColor: color.paper,
-    borderTopLeftRadius: layout.sheetTopRadius,
-    borderTopRightRadius: layout.sheetTopRadius,
-    paddingBottom: layout.screenGutter,
+    borderRadius: layout.sheetRadius,
     maxHeight: '92%',
+    shadowColor: shadow.card.color,
+    shadowOffset: {
+      width: shadow.card.offsetWidth,
+      height: shadow.card.offsetHeight,
+    },
+    shadowOpacity: shadow.card.opacity,
+    shadowRadius: shadow.card.radius,
+    elevation: shadow.card.elevation,
+    paddingBottom: 12,
+  },
+  panelClip: {
+    borderRadius: layout.sheetRadius,
+    overflow: 'hidden',
+    minHeight: 0,
+    flexShrink: 1,
+  },
+  handleStrip: {
+    height: layout.sheetHandleStrip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: color.paper,
   },
   handle: {
-    alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: color.divider,
-    marginTop: 10,
-    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',

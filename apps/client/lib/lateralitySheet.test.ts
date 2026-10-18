@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { setActiveLocale, t } from './i18n.ts';
-import { motion } from '../theme/tokens.ts';
+import { layout, motion } from '../theme/tokens.ts';
 import {
+  lateralityMiniRailContentWidth,
+  lateralityMiniRailDotCenters,
+  lateralityMiniRailSelectedDot,
   lateralitySheetCommitValue,
   lateralitySheetRows,
+  LATERALITY_MINI_RAIL_DOT_COUNT,
+  LATERALITY_MINI_RAIL_DOT_RADIUS,
+  LATERALITY_MINI_RAIL_HEIGHT,
+  LATERALITY_SHEET_RADIO_SIZE,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
+  LATERALITY_SHEET_ROW_RADIUS,
   sheetMotionDurationMs,
 } from './lateralitySheet.ts';
 
@@ -68,8 +76,35 @@ describe('sheetMotionDurationMs', () => {
 });
 
 describe('laterality sheet layout constants', () => {
-  it('row min height meets the 48 px touch target (render uses 52)', () => {
-    assert.ok(LATERALITY_SHEET_ROW_MIN_HEIGHT >= 48);
-    assert.equal(LATERALITY_SHEET_ROW_MIN_HEIGHT, 52);
+  it('row min height is 56 (sheetRowHeight) and radios use 24 / radius 14', () => {
+    assert.ok(LATERALITY_SHEET_ROW_MIN_HEIGHT >= 56);
+    assert.equal(LATERALITY_SHEET_ROW_MIN_HEIGHT, layout.sheetRowHeight);
+    assert.equal(LATERALITY_SHEET_RADIO_SIZE, 24);
+    assert.equal(LATERALITY_SHEET_ROW_RADIUS, 14);
+  });
+
+  it('mini rail is a 5-dot echo of the selected grade', () => {
+    assert.equal(LATERALITY_MINI_RAIL_DOT_COUNT, 5);
+    assert.ok(LATERALITY_MINI_RAIL_HEIGHT < 48);
+    assert.equal(lateralityMiniRailSelectedDot(4), 4);
+    assert.equal(lateralityMiniRailSelectedDot(0), 1);
+    assert.equal(lateralityMiniRailSelectedDot(9), 5);
+  });
+
+  it('sizes the Svg inside paddingHorizontal so all five dots fit (AD W1)', () => {
+    const layoutWidth = 358;
+    const svgWidth = lateralityMiniRailContentWidth(layoutWidth, layout.screenGutter);
+    assert.equal(svgWidth, layoutWidth - layout.screenGutter * 2);
+    const clippedIfUnpadded = lateralityMiniRailDotCenters(layoutWidth);
+    assert.ok(
+      clippedIfUnpadded[4]! + LATERALITY_MINI_RAIL_DOT_RADIUS > svgWidth,
+      'using the padded onLayout width must overflow the content box',
+    );
+    const centers = lateralityMiniRailDotCenters(svgWidth);
+    assert.equal(centers.length, 5);
+    for (const cx of centers) {
+      assert.ok(cx - LATERALITY_MINI_RAIL_DOT_RADIUS >= 0);
+      assert.ok(cx + LATERALITY_MINI_RAIL_DOT_RADIUS <= svgWidth);
+    }
   });
 });

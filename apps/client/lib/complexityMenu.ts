@@ -1,3 +1,4 @@
+import { layout } from '../theme/tokens';
 import { t } from './i18n';
 
 /**
@@ -8,8 +9,8 @@ import { t } from './i18n';
 const MIN_GRADE = 1;
 const MAX_GRADE = 5;
 
-/** Same touch target as Laterality sheet radios (guide §12.1 / Critiquito). */
-export const COMPLEXITY_MENU_ROW_MIN_HEIGHT = 52;
+/** Same touch target as Laterality sheet radios (guide §12.1 / `sheetRowHeight`). */
+export const COMPLEXITY_MENU_ROW_MIN_HEIGHT = layout.sheetRowHeight;
 
 export type ComplexityMenuRow = {
   grade: number;

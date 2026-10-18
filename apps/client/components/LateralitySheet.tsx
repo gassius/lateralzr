@@ -1,4 +1,4 @@
-import { useMemo, type RefObject } from 'react';
+import { useMemo, useState, type RefObject } from 'react';
 import {
   Platform,
   Pressable,
@@ -8,19 +8,27 @@ import {
   View,
   type View as ViewType,
 } from 'react-native';
+import Svg, { Circle, Line } from 'react-native-svg';
 import { Sheet } from '@/components/Sheet';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { t } from '@/lib/i18n';
 import {
+  LATERALITY_MINI_RAIL_DOT_RADIUS,
+  LATERALITY_MINI_RAIL_HEIGHT,
+  LATERALITY_SHEET_RADIO_SIZE,
   LATERALITY_SHEET_ROW_MIN_HEIGHT,
+  LATERALITY_SHEET_ROW_RADIUS,
+  lateralityMiniRailContentWidth,
+  lateralityMiniRailDotCenters,
+  lateralityMiniRailSelectedDot,
   lateralitySheetCommitValue,
   lateralitySheetRows,
 } from '@/lib/lateralitySheet';
 import type { LateralityGrade } from '@/lib/laterality';
-import { color } from '@/theme/tokens';
+import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
-const RADIO_SIZE = 22;
 const RADIO_DOT = 8;
 
 type LateralitySheetProps = {
@@ -45,9 +53,58 @@ function LateralityRadio({ checked }: { checked: boolean }) {
   );
 }
 
+function LateralityMiniRail({ grade }: { grade: LateralityGrade }) {
+  const [width, setWidth] = useState(0);
+  const selected = lateralityMiniRailSelectedDot(grade);
+  const centers = lateralityMiniRailDotCenters(width);
+  const cy = LATERALITY_MINI_RAIL_HEIGHT / 2;
+  const first = centers[0] ?? 0;
+  const last = centers[centers.length - 1] ?? 0;
+
+  return (
+    <View
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
+      {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
+      onLayout={(event) => {
+        const measured = Math.round(event.nativeEvent.layout.width);
+        setWidth(lateralityMiniRailContentWidth(measured, layout.screenGutter));
+      }}
+      style={styles.miniRail}
+      testID="laterality-sheet-mini-rail"
+    >
+      {width > 0 ? (
+        <Svg width={width} height={LATERALITY_MINI_RAIL_HEIGHT} accessible={false}>
+          <Line
+            x1={first}
+            y1={cy}
+            x2={last}
+            y2={cy}
+            stroke={color.rail}
+            strokeWidth={1.75}
+            strokeLinecap="round"
+          />
+          {centers.map((cx, i) => {
+            const n = (i + 1) as LateralityGrade;
+            return (
+              <Circle
+                key={n}
+                cx={cx}
+                cy={cy}
+                r={LATERALITY_MINI_RAIL_DOT_RADIUS}
+                fill={n === selected ? color.front : color.rail}
+              />
+            );
+          })}
+        </Svg>
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * Laterality grade picker (guide §12.1). Selection never relies on orange alone —
- * selected rows use selectedSoft + ink centre dot.
+ * selected rows use selectedSoft + ink centre dot. Mini rail is decorative.
  */
 export function LateralitySheet({
   visible,
@@ -58,6 +115,7 @@ export function LateralitySheet({
 }: LateralitySheetProps) {
   const rows = useMemo(() => lateralitySheetRows(laterality), [laterality]);
   const reduceMotion = useReducedMotion();
+  const grade = lateralityMiniRailSelectedDot(laterality);
 
   return (
     <Sheet
@@ -65,6 +123,7 @@ export function LateralitySheet({
       onDismiss={onDismiss}
       title={t('lateralitySheetTitle')}
       helper={t('lateralitySheetHelper')}
+      afterHelper={<LateralityMiniRail grade={grade} />}
       testID="laterality-sheet"
       titleTestID="laterality-sheet-title"
       closeTestID="laterality-sheet-close"
@@ -77,39 +136,41 @@ export function LateralitySheet({
         keyboardShouldPersistTaps="handled"
         testID="laterality-sheet-rows"
       >
-        {rows.map((row) => (
-          <Pressable
-            key={row.grade}
-            onPress={() => {
-              onSelectLaterality(lateralitySheetCommitValue(row.grade));
-              onDismiss();
-            }}
-            accessibilityRole="radio"
-            accessibilityState={{ checked: row.checked }}
-            accessibilityLabel={row.a11yLabel}
-            testID={`laterality-sheet-row-${row.grade}`}
-            // RN-web does not always emit aria-checked from accessibilityState (Lz-41 axe).
-            {...(Platform.OS === 'web'
-              ? ({ 'aria-checked': row.checked, tabIndex: 0 } as Record<string, unknown>)
-              : null)}
-            style={({ pressed }) => [
-              styles.row,
-              row.checked ? styles.rowSelected : null,
-              pressed ? styles.rowPressed : null,
-            ]}
-          >
-            <LateralityRadio checked={row.checked} />
-            <Text
-              style={[
-                styles.rowLabel,
-                textStyle('row'),
-                row.checked ? styles.rowLabelSelected : null,
+        <View style={styles.group} testID="laterality-sheet-group">
+          {rows.map((row) => (
+            <Pressable
+              key={row.grade}
+              onPress={() => {
+                onSelectLaterality(lateralitySheetCommitValue(row.grade));
+                onDismiss();
+              }}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: row.checked }}
+              accessibilityLabel={row.a11yLabel}
+              testID={`laterality-sheet-row-${row.grade}`}
+              // RN-web does not always emit aria-checked from accessibilityState (Lz-41 axe).
+              {...(Platform.OS === 'web'
+                ? ({ 'aria-checked': row.checked, tabIndex: 0 } as Record<string, unknown>)
+                : null)}
+              style={({ pressed }) => [
+                styles.row,
+                row.checked ? styles.rowSelected : null,
+                pressed ? styles.rowPressed : null,
               ]}
             >
-              {t(row.labelKey)}
-            </Text>
-          </Pressable>
-        ))}
+              <LateralityRadio checked={row.checked} />
+              <Text
+                style={[
+                  styles.rowLabel,
+                  textStyle('row'),
+                  row.checked ? styles.rowLabelSelected : null,
+                ]}
+              >
+                {t(row.labelKey)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </ScrollView>
     </Sheet>
   );
@@ -124,8 +185,17 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 8,
-    gap: 4,
     flexGrow: 1,
+  },
+  miniRail: {
+    paddingHorizontal: layout.screenGutter,
+    paddingBottom: 8,
+  },
+  group: {
+    backgroundColor: color.sheetGroup,
+    borderRadius: layout.sheetGroupRadius,
+    overflow: 'hidden',
+    padding: A11Y_FOCUS_RING.widthPx + A11Y_FOCUS_RING.offsetPx,
   },
   row: {
     minHeight: LATERALITY_SHEET_ROW_MIN_HEIGHT,
@@ -134,7 +204,7 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: LATERALITY_SHEET_ROW_RADIUS,
   },
   rowSelected: {
     backgroundColor: color.selectedSoft,
@@ -150,9 +220,9 @@ const styles = StyleSheet.create({
     color: color.ink,
   },
   radio: {
-    width: RADIO_SIZE,
-    height: RADIO_SIZE,
-    borderRadius: RADIO_SIZE / 2,
+    width: LATERALITY_SHEET_RADIO_SIZE,
+    height: LATERALITY_SHEET_RADIO_SIZE,
+    borderRadius: LATERALITY_SHEET_RADIO_SIZE / 2,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',

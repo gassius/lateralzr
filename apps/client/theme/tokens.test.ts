@@ -7,10 +7,24 @@ import { GUIDE_SECTION_23 } from './section23.ts';
 import { color, tallScreenMinHeight, tokens } from './tokens.ts';
 
 describe('v3.4 design tokens', () => {
-  it('matches the Lz-55/Lz-60 §23 pin (cardAspect, media, webPreview, build)', () => {
+  it('matches the Lz-55/Lz-59/Lz-60 §23 pin (sheets, cardAspect, media, webPreview, build)', () => {
     // Independent pin — not loaded from tokens.json.
     assert.deepEqual(tokens, GUIDE_SECTION_23);
     assert.equal(tokens.version, '3.4');
+    assert.equal(tokens.layout.sheetRadius, 22);
+    assert.equal(tokens.layout.sheetInset, 12);
+    assert.equal(tokens.layout.sheetBottomGap, 12);
+    assert.equal(tokens.layout.sheetGroupRadius, 16);
+    assert.equal(tokens.layout.sheetRowHeight, 56);
+    assert.equal(tokens.layout.sheetHandleStrip, 48);
+    assert.equal(tokens.layout.sheetPattern, 'none');
+    assert.equal(tokens.color.sheetGroup, '#FFFFFF8C');
+    assert.equal(tokens.color.scrim, '#00000073');
+    assert.equal(tokens.type.sheetTitle, 22);
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(tokens.layout, 'sheetTopRadius'),
+      false,
+    );
     assert.equal(tokens.cardAspect.preferred, 1.4);
     assert.equal(tokens.cardAspect.min, 1.3);
     assert.equal(tokens.cardAspect.max, 1.5);
