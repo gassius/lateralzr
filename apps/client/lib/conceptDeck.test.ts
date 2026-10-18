@@ -54,6 +54,20 @@ test('graphToDeckItems walks from start so the last card is a frontier node', ()
   );
 });
 
+test('graphToDeckItems stores the reaching edge laterality as grade', () => {
+  const deck = graphToDeckItems({
+    start: { id: 147, label: 'mushroom' },
+    nodes: [
+      { id: 15, label: 'tide', shortDescription: '', wikiUrl: null, mediaUrl: null },
+      { id: 147, label: 'mushroom', shortDescription: '', wikiUrl: null, mediaUrl: null },
+    ],
+    edges: [{ from: 147, to: 15, laterality: 5 }],
+  });
+  assert.equal(deck[0]?.grade, undefined);
+  assert.equal(deck[1]?.concept, 'tide');
+  assert.equal(deck[1]?.grade, 5);
+});
+
 test('graphToDeckItems is empty-safe when nodes are missing', () => {
   assert.deepEqual(graphToDeckItems({}), []);
   assert.deepEqual(graphToDeckItems({ nodes: null, edges: null }), []);

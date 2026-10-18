@@ -1,7 +1,8 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-56 + Lz-59 + Lz-60).
+ * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-56 + Lz-57 + Lz-59 + Lz-60).
  * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-56 adds `motion.flip`,
- * `motion.swipe`, and `motion.deck`. Lz-59 adds sheet layout
+ * `motion.swipe`, and `motion.deck`. Lz-57 adds `motion.reshuffle` and laterality
+ * filter/onChange pins. Lz-59 adds sheet layout
  * tokens, `color.sheetGroup` / `color.scrim`, and `type.sheetTitle` 22.
  * Lz-60 adds `build` and media fade/provenance fields. Later Lz-54 tickets add
  * their own groups (decorative, …) on top.
@@ -54,6 +55,10 @@ export const GUIDE_SECTION_23 = {
     '4': 'Provocation',
     '5': 'Random entry',
     allSelectable: true,
+    filterByGrade: true,
+    onChange: 'reshuffle-whole-deck',
+    historyKeepsVisited: true,
+    discardFutureOnChange: true,
   },
   spacing: [4, 8, 12, 16, 20, 24, 32],
   layout: {
@@ -152,6 +157,23 @@ export const GUIDE_SECTION_23 = {
       nextTint: 0.22,
       revealToScale: 1,
       revealTint: 0,
+    },
+    reshuffle: {
+      gatherMs: 260,
+      gatherDropPx: 34,
+      gatherScale: 0.92,
+      silhouettes: 3,
+      fanDeg: [-6, 5, -1],
+      fanOffsetPx: 30,
+      riffleEveryMs: 1200,
+      riffleMoveMs: 280,
+      statusDelayMs: 300,
+      minCueMs: 900,
+      dealMs: 360,
+      reverseDealMs: 260,
+      timeoutMs: 10000,
+      cardInputDuringShuffle: false,
+      reducedMotion: { silhouettes: 1, crossfadeMs: 150 },
     },
   },
   pattern: {

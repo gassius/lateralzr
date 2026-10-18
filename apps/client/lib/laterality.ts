@@ -3,7 +3,7 @@ import {
   lateralityGradientFront,
   lateralityGradientPaper,
 } from '../theme/lateralityGradients';
-import { conceptKey, type DeckConcept } from './conceptDeck';
+import { mergeUniqueRelated, type DeckConcept } from './conceptDeck';
 import { t, type MessageKey } from './i18n';
 
 /** Default laterality grade — middle of the 1–5 edge-distance scale. */
@@ -33,6 +33,24 @@ export type LateralityTreeSwap = {
   concepts: DeckConcept[];
   currentIndex: number;
 };
+
+export type LateralityRestoreSnapshot = {
+  concepts: DeckConcept[];
+  currentIndex: number;
+  grade: LateralityGrade;
+};
+
+export type LateralityReshufflePlan =
+  | {
+      kind: 'deal';
+      concepts: DeckConcept[];
+      currentIndex: number;
+    }
+  | {
+      kind: 'no-match';
+      concepts: DeckConcept[];
+      currentIndex: number;
+    };
 
 /**
  * Accept only a whole integer 1–5. Blank, decimals, and out-of-range values are ignored.
@@ -184,30 +202,75 @@ export function lateralityGradientStops(grade: number): LateralityGradientStops 
   }
 }
 
+function stampIncomingGrade(items: DeckConcept[], grade?: LateralityGrade): DeckConcept[] {
+  if (grade == null) return items;
+  const next = clampLaterality(grade);
+  return items.map((item) => ({ ...item, grade: item.grade ?? next }));
+}
+
 /**
- * Keep the visible card; replace the rest of the deck with the prefetched tree.
- * The current card stays on screen so the swap is not a full reload.
+ * Snapshot the deck + committed grade so a failed reshuffle can restore both.
  */
-export function applyLateralityTreeSwap(
-  existing: DeckConcept[],
-  incoming: DeckConcept[],
+export function snapshotLateralityDeck(
+  concepts: DeckConcept[],
   currentIndex: number,
-): LateralityTreeSwap {
-  const current = existing[currentIndex];
-  if (!current) {
-    return {
-      concepts: incoming,
-      currentIndex: 0,
-    };
-  }
-  if (incoming.length === 0) {
-    return { concepts: existing, currentIndex };
+  grade: number,
+): LateralityRestoreSnapshot {
+  const safeIndex =
+    concepts.length === 0 ? 0 : Math.min(Math.max(currentIndex, 0), concepts.length - 1);
+  return {
+    concepts: concepts.slice(),
+    currentIndex: safeIndex,
+    grade: clampLaterality(grade),
+  };
+}
+
+/** Restore the pre-change deck, index, and grade after failure or timeout. */
+export function restoreLateralityReshuffle(
+  snapshot: LateralityRestoreSnapshot,
+): LateralityRestoreSnapshot {
+  return {
+    concepts: snapshot.concepts.slice(),
+    currentIndex: snapshot.currentIndex,
+    grade: snapshot.grade,
+  };
+}
+
+/**
+ * Retry after a failed reshuffle re-attempts the NEW grade, even though the
+ * previous grade was restored on screen.
+ */
+export function lateralityRetryGrade(attemptedGrade: number): LateralityGrade {
+  return clampLaterality(attemptedGrade);
+}
+
+/**
+ * Keep visited cards through C, discard the future after C, and deal D1.. from
+ * the new grade. Index lands on D1. Empty unique incoming is a no-match (C stays).
+ */
+export function planLateralityReshuffle(
+  history: DeckConcept[],
+  index: number,
+  newDeck: DeckConcept[],
+  grade?: LateralityGrade,
+): LateralityReshufflePlan {
+  const incoming = stampIncomingGrade(newDeck, grade);
+  if (history.length === 0) {
+    if (incoming.length === 0) {
+      return { kind: 'no-match', concepts: [], currentIndex: 0 };
+    }
+    return { kind: 'deal', concepts: incoming, currentIndex: 0 };
   }
 
-  const currentKey = conceptKey(current.concept);
-  const rest = incoming.filter((item) => conceptKey(item.concept) !== currentKey);
+  const safeIndex = Math.min(Math.max(index, 0), history.length - 1);
+  const prefix = history.slice(0, safeIndex + 1);
+  const d1plus = mergeUniqueRelated(prefix, incoming);
+  if (d1plus.length === 0) {
+    return { kind: 'no-match', concepts: prefix, currentIndex: safeIndex };
+  }
   return {
-    concepts: [current, ...rest],
-    currentIndex: 0,
+    kind: 'deal',
+    concepts: [...prefix, ...d1plus],
+    currentIndex: prefix.length,
   };
 }

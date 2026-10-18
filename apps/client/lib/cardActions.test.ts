@@ -90,6 +90,12 @@ describe('canRunCardAction', () => {
     }
   });
 
+  it('blocks all actions while a laterality reshuffle cue locks input', () => {
+    for (const action of ['next', 'previous', 'flip', 'complexityUp', 'complexityDown'] as const) {
+      assert.equal(canRunCardAction(action, { ...open, inputLocked: true }), false);
+    }
+  });
+
   it('blocks forward actions on the deck-status card but allows previous', () => {
     assert.equal(canRunCardAction('next', { ...open, animating: true }), false);
     assert.equal(canRunCardAction('flip', { ...open, showDeckStatus: true }), false);

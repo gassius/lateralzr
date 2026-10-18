@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import type { DeckConcept } from './conceptDeck.ts';
 import { setActiveLocale, t } from './i18n.ts';
 import {
-  applyLateralityTreeSwap,
   clampLaterality,
   DEFAULT_LATERALITY,
   LATERALITY_LABEL_KEYS,
@@ -12,22 +12,27 @@ import {
   lateralityControlDisabled,
   lateralityGradeLabelKey,
   lateralityNextFromControlInput,
+  lateralityRetryGrade,
   lateralityStepFromX,
   parseLateralityParam,
+  planLateralityReshuffle,
+  restoreLateralityReshuffle,
+  snapshotLateralityDeck,
+  stepLaterality,
   resolveInitialLaterality,
   shouldPersistLaterality,
   shouldPersistLateralityAfterSwap,
-  stepLaterality,
   type LateralityGrade,
 } from './laterality.ts';
 import { buildRelationshipsRequestBody } from './testQueryParams.ts';
 
-function item(concept: string): DeckConcept {
+function item(concept: string, grade?: LateralityGrade): DeckConcept {
   return {
     concept,
     shortDescription: `${concept} desc`,
     wikiUrl: null,
     mediaUrl: null,
+    ...(grade != null ? { grade } : {}),
   };
 }
 
@@ -79,6 +84,12 @@ describe('session-only URL laterality', () => {
     assert.equal(lateralityControlDisabled(true, false), false);
     assert.equal(lateralityControlDisabled(false, false), true);
     assert.equal(lateralityControlDisabled(false, true), true);
+  });
+
+  it('marks the web laterality row aria-busy while swapping (mutation guard)', () => {
+    const src = readFileSync(new URL('../components/LateralityControl.tsx', import.meta.url), 'utf8');
+    assert.match(src, /'aria-busy': swapping \|\| undefined/);
+    assert.match(src, /accessibilityState=\{\{ busy: swapping, disabled \}\}/);
   });
 });
 
@@ -198,44 +209,82 @@ describe('selecting each grade sends 1..5 to the API body', () => {
   });
 });
 
-describe('applyLateralityTreeSwap', () => {
-  it('keeps the visible card and replaces the rest of the deck', () => {
-    const existing = [item('mushroom'), item('tide'), item('lighthouse')];
-    const incoming = [item('mushroom'), item('chaos'), item('entropy')];
-    const swap = applyLateralityTreeSwap(existing, incoming, 0);
+describe('planLateralityReshuffle', () => {
+  it('keeps A..C and deals D1 after C (history rule)', () => {
+    const history = [item('mushroom', 3), item('tide', 3), item('lighthouse', 3)];
+    const incoming = [item('lighthouse'), item('entropy'), item('chaos')];
+    const plan = planLateralityReshuffle(history, 2, incoming, 5);
+    assert.equal(plan.kind, 'deal');
+    if (plan.kind !== 'deal') return;
     assert.deepEqual(
-      swap.concepts.map((c) => c.concept),
-      ['mushroom', 'chaos', 'entropy'],
+      plan.concepts.map((c) => c.concept),
+      ['mushroom', 'tide', 'lighthouse', 'entropy', 'chaos'],
     );
-    assert.equal(swap.currentIndex, 0);
+    assert.equal(plan.currentIndex, 3);
+    assert.equal(plan.concepts[3]?.concept, 'entropy');
+    assert.equal(plan.concepts[3]?.grade, 5);
+    assert.equal(plan.concepts[0]?.grade, 3);
   });
 
-  it('keeps a mid-deck card on screen when the new tree arrives', () => {
-    const existing = [item('mushroom'), item('tide'), item('lighthouse')];
-    const incoming = [item('tide'), item('chaos'), item('entropy')];
-    const swap = applyLateralityTreeSwap(existing, incoming, 1);
-    assert.equal(swap.concepts[0]?.concept, 'tide');
+  it('discards a seen-ahead card after C', () => {
+    const history = [item('mushroom'), item('tide'), item('lighthouse'), item('dunes')];
+    const incoming = [item('tide'), item('entropy')];
+    const plan = planLateralityReshuffle(history, 1, incoming, 5);
+    assert.equal(plan.kind, 'deal');
+    if (plan.kind !== 'deal') return;
     assert.deepEqual(
-      swap.concepts.map((c) => c.concept),
-      ['tide', 'chaos', 'entropy'],
+      plan.concepts.map((c) => c.concept),
+      ['mushroom', 'tide', 'entropy'],
     );
-    assert.equal(swap.currentIndex, 0);
-  });
-
-  it('does not yank the current card when it is missing from the new tree', () => {
-    const existing = [item('mushroom'), item('tide')];
-    const incoming = [item('chaos'), item('entropy')];
-    const swap = applyLateralityTreeSwap(existing, incoming, 0);
-    assert.deepEqual(
-      swap.concepts.map((c) => c.concept),
-      ['mushroom', 'chaos', 'entropy'],
+    assert.equal(plan.currentIndex, 2);
+    assert.equal(
+      plan.concepts.some((c) => c.concept === 'dunes'),
+      false,
     );
   });
 
-  it('leaves the deck alone when the prefetch is empty', () => {
-    const existing = [item('mushroom')];
-    const swap = applyLateralityTreeSwap(existing, [], 0);
-    assert.deepEqual(swap.concepts, existing);
-    assert.equal(swap.currentIndex, 0);
+  it('is a no-match when the new grade has no unique neighbour', () => {
+    const history = [item('mushroom'), item('tide')];
+    const plan = planLateralityReshuffle(history, 1, [item('tide')], 4);
+    assert.equal(plan.kind, 'no-match');
+    if (plan.kind !== 'no-match') return;
+    assert.deepEqual(
+      plan.concepts.map((c) => c.concept),
+      ['mushroom', 'tide'],
+    );
+    assert.equal(plan.currentIndex, 1);
+  });
+
+  it('is a no-match when the prefetch is empty', () => {
+    const history = [item('mushroom')];
+    const plan = planLateralityReshuffle(history, 0, [], 5);
+    assert.equal(plan.kind, 'no-match');
+    if (plan.kind !== 'no-match') return;
+    assert.deepEqual(
+      plan.concepts.map((c) => c.concept),
+      ['mushroom'],
+    );
+  });
+});
+
+describe('restoreLateralityReshuffle / lateralityRetryGrade', () => {
+  it('restores the previous deck, future, and grade', () => {
+    const snapshot = snapshotLateralityDeck(
+      [item('mushroom'), item('tide'), item('lighthouse')],
+      1,
+      3,
+    );
+    const restored = restoreLateralityReshuffle(snapshot);
+    assert.deepEqual(
+      restored.concepts.map((c) => c.concept),
+      ['mushroom', 'tide', 'lighthouse'],
+    );
+    assert.equal(restored.currentIndex, 1);
+    assert.equal(restored.grade, 3);
+  });
+
+  it('retries the NEW grade after a failed reshuffle', () => {
+    assert.equal(lateralityRetryGrade(5), 5);
+    assert.notEqual(lateralityRetryGrade(5), 3);
   });
 });

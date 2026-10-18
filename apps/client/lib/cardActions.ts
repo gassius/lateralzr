@@ -44,6 +44,8 @@ export type CardActionGate = {
   animating?: boolean;
   /** End-of-deck status card — no next / complexity / flip (previous still ok). */
   showDeckStatus?: boolean;
+  /** Laterality reshuffle cue — card taps/swipes stay off. */
+  inputLocked?: boolean;
 };
 
 export type CardAccessibilityActionDef = {
@@ -98,7 +100,7 @@ export function cardActionFromAccessibilityName(name: string): CardAction | null
  * During deck status, only previous (index > 0) remains available so the loop can finish.
  */
 export function canRunCardAction(action: CardAction, gate: CardActionGate): boolean {
-  if (gate.sheetOpen || gate.animating) return false;
+  if (gate.sheetOpen || gate.animating || gate.inputLocked) return false;
   if (action === 'previous') {
     return gate.currentIndex > 0;
   }
@@ -196,8 +198,8 @@ export function resolveRunnableAccessibilityAction(
 }
 
 /** Web tabIndex for the card surface (previous stays reachable on deck status). */
-export function cardWebTabIndex(gate: Pick<CardActionGate, 'sheetOpen' | 'showDeckStatus' | 'currentIndex'>): number {
-  if (gate.sheetOpen) return -1;
+export function cardWebTabIndex(gate: Pick<CardActionGate, 'sheetOpen' | 'showDeckStatus' | 'currentIndex' | 'inputLocked'>): number {
+  if (gate.sheetOpen || gate.inputLocked) return -1;
   if (gate.showDeckStatus && gate.currentIndex <= 0) return -1;
   return 0;
 }

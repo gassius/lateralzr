@@ -33,7 +33,35 @@ function readJson(name: string): string {
   return fs.readFileSync(path.join(REL, name), 'utf8');
 }
 
+function gradeFiveFixture(body: RelationshipsBody): string {
+  const locale = (body.locale ?? 'en').toLowerCase();
+  const raw = readJson(locale === 'es' ? 'mushroom-grade-5-es.json' : 'mushroom-grade-5-en.json');
+  const graph = JSON.parse(raw) as {
+    data: { start: { id: number; label: string }; nodes: Array<{ id: number; label: string }> };
+  };
+  const startKey = (body.start ?? '').trim().toLowerCase();
+  const node = graph.data.nodes.find((n) => n.label.toLowerCase() === startKey);
+  if (node) {
+    graph.data.start = { id: node.id, label: node.label };
+  }
+  return JSON.stringify(graph);
+}
+
 function pickRelationshipsFixture(body: RelationshipsBody, callIndex: number): string {
+  if (body.laterality === 5) {
+    const startKey = (body.start ?? '').trim().toLowerCase();
+    const canonicalKey = (body.canonicalStart ?? '').trim().toLowerCase();
+    if (
+      startKey === 'mushroom' ||
+      startKey === 'mycelium' ||
+      startKey === 'spore' ||
+      startKey === 'seta' ||
+      startKey === 'micelio' ||
+      canonicalKey === 'mushroom'
+    ) {
+      return gradeFiveFixture(body);
+    }
+  }
   const locale = (body.locale ?? 'en').toLowerCase();
   const start = (body.start ?? '').trim();
   const canonical = (body.canonicalStart ?? '').trim();
@@ -211,6 +239,18 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
       startKey === 'horizon' ||
       startKey === 'horizonte' ||
       startKey === 'meridian';
+
+    if (body.laterality === 4) {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: 'No matching neighborhood',
+          status: 'error',
+        }),
+      });
+      return;
+    }
 
     if (relationshipsCalls === 1 && delayFirstMs > 0) {
       await new Promise((r) => setTimeout(r, delayFirstMs));

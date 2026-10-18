@@ -111,6 +111,8 @@ import { color } from '@/theme/tokens';
 export type ConceptCardStackHandle = {
   /** Run a non-swipe action through the same commit path as gestures. */
   runAction: (action: CardAction) => void;
+  /** Move AT / keyboard focus to the dealt card after a laterality reshuffle. */
+  focusCard: () => void;
 };
 
 type ConceptCardStackProps = {
@@ -143,6 +145,8 @@ type ConceptCardStackProps = {
   ) => void;
   /** Lz-56: chrome lock + raise stack while dragging or exiting. */
   onDeckMotionChange?: (moving: boolean) => void;
+  /** Lz-57: ignore card taps/swipes while the laterality cue is covering the wait. */
+  inputLocked?: boolean;
 };
 
 const PAN_ACTIVE_OFFSET = 18;
@@ -177,6 +181,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   onReplayGestureTipsReady,
   onCoachTipChange,
   onDeckMotionChange,
+  inputLocked = false,
 }, ref) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -270,6 +275,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   useEffect(() => {
     sheetOpenRef.current = sheetOpen;
   }, [sheetOpen]);
+  const inputLockedRef = useRef(inputLocked);
+  const a11ySurfaceRef = useRef<View>(null);
+  useEffect(() => {
+    inputLockedRef.current = inputLocked;
+  }, [inputLocked]);
 
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
@@ -669,6 +679,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       sheetOpen: sheetOpenRef.current,
       animating: swipeAnimating.value,
       showDeckStatus: showDeckStatusRef.current,
+      inputLocked: inputLockedRef.current,
     }),
     [swipeAnimating],
   );
@@ -686,6 +697,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       easing: SWIPE_EASING,
     });
   };
+
+  const focusCard = useCallback(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const surface = document.querySelector('[data-testid="card-a11y-surface"]');
+      if (surface instanceof HTMLElement) {
+        surface.focus();
+      }
+      return;
+    }
+    a11ySurfaceRef.current?.focus?.();
+  }, []);
 
   /** Animate then call the same commit* helpers gestures use (respects Lz-34 RM). */
   const animateThenCommit = useCallback(
@@ -798,7 +820,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     [actionGate, animateThenCommit, noteInteraction, toggleFlip],
   );
 
-  useImperativeHandle(ref, () => ({ runAction }), [runAction]);
+  useImperativeHandle(ref, () => ({ runAction, focusCard }), [runAction, focusCard]);
 
   const activeLocale = getActiveLocale();
   const accessibilityActions = useMemo(
@@ -870,6 +892,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             sheetOpen,
             showDeckStatus,
             currentIndex,
+            inputLocked,
           }),
         } as Record<string, unknown>)
       : { onKeyDown: onCardKeyDown };
@@ -885,6 +908,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     !flipped &&
     !pulseDragging &&
     !sheetOpen &&
+    !inputLocked &&
     appActive &&
     !showDeckStatus;
 
@@ -896,6 +920,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   // maxDeltaY so a vertical ScrollView drag on the back fails the tap (no accidental flip).
   const tap = Gesture.Tap()
+    .enabled(!inputLocked)
     .maxDistance(14)
     .maxDeltaY(10)
     .onEnd(() => {
@@ -936,6 +961,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   };
 
   const panX = Gesture.Pan()
+    .enabled(!inputLocked)
     .activeOffsetX([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .failOffsetY([-PAN_ACTIVE_OFFSET, PAN_ACTIVE_OFFSET])
     .onStart(() => {
@@ -1044,6 +1070,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     );
 
   const panY = Gesture.Pan()
+    .enabled(!inputLocked)
     .manualActivation(true)
     .onTouchesDown((e) => {
       const touch = e.changedTouches[0];
@@ -1376,10 +1403,19 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             style={[styles.frontWrap, pulseDragging ? styles.frontWrapMoving : null, frontAnimatedStyle]}
           >
             <View
+              ref={a11ySurfaceRef}
               style={styles.a11ySurface}
               testID="card-a11y-surface"
               {...(Platform.OS === 'web'
-                ? ({ dataSet: { flipped: flipped ? 'true' : 'false' } } as Record<string, unknown>)
+                ? ({
+                    dataSet: {
+                      flipped: flipped ? 'true' : 'false',
+                      lateralityGrade:
+                        concepts[currentIndex]?.grade != null
+                          ? String(concepts[currentIndex]?.grade)
+                          : '',
+                    },
+                  } as Record<string, unknown>)
                 : null)}
               accessible={surfaceIsButton}
               accessibilityRole={surfaceIsButton ? 'button' : undefined}
@@ -1396,7 +1432,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               accessibilityActions={surfaceIsButton ? accessibilityActions : undefined}
               onAccessibilityAction={surfaceIsButton ? onAccessibilityAction : undefined}
               accessibilityState={{
-                disabled: showDeckStatus || sheetOpen,
+                disabled: showDeckStatus || sheetOpen || inputLocked,
               }}
               {...webCardFocusProps}
             >

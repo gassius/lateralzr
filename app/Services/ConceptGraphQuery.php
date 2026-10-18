@@ -256,7 +256,8 @@ class ConceptGraphQuery
     }
 
     /**
-     * Prefer edges whose laterality is closer to the requested grade.
+     * When a laterality grade is passed, keep only edges at that grade.
+     * NULL `last_laterality` is grade 3 (filter and response agree).
      * Omitted laterality keeps the existing strength-first walk (backward compatible).
      *
      * @param  Builder<ConceptRelationship>  $query
@@ -265,7 +266,7 @@ class ConceptGraphQuery
     protected function orderNeighborhoodEdges(Builder $query, ?int $laterality): Builder
     {
         if ($laterality !== null) {
-            $query->orderByRaw('ABS(COALESCE(last_laterality, 3) - ?) ASC', [$laterality]);
+            $query->whereRaw('COALESCE(last_laterality, 3) = ?', [$laterality]);
         }
 
         return $query
@@ -466,7 +467,7 @@ class ConceptGraphQuery
             'from' => (int) $edge->from_concept_id,
             'to' => (int) $edge->to_concept_id,
             'strength' => (float) $edge->strength,
-            'laterality' => (int) ($edge->last_laterality ?? 1),
+            'laterality' => (int) ($edge->last_laterality ?? 3),
         ];
     }
 }

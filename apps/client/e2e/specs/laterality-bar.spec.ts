@@ -1,6 +1,42 @@
 import { expect, test } from '@playwright/test';
-import { capture } from '../helpers/capture';
+import { capture, swipeBack, swipeForward } from '../helpers/capture';
+import { cardFrontTitle, visibleText } from '../helpers/locators';
 import { openApp } from '../helpers/preparePage';
+
+async function clickLateralityRail(page: import('@playwright/test').Page, fraction: number) {
+  const rail = page.getByTestId('laterality-rail');
+  const box = await rail.boundingBox();
+  expect(box, 'laterality-rail bounding box').toBeTruthy();
+  if (!box) throw new Error('laterality-rail has no bounding box');
+  await rail.click({
+    position: { x: Math.floor(box.width * fraction), y: Math.floor(box.height / 2) },
+  });
+}
+
+/** Advance reshuffle timers (status 300 + min cue 900 + RM deal/reverse 150). */
+async function completeReshuffleCue(page: import('@playwright/test').Page) {
+  await page.clock.fastForward(300);
+  await page.clock.fastForward(600);
+  await page.clock.fastForward(150);
+}
+
+/**
+ * Clock.fastForward after settle breaks RNGH mouse swipes (see preparePage).
+ * Arrow keys go through cardActions, not the pan recognizer.
+ */
+async function stepHistory(
+  page: import('@playwright/test').Page,
+  direction: 'back' | 'forward',
+  expectLabel: string,
+) {
+  const surface = page.getByTestId('card-a11y-surface');
+  await surface.focus();
+  await expect(surface).toBeFocused();
+  await page.keyboard.press(direction === 'back' ? 'ArrowLeft' : 'ArrowRight');
+  // RM commit is a 150ms withTiming; advance the installed clock so it can settle.
+  await page.clock.fastForward(200);
+  await expect(visibleText(page, expectLabel)).toBeVisible({ timeout: 8_000 });
+}
 
 test.describe('laterality bar', () => {
   for (const grade of [1, 3, 5] as const) {
@@ -26,11 +62,6 @@ test.describe('laterality bar', () => {
     await openApp(page, 'canonicalConcept=mushroom&laterality=1&locale=en');
     await expect(page.getByTestId('laterality-label')).toContainText('Laterality · Same domain');
 
-    const rail = page.getByTestId('laterality-rail');
-    const box = await rail.boundingBox();
-    expect(box, 'laterality-rail bounding box').toBeTruthy();
-    if (!box) throw new Error('laterality-rail has no bounding box');
-
     const relationshipsWithFive = page.waitForRequest((req) => {
       if (!req.url().includes('/api/concepts/relationships') || req.method() !== 'POST') {
         return false;
@@ -43,15 +74,67 @@ test.describe('laterality bar', () => {
       }
     });
 
-    // 5th of 5 equal segments — click near the right edge of the rail.
-    await rail.click({
-      position: { x: Math.floor(box.width * 0.92), y: Math.floor(box.height / 2) },
-    });
+    await clickLateralityRail(page, 0.92);
 
     await expect(page.getByTestId('laterality-label')).toContainText(
       'Laterality · Random entry',
     );
     await relationshipsWithFive;
+  });
+
+  test('A→B→C then laterality 5 deals D1; right-swipe returns C, B, A', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await swipeForward(page, 'Mycelium');
+    await swipeForward(page, 'Spore');
+
+    await clickLateralityRail(page, 0.92);
+    await completeReshuffleCue(page);
+
+    await expect(visibleText(page, 'Entropy')).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId('card-a11y-surface')).toHaveAttribute(
+      'data-laterality-grade',
+      '5',
+    );
+    await expect(page.getByTestId('laterality-label')).toContainText('Random entry');
+
+    await stepHistory(page, 'back', 'Spore');
+    await stepHistory(page, 'back', 'Mycelium');
+    await stepHistory(page, 'back', 'Mushroom');
+    await expect(cardFrontTitle(page)).toHaveText('Mushroom');
+  });
+
+  test('seen-ahead future is discarded; left from C goes to D1', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en');
+    await swipeForward(page, 'Mycelium');
+    await swipeForward(page, 'Spore');
+    await swipeBack(page, 'Mycelium');
+
+    await clickLateralityRail(page, 0.92);
+    await completeReshuffleCue(page);
+
+    await expect(visibleText(page, 'Entropy')).toBeVisible({ timeout: 8_000 });
+    await stepHistory(page, 'back', 'Mycelium');
+    await expect(visibleText(page, 'Spore')).toHaveCount(0);
+    await stepHistory(page, 'forward', 'Entropy');
+  });
+
+  test('no-match keeps the new grade and shows Adjust', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+
+    await clickLateralityRail(page, 0.72);
+    await completeReshuffleCue(page);
+
+    await expect(page.getByTestId('laterality-label')).toContainText('Provocation');
+    await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.getByTestId('deck-status-line')).toContainText(
+      /No next idea at this setting/i,
+    );
+    const adjust = page.getByTestId('deck-status-adjust');
+    await expect(adjust).toBeVisible();
+    await adjust.click();
+    await expect(page.getByTestId('laterality-sheet')).toBeVisible({ timeout: 4_000 });
   });
 
   for (const locale of ['en', 'es'] as const) {
