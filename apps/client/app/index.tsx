@@ -1053,7 +1053,13 @@ export default function HomeScreen() {
                 } as Record<string, unknown>)
               : null)}
           >
-            <View style={styles.deckStackLayer} testID="deck-stack-layer">
+            <View
+              style={[
+                styles.deckStackLayer,
+                deckMoving ? styles.deckStackLayerMoving : null,
+              ]}
+              testID="deck-stack-layer"
+            >
               <ConceptCardStack
                 ref={cardStackRef}
                 concepts={concepts}
@@ -1271,9 +1277,12 @@ const styles = StyleSheet.create({
   /**
    * Stack wrapper is a sibling of laterality-chrome. zIndex only works between
    * siblings, so the moving card must raise THIS wrapper (not only frontWrap).
+   * At rest stay below the complexity cue (z 20) so ~18 px of the chip shows.
    */
   deckStackLayer: {
     position: 'relative',
+  },
+  deckStackLayerMoving: {
     zIndex: 40,
     elevation: 40,
   },

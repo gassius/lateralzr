@@ -74,6 +74,7 @@ import {
   cardSwipeTranslationAfterHandoff,
   deckCommitCrossfadeProgress,
   deckLayerVisibility,
+  deckReducedMotionFadesOutgoingFront,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
   deckUnderlayTransform,
@@ -93,6 +94,7 @@ import { coachMessageKey } from '@/lib/discoveryCoaching';
 import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { requestedMediaWidth, resolveCardMediaUrl } from '@/lib/remoteImage';
+import { color } from '@/theme/tokens';
 
 export type ConceptCardStackHandle = {
   /** Run a non-swipe action through the same commit path as gestures. */
@@ -648,18 +650,16 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
       if (kind === 'previous') {
         lockReturnOverlayIndexForRightCommit();
-        releaseTiltZSV.value = cardSwipeTiltZDeg(translateX.value, Math.max(1, cardWidthSV.value), rm);
-        exitSignSV.value = 1;
-        exitProgressSV.value = 0;
         exitingSV.value = 1;
-        exitProgressSV.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING });
         if (!slide) {
           translateX.value = 0;
           translateY.value = 0;
           rmPeerLayerSV.value = 1;
           frontCommitOpacity.value = 1;
           peerCommitOpacity.value = 0;
-          frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+          if (deckReducedMotionFadesOutgoingFront('right')) {
+            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+          }
           peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
             if (finished) runOnJS(commitSwipeRight)();
           });
@@ -947,7 +947,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           }
           if (showDeckStatusSV.value === 1) {
             swipeAnimating.value = true;
-            startHorizontalExit(1);
+            exitingSV.value = 1;
             if (!swipeShouldSlideOutOnCommit(rm)) {
               translateX.value = 0;
               translateY.value = 0;
@@ -964,7 +964,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             return;
           }
           swipeAnimating.value = true;
-          startHorizontalExit(1);
+          exitingSV.value = 1;
           runOnJS(lockReturnOverlayIndexForRightCommit)();
           if (!swipeShouldSlideOutOnCommit(rm)) {
             translateX.value = 0;
@@ -972,7 +972,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             rmPeerLayerSV.value = 1;
             frontCommitOpacity.value = 1;
             peerCommitOpacity.value = 0;
-            frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+            if (deckReducedMotionFadesOutgoingFront('right')) {
+              frontCommitOpacity.value = withTiming(0, { duration: commitMs, easing: SWIPE_EASING });
+            }
             peerCommitOpacity.value = withTiming(1, { duration: commitMs, easing: SWIPE_EASING }, (finished) => {
               if (finished) runOnJS(commitSwipeRight)();
             });
@@ -1115,6 +1117,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       Math.max(swipeAxisProgress(tx, w), swipeAxisProgress(ty, h), coverP),
       rm,
     );
+    // Covered card (right swipe) keeps rest elevation so Android does not
+    // stack it above the incoming overlay (z 3, no elevation).
+    const shadowLift = coverP > 0 ? 0 : lift;
     return {
       opacity: enterOpacity.value * frontCommitOpacity.value,
       transform: [
@@ -1130,7 +1135,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         ),
         { scale },
       ],
-      ...cardSwipeLiftShadowStyle(lift),
+      ...cardSwipeLiftShadowStyle(shadowLift),
     };
   });
 
@@ -1469,6 +1474,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 2,
+    borderRadius: cardRadius(),
+    backgroundColor: color.front,
+    overflow: 'visible',
   },
   frontWrapMoving: {
     zIndex: 40,

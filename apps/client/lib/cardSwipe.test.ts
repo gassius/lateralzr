@@ -52,6 +52,7 @@ import {
   cardSwipeTranslationAfterHandoff,
   cardSwipeVerticalRollDeg,
   deckCommitCrossfadeProgress,
+  deckReducedMotionFadesOutgoingFront,
   deckLayerVisibility,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
@@ -166,19 +167,30 @@ describe('directional tilt transforms', () => {
     assert.ok(yaw < 0);
   });
 
-  it('interpolates exit tilt from the release angle to 14° over 260 ms', () => {
+  it('left exit ramps release tilt to −14°; tx===0 stays 0°', () => {
     const release = cardSwipeTiltZDeg(-0.3 * CARD_W, CARD_W, false);
     assert.equal(release, -4.8);
     assert.equal(cardSwipeExitTiltZDeg(release, 0, -1), -4.8);
     assert.ok(Math.abs(cardSwipeExitTiltZDeg(release, 0.5, -1) - -9.4) < 1e-10);
     assert.equal(cardSwipeExitTiltZDeg(release, 1, -1), -14);
     assert.equal(cardSwipeTiltZDeg(-0.3 * CARD_W, CARD_W, false, 1, release, -1), -14);
-    // Keyboard / a11y Next: release 0° ramps to −14°, never jumps on frame 0.
+    // Keyboard / a11y Next: tx===0 is 0° (no jump); once travel is left, ramp to −14°.
     assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 0, 0, -1), 0);
+    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 1, 0, -1), 0);
     assert.equal(cardSwipeExitTiltZDeg(0, 0, -1), 0);
     assert.equal(cardSwipeExitTiltZDeg(0, 0.5, -1), -7);
     assert.equal(cardSwipeExitTiltZDeg(0, 1, -1), -14);
-    assert.equal(cardSwipeExitTiltZDeg(0, 1, 1), 14);
+    assert.equal(cardSwipeTiltZDeg(-1, CARD_W, false, 1, 0, -1), -14);
+  });
+
+  it('right / Previous exit does not tilt the covered card', () => {
+    assert.equal(cardSwipeExitTiltZDeg(0, 1, 1), 0);
+    assert.equal(cardSwipeExitTiltZDeg(4.8, 1, 1), 0);
+    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 1, 0, 1), 0);
+    assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 1, 4.8, 1), 0);
+    const rightXf = cardSwipeFrontTransform(0, 0, CARD_W, CARD_H, false, 1, 0, 1);
+    const z = rightXf.find((s) => 'rotateZ' in s) as { rotateZ: string } | undefined;
+    assert.equal(z?.rotateZ, '0deg');
   });
 
   it('right overlay starts at −10° Z and −3° Y and settles to 0', () => {
@@ -343,6 +355,12 @@ describe('underlay axis lock and RM cross-fade', () => {
     assert.equal(deckUnderlayDragProgress(-10, 100, CARD_W, CARD_H), Math.max(10 / CARD_W, 100 / CARD_H));
   });
 
+  it('RM Previous keeps the covered card opaque so the shell cannot show', () => {
+    assert.equal(deckReducedMotionFadesOutgoingFront('right'), false);
+    assert.equal(deckReducedMotionFadesOutgoingFront('left'), true);
+    assert.equal(deckReducedMotionFadesOutgoingFront('vertical'), true);
+  });
+
   it('RM commit reveal uses peer opacity when drag is zeroed', () => {
     assert.equal(deckCommitCrossfadeProgress(0, 0), 0);
     assert.equal(deckCommitCrossfadeProgress(0, 0.4), 0.4);
@@ -357,19 +375,26 @@ describe('underlay axis lock and RM cross-fade', () => {
 
 describe('stack / shell wiring (AD B2–B4, M3)', () => {
   it('raises the stack wrapper above laterality-chrome and the ellipsis while moving', () => {
-    assert.match(indexSrc, /style=\{styles\.deckStackLayer\}/);
-    assert.match(indexSrc, /deckStackLayer:\s*\{[\s\S]*zIndex:\s*40/);
+    assert.match(indexSrc, /deckMoving \? styles\.deckStackLayerMoving/);
+    assert.match(indexSrc, /deckStackLayerMoving:\s*\{[\s\S]*zIndex:\s*40/);
+    assert.equal(/deckStackLayer:\s*\{[^}]*zIndex:\s*40/.test(indexSrc), false);
     assert.match(indexSrc, /lateralityChrome:\s*\{[\s\S]*zIndex:\s*1/);
     assert.match(indexSrc, /style=\{styles\.lateralityChrome\}/);
     const movingGroupHits = indexSrc.split('deckMoving ? styles.deckMovingGroup').length - 1;
     assert.ok(movingGroupHits >= 3, `expected deckMovingGroup on group + both practice columns, got ${movingGroupHits}`);
   });
 
+  it('RM Previous keeps frontCommitOpacity at 1 (overlay fades in on top)', () => {
+    assert.match(stackSrc, /deckReducedMotionFadesOutgoingFront\('right'\)/);
+    assert.match(stackSrc, /borderRadius: cardRadius\(\)/);
+    assert.match(stackSrc, /backgroundColor: color\.front/);
+  });
+
   it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {
     assert.match(stackSrc, /rmPeerLayerSV\.value < 0 \? peerCommitOpacity\.value/);
     assert.match(stackSrc, /rmPeerLayerSV\.value > 0 \? peerCommitOpacity\.value/);
     assert.match(stackSrc, /deckCommitCrossfadeProgress/);
-    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(lift\)/);
+    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(shadowLift\)/);
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
   });
 });

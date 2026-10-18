@@ -149,8 +149,8 @@ describe('cardFlipFaceStyle', () => {
     assert.equal(rotateY(0.5, 'back'), '-90deg');
     assert.equal(rotateY(1, 'back'), '0deg');
 
-    // Reverse samples match the same curve (no 360deg wrap that snaps on web).
-    assert.equal(rotateY(0.99, 'front'), rotateY(0.99, 'front'));
+    assert.equal(rotateY(0.99, 'front'), `${180 * 0.99}deg`);
+    assert.equal(rotateY(0.99, 'back'), `${-180 + 180 * 0.99}deg`);
     assert.notEqual(rotateY(1, 'back'), '360deg');
     assert.notEqual(rotateY(0, 'back'), '180deg');
   });

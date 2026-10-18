@@ -197,9 +197,9 @@ export function cardSwipeDragTiltZDeg(
 }
 
 /**
- * Exit rotateZ: lerp the signed release angle to ±14° over exitProgress 0→1.
- * `exitSign` is −1 (next / left) or 1 (previous / right) when release was 0
- * (keyboard / a11y Next starts at 0° and must still ramp, not jump).
+ * Left-exit rotateZ: lerp the release angle to −14° over exitProgress 0→1.
+ * Right / Previous exits return 0 — the covered card stays flat; the incoming
+ * overlay owns the −10° enter tilt.
  */
 export function cardSwipeExitTiltZDeg(
   releaseTiltZDeg: number,
@@ -207,17 +207,17 @@ export function cardSwipeExitTiltZDeg(
   exitSign: number,
 ): number {
   'worklet';
+  const left = releaseTiltZDeg < 0 || exitSign < 0;
+  if (!left) return 0;
   const p = clampSigned(exitProgress, 0, 1);
-  const sign =
-    releaseTiltZDeg !== 0 ? (releaseTiltZDeg < 0 ? -1 : 1) : exitSign < 0 ? -1 : exitSign > 0 ? 1 : -1;
   const mag = lerp(Math.abs(releaseTiltZDeg), SWIPE_TILT_Z_DEG_EXIT, p);
-  const signed = sign * mag;
+  const signed = -mag;
   return signed === 0 ? 0 : signed;
 }
 
 /**
- * Horizontal rotateZ: drag curve, or a 260 ms ramp from the release angle to 14°
- * while `exitProgress` is in (0, 1].
+ * Horizontal rotateZ. `tx === 0` is always 0° (covered card / rest / right swipe).
+ * Left exit (`exitProgress > 0` and tx ≠ 0 or exitSign < 0) ramps release → −14°.
  */
 export function cardSwipeTiltZDeg(
   tx: number,
@@ -228,11 +228,22 @@ export function cardSwipeTiltZDeg(
   exitSign: number = 0,
 ): number {
   'worklet';
-  if (reduceMotion) return 0;
+  if (reduceMotion || tx === 0) return 0;
   if (exitProgress > 0) {
     return cardSwipeExitTiltZDeg(releaseTiltZDeg, exitProgress, exitSign);
   }
   return cardSwipeDragTiltZDeg(tx, width, reduceMotion);
+}
+
+/**
+ * RM Next / Complexity fade the outgoing card (underlay is already opaque).
+ * RM Previous keeps the covered card at 1 so a fading overlay cannot show shell.
+ */
+export function deckReducedMotionFadesOutgoingFront(
+  direction: 'left' | 'right' | 'vertical',
+): boolean {
+  'worklet';
+  return direction !== 'right';
 }
 
 /** Horizontal rotateY ≤ 3°, signed with travel. */
