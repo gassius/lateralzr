@@ -64,11 +64,11 @@
   },
   {
     "file": "laterality-sheet_open_390x844_en.png",
-    "ratio": 0.8885891359825009,
-    "percent": 88.85891359825008,
+    "ratio": 0.8886407825981286,
+    "percent": 88.86407825981286,
     "threshold": 0.01,
     "status": "over-threshold",
-    "mismatchedPixels": 1169952,
+    "mismatchedPixels": 1170020,
     "diffImage": "laterality-sheet_open_390x844_en.diff.png"
   },
   {
