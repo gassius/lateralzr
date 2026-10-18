@@ -132,8 +132,6 @@ test.describe('card back', () => {
 
   // Art-director: scroll + min-28% band under large text — one viewport is enough.
   test('with photo at 200% e2e text scale', async ({ page }, testInfo) => {
-    // Pre-existing on main (credit viewport ratio ≈ 0.994). Not an Lz-58 regression.
-    test.fail(true, 'main: card-back credit toBeInViewport(ratio: 1) reports ~0.994');
     test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% media-back capture');
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true&e2eTextScale=2');
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();
