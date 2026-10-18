@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 import Animated, {
+  ReduceMotion,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -31,6 +32,13 @@ type LateralityReshuffleProps = {
   cardFrame: ReshuffleCueFrame;
 };
 
+/** In-app RM cross-fade: do not let OS Reduce Motion skip the 150 ms timing. */
+function reshuffleTiming(duration: number, reduceMotion: boolean) {
+  return reduceMotion
+    ? { duration, reduceMotion: ReduceMotion.Never }
+    : { duration };
+}
+
 export function useReshufflePhaseMotion(
   phase: LateralityReshufflePhase | null,
   reduceMotion: boolean,
@@ -54,17 +62,24 @@ export function useReshufflePhaseMotion(
       return;
     }
     gather.value =
-      next.gatherMs > 0 ? withTiming(next.gather, { duration: next.gatherMs }) : next.gather;
-    deal.value = next.dealMs > 0 ? withTiming(next.deal, { duration: next.dealMs }) : next.deal;
+      next.gatherMs > 0
+        ? withTiming(next.gather, reshuffleTiming(next.gatherMs, reduceMotion))
+        : next.gather;
+    deal.value =
+      next.dealMs > 0
+        ? withTiming(next.deal, reshuffleTiming(next.dealMs, reduceMotion))
+        : next.deal;
     reverse.value =
-      next.reverseMs > 0 ? withTiming(next.reverse, { duration: next.reverseMs }) : next.reverse;
+      next.reverseMs > 0
+        ? withTiming(next.reverse, reshuffleTiming(next.reverseMs, reduceMotion))
+        : next.reverse;
     cardOpacity.value =
       next.cardOpacityMs > 0
-        ? withTiming(next.cardOpacity, { duration: next.cardOpacityMs })
+        ? withTiming(next.cardOpacity, reshuffleTiming(next.cardOpacityMs, reduceMotion))
         : next.cardOpacity;
     cueOpacity.value =
       next.cueOpacityMs > 0
-        ? withTiming(next.cueOpacity, { duration: next.cueOpacityMs })
+        ? withTiming(next.cueOpacity, reshuffleTiming(next.cueOpacityMs, reduceMotion))
         : next.cueOpacity;
   }, [cardOpacity, cueOpacity, deal, gather, phase, reduceMotion, reverse, riffle]);
 

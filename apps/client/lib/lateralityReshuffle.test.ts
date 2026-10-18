@@ -141,6 +141,18 @@ describe('riffle interpolation', () => {
     assert.equal(riffleStackZ(0, 3, 1), 1);
   });
 
+  it('RM cross-fades opt out of Reanimated System skip so 150 ms actually runs', () => {
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../components/LateralityReshuffle.tsx'),
+      'utf8',
+    );
+    assert.match(src, /function reshuffleTiming/);
+    assert.match(src, /reduceMotion: ReduceMotion\.Never/);
+    assert.match(src, /reshuffleTiming\(next\.cardOpacityMs, reduceMotion\)/);
+    assert.match(src, /reshuffleTiming\(next\.cueOpacityMs, reduceMotion\)/);
+    assert.match(src, /riffle\.value = withTiming\(riffle\.value \+ 1, \{ duration: RESHUFFLE_RIFFLE_MOVE_MS \}/);
+  });
+
   it('marks riffle helpers as worklets for the Silhouette UI thread', () => {
     const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'lateralityReshuffle.ts'), 'utf8');
     for (const name of [
