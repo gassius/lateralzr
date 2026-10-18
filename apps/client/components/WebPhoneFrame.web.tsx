@@ -1,8 +1,15 @@
 import { createContext, useContext, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import {
+  SafeAreaFrameContext,
+  SafeAreaInsetsContext,
+} from 'react-native-safe-area-context';
 
-import { webPhoneFrameSize, webPreviewSimulatedInsets, type WebPhoneFrameSize } from '@/lib/webPhoneFrame';
+import {
+  webPhoneFrameSize,
+  webPreviewSafeAreaMetrics,
+  type WebPhoneFrameSize,
+} from '@/lib/webPhoneFrame';
 import { color, webPreview } from '@/theme/tokens';
 
 const WebPhoneFrameContext = createContext<WebPhoneFrameSize | null>(null);
@@ -42,13 +49,9 @@ export function WebPhoneFrame({ children }: { children: ReactNode }) {
     () => webPhoneFrameSize(viewportWidth, viewportHeight),
     [viewportWidth, viewportHeight],
   );
-  const insets = webPreviewSimulatedInsets();
   const metrics = useMemo(
-    () => ({
-      frame: { x: 0, y: 0, width: size.width, height: size.height },
-      insets,
-    }),
-    [size.width, size.height, insets],
+    () => webPreviewSafeAreaMetrics(size.width, size.height),
+    [size.width, size.height],
   );
 
   return (
@@ -60,8 +63,8 @@ export function WebPhoneFrame({ children }: { children: ReactNode }) {
           // RN-web dataSet → data-safe-top / data-safe-bottom for E2E.
           {...({
             dataSet: {
-              safeTop: String(insets.top),
-              safeBottom: String(insets.bottom),
+              safeTop: String(metrics.insets.top),
+              safeBottom: String(metrics.insets.bottom),
             },
           } as Record<string, unknown>)}
           style={[
@@ -70,12 +73,14 @@ export function WebPhoneFrame({ children }: { children: ReactNode }) {
             { width: size.width, height: size.height },
           ]}
         >
-          <SafeAreaProvider
-            key={`${size.width}x${size.height}`}
-            initialMetrics={metrics}
-          >
-            {children}
-          </SafeAreaProvider>
+          {/* Context only: the measuring provider overwrites CSS env to 0 on web. */}
+          <View style={styles.safeAreaFill}>
+            <SafeAreaFrameContext.Provider value={metrics.frame}>
+              <SafeAreaInsetsContext.Provider value={metrics.insets}>
+                {children}
+              </SafeAreaInsetsContext.Provider>
+            </SafeAreaFrameContext.Provider>
+          </View>
         </View>
       </View>
     </WebPhoneFrameContext.Provider>
@@ -104,5 +109,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     borderWidth: 1,
     borderColor: webPreview.frameEdge,
+  },
+  safeAreaFill: {
+    flex: 1,
   },
 });

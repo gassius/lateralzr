@@ -10,6 +10,7 @@ import {
   WEB_PHONE_MIN_HEIGHT,
   WEB_PHONE_MIN_WIDTH,
   webPhoneFrameSize,
+  webPreviewSafeAreaMetrics,
   webPreviewSimulatedInsets,
 } from './webPhoneFrame.ts';
 
@@ -91,7 +92,15 @@ describe('native isolation', () => {
     assert.match(webSrc, /web-phone-frame/);
     assert.match(webSrc, /lateralzr-web-phone-frame/);
     assert.match(webSrc, /webPreview\.outside/);
-    assert.match(webSrc, /webPreviewSimulatedInsets/);
+    assert.match(webSrc, /webPreviewSafeAreaMetrics/);
+  });
+
+  it('web preview injects 47/34 into inset context and does not remount SafeAreaProvider', () => {
+    assert.match(webSrc, /SafeAreaInsetsContext\.Provider/);
+    assert.match(webSrc, /SafeAreaFrameContext\.Provider/);
+    assert.match(webSrc, /value=\{metrics\.insets\}/);
+    assert.equal(/<SafeAreaProvider\b/.test(webSrc), false);
+    assert.equal(webSrc.includes('initialMetrics'), false);
   });
 });
 
@@ -105,5 +114,16 @@ describe('v3.4 web preview surround (§16.3)', () => {
     });
     assert.equal(webPreview.outside, '#0E1012');
     assert.equal(webPreview.frameEdge, '#FFFFFF1A');
+  });
+
+  it('passes top 47 / bottom 34 into the web preview safe-area metrics', () => {
+    const metrics = webPreviewSafeAreaMetrics(390, 844);
+    assert.deepEqual(metrics.insets, {
+      top: 47,
+      left: 0,
+      right: 0,
+      bottom: 34,
+    });
+    assert.deepEqual(metrics.frame, { x: 0, y: 0, width: 390, height: 844 });
   });
 });

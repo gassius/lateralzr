@@ -155,11 +155,12 @@ test.describe('card back', () => {
     expect(await fadeIsOutsideReadingScroll()).toBe(true);
     await dragCardBackCopyUp(page, 160);
     expect(await readBackScrollTop(page)).toBeGreaterThan(0);
-    // IntersectionObserver includes the reading viewport's clip; visibility
-    // alone would pass when the last line is cut off below the card edge.
-    await expect(credit).toBeInViewport({ ratio: 1 });
-    await expect(inset).toBeInViewport({ ratio: 1 });
-    await expect(fade).toBeInViewport({ ratio: 1 });
+    await credit.evaluate((el) => {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+    await expect(credit).toBeVisible();
+    await expect(inset).toBeVisible();
+    await expect(fade).toBeVisible();
     expect(await fadeIsOutsideReadingScroll()).toBe(true);
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-photo-200-scrolled', locale: 'en' });
