@@ -357,6 +357,30 @@ export function deckBehindDisplayIndex(
   return behindLockedIndex !== null ? behindLockedIndex : currentIndex + 1;
 }
 
+/**
+ * Hide the underlay until the committed behind card matches the side
+ * being revealed. `behindShowsPrev` is the React-committed state (1 when
+ * `behindDisplayIndex === currentIndex - 1`).
+ *
+ * Previous: `rmPeerLayer > 0 && tx > 0`.
+ * Next: `tx < 0`, vertical, or `rmPeerLayer < 0`.
+ * At rest (no side revealing) leave `deckUnderlayReveal` in charge.
+ */
+export function deckUnderlayCommittedSideMatchesReveal(
+  behindShowsPrev: number,
+  translateX: number,
+  translateY: number,
+  rmPeerLayer: number,
+): boolean {
+  'worklet';
+  const showsPrev = behindShowsPrev > 0.5;
+  const revealingPrev = rmPeerLayer > 0 && translateX > 0;
+  const revealingNext = translateX < 0 || translateY !== 0 || rmPeerLayer < 0;
+  if (revealingPrev) return showsPrev;
+  if (revealingNext) return !showsPrev;
+  return true;
+}
+
 /** Horizontal rotateY ≤ 3°, signed with travel. */
 export function cardSwipeTiltYDeg(tx: number, width: number, reduceMotion: boolean): number {
   'worklet';

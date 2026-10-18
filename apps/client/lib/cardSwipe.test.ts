@@ -62,6 +62,7 @@ import {
   deckPreviousCovering,
   deckBehindDisplayIndex,
   deckBehindLockIndexForRightDrag,
+  deckUnderlayCommittedSideMatchesReveal,
   deckReducedMotionFadesOutgoingFront,
   deckReducedMotionUnderlayPeer,
   deckReturnOverlayElevation,
@@ -422,6 +423,27 @@ describe('underlay axis lock and RM cross-fade', () => {
     assert.equal(deckBehindDisplayIndex(2, 3), 2);
     assert.equal(deckBehindDisplayIndex(deckBehindLockIndexForRightDrag(3), 3), 2);
     assert.equal(deckBehindDisplayIndex(deckBehindLockIndexForRightDrag(0), 0), 1);
+  });
+
+  it('hides the underlay until the committed card matches the revealed side', () => {
+    const showsPrev = (locked: number | null, index: number) =>
+      deckBehindDisplayIndex(locked, index) === index - 1 ? 1 : 0;
+
+    // Reversal: Previous still committed while tx reveals Next.
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(2, 3), -40, 0, 0), false);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(null, 3), -40, 0, 0), true);
+
+    // RM Previous fade: lock committed, tx>0, rmPeerLayer>0.
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(2, 3), 80, 0, 1), true);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(null, 3), 80, 0, 1), false);
+
+    // Last-card / LoadingCard: unlocked next is past-end.
+    assert.equal(deckBehindDisplayIndex(null, 4), 5);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(null, 4), -40, 0, 0), true);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(null, 4), 0, -40, 0), true);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(null, 4), 0, 0, -1), true);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(showsPrev(3, 4), -40, 0, 0), false);
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(1, 0, 0, 0), true);
   });
 });
 

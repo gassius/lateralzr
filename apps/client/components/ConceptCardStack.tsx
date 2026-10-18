@@ -86,6 +86,7 @@ import {
   deckReturnOverlayOpacity,
   deckReturnOverlayTranslateX,
   deckReturnOverlayZIndex,
+  deckUnderlayCommittedSideMatchesReveal,
   deckUnderlayDragProgress,
   deckUnderlayReveal,
   deckUnderlayTransform,
@@ -214,6 +215,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const rmPeerLayerSV = useSharedValue(0);
   /** 1 = JS already locked the underlay to Previous for this right drag. */
   const behindRightLockSV = useSharedValue(0);
+  /** 1 when committed `behindDisplayIndex === currentIndex - 1` (layout effect). */
+  const behindShowsPrevSV = useSharedValue(0);
   const handoffOriginY = useSharedValue(0);
   const backScrollY = useSharedValue(0);
   const backScrollContentH = useSharedValue(0);
@@ -429,6 +432,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   useEffect(() => {
     showDeckStatusSV.value = showDeckStatus ? 1 : 0;
   }, [showDeckStatus, showDeckStatusSV]);
+
+  useLayoutEffect(() => {
+    const display = deckBehindDisplayIndex(behindLockedIndex, currentIndex);
+    behindShowsPrevSV.value = display === currentIndex - 1 ? 1 : 0;
+  }, [behindLockedIndex, behindShowsPrevSV, currentIndex]);
 
   // Layout effect: reset gesture + enter state before paint so the new top card never flashes with the
   // previous commit’s translateX (useEffect runs too late and causes a one-frame blink).
@@ -1218,7 +1226,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     );
     const revealP = deckCommitCrossfadeProgress(dragP, peer);
     const reveal = deckUnderlayReveal(revealP, rm, DECK_NEXT_VISIBLE_AT_REST);
-    const hidden = reveal.opacity <= 0;
+    const sideMatches = deckUnderlayCommittedSideMatchesReveal(
+      behindShowsPrevSV.value,
+      translateX.value,
+      translateY.value,
+      rmPeerLayerSV.value,
+    );
+    const hidden = reveal.opacity <= 0 || !sideMatches;
     return {
       opacity: hidden ? 0 : reveal.opacity,
       visibility: deckLayerVisibility(hidden),
