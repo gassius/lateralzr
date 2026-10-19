@@ -6,6 +6,7 @@ use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Services\ConceptGraphQuery;
+use App\Support\Laterality;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -40,8 +41,8 @@ class ConceptGraphQueryLateralityTest extends TestCase
         $this->assertNotNull($lateral);
         $this->assertCount(1, $lateral['edges']);
         $this->assertSame($chaos->id, $lateral['edges'][0]['to']);
-        $this->assertEqualsWithDelta(1.0, $lateral['edges'][0]['laterality'], 0.001);
-        $this->assertEqualsWithDelta(1.0, $lateral['meta']['laterality'], 0.001);
+        $this->assertPublicLaterality($lateral['edges'][0], 1.0);
+        $this->assertPublicLaterality($lateral['meta'], 1.0);
 
         $near = app(ConceptGraphQuery::class)->getGraph(
             startConcept: 'mushroom',
@@ -53,7 +54,7 @@ class ConceptGraphQueryLateralityTest extends TestCase
         $this->assertNotNull($near);
         $this->assertCount(1, $near['edges']);
         $this->assertSame($tide->id, $near['edges'][0]['to']);
-        $this->assertEqualsWithDelta(0.25, $near['edges'][0]['laterality'], 0.001);
+        $this->assertPublicLaterality($near['edges'][0], 0.25);
     }
 
     public function test_laterality_filter_returns_null_when_no_edge_matches(): void
@@ -88,7 +89,7 @@ class ConceptGraphQueryLateralityTest extends TestCase
         );
         $this->assertNotNull($atHalf);
         $this->assertCount(1, $atHalf['edges']);
-        $this->assertEqualsWithDelta(0.5, $atHalf['edges'][0]['laterality'], 0.001);
+        $this->assertPublicLaterality($atHalf['edges'][0], 0.5);
 
         $atZero = app(ConceptGraphQuery::class)->getGraph(
             startConcept: 'mushroom',
@@ -119,9 +120,9 @@ class ConceptGraphQueryLateralityTest extends TestCase
             );
             $this->assertNotNull($graph);
             $this->assertSame($starts[(string) $score], $graph['start']['id']);
-            $this->assertEqualsWithDelta($score, $graph['meta']['laterality'], 0.001);
+            $this->assertPublicLaterality($graph['meta'], $score);
             foreach ($graph['edges'] as $edge) {
-                $this->assertEqualsWithDelta($score, $edge['laterality'], 0.001);
+                $this->assertPublicLaterality($edge, $score);
             }
         }
 
@@ -133,9 +134,9 @@ class ConceptGraphQueryLateralityTest extends TestCase
             );
             $this->assertNotNull($graph);
             $this->assertSame($starts['1'], $graph['start']['id']);
-            $this->assertEqualsWithDelta(1.0, $graph['meta']['laterality'], 0.001);
+            $this->assertPublicLaterality($graph['meta'], 1.0);
             foreach ($graph['edges'] as $edge) {
-                $this->assertEqualsWithDelta(1.0, $edge['laterality'], 0.001);
+                $this->assertPublicLaterality($edge, 1.0);
             }
         }
     }
@@ -153,6 +154,17 @@ class ConceptGraphQueryLateralityTest extends TestCase
 
         $this->assertNotNull($graph);
         $this->assertArrayNotHasKey('laterality', $graph['meta']);
+        $this->assertArrayNotHasKey('laterality_score', $graph['meta']);
+        $this->assertPublicLaterality($graph['edges'][0], 0.5);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function assertPublicLaterality(array $payload, float $score): void
+    {
+        $this->assertSame(Laterality::toLegacyInteger($score), $payload['laterality']);
+        $this->assertEqualsWithDelta($score, (float) $payload['laterality_score'], 0.001);
     }
 
     private function makeConcept(string $canonical): Concept

@@ -60,6 +60,7 @@ class ConceptRelationshipDbGraphTest extends TestCase
                             'to',
                             'strength',
                             'laterality',
+                            'laterality_score',
                         ],
                     ],
                     'meta' => [

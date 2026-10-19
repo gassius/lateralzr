@@ -146,7 +146,7 @@ class ConceptGraphQuery
                 'hasMore' => $hasMore,
                 'locale' => $locale,
                 ...($complexity !== null ? ['complexity' => $complexity] : []),
-                ...($laterality !== null ? ['laterality' => $laterality] : []),
+                ...($laterality !== null ? Laterality::publicFields($laterality) : []),
             ],
         ];
     }
@@ -485,12 +485,14 @@ class ConceptGraphQuery
 
     protected function formatEdge(ConceptRelationship $edge): array
     {
+        $score = Laterality::clamp((float) ($edge->last_laterality ?? Laterality::NULL_DEFAULT));
+
         return [
             'id' => (int) $edge->id,
             'from' => (int) $edge->from_concept_id,
             'to' => (int) $edge->to_concept_id,
             'strength' => (float) $edge->strength,
-            'laterality' => Laterality::clamp((float) ($edge->last_laterality ?? Laterality::NULL_DEFAULT)),
+            ...Laterality::publicFields($score),
         ];
     }
 }

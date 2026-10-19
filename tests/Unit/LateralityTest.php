@@ -34,4 +34,27 @@ class LateralityTest extends TestCase
         $this->assertFalse(Laterality::inBand(0.25, 0.4, 0.6));
         $this->assertFalse(Laterality::inBand(0.75, 0.4, 0.6));
     }
+
+    public function test_from_api_request_maps_legacy_grade_and_prefers_score(): void
+    {
+        $this->assertSame(0.0, Laterality::fromApiRequest(1, null));
+        $this->assertSame(0.25, Laterality::fromApiRequest(2, null));
+        $this->assertSame(0.5, Laterality::fromApiRequest(3, null));
+        $this->assertSame(0.75, Laterality::fromApiRequest(4, null));
+        $this->assertSame(1.0, Laterality::fromApiRequest(5, null));
+        $this->assertNull(Laterality::fromApiRequest(6, null));
+        $this->assertNull(Laterality::fromApiRequest(null, null));
+
+        $this->assertSame(0.47, Laterality::fromApiRequest(null, 0.47));
+        $this->assertSame(0.0, Laterality::fromApiRequest(5, 0.0));
+        $this->assertSame(1.0, Laterality::fromApiRequest(1, 1));
+    }
+
+    public function test_public_fields_keep_legacy_grade_and_score(): void
+    {
+        $this->assertSame(['laterality' => 1, 'laterality_score' => 0.0], Laterality::publicFields(0.0));
+        $this->assertSame(['laterality' => 4, 'laterality_score' => 0.75], Laterality::publicFields(0.75));
+        $this->assertSame(['laterality' => 5, 'laterality_score' => 1.0], Laterality::publicFields(1.0));
+        $this->assertSame(['laterality' => 3, 'laterality_score' => 0.5], Laterality::publicFields(0.5));
+    }
 }

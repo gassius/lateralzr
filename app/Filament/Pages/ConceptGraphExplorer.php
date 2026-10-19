@@ -108,9 +108,9 @@ class ConceptGraphExplorer extends Page
                     'relationship_id' => (int) $edge['id'],
                     'source' => 'c'.$edge['from'],
                     'target' => 'c'.$edge['to'],
-                    'label' => number_format((float) $edge['strength'], 3).' / L'.number_format((float) $edge['laterality'], 2),
+                    'label' => number_format((float) $edge['strength'], 3).' / L'.number_format((float) ($edge['laterality_score'] ?? $edge['laterality']), 2),
                     'strength' => (float) $edge['strength'],
-                    'laterality' => (float) $edge['laterality'],
+                    'laterality' => (float) ($edge['laterality_score'] ?? $edge['laterality']),
                 ],
             ];
         }

@@ -107,4 +107,42 @@ final class Laterality
 
         return $value + 1e-9 >= $min && $value - 1e-9 <= $max;
     }
+
+    /**
+     * Resolve the public graph-read params onto the stored 0–1 score.
+     * `laterality_score` (0–1) wins when present; otherwise `laterality` is a legacy 1–5 grade.
+     */
+    public static function fromApiRequest(mixed $legacyGrade, mixed $score): ?float
+    {
+        if ($score !== null && $score !== '') {
+            return self::normalize($score);
+        }
+
+        if ($legacyGrade === null || $legacyGrade === '') {
+            return null;
+        }
+
+        if (! is_numeric($legacyGrade)) {
+            return null;
+        }
+
+        $int = (int) $legacyGrade;
+
+        return self::LEGACY_INTEGER_MAP[$int] ?? null;
+    }
+
+    /**
+     * Public graph JSON: `laterality` stays the client 1–5 grade; `laterality_score` is 0–1.
+     *
+     * @return array{laterality: int, laterality_score: float}
+     */
+    public static function publicFields(float $score): array
+    {
+        $score = self::clamp($score);
+
+        return [
+            'laterality' => self::toLegacyInteger($score),
+            'laterality_score' => $score,
+        ];
+    }
 }
