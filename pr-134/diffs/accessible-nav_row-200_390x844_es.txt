@@ -1,0 +1,4 @@
+Baseline diff for accessible-nav_row-200_390x844_es.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/accessible-nav_row-200_390x844_es.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/accessible-nav_row-200_390x844_es.png
+diff ratio 0.0120 > 0.01 (15857 px)

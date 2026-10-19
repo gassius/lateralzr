@@ -1,0 +1,4 @@
+Baseline diff for a11y-pass_practice-200-rm_390x844_en.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/a11y-pass_practice-200-rm_390x844_en.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/a11y-pass_practice-200-rm_390x844_en.png
+diff ratio 0.3626 > 0.01 (477387 px)

@@ -1,0 +1,4 @@
+Baseline diff for coach_tip-swipe_390x844_es.png
+actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/coach_tip-swipe_390x844_es.png
+baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/coach_tip-swipe_390x844_es.png
+diff ratio 0.0145 > 0.01 (19151 px)
