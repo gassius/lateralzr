@@ -21,6 +21,7 @@ class ConceptGraphStore
      *
      * @param  array<int, array{concept:string,shortDescription:string,complexity?:int,wikiUrl:?string,mediaUrl:?string}>  $concepts
      * @param  array<int, array{from:string,to:string,laterality:float}>  $edges
+     * @return array<string, Concept>
      */
     public function storeGraph(
         array $concepts,
@@ -29,10 +30,10 @@ class ConceptGraphStore
         ?string $provider,
         ?string $model,
         ?string $runUuid
-    ): void {
+    ): array {
         $complexity = max(1, min(5, $complexity));
 
-        DB::transaction(function () use ($concepts, $edges, $complexity, $provider, $model, $runUuid) {
+        return DB::transaction(function () use ($concepts, $edges, $complexity, $provider, $model, $runUuid) {
             $locale = $this->canonicalizer->defaultLocale();
 
             /** @var array<string, Concept> $resolved */
@@ -96,6 +97,8 @@ class ConceptGraphStore
                     'created_at' => CarbonImmutable::now(),
                 ]);
             }
+
+            return $resolved;
         });
     }
 

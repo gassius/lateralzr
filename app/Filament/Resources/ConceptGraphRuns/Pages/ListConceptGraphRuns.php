@@ -7,6 +7,7 @@ use App\Filament\Resources\ConceptGraphRuns\ConceptGraphRunResource;
 use App\Services\ConceptCompleteInfoDispatchService;
 use App\Services\ConceptGraphPrefetchService;
 use App\Services\ConceptLocalizeDispatchService;
+use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Support\ConceptLocale;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -27,6 +28,90 @@ class ListConceptGraphRuns extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('enqueueGenerate')
+                ->label('Generate concepts')
+                ->modalHeading('Generate concepts')
+                ->form([
+                    TagsInput::make('concepts')
+                        ->label('Starting concepts')
+                        ->placeholder('e.g. Cleopatra, The Lumineers, Denver')
+                        ->helperText('One or more labels (existing or new). Leave empty and set random starts, or combine both.')
+                        ->separator(',')
+                        ->suggestions(fn () => [])
+                        ->columnSpanFull(),
+                    TextInput::make('random')
+                        ->label('Random existing starts')
+                        ->numeric()
+                        ->default(0)
+                        ->minValue(0)
+                        ->required(),
+                    TextInput::make('count')
+                        ->label('Related concepts per node')
+                        ->helperText('One LLM call per node requests this many related concepts. There is no batch size.')
+                        ->numeric()
+                        ->default(ConceptPipelineDispatchService::DEFAULT_COUNT)
+                        ->minValue(1)
+                        ->maxValue(100)
+                        ->required(),
+                    TextInput::make('complexity')
+                        ->label('Concept label complexity (1–5)')
+                        ->numeric()
+                        ->default(ConceptPipelineDispatchService::DEFAULT_COMPLEXITY)
+                        ->minValue(1)
+                        ->maxValue(5)
+                        ->required(),
+                    TextInput::make('depth')
+                        ->label('Expansion depth')
+                        ->helperText('Hops from each start. Default 1, maximum 3. Hard cap 200 concepts per run.')
+                        ->numeric()
+                        ->default(ConceptPipelineDispatchService::DEFAULT_DEPTH)
+                        ->minValue(1)
+                        ->maxValue(ConceptPipelineDispatchService::MAX_DEPTH)
+                        ->required(),
+                    Select::make('locales')
+                        ->label('Locales to localise into')
+                        ->multiple()
+                        ->options(fn (): array => array_combine(ConceptLocale::supported(), ConceptLocale::supported()))
+                        ->default(fn (): array => array_values(array_filter(
+                            ConceptLocale::supported(),
+                            fn (string $locale): bool => $locale !== ConceptLocale::default()
+                        )))
+                        ->helperText('Default locale is written by generate; these locales are translated next.'),
+                    ...$this->providerModelFields(),
+                    TextInput::make('queue')
+                        ->label('Queue')
+                        ->default('default')
+                        ->required(),
+                ])
+                ->action(function (array $data): void {
+                    $concepts = Arr::wrap($data['concepts'] ?? []);
+                    $concepts = array_values(array_filter(array_map('strval', $concepts), fn ($v) => trim($v) !== ''));
+                    $locales = $data['locales'] ?? null;
+                    $locales = is_array($locales) ? array_values(array_map('strval', $locales)) : null;
+
+                    try {
+                        app(ConceptPipelineDispatchService::class)->dispatch(
+                            concepts: $concepts,
+                            random: (int) ($data['random'] ?? 0),
+                            count: (int) ($data['count'] ?? ConceptPipelineDispatchService::DEFAULT_COUNT),
+                            complexity: (int) ($data['complexity'] ?? ConceptPipelineDispatchService::DEFAULT_COMPLEXITY),
+                            depth: (int) ($data['depth'] ?? ConceptPipelineDispatchService::DEFAULT_DEPTH),
+                            locales: $locales,
+                            provider: ($data['provider'] ?? null) ? (string) $data['provider'] : null,
+                            model: ($data['model'] ?? null) ? (string) $data['model'] : null,
+                            queue: (string) ($data['queue'] ?? 'default'),
+                        );
+                    } catch (InvalidArgumentException $e) {
+                        Notification::make()
+                            ->title('Generate not enqueued')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+
+                        throw new Halt;
+                    }
+                })
+                ->successNotificationTitle('Generate enqueued'),
             Action::make('enqueueCompleteInfo')
                 ->label('Complete concept info')
                 ->modalHeading('Enqueue Wikipedia / media backfill')
@@ -149,8 +234,8 @@ class ListConceptGraphRuns extends ListRecords
                 })
                 ->successNotificationTitle('Localize enqueued'),
             Action::make('enqueuePrefetch')
-                ->label('Prefetch concept graph')
-                ->modalHeading('Prefetch concept graph')
+                ->label('Prefetch concept graph (legacy)')
+                ->modalHeading('Prefetch concept graph (legacy)')
                 ->form([
                     TagsInput::make('starts')
                         ->label('Starting concepts (optional)')

@@ -19,11 +19,13 @@ class ConceptGraphRunsTable
                     ->formatStateUsing(fn (?string $state): string => match ($state) {
                         'localize' => 'localize',
                         'complete_info' => 'complete_info',
+                        'pipeline' => 'pipeline',
                         default => 'graph',
                     })
                     ->color(fn (?string $state): string => match ($state) {
                         'localize' => 'info',
                         'complete_info' => 'success',
+                        'pipeline' => 'warning',
                         default => 'gray',
                     })
                     ->sortable(),
@@ -91,6 +93,7 @@ class ConceptGraphRunsTable
                         'graph' => 'graph',
                         'localize' => 'localize',
                         'complete_info' => 'complete_info',
+                        'pipeline' => 'pipeline',
                     ]),
             ])
             ->recordActions([

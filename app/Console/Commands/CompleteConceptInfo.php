@@ -18,7 +18,7 @@ class CompleteConceptInfo extends Command
         {--queue=default : Queue name for async dispatch}
         {--sync : Run inline instead of enqueueing worker jobs}';
 
-    protected $description = 'Backfill missing localized Wikipedia URLs and CC0/public-domain media. Separate from prefetch and localisation.';
+    protected $description = 'Deprecated: prefer concepts:generate. Backfill missing Wikipedia URLs and CC0/public-domain media.';
 
     public function handle(
         ConceptCompleteInfoService $service,

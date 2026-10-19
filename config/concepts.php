@@ -71,15 +71,31 @@ return [
     |--------------------------------------------------------------------------
     |
     | Comma-separated list in CONCEPTS_SUPPORTED_LOCALES. Graph generation
-    | always writes the default locale first; use `concepts:localize`
-    | (queued by default; `--sync` for inline) to attach additional locale
-    | terms to the same canonical concepts. Track runs under Filament
-    | Worker Runs (`/admin/concept-graph-runs`, type=localize).
+    | always writes the default locale first. Prefer `concepts:generate` to
+    | localise and complete-info in one pipeline. Legacy `concepts:localize`
+    | (queued by default; `--sync` for inline) still attaches additional locale
+    | terms. Track runs under Filament Worker Runs (`/admin/concept-graph-runs`).
     |
     */
     'supported_locales' => array_values(array_filter(array_map(
         static fn (string $locale) => strtolower(trim($locale)),
         explode(',', (string) env('CONCEPTS_SUPPORTED_LOCALES', 'en,es'))
     ))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Unified generate pipeline (concepts:generate)
+    |--------------------------------------------------------------------------
+    |
+    | One command/admin action chains generate → localise → complete-info as
+    | small per-node jobs. Depth is hops from each seed (max 3). A run never
+    | records more than max_concepts nodes. Batch size is not used.
+    |
+    */
+    'pipeline_default_count' => 10,
+    'pipeline_default_complexity' => 3,
+    'pipeline_default_depth' => 1,
+    'pipeline_max_depth' => 3,
+    'pipeline_max_concepts' => 200,
 
 ];

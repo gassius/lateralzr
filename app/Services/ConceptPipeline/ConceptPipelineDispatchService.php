@@ -1,0 +1,319 @@
+<?php
+
+namespace App\Services\ConceptPipeline;
+
+use App\Ai\Support\AiProviders;
+use App\Jobs\CompleteInfoPipelineNodeJob;
+use App\Jobs\GeneratePipelineNodeJob;
+use App\Jobs\LocalizePipelineNodeJob;
+use App\Models\Concept;
+use App\Models\ConceptGraphRun;
+use App\Models\ConceptPipelineNode;
+use App\Models\ConceptTerm;
+use App\Support\ConceptLocale;
+use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
+
+class ConceptPipelineDispatchService
+{
+    public const MAX_DEPTH = 3;
+
+    public const MAX_CONCEPTS = 200;
+
+    public const DEFAULT_COUNT = 10;
+
+    public const DEFAULT_COMPLEXITY = 3;
+
+    public const DEFAULT_DEPTH = 1;
+
+    /**
+     * @param  list<string>  $concepts
+     * @param  list<string>|null  $locales
+     */
+    public function dispatch(
+        array $concepts = [],
+        int $random = 0,
+        int $count = self::DEFAULT_COUNT,
+        int $complexity = self::DEFAULT_COMPLEXITY,
+        int $depth = self::DEFAULT_DEPTH,
+        ?array $locales = null,
+        ?string $provider = null,
+        ?string $model = null,
+        string $queue = 'default',
+    ): ConceptGraphRun {
+        $depth = (int) $depth;
+        if ($depth < 1 || $depth > self::MAX_DEPTH) {
+            throw new InvalidArgumentException('Depth must be between 1 and 3.');
+        }
+
+        $count = max(1, min(100, $count));
+        $complexity = max(1, min(5, $complexity));
+        $random = max(0, $random);
+        $queue = $queue !== '' ? $queue : 'default';
+
+        $provider = AiProviders::normalize($provider);
+        $model = $model !== null && $model !== '' ? $model : AiProviders::defaultTextModel($provider);
+
+        $locales = $this->resolveLocales($locales);
+        $starts = $this->resolveStarts($concepts, $random);
+
+        if ($starts === []) {
+            throw new InvalidArgumentException('Provide --concept, --concepts, or --random.');
+        }
+
+        if (count($starts) > self::MAX_CONCEPTS) {
+            $starts = array_slice($starts, 0, self::MAX_CONCEPTS);
+        }
+
+        $runUuid = (string) Str::uuid();
+        $seedLabels = array_column($starts, 'seed_term');
+
+        $run = ConceptGraphRun::query()->create([
+            'run_uuid' => $runUuid,
+            'type' => ConceptGraphRun::TYPE_PIPELINE,
+            'provider' => $provider,
+            'model' => $model,
+            'complexity' => $complexity,
+            'queue' => $queue,
+            'seed_count' => count($starts),
+            'seeds' => [
+                'starts' => $seedLabels,
+                'count' => $count,
+                'depth' => $depth,
+                'locales' => $locales,
+                'random' => $random,
+                'targetCount' => $count,
+                'maxConcepts' => self::MAX_CONCEPTS,
+            ],
+            'related_count' => min(255, $count),
+            'dispatched_at' => now(),
+        ]);
+
+        $nodes = [];
+        foreach ($starts as $start) {
+            $nodes[] = ConceptPipelineNode::query()->create([
+                'run_uuid' => $runUuid,
+                'parent_node_id' => null,
+                'concept_id' => $start['concept_id'],
+                'canonical_key' => $start['canonical_key'],
+                'seed_term' => $start['seed_term'],
+                'depth' => 0,
+                'generate_status' => ConceptPipelineNode::STATUS_PENDING,
+                'localize_status' => ConceptPipelineNode::STATUS_PENDING,
+                'complete_info_status' => ConceptPipelineNode::STATUS_PENDING,
+            ]);
+        }
+
+        foreach ($nodes as $node) {
+            $this->enqueueNodeChain($node, $queue);
+        }
+
+        return $run;
+    }
+
+    public function enqueueNodeChain(ConceptPipelineNode $node, string $queue): void
+    {
+        Bus::chain([
+            new GeneratePipelineNodeJob($node->id),
+            new LocalizePipelineNodeJob($node->id),
+            new CompleteInfoPipelineNodeJob($node->id),
+        ])->onQueue($queue)->dispatch();
+    }
+
+    /**
+     * Persist child nodes for newly generated concepts and enqueue their chains.
+     *
+     * @param  array<string, Concept>  $resolved
+     * @return list<ConceptPipelineNode>
+     */
+    public function enqueueChildren(ConceptPipelineNode $parent, array $resolved): array
+    {
+        $run = $parent->run;
+        if (! $run instanceof ConceptGraphRun) {
+            return [];
+        }
+
+        $maxDepth = (int) data_get($run->seeds, 'depth', self::DEFAULT_DEPTH);
+        $queue = (string) ($run->queue ?: 'default');
+        $childDepth = $parent->depth + 1;
+
+        if ($childDepth > $maxDepth || $childDepth > self::MAX_DEPTH) {
+            return [];
+        }
+
+        $created = [];
+
+        DB::transaction(function () use ($parent, $resolved, $childDepth, &$created): void {
+            ConceptGraphRun::query()
+                ->where('run_uuid', $parent->run_uuid)
+                ->lockForUpdate()
+                ->first();
+
+            $existingKeys = ConceptPipelineNode::query()
+                ->where('run_uuid', $parent->run_uuid)
+                ->pluck('canonical_key')
+                ->all();
+            $existingSet = array_fill_keys($existingKeys, true);
+            $used = count($existingKeys);
+
+            foreach ($resolved as $canonicalKey => $concept) {
+                if ($canonicalKey === $parent->canonical_key) {
+                    continue;
+                }
+
+                if ($parent->concept_id !== null && (int) $concept->id === (int) $parent->concept_id) {
+                    continue;
+                }
+
+                if (isset($existingSet[$canonicalKey])) {
+                    continue;
+                }
+
+                if ($used >= self::MAX_CONCEPTS) {
+                    break;
+                }
+
+                try {
+                    $node = ConceptPipelineNode::query()->create([
+                        'run_uuid' => $parent->run_uuid,
+                        'parent_node_id' => $parent->id,
+                        'concept_id' => $concept->id,
+                        'canonical_key' => $canonicalKey,
+                        'seed_term' => $concept->preferredTerm?->term ?? $canonicalKey,
+                        'depth' => $childDepth,
+                        'generate_status' => ConceptPipelineNode::STATUS_PENDING,
+                        'localize_status' => ConceptPipelineNode::STATUS_PENDING,
+                        'complete_info_status' => ConceptPipelineNode::STATUS_PENDING,
+                    ]);
+                } catch (UniqueConstraintViolationException) {
+                    continue;
+                }
+
+                $existingSet[$canonicalKey] = true;
+                $used++;
+                $created[] = $node;
+            }
+        });
+
+        foreach ($created as $node) {
+            $this->enqueueNodeChain($node, $queue);
+        }
+
+        return $created;
+    }
+
+    /**
+     * @param  list<string>  $concepts
+     * @return list<array{seed_term: string, canonical_key: string, concept_id: int|null}>
+     */
+    public function resolveStarts(array $concepts, int $random): array
+    {
+        $starts = [];
+        $seen = [];
+
+        foreach ($concepts as $raw) {
+            $label = trim((string) $raw);
+            if ($label === '') {
+                continue;
+            }
+
+            $canonical = ConceptTerm::normalizeTerm($label);
+            if ($canonical === '' || isset($seen[$canonical])) {
+                continue;
+            }
+
+            $seen[$canonical] = true;
+            $starts[] = $this->startFromLabel($label, $canonical);
+        }
+
+        if ($random > 0) {
+            $existing = Concept::query()
+                ->with('preferredTerm')
+                ->inRandomOrder()
+                ->limit($random)
+                ->get();
+
+            foreach ($existing as $concept) {
+                $label = $concept->preferredTerm?->term ?? (string) $concept->canonical_key;
+                $canonical = ConceptTerm::normalizeTerm($label);
+                if ($canonical === '' || isset($seen[$canonical])) {
+                    continue;
+                }
+
+                $seen[$canonical] = true;
+                $starts[] = [
+                    'seed_term' => $label,
+                    'canonical_key' => (string) $concept->canonical_key,
+                    'concept_id' => (int) $concept->id,
+                ];
+            }
+
+            if ($starts === []) {
+                throw new InvalidArgumentException('No existing concepts available for --random.');
+            }
+        }
+
+        return $starts;
+    }
+
+    /**
+     * @param  list<string>|null  $locales
+     * @return list<string>
+     */
+    public function resolveLocales(?array $locales): array
+    {
+        $supported = ConceptLocale::supported();
+
+        if ($locales === null) {
+            return array_values(array_filter(
+                $supported,
+                fn (string $locale): bool => $locale !== ConceptLocale::default()
+            ));
+        }
+
+        $resolved = [];
+        foreach ($locales as $raw) {
+            $normalized = strtolower(trim((string) $raw));
+            if ($normalized === '') {
+                continue;
+            }
+
+            $primary = explode('-', $normalized, 2)[0];
+            if (! in_array($normalized, $supported, true) && ! in_array($primary, $supported, true)) {
+                throw new InvalidArgumentException(
+                    'Locale must be in supported list: '.implode(', ', $supported)
+                );
+            }
+
+            $locale = ConceptLocale::resolve($normalized);
+            if ($locale === ConceptLocale::default()) {
+                continue;
+            }
+
+            $resolved[] = $locale;
+        }
+
+        return array_values(array_unique($resolved));
+    }
+
+    /**
+     * @return array{seed_term: string, canonical_key: string, concept_id: int|null}
+     */
+    protected function startFromLabel(string $label, string $canonical): array
+    {
+        $term = ConceptTerm::query()
+            ->with('concept')
+            ->where('normalized_term', $canonical)
+            ->orderByDesc('is_preferred')
+            ->first();
+
+        return [
+            'seed_term' => $label,
+            'canonical_key' => $term?->concept?->canonical_key ?? $canonical,
+            'concept_id' => $term?->concept_id,
+        ];
+    }
+}
