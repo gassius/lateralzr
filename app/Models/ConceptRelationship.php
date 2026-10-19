@@ -25,7 +25,7 @@ class ConceptRelationship extends Model
         'user_weight' => 'integer',
         'strength' => 'decimal:5',
         'last_generated_at' => 'datetime',
-        'last_laterality' => 'integer',
+        'last_laterality' => 'float',
     ];
 
     public function fromConcept(): BelongsTo

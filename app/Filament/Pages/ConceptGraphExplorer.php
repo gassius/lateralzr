@@ -93,7 +93,7 @@ class ConceptGraphExplorer extends Page
                     'concept_id' => (int) $node['id'],
                     'label' => $node['label'] ?: ('concept#'.$node['id']),
                     'shortDescription' => $node['shortDescription'] ?? '',
-                    'complexity' => (int) ($node['complexity'] ?? 2),
+                    'complexity' => (int) ($node['complexity'] ?? config('concepts.default_complexity', 3)),
                     'wikiUrl' => $node['wikiUrl'] ?? null,
                     'mediaUrl' => $node['mediaUrl'] ?? null,
                     'degree' => (int) ($node['degree'] ?? 0),
@@ -108,9 +108,9 @@ class ConceptGraphExplorer extends Page
                     'relationship_id' => (int) $edge['id'],
                     'source' => 'c'.$edge['from'],
                     'target' => 'c'.$edge['to'],
-                    'label' => number_format((float) $edge['strength'], 3).' / L'.$edge['laterality'],
+                    'label' => number_format((float) $edge['strength'], 3).' / L'.number_format((float) $edge['laterality'], 2),
                     'strength' => (float) $edge['strength'],
-                    'laterality' => (int) $edge['laterality'],
+                    'laterality' => (float) $edge['laterality'],
                 ],
             ];
         }

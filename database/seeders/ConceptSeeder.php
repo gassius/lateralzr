@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\ConceptRelationship;
 use App\Models\RelationshipEvidence;
 use App\Services\ConceptCanonicalizer;
+use App\Support\Laterality;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -71,12 +72,14 @@ class ConceptSeeder extends Seeder
         ];
 
         foreach ($edges as [$from, $to, $laterality, $strength]) {
+            $mappedLaterality = Laterality::fromLegacyInteger($laterality);
+
             $edge = ConceptRelationship::query()->create([
                 'from_concept_id' => $concepts[$from]->id,
                 'to_concept_id' => $concepts[$to]->id,
                 'llm_occurrences' => 1,
                 'user_weight' => 0,
-                'last_laterality' => (int) $laterality,
+                'last_laterality' => $mappedLaterality,
                 'last_generated_at' => now(),
                 'strength' => $strength,
             ]);
@@ -86,13 +89,13 @@ class ConceptSeeder extends Seeder
                 'provider' => 'seed',
                 'model' => 'seed',
                 'run_uuid' => $runUuid,
-                'laterality' => (int) $laterality,
+                'laterality' => $mappedLaterality,
                 'from_term' => $from,
                 'to_term' => $to,
                 'raw_json' => [
                     'from' => $from,
                     'to' => $to,
-                    'laterality' => (int) $laterality,
+                    'laterality' => $mappedLaterality,
                 ],
                 'created_at' => now(),
             ]);

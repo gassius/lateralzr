@@ -34,7 +34,7 @@ class ConceptRelationshipController
             'limit' => ['sometimes', 'integer', 'min:1', 'max:500'],
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
-            'laterality' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
+            'laterality' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:1'],
             'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
             'complexity' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
         ]);
@@ -56,7 +56,7 @@ class ConceptRelationshipController
             ? (int) $validated['complexity']
             : null;
         $laterality = array_key_exists('laterality', $validated) && $validated['laterality'] !== null
-            ? (int) $validated['laterality']
+            ? (float) $validated['laterality']
             : null;
 
         try {

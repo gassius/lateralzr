@@ -28,5 +28,8 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <env name="CONCEPTS_DEFAULT_COMPLEXITY" value="3" force="true"/>
+        <env name="CONCEPTS_LATERALITY_BAND_MIN" value="0.4" force="true"/>
+        <env name="CONCEPTS_LATERALITY_BAND_MAX" value="0.6" force="true"/>
     </php>
 </phpunit>

@@ -120,6 +120,6 @@ class Concept extends Model
 
     public function getDisplayComplexityAttribute(): int
     {
-        return (int) ($this->preferredTerm?->complexity ?? config('concepts.default_complexity', 2));
+        return (int) ($this->preferredTerm?->complexity ?? config('concepts.default_complexity', 3));
     }
 }

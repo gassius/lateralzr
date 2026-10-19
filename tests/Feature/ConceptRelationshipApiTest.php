@@ -31,7 +31,7 @@ class ConceptRelationshipApiTest extends TestCase
                 ['id' => 2, 'label' => 'constraint', 'shortDescription' => 'A limitation or restriction.', 'complexity' => 1, 'wikiUrl' => 'https://en.wikipedia.org/wiki/Constraint', 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 1],
             ],
             'edges' => [
-                ['id' => 10, 'from' => 1, 'to' => 2, 'strength' => 0.72, 'laterality' => 3],
+                ['id' => 10, 'from' => 1, 'to' => 2, 'strength' => 0.72, 'laterality' => 0.5],
             ],
             'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'en'],
         ]);
@@ -302,34 +302,39 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 4)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.75)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],
                 'edges' => [],
-                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'en', 'laterality' => 4],
+                'meta' => ['depth' => 2, 'limit' => 100, 'minStrength' => 0.0, 'hasMore' => false, 'locale' => 'en', 'laterality' => 0.75],
             ]);
         $this->app->instance(ConceptGraphQuery::class, $mockQuery);
 
         $response = $this->postJson('/api/concepts/relationships', [
             'start' => 'creativity',
-            'laterality' => 4,
+            'laterality' => 0.75,
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.meta.laterality', 4);
+            ->assertJsonPath('data.meta.laterality', 0.75);
     }
 
     public function test_relationships_endpoint_rejects_out_of_range_laterality(): void
     {
         $this->postJson('/api/concepts/relationships', [
             'start' => 'creativity',
-            'laterality' => 0,
+            'laterality' => -0.1,
         ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
 
         $this->postJson('/api/concepts/relationships', [
             'start' => 'creativity',
-            'laterality' => 6,
+            'laterality' => 1.1,
+        ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
+
+        $this->postJson('/api/concepts/relationships', [
+            'start' => 'creativity',
+            'laterality' => 4,
         ])->assertStatus(422)->assertJsonValidationErrors(['laterality']);
     }
 
@@ -343,7 +348,7 @@ class ConceptRelationshipApiTest extends TestCase
             'from_concept_id' => $mushroom->id,
             'to_concept_id' => $tide->id,
             'strength' => 0.95,
-            'last_laterality' => 2,
+            'last_laterality' => 0.25,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);
@@ -351,25 +356,25 @@ class ConceptRelationshipApiTest extends TestCase
             'from_concept_id' => $mushroom->id,
             'to_concept_id' => $chaos->id,
             'strength' => 0.40,
-            'last_laterality' => 5,
+            'last_laterality' => 1.0,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);
 
         $this->postJson('/api/concepts/relationships', [
             'start' => 'mushroom',
-            'laterality' => 5,
+            'laterality' => 1,
             'limit' => 4,
             'depth' => 1,
         ])
             ->assertStatus(200)
-            ->assertJsonPath('data.meta.laterality', 5)
+            ->assertJsonPath('data.meta.laterality', 1)
             ->assertJsonPath('data.edges.0.to', $chaos->id)
-            ->assertJsonPath('data.edges.0.laterality', 5);
+            ->assertJsonPath('data.edges.0.laterality', 1);
 
         $this->postJson('/api/concepts/relationships', [
             'start' => 'mushroom',
-            'laterality' => 4,
+            'laterality' => 0.75,
             'limit' => 4,
             'depth' => 1,
         ])->assertStatus(404);
@@ -378,40 +383,41 @@ class ConceptRelationshipApiTest extends TestCase
     public function test_relationships_endpoint_random_start_filters_by_laterality(): void
     {
         $starts = [];
-        foreach ([1, 2, 3, 4, 5] as $grade) {
-            $from = $this->makeConcept("seed-{$grade}", "seed-{$grade}", "https://example.com/seed-{$grade}.jpg");
-            $to = $this->makeConcept("nbr-{$grade}", "nbr-{$grade}", "https://example.com/nbr-{$grade}.jpg");
+        $scores = [0.0, 0.25, 0.5, 0.75, 1.0];
+        foreach ($scores as $index => $score) {
+            $from = $this->makeConcept("seed-{$index}", "seed-{$index}", "https://example.com/seed-{$index}.jpg");
+            $to = $this->makeConcept("nbr-{$index}", "nbr-{$index}", "https://example.com/nbr-{$index}.jpg");
             ConceptRelationship::query()->create([
                 'from_concept_id' => $from->id,
                 'to_concept_id' => $to->id,
                 'strength' => 0.9,
-                'last_laterality' => $grade,
+                'last_laterality' => $score,
                 'llm_occurrences' => 1,
                 'user_weight' => 0,
             ]);
-            $starts[$grade] = $from->id;
+            $starts[(string) $score] = $from->id;
         }
 
-        foreach ([1, 2, 3, 4, 5] as $grade) {
-            $this->postJson('/api/concepts/relationships', [
-                'laterality' => $grade,
-            ])
-                ->assertStatus(200)
-                ->assertJsonPath('data.start.id', $starts[$grade])
-                ->assertJsonPath('data.meta.laterality', $grade);
+        foreach ($scores as $score) {
+            $response = $this->postJson('/api/concepts/relationships', [
+                'laterality' => $score,
+            ]);
+            $response->assertStatus(200)
+                ->assertJsonPath('data.start.id', $starts[(string) $score]);
+            $this->assertEqualsWithDelta($score, (float) $response->json('data.meta.laterality'), 0.001);
         }
 
         for ($i = 0; $i < 20; $i++) {
-            $this->postJson('/api/concepts/relationships', [
-                'laterality' => 5,
-            ])
-                ->assertStatus(200)
-                ->assertJsonPath('data.start.id', $starts[5])
-                ->assertJsonPath('data.meta.laterality', 5);
+            $response = $this->postJson('/api/concepts/relationships', [
+                'laterality' => 1,
+            ]);
+            $response->assertStatus(200)
+                ->assertJsonPath('data.start.id', $starts['1']);
+            $this->assertEqualsWithDelta(1.0, (float) $response->json('data.meta.laterality'), 0.001);
         }
     }
 
-    public function test_relationships_endpoint_treats_null_laterality_as_grade_three(): void
+    public function test_relationships_endpoint_treats_null_laterality_as_half(): void
     {
         $from = $this->makeConcept('creativity', 'creativity', 'https://example.com/creativity.jpg');
         $to = $this->makeConcept('silence', 'silence', 'https://example.com/silence.jpg');
@@ -427,14 +433,14 @@ class ConceptRelationshipApiTest extends TestCase
 
         $this->postJson('/api/concepts/relationships', [
             'start' => 'creativity',
-            'laterality' => 3,
+            'laterality' => 0.5,
         ])
             ->assertStatus(200)
-            ->assertJsonPath('data.edges.0.laterality', 3);
+            ->assertJsonPath('data.edges.0.laterality', 0.5);
 
         $this->postJson('/api/concepts/relationships', [
             'start' => 'creativity',
-            'laterality' => 1,
+            'laterality' => 0,
         ])->assertStatus(404);
     }
 
@@ -447,7 +453,7 @@ class ConceptRelationshipApiTest extends TestCase
             'from_concept_id' => $from->id,
             'to_concept_id' => $to->id,
             'strength' => 0.72,
-            'last_laterality' => 3,
+            'last_laterality' => 0.5,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);
@@ -494,7 +500,7 @@ class ConceptRelationshipApiTest extends TestCase
             'from_concept_id' => $concept->id,
             'to_concept_id' => $other->id,
             'strength' => 0.72,
-            'last_laterality' => 3,
+            'last_laterality' => 0.5,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);

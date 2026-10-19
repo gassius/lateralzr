@@ -24,7 +24,7 @@ class PrefetchConceptGraph extends Command
 
     public function handle(): int
     {
-        $complexity = (int) ($this->option('complexity') ?? config('concepts.default_complexity', 2));
+        $complexity = (int) ($this->option('complexity') ?? config('concepts.default_complexity', 3));
         $complexity = max(1, min(5, $complexity));
 
         $provider = $this->option('provider') ? (string) $this->option('provider') : null;
