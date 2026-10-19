@@ -120,6 +120,83 @@ class ConceptPipelineNode extends Model
         return (string) $this->{"{$prefix}_status"};
     }
 
+    public function errorFor(string $stage): ?string
+    {
+        $prefix = $this->stagePrefix($stage);
+        $error = $this->{"{$prefix}_error"};
+
+        return is_string($error) && $error !== '' ? $error : null;
+    }
+
+    public function resetStage(string $stage): void
+    {
+        $prefix = $this->stagePrefix($stage);
+
+        $this->forceFill([
+            "{$prefix}_status" => self::STATUS_PENDING,
+            "{$prefix}_started_at" => null,
+            "{$prefix}_finished_at" => null,
+            "{$prefix}_error" => null,
+        ])->save();
+    }
+
+    public static function isTerminalStatus(string $status): bool
+    {
+        return in_array($status, [self::STATUS_SUCCEEDED, self::STATUS_FAILED, self::STATUS_SKIPPED], true);
+    }
+
+    public function isFinished(): bool
+    {
+        foreach (self::STAGES as $stage) {
+            if (! self::isTerminalStatus($this->statusFor($stage))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function hasActiveStage(): bool
+    {
+        foreach (self::STAGES as $stage) {
+            if (in_array($this->statusFor($stage), [self::STATUS_PENDING, self::STATUS_PROCESSING], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function finishedDurationSeconds(): ?int
+    {
+        if (! $this->isFinished()) {
+            return null;
+        }
+
+        $starts = [];
+        $ends = [];
+
+        foreach (self::STAGES as $stage) {
+            $prefix = $this->stagePrefix($stage);
+            $start = $this->{"{$prefix}_started_at"};
+            $end = $this->{"{$prefix}_finished_at"};
+
+            if ($start !== null) {
+                $starts[] = $start->getTimestamp();
+            }
+
+            if ($end !== null) {
+                $ends[] = $end->getTimestamp();
+            }
+        }
+
+        if ($starts === [] || $ends === []) {
+            return null;
+        }
+
+        return max(0, max($ends) - min($starts));
+    }
+
     /**
      * Leave later chain stages skipped when an earlier stage failed permanently.
      */
