@@ -98,4 +98,38 @@ return [
     'pipeline_max_depth' => 3,
     'pipeline_max_concepts' => 200,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Scheduled maintenance (concepts:schedule:*)
+    |--------------------------------------------------------------------------
+    |
+    | DB-backed tasks in `scheduled_tasks` (off by default). The Laravel
+    | scheduler calls `concepts:schedule:dispatch` every minute. Named
+    | cadences: hourly, daily, weekly. grow-sparse enqueues concepts:generate;
+    | fill-missing enqueues localize / complete-info (Wikimedia, no AI images).
+    |
+    */
+    'scheduled_tasks' => [
+        'grow-sparse' => [
+            'cadence' => 'daily',
+            'per_run_cap' => 10,
+            'options' => [
+                'threshold' => 2,
+                'count' => 10,
+                'complexity' => 3,
+                'depth' => 1,
+            ],
+        ],
+        'fill-missing' => [
+            'cadence' => 'daily',
+            'per_run_cap' => 20,
+            'options' => [
+                'locale' => 'es',
+                'from' => 'en',
+                'fill_locale' => true,
+                'fill_images' => true,
+            ],
+        ],
+    ],
+
 ];

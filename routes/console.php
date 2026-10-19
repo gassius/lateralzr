@@ -8,3 +8,8 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('scheduler:test')
     ->everyFifteenMinutes()
     ->appendOutputTo(storage_path('logs/scheduler-test.log'));
+
+Schedule::command('concepts:schedule:dispatch')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();

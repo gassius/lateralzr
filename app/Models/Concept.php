@@ -59,6 +59,16 @@ class Concept extends Model
         return $this->hasMany(ConceptMedia::class)->orderBy('position')->orderBy('id');
     }
 
+    public function outgoingRelationships(): HasMany
+    {
+        return $this->hasMany(ConceptRelationship::class, 'from_concept_id');
+    }
+
+    public function incomingRelationships(): HasMany
+    {
+        return $this->hasMany(ConceptRelationship::class, 'to_concept_id');
+    }
+
     public function preferredTerm(): HasOne
     {
         $locale = ConceptLocale::default();
