@@ -120,7 +120,9 @@ test.describe('laterality bar', () => {
   });
 
   test('no-match keeps the new grade and shows Adjust', async ({ page }) => {
-    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en');
+    await openApp(page, 'canonicalConcept=mushroom&laterality=3&locale=en', {
+      mock: { lateralityNoMatch: 4 },
+    });
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
 
     await clickLateralityRail(page, 0.72);

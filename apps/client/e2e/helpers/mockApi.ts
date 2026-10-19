@@ -18,6 +18,11 @@ export type MockOptions = {
   delayFirstMs?: number;
   /** Serve a 404 from `/api/media` so the card falls back to the no-media back. */
   brokenMedia?: boolean;
+  /**
+   * Lz-57 no-match: 404 this laterality on relationships POSTs.
+   * Opt-in so `?laterality=4` first loads (laterality-sheet / axe) still get a deck.
+   */
+  lateralityNoMatch?: number;
 };
 
 type RelationshipsBody = {
@@ -240,7 +245,10 @@ export async function installApiMocks(page: Page, options: MockOptions = {}): Pr
       startKey === 'horizonte' ||
       startKey === 'meridian';
 
-    if (body.laterality === 4) {
+    if (
+      options.lateralityNoMatch != null &&
+      body.laterality === options.lateralityNoMatch
+    ) {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
