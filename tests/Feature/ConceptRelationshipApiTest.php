@@ -7,6 +7,7 @@ use App\Models\ConceptMedia;
 use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Services\ConceptGraphQuery;
+use App\Support\Laterality;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
@@ -144,7 +145,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 40, 3, 0.2, 'en', null, false, null, null)
+            ->with('creativity', 40, 3, 0.2, 'en', null, false, null, null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],
@@ -169,7 +170,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'es', null, false, null, null)
+            ->with('creativity', 100, 2, 0.0, 'es', null, false, null, null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'es', 'degree' => 0]],
@@ -220,7 +221,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with(null, 100, 2, 0.0, 'es', 'creativity', true, null, null)
+            ->with(null, 100, 2, 0.0, 'es', 'creativity', true, null, null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => 'https://example.com/c.jpg', 'media' => [['url' => 'https://example.com/c.jpg', 'kind' => 'image', 'license' => 'CC0']], 'locale' => 'es', 'degree' => 0]],
@@ -245,7 +246,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creatividad', 100, 2, 0.0, 'es', null, false, null, null)
+            ->with('creatividad', 100, 2, 0.0, 'es', null, false, null, null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creatividad'],
                 'nodes' => [['id' => 1, 'label' => 'creatividad', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'es', 'degree' => 0]],
@@ -268,7 +269,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, 5, null)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, 5, null, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 5, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],
@@ -302,7 +303,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.75)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.75, true)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],
@@ -326,7 +327,7 @@ class ConceptRelationshipApiTest extends TestCase
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.47)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.47, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],
@@ -474,12 +475,80 @@ class ConceptRelationshipApiTest extends TestCase
         ])->assertStatus(404);
     }
 
+    public function test_legacy_grade_filter_matches_the_grade_reported_on_in_band_edges(): void
+    {
+        $mushroom = $this->makeConcept('mushroom', 'mushroom', 'https://example.com/mushroom.jpg');
+        $harbor = $this->makeConcept('harbor', 'harbor', 'https://example.com/harbor.jpg');
+        $bridge = $this->makeConcept('bridge', 'bridge', 'https://example.com/bridge.jpg');
+
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $mushroom->id,
+            'to_concept_id' => $harbor->id,
+            'strength' => 0.80,
+            'last_laterality' => 0.45,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+        ConceptRelationship::query()->create([
+            'from_concept_id' => $mushroom->id,
+            'to_concept_id' => $bridge->id,
+            'strength' => 0.70,
+            'last_laterality' => 0.375,
+            'llm_occurrences' => 1,
+            'user_weight' => 0,
+        ]);
+
+        $seeded = [
+            $harbor->id => 0.45,
+            $bridge->id => 0.375,
+        ];
+
+        $byGrade = [];
+        foreach ([2, 3] as $grade) {
+            $response = $this->postJson('/api/concepts/relationships', [
+                'start' => 'mushroom',
+                'laterality' => $grade,
+                'limit' => 8,
+                'depth' => 1,
+            ]);
+            $byGrade[$grade] = $response->status() === 200
+                ? collect($response->json('data.edges'))
+                : collect();
+        }
+
+        foreach ($seeded as $toId => $score) {
+            $reported = Laterality::toLegacyInteger($score);
+            $this->assertNotNull($reported);
+            $matches = $byGrade[$reported]->firstWhere('to', $toId);
+            $this->assertNotNull($matches, "score {$score} must be returned for laterality {$reported}");
+            $this->assertSame($reported, $matches['laterality']);
+            $this->assertEqualsWithDelta(Laterality::clamp($score), (float) $matches['laterality_score'], 0.001);
+
+            foreach ($byGrade as $grade => $edges) {
+                if ($grade === $reported) {
+                    continue;
+                }
+                $this->assertNull($edges->firstWhere('to', $toId), "score {$score} must not match laterality {$grade}");
+            }
+        }
+
+        $exactScore = $this->postJson('/api/concepts/relationships', [
+            'start' => 'mushroom',
+            'laterality_score' => 0.45,
+            'limit' => 8,
+            'depth' => 1,
+        ]);
+        $exactScore->assertStatus(200);
+        $scoreTos = collect($exactScore->json('data.edges'))->pluck('to')->all();
+        $this->assertSame([$harbor->id], $scoreTos);
+    }
+
     public function test_relationships_endpoint_laterality_score_wins_over_legacy_grade(): void
     {
         $mockQuery = Mockery::mock(ConceptGraphQuery::class);
         $mockQuery->shouldReceive('getGraph')
             ->once()
-            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.25)
+            ->with('creativity', 100, 2, 0.0, 'en', null, false, null, 0.25, false)
             ->andReturn([
                 'start' => ['id' => 1, 'label' => 'creativity'],
                 'nodes' => [['id' => 1, 'label' => 'creativity', 'shortDescription' => 'Desc', 'complexity' => 1, 'wikiUrl' => null, 'mediaUrl' => null, 'media' => [], 'locale' => 'en', 'degree' => 0]],

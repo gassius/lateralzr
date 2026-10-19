@@ -57,10 +57,10 @@ class ConceptRelationshipController
         $complexity = array_key_exists('complexity', $validated) && $validated['complexity'] !== null
             ? (int) $validated['complexity']
             : null;
-        $laterality = Laterality::fromApiRequest(
-            $validated['laterality'] ?? null,
-            $validated['laterality_score'] ?? null,
-        );
+        $lateralityGrade = $validated['laterality'] ?? null;
+        $lateralityScore = $validated['laterality_score'] ?? null;
+        $laterality = Laterality::fromApiRequest($lateralityGrade, $lateralityScore);
+        $lateralityAsGrade = Laterality::requestUsesLegacyGrade($lateralityGrade, $lateralityScore);
 
         try {
             $result = $this->query->getGraph(
@@ -72,7 +72,8 @@ class ConceptRelationshipController
                 canonicalStart: $canonicalStart,
                 onlyWithMedia: $onlyWithMedia,
                 complexity: $complexity,
-                laterality: $laterality
+                laterality: $laterality,
+                lateralityAsGrade: $lateralityAsGrade,
             );
 
             if ($result === null) {

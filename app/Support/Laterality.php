@@ -22,6 +22,17 @@ final class Laterality
     public const PRECISION = 2;
 
     /**
+     * Exact-score match window for `laterality_score`.
+     */
+    public const SCORE_MATCH_TOLERANCE = 0.005;
+
+    /**
+     * Half the 0.25 step between legacy grade anchors. Grade g uses
+     * [anchor−0.125, anchor+0.125), closed at 0 and 1.
+     */
+    public const GRADE_HALF_STEP = 0.125;
+
+    /**
      * @var array<int, float>
      */
     public const LEGACY_INTEGER_MAP = [
@@ -59,6 +70,9 @@ final class Laterality
         return self::clamp($float);
     }
 
+    /**
+     * Map a stored 1–5 integer onto 0–1. Out-of-range ints are rejected (not clamped).
+     */
     public static function fromLegacyInteger(mixed $value): ?float
     {
         if ($value === null || $value === '') {
@@ -71,9 +85,13 @@ final class Laterality
 
         $int = (int) $value;
 
-        return self::LEGACY_INTEGER_MAP[$int] ?? self::clamp(($int - 1) / 4);
+        return self::LEGACY_INTEGER_MAP[$int] ?? null;
     }
 
+    /**
+     * Nearest 1–5 grade, matching ROUND(score*4)+1 (half-up).
+     * Ties at x.125 / x.375 / x.625 / x.875 go to the higher grade.
+     */
     public static function toLegacyInteger(?float $value): ?int
     {
         if ($value === null) {
@@ -81,18 +99,9 @@ final class Laterality
         }
 
         $value = self::clamp($value);
-        $best = 3;
-        $bestDistance = PHP_FLOAT_MAX;
+        $grade = (int) round($value * 4) + 1;
 
-        foreach (self::LEGACY_INTEGER_MAP as $grade => $mapped) {
-            $distance = abs($value - $mapped);
-            if ($distance < $bestDistance) {
-                $bestDistance = $distance;
-                $best = $grade;
-            }
-        }
-
-        return $best;
+        return max(1, min(5, $grade));
     }
 
     public static function inBand(float $value, float $min, float $max): bool
@@ -129,6 +138,37 @@ final class Laterality
         $int = (int) $legacyGrade;
 
         return self::LEGACY_INTEGER_MAP[$int] ?? null;
+    }
+
+    public static function requestUsesLegacyGrade(mixed $legacyGrade, mixed $score): bool
+    {
+        if ($score !== null && $score !== '') {
+            return false;
+        }
+
+        return $legacyGrade !== null && $legacyGrade !== '';
+    }
+
+    /**
+     * Half-open nearest-grade interval, closed at 0 and 1.
+     * Grade 1: [0, 0.125). Grade 5: [0.875, 1].
+     *
+     * @return array{min: float, max: float, minInclusive: bool, maxInclusive: bool}|null
+     */
+    public static function gradeInterval(int $grade): ?array
+    {
+        if (! isset(self::LEGACY_INTEGER_MAP[$grade])) {
+            return null;
+        }
+
+        $anchor = self::LEGACY_INTEGER_MAP[$grade];
+
+        return [
+            'min' => $grade === 1 ? self::MIN : $anchor - self::GRADE_HALF_STEP,
+            'max' => $grade === 5 ? self::MAX : $anchor + self::GRADE_HALF_STEP,
+            'minInclusive' => true,
+            'maxInclusive' => $grade === 5,
+        ];
     }
 
     /**

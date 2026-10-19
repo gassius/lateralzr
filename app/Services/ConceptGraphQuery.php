@@ -26,7 +26,8 @@ class ConceptGraphQuery
         ?string $canonicalStart = null,
         bool $onlyWithMedia = false,
         ?int $complexity = null,
-        ?float $laterality = null
+        ?float $laterality = null,
+        bool $lateralityAsGrade = false
     ): ?array {
         $limit = max(1, min(500, $limit));
         $depth = max(1, min(5, $depth));
@@ -35,7 +36,7 @@ class ConceptGraphQuery
         $complexity = $this->normalizeComplexity($complexity);
         $laterality = $laterality === null ? null : Laterality::normalize($laterality);
 
-        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity, $laterality);
+        $start = $this->resolveStart($startConcept, $locale, $canonicalStart, $onlyWithMedia, $complexity, $laterality, $lateralityAsGrade);
         if ($start === null) {
             return null;
         }
@@ -60,7 +61,7 @@ class ConceptGraphQuery
                 $this->constrainRelationshipToMedia($edgesQuery, $locale);
             }
 
-            $edges = $this->orderNeighborhoodEdges($edgesQuery, $laterality)
+            $edges = $this->orderNeighborhoodEdges($edgesQuery, $laterality, $lateralityAsGrade)
                 ->limit($remaining + 1)
                 ->get();
 
@@ -157,7 +158,8 @@ class ConceptGraphQuery
         ?string $canonicalStart = null,
         bool $onlyWithMedia = false,
         ?int $complexity = null,
-        ?float $laterality = null
+        ?float $laterality = null,
+        bool $lateralityAsGrade = false
     ): ?Concept {
         if ($startConcept !== null && trim($startConcept) !== '') {
             $normalized = ConceptTerm::normalizeTerm($startConcept);
@@ -205,9 +207,9 @@ class ConceptGraphQuery
         }
 
         // Prefer concepts that have edges and a term in the requested locale.
-        $startId = $this->randomStartId($locale, $onlyWithMedia, $complexity, $laterality);
+        $startId = $this->randomStartId($locale, $onlyWithMedia, $complexity, $laterality, $lateralityAsGrade);
         if ($startId === null && $complexity !== null) {
-            $startId = $this->randomStartId($locale, $onlyWithMedia, null, $laterality);
+            $startId = $this->randomStartId($locale, $onlyWithMedia, null, $laterality, $lateralityAsGrade);
         }
 
         if ($startId) {
@@ -218,7 +220,7 @@ class ConceptGraphQuery
         return null;
     }
 
-    protected function randomStartId(string $locale, bool $onlyWithMedia, ?int $complexity, ?float $laterality = null): ?int
+    protected function randomStartId(string $locale, bool $onlyWithMedia, ?int $complexity, ?float $laterality = null, bool $lateralityAsGrade = false): ?int
     {
         $startQuery = ConceptRelationship::query()
             ->whereHas('fromConcept.terms', function ($q) use ($locale, $onlyWithMedia, $complexity) {
@@ -232,7 +234,7 @@ class ConceptGraphQuery
             });
 
         if ($laterality !== null) {
-            $this->constrainLaterality($startQuery, $laterality);
+            $this->constrainLaterality($startQuery, $laterality, $lateralityAsGrade);
         }
 
         if ($onlyWithMedia) {
@@ -262,17 +264,18 @@ class ConceptGraphQuery
     }
 
     /**
-     * When a laterality value is passed, keep only edges at that 0–1 score
-     * (rounded to 2 decimals). NULL `last_laterality` is 0.5 (legacy grade 3).
+     * When a laterality value is passed, keep only matching edges.
+     * Legacy grades use the nearest-grade interval; laterality_score uses ±0.005.
+     * NULL `last_laterality` is 0.5 (legacy grade 3).
      * Omitted laterality keeps the existing strength-first walk (backward compatible).
      *
      * @param  Builder<ConceptRelationship>  $query
      * @return Builder<ConceptRelationship>
      */
-    protected function orderNeighborhoodEdges(Builder $query, ?float $laterality): Builder
+    protected function orderNeighborhoodEdges(Builder $query, ?float $laterality, bool $lateralityAsGrade = false): Builder
     {
         if ($laterality !== null) {
-            $this->constrainLaterality($query, $laterality);
+            $this->constrainLaterality($query, $laterality, $lateralityAsGrade);
         }
 
         return $query
@@ -281,17 +284,44 @@ class ConceptGraphQuery
     }
 
     /**
-     * Match a 0–1 laterality score. NULL last_laterality is 0.5.
+     * Match stored last_laterality. Exact laterality_score uses ±0.005;
+     * a legacy 1–5 grade uses that grade's half-open nearest-grade interval.
+     * NULL last_laterality is 0.5 / grade 3.
      *
      * @param  Builder<ConceptRelationship>  $query
      */
-    protected function constrainLaterality(Builder $query, float $laterality): void
+    protected function constrainLaterality(Builder $query, float $laterality, bool $asGrade = false): void
     {
+        if ($asGrade) {
+            $grade = Laterality::toLegacyInteger($laterality);
+            $interval = $grade === null ? null : Laterality::gradeInterval($grade);
+            if ($interval === null) {
+                $query->whereRaw('0 = 1');
+
+                return;
+            }
+
+            $query->where(function (Builder $inner) use ($interval, $grade) {
+                $inner->where(function (Builder $range) use ($interval) {
+                    $range->where('last_laterality', $interval['minInclusive'] ? '>=' : '>', $interval['min']);
+                    $range->where('last_laterality', $interval['maxInclusive'] ? '<=' : '<', $interval['max']);
+                });
+                if ($grade === Laterality::toLegacyInteger(Laterality::NULL_DEFAULT)) {
+                    $inner->orWhereNull('last_laterality');
+                }
+            });
+
+            return;
+        }
+
         $score = Laterality::clamp($laterality);
 
         $query->where(function (Builder $inner) use ($score) {
-            $inner->whereBetween('last_laterality', [$score - 0.005, $score + 0.005]);
-            if (abs($score - Laterality::NULL_DEFAULT) < 0.005) {
+            $inner->whereBetween('last_laterality', [
+                $score - Laterality::SCORE_MATCH_TOLERANCE,
+                $score + Laterality::SCORE_MATCH_TOLERANCE,
+            ]);
+            if (abs($score - Laterality::NULL_DEFAULT) < Laterality::SCORE_MATCH_TOLERANCE) {
                 $inner->orWhereNull('last_laterality');
             }
         });

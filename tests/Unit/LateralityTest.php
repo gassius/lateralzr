@@ -13,6 +13,48 @@ class LateralityTest extends TestCase
             $this->assertSame($mapped, Laterality::fromLegacyInteger($grade));
             $this->assertSame($grade, Laterality::toLegacyInteger($mapped));
         }
+
+        $this->assertNull(Laterality::fromLegacyInteger(0));
+        $this->assertNull(Laterality::fromLegacyInteger(9));
+    }
+
+    public function test_to_legacy_integer_uses_round_half_up_matching_down_migration(): void
+    {
+        $this->assertSame(1, Laterality::toLegacyInteger(0.0));
+        $this->assertSame(2, Laterality::toLegacyInteger(0.125));
+        $this->assertSame(2, Laterality::toLegacyInteger(0.25));
+        $this->assertSame(3, Laterality::toLegacyInteger(0.375));
+        $this->assertSame(3, Laterality::toLegacyInteger(0.45));
+        $this->assertSame(3, Laterality::toLegacyInteger(0.5));
+        $this->assertSame(4, Laterality::toLegacyInteger(0.625));
+        $this->assertSame(5, Laterality::toLegacyInteger(0.875));
+        $this->assertSame(5, Laterality::toLegacyInteger(1.0));
+        $this->assertSame(3, (int) round(0.45 * 4) + 1);
+    }
+
+    public function test_grade_interval_is_half_open_and_matches_to_legacy_integer(): void
+    {
+        $samples = [0.0, 0.12, 0.125, 0.25, 0.375, 0.45, 0.5, 0.6, 0.625, 0.75, 0.875, 1.0];
+        foreach ($samples as $score) {
+            $grade = Laterality::toLegacyInteger($score);
+            $this->assertNotNull($grade);
+            $interval = Laterality::gradeInterval($grade);
+            $this->assertNotNull($interval);
+            $minOk = $interval['minInclusive'] ? $score + 1e-12 >= $interval['min'] : $score > $interval['min'];
+            $maxOk = $interval['maxInclusive'] ? $score - 1e-12 <= $interval['max'] : $score < $interval['max'];
+            $this->assertTrue($minOk && $maxOk, "score {$score} should sit in grade {$grade} interval");
+
+            foreach ([1, 2, 3, 4, 5] as $other) {
+                if ($other === $grade) {
+                    continue;
+                }
+                $otherInterval = Laterality::gradeInterval($other);
+                $this->assertNotNull($otherInterval);
+                $inOtherMin = $otherInterval['minInclusive'] ? $score + 1e-12 >= $otherInterval['min'] : $score > $otherInterval['min'];
+                $inOtherMax = $otherInterval['maxInclusive'] ? $score - 1e-12 <= $otherInterval['max'] : $score < $otherInterval['max'];
+                $this->assertFalse($inOtherMin && $inOtherMax, "score {$score} must not also sit in grade {$other}");
+            }
+        }
     }
 
     public function test_normalize_rejects_old_integer_grades(): void
