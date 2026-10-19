@@ -6,6 +6,7 @@ use App\Models\Concept;
 use App\Models\ConceptRelationship;
 use App\Models\RelationshipEvidence;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 class ConceptGraphStore
@@ -96,31 +97,53 @@ class ConceptGraphStore
         });
     }
 
-    protected function upsertEdge(
+    public function upsertEdge(
         Concept $from,
         Concept $to,
         int $laterality,
     ): ConceptRelationship {
         $now = CarbonImmutable::now();
+        $laterality = max(1, min(5, $laterality));
 
-        $edge = ConceptRelationship::query()->firstOrNew([
-            'from_concept_id' => $from->id,
-            'to_concept_id' => $to->id,
-        ]);
+        try {
+            return ConceptRelationship::query()->create([
+                'from_concept_id' => $from->id,
+                'to_concept_id' => $to->id,
+                'last_laterality' => $laterality,
+                'llm_occurrences' => 1,
+                'last_generated_at' => $now,
+                'user_weight' => 0,
+                'strength' => $this->calculateStrength(
+                    laterality: $laterality,
+                    llmOccurrences: 1,
+                    userWeight: 0
+                ),
+            ]);
+        } catch (UniqueConstraintViolationException $e) {
+            // REPEATABLE READ: a plain SELECT still sees the transaction snapshot
+            // and misses a sibling commit. FOR UPDATE is a current/locking read.
+            $edge = ConceptRelationship::query()
+                ->where('from_concept_id', $from->id)
+                ->where('to_concept_id', $to->id)
+                ->lockForUpdate()
+                ->first();
 
-        $edge->last_laterality = max(1, min(5, $laterality));
-        $edge->llm_occurrences = (int) ($edge->llm_occurrences ?? 0) + 1;
-        $edge->last_generated_at = $now;
+            if (! $edge instanceof ConceptRelationship) {
+                throw $e;
+            }
 
-        $edge->strength = $this->calculateStrength(
-            laterality: (int) ($edge->last_laterality ?? 3),
-            llmOccurrences: (int) $edge->llm_occurrences,
-            userWeight: (int) ($edge->user_weight ?? 0)
-        );
+            $edge->last_laterality = $laterality;
+            $edge->llm_occurrences = (int) ($edge->llm_occurrences ?? 0) + 1;
+            $edge->last_generated_at = $now;
+            $edge->strength = $this->calculateStrength(
+                laterality: (int) ($edge->last_laterality ?? 3),
+                llmOccurrences: (int) $edge->llm_occurrences,
+                userWeight: (int) ($edge->user_weight ?? 0)
+            );
+            $edge->save();
 
-        $edge->save();
-
-        return $edge;
+            return $edge;
+        }
     }
 
     /**

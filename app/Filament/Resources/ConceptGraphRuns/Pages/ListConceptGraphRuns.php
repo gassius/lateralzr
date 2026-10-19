@@ -15,6 +15,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Exceptions\Halt;
 use Illuminate\Support\Arr;
 use InvalidArgumentException;
@@ -115,12 +116,7 @@ class ListConceptGraphRuns extends ListRecords
                     Toggle::make('missing_only')
                         ->label('Missing target locale only')
                         ->default(true),
-                    Select::make('provider')
-                        ->label('Provider (optional)')
-                        ->options(fn (): array => AiProviders::options())
-                        ->searchable(),
-                    TextInput::make('model')
-                        ->label('Model (optional)'),
+                    ...$this->providerModelFields(),
                     TextInput::make('queue')
                         ->label('Queue')
                         ->default('default')
@@ -194,12 +190,7 @@ class ListConceptGraphRuns extends ListRecords
                         ->minValue(1)
                         ->maxValue(5)
                         ->required(),
-                    Select::make('provider')
-                        ->label('Provider (optional)')
-                        ->options(fn (): array => AiProviders::options())
-                        ->searchable(),
-                    TextInput::make('model')
-                        ->label('Model (optional)'),
+                    ...$this->providerModelFields(),
                     TextInput::make('queue')
                         ->label('Queue')
                         ->default('default')
@@ -233,5 +224,36 @@ class ListConceptGraphRuns extends ListRecords
                 })
                 ->successNotificationTitle('Prefetch enqueued'),
         ];
+    }
+
+    /**
+     * @return array{0: Select, 1: TextInput}
+     */
+    protected function providerModelFields(): array
+    {
+        return [
+            Select::make('provider')
+                ->label('Provider (optional)')
+                ->options(fn (): array => AiProviders::options())
+                ->helperText(fn (): string => 'Empty uses '.(string) config('ai.default', 'ollama').'.')
+                ->searchable()
+                ->live(),
+            TextInput::make('model')
+                ->label('Model (optional)')
+                ->placeholder(fn (Get $get): string => AiProviders::defaultTextModel($this->selectedProvider($get)))
+                ->helperText(fn (Get $get): string => self::modelFieldHelper($this->selectedProvider($get))),
+        ];
+    }
+
+    public static function modelFieldHelper(?string $provider = null): string
+    {
+        return 'Empty uses '.AiProviders::defaultTextModel($provider).'.';
+    }
+
+    protected function selectedProvider(Get $get): ?string
+    {
+        $provider = $get('provider');
+
+        return is_string($provider) && trim($provider) !== '' ? $provider : null;
     }
 }

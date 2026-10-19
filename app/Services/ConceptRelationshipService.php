@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptsOnlyAgent;
+use App\Ai\Support\AiPrompt;
 use App\Ai\Support\LateralConceptAgentInstructions;
 use App\Models\ConceptTerm;
 use App\Support\ConceptSeed;
@@ -59,7 +60,7 @@ Requirements:
 - Leave wikiUrl and mediaUrl null for every concept; follow the schema and system instructions.
 PROMPT;
 
-        $response = $agent->prompt($userPrompt);
+        $response = AiPrompt::send($agent, $userPrompt);
 
         if (! $response instanceof StructuredAgentResponse) {
             throw new \Exception('Expected structured response from agent');

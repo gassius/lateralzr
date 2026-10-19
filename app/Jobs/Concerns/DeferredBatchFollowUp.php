@@ -4,6 +4,7 @@ namespace App\Jobs\Concerns;
 
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
 
 trait DeferredBatchFollowUp
@@ -36,17 +37,56 @@ trait DeferredBatchFollowUp
                 $run->save();
             }
 
-            ConceptGraphRunJob::query()->create([
-                'run_uuid' => $this->runUuid,
-                'seed' => $followKey,
-                'status' => 'pending',
-                'attempts' => 0,
-            ]);
+            if (! $this->rememberFollowUpJob($followKey)) {
+                return $followKey;
+            }
         }
 
         $this->dispatchFollowUp($ids, $followKey);
 
         return $followKey;
+    }
+
+    /**
+     * Seed a follow-up tracking row. Returns false when an in-flight or
+     * finished row already exists so we do not reset or re-dispatch it.
+     */
+    protected function rememberFollowUpJob(string $followKey): bool
+    {
+        $values = [
+            'status' => 'pending',
+            'attempts' => 0,
+            'started_at' => null,
+            'finished_at' => null,
+            'error_message' => null,
+        ];
+
+        try {
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $this->runUuid,
+                'seed' => $followKey,
+                ...$values,
+            ]);
+
+            return true;
+        } catch (UniqueConstraintViolationException) {
+            $existing = ConceptGraphRunJob::query()
+                ->where('run_uuid', $this->runUuid)
+                ->where('seed', $followKey)
+                ->first();
+
+            if ($existing === null) {
+                return true;
+            }
+
+            if ($existing->status !== 'failed') {
+                return false;
+            }
+
+            $existing->update($values);
+
+            return true;
+        }
     }
 
     protected function nextDeferredJobKey(): ?string

@@ -15,11 +15,15 @@ use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[MaxSteps(15)]
+#[MaxSteps(self::MAX_STEPS)]
 #[Temperature(0.88)]
-#[Timeout(210)]
+#[Timeout(self::HTTP_TIMEOUT_SECONDS)]
 class ConceptsOnlyAgent implements Agent, HasStructuredOutput
 {
+    public const HTTP_TIMEOUT_SECONDS = 180;
+
+    public const MAX_STEPS = 1;
+
     use Promptable;
 
     /**
@@ -67,6 +71,6 @@ INSTRUCTIONS;
 
     public function model(): ?string
     {
-        return AiProviders::defaultTextModel((string) config('ai.default', 'ollama'));
+        return AiProviders::effectiveTextModel((string) config('ai.default', 'ollama'));
     }
 }

@@ -32,7 +32,17 @@ class AiProvidersTest extends TestCase
 
     public function test_openrouter_default_model_falls_back_when_env_empty(): void
     {
+        config(['ai.models.text' => 'llama3.2:3b']);
+
         $this->assertSame('openai/gpt-4o-mini', AiProviders::defaultTextModel('openrouter'));
+    }
+
+    public function test_openrouter_default_model_respects_config_override(): void
+    {
+        config(['ai.models.text' => 'openai/gpt-4o-mini']);
+
+        $this->assertSame('openai/gpt-4o-mini', AiProviders::defaultTextModel('openrouter'));
+        $this->assertSame('openai/gpt-4o-mini', AiProviders::effectiveTextModel('openrouter'));
     }
 
     public function test_filled_env_treats_blank_as_missing(): void

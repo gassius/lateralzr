@@ -77,6 +77,23 @@ class FilamentConceptGraphRunsAdminTest extends TestCase
         $this->assertSame(1, (int) $record?->failed_jobs_count);
     }
 
+    public function test_generate_and_localize_forms_show_effective_default_model(): void
+    {
+        $this->actingAsAdmin();
+
+        $helper = ListConceptGraphRuns::modelFieldHelper();
+        $this->assertStringStartsWith('Empty uses ', $helper);
+
+        Livewire::test(ListConceptGraphRuns::class)
+            ->assertActionExists('enqueueLocalize')
+            ->assertActionExists('enqueuePrefetch')
+            ->mountAction('enqueueLocalize')
+            ->assertActionMounted('enqueueLocalize')
+            ->unmountAction()
+            ->mountAction('enqueuePrefetch')
+            ->assertActionMounted('enqueuePrefetch');
+    }
+
     /**
      * @param  list<string>  $starts
      */

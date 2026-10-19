@@ -423,7 +423,7 @@ OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_DEFAULT_MODEL=openai/gpt-4o-mini
 ```
 
-- `OPENROUTER_DEFAULT_MODEL` must be a real OpenRouter model id from https://openrouter.ai/models (example: `openai/gpt-4o-mini`). Invented slugs such as `deepseek/deepseek-v4-flash-0731` return HTTP 404.
+- `OPENROUTER_DEFAULT_MODEL` must be a real OpenRouter model id from https://openrouter.ai/models (example: `openai/gpt-4o-mini`). Invented slugs return HTTP 404.
 - Empty `OPENROUTER_DEFAULT_MODEL` falls back to `openai/gpt-4o-mini`.
 - Do **not** set `OPENROUTER_BASE_URL` to `https://openrouter.ai/api/v1/chat/completions`. laravel/ai 0.1 config is `driver` + `key` only; Prism already uses base `https://openrouter.ai/api/v1`.
 

@@ -18,8 +18,12 @@ class AiAgentTimeoutTest extends TestCase
         $graphHttp = $this->timeoutSeconds(ConceptsOnlyAgent::class);
         $localizeHttp = $this->timeoutSeconds(ConceptLocalizeAgent::class);
 
-        $this->assertSame(210, $graphHttp);
-        $this->assertSame(210, $localizeHttp);
+        $this->assertSame(ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS, $graphHttp);
+        $this->assertSame(ConceptLocalizeAgent::HTTP_TIMEOUT_SECONDS, $localizeHttp);
+        $this->assertSame(180, $graphHttp);
+        $this->assertLessThan(300, $graphHttp);
+        $this->assertLessThan(300, $localizeHttp);
+        $this->assertSame(1, (new ReflectionClass(ConceptsOnlyAgent::class))->getAttributes(\Laravel\Ai\Attributes\MaxSteps::class)[0]->getArguments()[0]);
         $this->assertGreaterThanOrEqual(90, 300 - $graphHttp);
         $this->assertGreaterThanOrEqual(90, 300 - $localizeHttp);
     }
@@ -35,6 +39,9 @@ class AiAgentTimeoutTest extends TestCase
             $this->assertSame(3, $job->tries);
             $this->assertSame([30, 90], $job->backoff());
         }
+
+        $this->assertGreaterThan(300, (int) config('queue.connections.database.retry_after', 360));
+        $this->assertSame(60, GenerateConceptGraphJob::SOFT_DEADLINE_MARGIN_SECONDS);
     }
 
     /**
