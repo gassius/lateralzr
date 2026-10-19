@@ -102,18 +102,16 @@ class ConceptCanonicalizer
                 return $concept;
             });
         } catch (UniqueConstraintViolationException $e) {
-            $existingTerm = ConceptTerm::query()
-                ->where('locale', $locale)
-                ->where('normalized_term', $normalized)
-                ->first();
-
-            if ($existingTerm instanceof ConceptTerm) {
-                $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
-
-                return $existingTerm->concept()->firstOrFail();
-            }
-
-            throw $e;
+            return $this->recoverFromUniqueRace(
+                $e,
+                $term,
+                $locale,
+                $normalized,
+                $shortDescription,
+                $wikiUrl,
+                $mediaUrl,
+                $complexity
+            );
         }
     }
 
@@ -252,6 +250,70 @@ class ConceptCanonicalizer
                 );
             }
         });
+    }
+
+    /**
+     * Sibling workers can commit concepts.canonical_key before the term row
+     * is visible. Retry the re-read briefly, then attach onto the existing
+     * concept when only the key raced.
+     */
+    protected function recoverFromUniqueRace(
+        UniqueConstraintViolationException $e,
+        string $term,
+        string $locale,
+        string $normalized,
+        ?string $shortDescription,
+        ?string $wikiUrl,
+        ?string $mediaUrl,
+        int $complexity
+    ): Concept {
+        $canonicalKey = $this->canonicalKeyFor($term);
+
+        for ($attempt = 0; $attempt < 4; $attempt++) {
+            if ($attempt > 0) {
+                usleep(50_000);
+            }
+
+            $existingTerm = $this->findTermByLocaleNorm($locale, $normalized);
+            if ($existingTerm instanceof ConceptTerm) {
+                $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
+
+                return $existingTerm->concept()->firstOrFail();
+            }
+
+            $concept = Concept::query()->where('canonical_key', $canonicalKey)->first();
+            if ($concept instanceof Concept) {
+                try {
+                    $attached = $this->attachPreferredTerm(
+                        $concept,
+                        $locale,
+                        $term,
+                        $normalized,
+                        $shortDescription,
+                        $wikiUrl,
+                        $mediaUrl,
+                        $complexity
+                    );
+                } catch (UniqueConstraintViolationException) {
+                    $owned = $this->findTermByLocaleNorm($locale, $normalized);
+                    if ($owned instanceof ConceptTerm) {
+                        $this->enrichTerm($owned, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
+
+                        return $owned->concept()->firstOrFail();
+                    }
+
+                    continue;
+                }
+
+                if ($attached instanceof ConceptTerm) {
+                    return $attached->concept()->firstOrFail();
+                }
+
+                return $concept;
+            }
+        }
+
+        throw $e;
     }
 
     protected function findExistingLocaleTerm(string $locale, string $normalized): ?ConceptTerm

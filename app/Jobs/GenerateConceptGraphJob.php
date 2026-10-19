@@ -2,8 +2,11 @@
 
 namespace App\Jobs;
 
+use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Support\AiConfigOverride;
+use App\Ai\Support\AiRequestContext;
 use App\Ai\Support\AiRequestError;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptGraphStore;
 use App\Services\ConceptRelationshipService;
@@ -25,6 +28,10 @@ class GenerateConceptGraphJob implements ShouldQueue
      * Wiki and media enrichment is not part of this job.
      */
     public int $timeout = 300;
+
+    public const SOFT_DEADLINE_MARGIN_SECONDS = 60;
+
+    public const PERSIST_BUDGET_SECONDS = 20;
 
     public bool $failOnTimeout = true;
 
@@ -65,70 +72,96 @@ class GenerateConceptGraphJob implements ShouldQueue
         $previousModel = config('ai.models.text');
 
         AiConfigOverride::run($this->provider, $this->model, function () use ($service, $store, $startedAt, $trackingKey, $previousProvider, $previousModel): void {
-            try {
-                $result = $service->generateRelationships(
-                    startConcept: $this->seed,
-                    count: $this->count,
-                    agent: null,
-                    complexity: $this->complexity
-                );
+            AiRequestContext::using($this->runUuid, $trackingKey, function () use ($service, $store, $startedAt, $trackingKey, $previousProvider, $previousModel): void {
+                try {
+                    $deadlineAt = time() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
+                    $worstCase = ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS + self::PERSIST_BUDGET_SECONDS;
+                    if (time() + $worstCase >= $deadlineAt) {
+                        throw new RuntimeException(
+                            'Graph job soft deadline reached before the LLM call; stopping to stay under the worker timeout.'
+                        );
+                    }
 
-                $store->storeGraph(
-                    concepts: $result['concepts'] ?? [],
-                    edges: $result['edges'] ?? [],
-                    complexity: (int) ($result['complexity'] ?? $this->complexity),
-                    provider: $this->provider ?? $previousProvider,
-                    model: $this->model ?? $previousModel,
-                    runUuid: $this->runUuid
-                );
+                    $result = $service->generateRelationships(
+                        startConcept: $this->seed,
+                        count: $this->count,
+                        agent: null,
+                        complexity: $this->complexity
+                    );
 
-                ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
-                    'status' => 'succeeded',
-                    'attempts' => (int) $this->attempts(),
-                    'finished_at' => now(),
-                    'error_message' => null,
-                ]);
+                    $provider = AiRequestContext::lastSentProvider()
+                        ?? $this->provider
+                        ?? $previousProvider;
+                    $model = AiRequestContext::lastSentModel()
+                        ?? $this->model
+                        ?? $previousModel;
 
-                Log::info('GenerateConceptGraphJob succeeded', [
-                    'run_uuid' => $this->runUuid,
-                    'job_key' => $trackingKey,
-                    'seconds' => round(microtime(true) - $startedAt, 2),
-                    'attempt' => $this->attempts(),
-                    'provider' => $this->provider,
-                    'model' => $this->model,
-                ]);
-            } catch (Throwable $e) {
-                $retryable = AiRequestError::isRetryable($e);
-                $willRetry = $retryable && $this->attempts() < $this->tries;
-                $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+                    if ($this->runUuid && is_string($model) && $model !== '') {
+                        ConceptGraphRun::query()
+                            ->where('run_uuid', $this->runUuid)
+                            ->update([
+                                'provider' => $provider,
+                                'model' => $model,
+                            ]);
+                    }
 
-                Log::warning('GenerateConceptGraphJob failed', [
-                    'run_uuid' => $this->runUuid,
-                    'job_key' => $trackingKey,
-                    'seconds' => round(microtime(true) - $startedAt, 2),
-                    'attempt' => $this->attempts(),
-                    'retryable' => $retryable,
-                    'will_retry' => $willRetry,
-                    'provider' => $this->provider,
-                    'model' => $this->model,
-                    'error' => $mapped,
-                ]);
+                    $store->storeGraph(
+                        concepts: $result['concepts'] ?? [],
+                        edges: $result['edges'] ?? [],
+                        complexity: (int) ($result['complexity'] ?? $this->complexity),
+                        provider: $provider,
+                        model: $model,
+                        runUuid: $this->runUuid
+                    );
 
-                ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
-                    'status' => $willRetry ? 'processing' : 'failed',
-                    'attempts' => (int) $this->attempts(),
-                    'finished_at' => $willRetry ? null : now(),
-                    'error_message' => $mapped,
-                ]);
+                    ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+                        'status' => 'succeeded',
+                        'attempts' => (int) $this->attempts(),
+                        'finished_at' => now(),
+                        'error_message' => null,
+                    ]);
 
-                if (! $retryable) {
-                    $this->fail(new RuntimeException($mapped, 0, $e));
+                    Log::info('GenerateConceptGraphJob succeeded', [
+                        'run_uuid' => $this->runUuid,
+                        'job_key' => $trackingKey,
+                        'seconds' => round(microtime(true) - $startedAt, 2),
+                        'attempt' => $this->attempts(),
+                        'provider' => $provider,
+                        'model' => $model,
+                    ]);
+                } catch (Throwable $e) {
+                    $retryable = AiRequestError::isRetryable($e);
+                    $willRetry = $retryable && $this->attempts() < $this->tries;
+                    $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
 
-                    return;
+                    Log::warning('GenerateConceptGraphJob failed', [
+                        'run_uuid' => $this->runUuid,
+                        'job_key' => $trackingKey,
+                        'seconds' => round(microtime(true) - $startedAt, 2),
+                        'attempt' => $this->attempts(),
+                        'retryable' => $retryable,
+                        'will_retry' => $willRetry,
+                        'provider' => $this->provider,
+                        'model' => $this->model,
+                        'error' => $mapped,
+                    ]);
+
+                    ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+                        'status' => $willRetry ? 'processing' : 'failed',
+                        'attempts' => (int) $this->attempts(),
+                        'finished_at' => $willRetry ? null : now(),
+                        'error_message' => $mapped,
+                    ]);
+
+                    if (! $retryable) {
+                        $this->fail(new RuntimeException($mapped, 0, $e));
+
+                        return;
+                    }
+
+                    throw $e;
                 }
-
-                throw $e;
-            }
+            });
         });
     }
 

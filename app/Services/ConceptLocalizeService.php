@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Ai\Agents\ConceptLocalizeAgent;
+use App\Ai\Support\AiPrompt;
 use App\Ai\Support\AiRequestError;
 use App\Models\Concept;
 use App\Support\ConceptLocale;
@@ -243,7 +244,7 @@ Localize these concept terms from {$fromLocale} to {$toLocale}.
 {$lines}
 PROMPT;
 
-        $response = $agent->prompt($prompt);
+        $response = AiPrompt::send($agent, $prompt);
 
         if (! $response instanceof StructuredAgentResponse) {
             throw new \RuntimeException('Expected structured response from localize agent');

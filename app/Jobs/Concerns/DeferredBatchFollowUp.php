@@ -4,6 +4,7 @@ namespace App\Jobs\Concerns;
 
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
 
 trait DeferredBatchFollowUp
@@ -36,17 +37,36 @@ trait DeferredBatchFollowUp
                 $run->save();
             }
 
-            ConceptGraphRunJob::query()->create([
-                'run_uuid' => $this->runUuid,
-                'seed' => $followKey,
-                'status' => 'pending',
-                'attempts' => 0,
-            ]);
+            $this->rememberFollowUpJob($followKey);
         }
 
         $this->dispatchFollowUp($ids, $followKey);
 
         return $followKey;
+    }
+
+    protected function rememberFollowUpJob(string $followKey): void
+    {
+        $values = [
+            'status' => 'pending',
+            'attempts' => 0,
+            'started_at' => null,
+            'finished_at' => null,
+            'error_message' => null,
+        ];
+
+        try {
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $this->runUuid,
+                'seed' => $followKey,
+                ...$values,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            ConceptGraphRunJob::query()
+                ->where('run_uuid', $this->runUuid)
+                ->where('seed', $followKey)
+                ->update($values);
+        }
     }
 
     protected function nextDeferredJobKey(): ?string

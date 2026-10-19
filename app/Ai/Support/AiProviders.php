@@ -68,15 +68,33 @@ final class AiProviders
         };
     }
 
+    /**
+     * Model that will be sent on the next LLM call (override, then provider default).
+     */
+    public static function effectiveTextModel(?string $provider = null): string
+    {
+        $configured = config('ai.models.text');
+        if (is_string($configured) && trim($configured) !== '') {
+            return trim($configured);
+        }
+
+        return self::defaultTextModel($provider);
+    }
+
     public static function defaultTextModel(?string $provider = null): string
     {
         $provider = $provider !== null && $provider !== ''
             ? strtolower($provider)
             : strtolower((string) config('ai.default', 'ollama'));
 
+        $configured = config('ai.models.text');
+        $configured = is_string($configured) && trim($configured) !== '' ? trim($configured) : null;
+
         return match ($provider) {
-            'openrouter' => self::filledEnv('OPENROUTER_DEFAULT_MODEL', 'openai/gpt-4o-mini'),
-            default => (string) (config('ai.models.text') ?: self::filledEnv('OLLAMA_MODEL', 'llama3.2:3b')),
+            'openrouter' => ($configured !== null && str_contains($configured, '/'))
+                ? $configured
+                : self::filledEnv('OPENROUTER_DEFAULT_MODEL', 'openai/gpt-4o-mini'),
+            default => (string) ($configured ?: self::filledEnv('OLLAMA_MODEL', 'llama3.2:3b')),
         };
     }
 

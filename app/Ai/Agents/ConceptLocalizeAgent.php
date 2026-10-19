@@ -67,6 +67,6 @@ INSTRUCTIONS;
 
     public function model(): ?string
     {
-        return AiProviders::defaultTextModel((string) config('ai.default', 'ollama'));
+        return AiProviders::effectiveTextModel((string) config('ai.default', 'ollama'));
     }
 }

@@ -3,8 +3,10 @@
 namespace App\Jobs;
 
 use App\Ai\Support\AiConfigOverride;
+use App\Ai\Support\AiRequestContext;
 use App\Ai\Support\AiRequestError;
 use App\Jobs\Concerns\DeferredBatchFollowUp;
+use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptLocalizeService;
 use Illuminate\Bus\Queueable;
@@ -61,81 +63,94 @@ class LocalizeConceptBatchJob implements ShouldQueue
         ]);
 
         AiConfigOverride::run($this->provider, $this->model, function () use ($service, $startedAt): void {
-            try {
-                // Leave a margin under $timeout so a slow LLM call fail-softs
-                // (remaining concept IDs are re-queued) instead of a worker SIGKILL.
-                $deadlineAt = time() + max(30, $this->timeout - 60);
+            AiRequestContext::using($this->runUuid, $this->jobKey, function () use ($service, $startedAt): void {
+                try {
+                    // Leave a margin under $timeout so a slow LLM call fail-softs
+                    // (remaining concept IDs are re-queued) instead of a worker SIGKILL.
+                    $deadlineAt = time() + max(30, $this->timeout - 60);
 
-                $stats = $service->localize(
-                    fromLocale: $this->fromLocale,
-                    toLocale: $this->toLocale,
-                    limit: null,
-                    missingOnly: $this->missingOnly,
-                    batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
-                    agent: null,
-                    conceptIds: $this->conceptIds,
-                    deadlineAt: $deadlineAt,
-                );
+                    $stats = $service->localize(
+                        fromLocale: $this->fromLocale,
+                        toLocale: $this->toLocale,
+                        limit: null,
+                        missingOnly: $this->missingOnly,
+                        batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
+                        agent: null,
+                        conceptIds: $this->conceptIds,
+                        deadlineAt: $deadlineAt,
+                    );
 
-                $deferredIds = array_values(array_map('intval', $stats['deferredConceptIds'] ?? []));
-                $deferred = count($deferredIds);
-                $followKey = null;
-                if ($deferred > 0) {
-                    $followKey = $this->requeueDeferred($deferredIds);
+                    $provider = AiRequestContext::lastSentProvider() ?? $this->provider;
+                    $model = AiRequestContext::lastSentModel() ?? $this->model;
+                    if ($this->runUuid && is_string($model) && $model !== '') {
+                        ConceptGraphRun::query()
+                            ->where('run_uuid', $this->runUuid)
+                            ->update([
+                                'provider' => $provider,
+                                'model' => $model,
+                            ]);
+                    }
+
+                    $deferredIds = array_values(array_map('intval', $stats['deferredConceptIds'] ?? []));
+                    $deferred = count($deferredIds);
+                    $followKey = null;
+                    if ($deferred > 0) {
+                        $followKey = $this->requeueDeferred($deferredIds);
+                    }
+
+                    [$status, $message] = $this->deferredOutcome($deferred, $followKey);
+
+                    ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                        'status' => $status,
+                        'attempts' => (int) $this->attempts(),
+                        'finished_at' => now(),
+                        'error_message' => $message,
+                    ]);
+
+                    Log::info('LocalizeConceptBatchJob succeeded', [
+                        'run_uuid' => $this->runUuid,
+                        'job_key' => $this->jobKey,
+                        'seconds' => round(microtime(true) - $startedAt, 2),
+                        'attempt' => $this->attempts(),
+                        'count' => count($this->conceptIds),
+                        'stats' => $stats,
+                        'follow_key' => $followKey,
+                        'provider' => $provider,
+                        'model' => $model,
+                    ]);
+                } catch (Throwable $e) {
+                    $retryable = AiRequestError::isRetryable($e);
+                    $willRetry = $retryable && $this->attempts() < $this->tries;
+                    $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+
+                    Log::warning('LocalizeConceptBatchJob failed', [
+                        'run_uuid' => $this->runUuid,
+                        'job_key' => $this->jobKey,
+                        'seconds' => round(microtime(true) - $startedAt, 2),
+                        'attempt' => $this->attempts(),
+                        'retryable' => $retryable,
+                        'will_retry' => $willRetry,
+                        'provider' => $this->provider,
+                        'model' => $this->model,
+                        'error' => $mapped,
+                    ]);
+
+                    ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
+                        'status' => $willRetry ? 'processing' : 'failed',
+                        'attempts' => (int) $this->attempts(),
+                        'finished_at' => $willRetry ? null : now(),
+                        'error_message' => $mapped,
+                    ]);
+
+                    if (! $retryable) {
+                        $this->fail(new RuntimeException($mapped, 0, $e));
+
+                        return;
+                    }
+
+                    throw $e;
                 }
-
-                [$status, $message] = $this->deferredOutcome($deferred, $followKey);
-
-                ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
-                    'status' => $status,
-                    'attempts' => (int) $this->attempts(),
-                    'finished_at' => now(),
-                    'error_message' => $message,
-                ]);
-
-                Log::info('LocalizeConceptBatchJob succeeded', [
-                    'run_uuid' => $this->runUuid,
-                    'job_key' => $this->jobKey,
-                    'seconds' => round(microtime(true) - $startedAt, 2),
-                    'attempt' => $this->attempts(),
-                    'count' => count($this->conceptIds),
-                    'stats' => $stats,
-                    'follow_key' => $followKey,
-                    'provider' => $this->provider,
-                    'model' => $this->model,
-                ]);
-            } catch (Throwable $e) {
-                $retryable = AiRequestError::isRetryable($e);
-                $willRetry = $retryable && $this->attempts() < $this->tries;
-                $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
-
-                Log::warning('LocalizeConceptBatchJob failed', [
-                    'run_uuid' => $this->runUuid,
-                    'job_key' => $this->jobKey,
-                    'seconds' => round(microtime(true) - $startedAt, 2),
-                    'attempt' => $this->attempts(),
-                    'retryable' => $retryable,
-                    'will_retry' => $willRetry,
-                    'provider' => $this->provider,
-                    'model' => $this->model,
-                    'error' => $mapped,
-                ]);
-
-                ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
-                    'status' => $willRetry ? 'processing' : 'failed',
-                    'attempts' => (int) $this->attempts(),
-                    'finished_at' => $willRetry ? null : now(),
-                    'error_message' => $mapped,
-                ]);
-
-                if (! $retryable) {
-                    $this->fail(new RuntimeException($mapped, 0, $e));
-
-                    return;
-                }
-
-                throw $e;
-            }
+            });
         });
     }
 

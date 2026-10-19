@@ -11,6 +11,7 @@ use App\Services\Enrichment\WikimediaClient;
 use App\Services\Enrichment\WikipediaArticle;
 use App\Services\Enrichment\WikipediaArticleResolver;
 use App\Support\ConceptLocale;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Log;
 
 class ConceptCompleteInfoService
@@ -218,33 +219,51 @@ class ConceptCompleteInfoService
                 break;
             }
 
-            $record = ConceptMedia::query()->firstOrCreate(
-                [
-                    'concept_id' => $concept->id,
-                    'url_sha256' => hash('sha256', $item->url),
-                ],
-                [
-                    'url' => $item->url,
-                    'kind' => $item->kind,
-                    'license' => $item->license,
-                    'source' => $item->source,
-                    'position' => $position,
-                    'purpose' => $item->purpose,
-                    'alt' => $item->alt,
-                    'creator' => $item->creator,
-                    'source_page_url' => $item->sourcePageUrl,
-                    'licence_name' => $item->licenceName,
-                    'licence_url' => $item->licenceUrl,
-                    'change_notice' => $item->changeNotice,
-                    'focal_x' => $item->focalX,
-                    'focal_y' => $item->focalY,
-                    'tone' => $item->tone,
-                ]
-            );
+            $record = $this->rememberQualifiedMedia($concept, $item, $position);
 
             if ($record->wasRecentlyCreated) {
                 $position++;
             }
+        }
+    }
+
+    public function rememberQualifiedMedia(Concept $concept, QualifiedMedia $item, int $position): ConceptMedia
+    {
+        $match = [
+            'concept_id' => $concept->id,
+            'url_sha256' => hash('sha256', $item->url),
+        ];
+        $values = [
+            'url' => $item->url,
+            'kind' => $item->kind,
+            'license' => $item->license,
+            'source' => $item->source,
+            'position' => $position,
+            'purpose' => $item->purpose,
+            'alt' => $item->alt,
+            'creator' => $item->creator,
+            'source_page_url' => $item->sourcePageUrl,
+            'licence_name' => $item->licenceName,
+            'licence_url' => $item->licenceUrl,
+            'change_notice' => $item->changeNotice,
+            'focal_x' => $item->focalX,
+            'focal_y' => $item->focalY,
+            'tone' => $item->tone,
+        ];
+
+        try {
+            return ConceptMedia::query()->create($match + $values);
+        } catch (UniqueConstraintViolationException $e) {
+            $existing = ConceptMedia::query()
+                ->where('concept_id', $match['concept_id'])
+                ->where('url_sha256', $match['url_sha256'])
+                ->first();
+
+            if ($existing instanceof ConceptMedia) {
+                return $existing;
+            }
+
+            throw $e;
         }
     }
 

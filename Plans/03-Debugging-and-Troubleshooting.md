@@ -2,11 +2,11 @@
 
 The public concept graph API is **read-only**. `POST /api/concepts/relationships` loads an existing neighborhood via `ConceptGraphQuery` and does **not** call the LLM. Graph growth is `concepts:prefetch` plus a queue worker (`GenerateConceptGraphJob`). Current request/response shapes are in [README.md](../README.md#concept-graph-neighborhood).
 
-## Ollama Request/Response Logging
+## LLM request/response logging
 
-When `APP_DEBUG=true`, `AppServiceProvider` registers `LogOllamaRequests` on Laravel AI `PromptingAgent` / `AgentPrompted`. Only the Ollama provider is logged. These events fire on the **prefetch / worker** path (`ConceptRelationshipService` + `ConceptsOnlyAgent`), not on the public read API.
+`AppServiceProvider` registers `LogAiRequests` on Laravel AI `PromptingAgent` / `AgentPrompted` for every provider. These events fire on the **prefetch / localize / worker** path (`ConceptRelationshipService` + `ConceptsOnlyAgent`, `ConceptLocalizeService` + `ConceptLocalizeAgent`), not on the public read API.
 
-The listener calls `Log::debug('Ollama Request', …)` and `Log::debug('Ollama Response', …)`. Laravel’s log **level** is `DEBUG`; the message string itself has **no** `[DEBUG]` prefix.
+The listener calls `Log::info('AI request', …)` and `Log::info('AI response', …)` with the provider, model, run_uuid, job seed, and token usage actually sent.
 
 ### Viewing Logs
 
@@ -20,8 +20,8 @@ tail -f storage/logs/laravel.log
 
 ### What Gets Logged
 
-- **Outgoing requests** (`Ollama Request`): `invocation_id`, `provider`, `model`, `agent_class`, `system_instructions` (the agent’s `instructions()`), `user_message` (the string passed to `->prompt()`), `timeout`.
-- **Incoming responses** (`Ollama Response`): `invocation_id`, `provider`, `model`, `response_text`, optional `response_data` (when the result is a `StructuredAgentResponse`), `usage`.
+- **Outgoing requests** (`AI request`): `invocation_id`, `provider`, `model`, `run_uuid`, `job_key`, `agent_class`, `timeout`.
+- **Incoming responses** (`AI response`): `invocation_id`, `provider`, `model`, `run_uuid`, `job_key`, `usage` (prompt / completion / total tokens when the provider returns them).
 
 There is no `normalizeResponse()`, no `Raw AI Response` log line, and no title / rationale / strength field extraction on either the read API or the current agent schema.
 

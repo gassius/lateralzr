@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Listeners\LogOllamaRequests;
+use App\Listeners\LogAiRequests;
 use App\Support\EnsureApplicationStorage;
 use App\Support\SuperAdminRole;
 use Illuminate\Support\Facades\Event;
@@ -40,9 +40,6 @@ class AppServiceProvider extends ServiceProvider
             return null;
         });
 
-        // Register Ollama request/response logging listener when debug is enabled
-        if (config('app.debug')) {
-            Event::listen([PromptingAgent::class, AgentPrompted::class], LogOllamaRequests::class);
-        }
+        Event::listen([PromptingAgent::class, AgentPrompted::class], LogAiRequests::class);
     }
 }
