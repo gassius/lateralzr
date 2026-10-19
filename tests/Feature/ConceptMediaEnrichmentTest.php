@@ -34,7 +34,7 @@ class ConceptMediaEnrichmentTest extends TestCase
             'from_concept_id' => $term->concept_id,
             'to_concept_id' => $other->concept_id,
             'strength' => 0.8,
-            'last_laterality' => 3,
+            'last_laterality' => 0.5,
             'llm_occurrences' => 1,
         ]);
 

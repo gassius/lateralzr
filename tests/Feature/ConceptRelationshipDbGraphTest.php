@@ -60,6 +60,7 @@ class ConceptRelationshipDbGraphTest extends TestCase
                             'to',
                             'strength',
                             'laterality',
+                            'laterality_score',
                         ],
                     ],
                     'meta' => [
@@ -110,7 +111,7 @@ class ConceptRelationshipDbGraphTest extends TestCase
             'from_concept_id' => $creativity->id,
             'to_concept_id' => $silence->id,
             'strength' => 0.8,
-            'last_laterality' => 3,
+            'last_laterality' => 0.5,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);

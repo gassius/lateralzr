@@ -25,7 +25,7 @@ class RelationshipEvidence extends Model
 
     protected $casts = [
         'raw_json' => 'array',
-        'laterality' => 'integer',
+        'laterality' => 'float',
         'created_at' => 'datetime',
     ];
 

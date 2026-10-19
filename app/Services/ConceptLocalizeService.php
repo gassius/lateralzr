@@ -131,7 +131,7 @@ class ConceptLocalizeService
                     'id' => (int) $concept->id,
                     'term' => (string) $term->term,
                     'shortDescription' => (string) ($term->short_description ?? ''),
-                    'complexity' => (int) ($term->complexity ?? config('concepts.default_complexity', 2)),
+                    'complexity' => (int) ($term->complexity ?? config('concepts.default_complexity', 3)),
                     'mediaUrl' => $term->media_url,
                 ];
             })->filter()->values();
@@ -194,7 +194,7 @@ class ConceptLocalizeService
                         shortDescription: $shortDescription !== '' ? $shortDescription : null,
                         wikiUrl: null,
                         mediaUrl: $item['mediaUrl'] ?? null,
-                        complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 2)),
+                        complexity: (int) ($item['complexity'] ?? config('concepts.default_complexity', 3)),
                     );
                 } catch (UniqueConstraintViolationException $e) {
                     Log::info('ConceptLocalizeService: skipped locale_norm unique conflict', [

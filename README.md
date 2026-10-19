@@ -212,7 +212,8 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
 - `onlyWithMedia` — only concepts that have a `mediaUrl`
 - `locale` — `en` or `es`
 - `complexity` — optional integer **1–5**; prefers terms generated at that label-density tier. Omitted requests keep the unfiltered walk (backward compatible).
-- `laterality` — optional integer **1–5**; biases neighborhood edge order
+- `laterality` — optional integer **1–5** (legacy client contract); maps to stored scores `1→0`, `2→0.25`, `3→0.5`, `4→0.75`, `5→1` and filters edges at that 0–1 score
+- `laterality_score` — optional float **0–1** (Ball–Baseball = 0, Ball–Algorithm = 1); same filter as `laterality` without the 1–5 mapping. When both are sent, `laterality_score` wins
 - `limit` / `depth` / `minStrength` — neighborhood size (defaults 100 / 2 / 0)
 
 **Request:**
@@ -225,6 +226,8 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
 ```
 - `start` (`seed` / `localizedConcept` aliases) — optional; when omitted, the API picks a random concept that already has relationships.
 - `complexity` — optional integer **1–5**; when set, prefers a term at that stored complexity. Omitted requests do not force a default complexity on the walk.
+- `laterality` — optional integer **1–5**; when set, keeps only edges at that mapped 0–1 score. Response `laterality` on edges (and `meta` when filtered) stays this 1–5 grade.
+- `laterality_score` — optional float **0–1**; same filter without mapping. Response `laterality_score` is always the stored 0–1 value.
 
 **Response:**
 ```json
@@ -245,7 +248,7 @@ Test/dev filters (same names as the Expo web query params; see [apps/client/TEST
       }
     ],
     "edges": [
-      { "id": 10, "from": 1, "to": 2, "strength": 0.72, "laterality": 3 }
+      { "id": 10, "from": 1, "to": 2, "strength": 0.72, "laterality": 3, "laterality_score": 0.5 }
     ],
     "meta": { "depth": 2, "limit": 100, "minStrength": 0.0, "hasMore": false, "locale": "en", "complexity": 2 }
   },

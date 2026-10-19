@@ -89,7 +89,8 @@ class GenerateConceptGraphJob implements ShouldQueue
                         startConcept: $this->seed,
                         count: $this->count,
                         agent: null,
-                        complexity: $this->complexity
+                        complexity: $this->complexity,
+                        deadlineAt: $deadlineAt,
                     );
 
                     if ($this->secondsUntilDeadline($deadlineAt) < self::PERSIST_BUDGET_SECONDS) {
@@ -126,20 +127,27 @@ class GenerateConceptGraphJob implements ShouldQueue
                         runUuid: $this->runUuid
                     );
 
+                    $complete = (bool) ($result['complete'] ?? true);
+                    $shortfallMessage = is_array($result['shortfall'] ?? null)
+                        ? ($result['shortfall']['message'] ?? null)
+                        : null;
+
                     ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
-                        'status' => 'succeeded',
+                        'status' => $complete ? 'succeeded' : 'partial',
                         'attempts' => (int) $this->attempts(),
                         'finished_at' => now(),
-                        'error_message' => null,
+                        'error_message' => $complete ? null : $shortfallMessage,
                     ]);
 
-                    Log::info('GenerateConceptGraphJob succeeded', [
+                    Log::info($complete ? 'GenerateConceptGraphJob succeeded' : 'GenerateConceptGraphJob partial (shortfall)', [
                         'run_uuid' => $this->runUuid,
                         'job_key' => $trackingKey,
                         'seconds' => round(microtime(true) - $startedAt, 2),
                         'attempt' => $this->attempts(),
                         'provider' => $provider,
                         'model' => $model,
+                        'complete' => $complete,
+                        'kept_count' => $result['shortfall']['kept_count'] ?? count($result['concepts'] ?? []),
                     ]);
                 } catch (Throwable $e) {
                     $retryable = AiRequestError::isRetryable($e);

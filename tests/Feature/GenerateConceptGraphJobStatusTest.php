@@ -363,4 +363,59 @@ class GenerateConceptGraphJobStatusTest extends TestCase
         $this->assertStringContainsString('anthropic/claude-sonnet-4', (string) $record?->error_message);
         $this->assertStringNotContainsString('deepseek/deepseek-v4-flash-0731', (string) $record?->error_message);
     }
+
+    public function test_handle_marks_partial_when_generation_reports_a_shortfall(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'innovation#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptRelationshipService::class);
+        $service->shouldReceive('generateRelationships')->once()->andReturn([
+            'concepts' => [
+                ['concept' => 'innovation', 'shortDescription' => 'New ideas.', 'complexity' => 3],
+            ],
+            'edges' => [
+                ['from' => 'innovation', 'to' => 'harbor', 'laterality' => 0.5],
+            ],
+            'complexity' => 3,
+            'complete' => false,
+            'shortfall' => [
+                'requested_count' => 3,
+                'kept_count' => 1,
+                'rejected_laterality' => 2,
+                'rejected_complexity' => 0,
+                'message' => 'Generated 1/3 concepts after 3 attempt(s); dropped 2 edge(s) outside laterality 0.40–0.60 and 0 concept(s) outside complexity ±1.',
+            ],
+        ]);
+
+        $store = Mockery::mock(ConceptGraphStore::class);
+        $store->shouldReceive('storeGraph')->once();
+
+        $job = new GenerateConceptGraphJob(
+            seed: 'innovation',
+            count: 3,
+            complexity: 3,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'innovation#1',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service, $store);
+        $job->assertNotFailed();
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'innovation#1')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('Generated 1/3 concepts', (string) $record?->error_message);
+    }
 }

@@ -170,7 +170,7 @@ class ConceptLocaleSupportTest extends TestCase
             'from_concept_id' => $conceptA->id,
             'to_concept_id' => $conceptB->id,
             'strength' => 0.8,
-            'last_laterality' => 3,
+            'last_laterality' => 0.5,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);
@@ -195,7 +195,7 @@ class ConceptLocaleSupportTest extends TestCase
             'from_concept_id' => $conceptA->id,
             'to_concept_id' => $conceptC->id,
             'strength' => 0.7,
-            'last_laterality' => 2,
+            'last_laterality' => 0.25,
             'llm_occurrences' => 1,
             'user_weight' => 0,
         ]);

@@ -47,7 +47,7 @@ class ConceptForm
                         TextInput::make('complexity')
                             ->label('Concept label complexity')
                             ->numeric()
-                            ->default((int) config('concepts.default_complexity', 2))
+                            ->default((int) config('concepts.default_complexity', 3))
                             ->minValue(1)
                             ->maxValue(5)
                             ->required(),

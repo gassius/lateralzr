@@ -52,7 +52,7 @@ class ConceptTerm extends Model
                 $term->locale = ConceptLocale::default();
             }
             $term->normalized_term = self::normalizeTerm((string) $term->term);
-            $term->complexity = max(1, min(5, (int) ($term->complexity ?? config('concepts.default_complexity', 2))));
+            $term->complexity = max(1, min(5, (int) ($term->complexity ?? config('concepts.default_complexity', 3))));
             if ($term->is_preferred === null) {
                 $term->is_preferred = true;
             }

@@ -54,7 +54,7 @@ class ConceptLocalizeDispatchService
             'type' => ConceptGraphRun::TYPE_LOCALIZE,
             'provider' => $provider,
             'model' => $model,
-            'complexity' => (int) config('concepts.default_complexity', 2),
+            'complexity' => (int) config('concepts.default_complexity', 3),
             'queue' => $queue,
             'seed_count' => count($batches),
             'seeds' => [

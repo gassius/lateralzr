@@ -45,7 +45,7 @@ class ConceptCanonicalizer
         $normalized = ConceptTerm::normalizeTerm($term);
         $complexity = $complexity !== null
             ? max(1, min(5, $complexity))
-            : (int) config('concepts.default_complexity', 2);
+            : (int) config('concepts.default_complexity', 3);
 
         try {
             return DB::transaction(function () use ($term, $locale, $normalized, $shortDescription, $wikiUrl, $mediaUrl, $complexity) {
@@ -134,7 +134,7 @@ class ConceptCanonicalizer
         $normalized = ConceptTerm::normalizeTerm($term);
         $complexity = $complexity !== null
             ? max(1, min(5, $complexity))
-            : (int) config('concepts.default_complexity', 2);
+            : (int) config('concepts.default_complexity', 3);
 
         return $this->attachPreferredTerm(
             $concept,

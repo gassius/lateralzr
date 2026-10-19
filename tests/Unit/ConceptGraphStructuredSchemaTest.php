@@ -17,6 +17,9 @@ class ConceptGraphStructuredSchemaTest extends TestCase
         $this->assertArraySchemaHasObjectItems($properties['concepts'], ['concept', 'shortDescription', 'complexity', 'wikiUrl', 'mediaUrl']);
         $this->assertArraySchemaHasObjectItems($properties['edges'], ['from', 'to', 'laterality']);
         $this->assertSame('string', $properties['start_concept']['type'] ?? null);
+        $this->assertSame('number', $properties['edges']['items']['properties']['laterality']['type'] ?? null);
+        $this->assertSame(0, $properties['edges']['items']['properties']['laterality']['minimum'] ?? null);
+        $this->assertSame(1, $properties['edges']['items']['properties']['laterality']['maximum'] ?? null);
     }
 
     public function test_concepts_only_agent_schema_matches_shared_definition(): void

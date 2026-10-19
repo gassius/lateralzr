@@ -31,13 +31,28 @@ return [
     | Default concept complexity (prefetch / generation)
     |--------------------------------------------------------------------------
     |
-    | 1 = very simple labels (e.g. "Ball", "Fire"). 5 = dense academic named ideas.
+    | 1 = everyday concrete ideas (e.g. "Ball"). 5 = highly specialised
+    | (e.g. "Magnetotactic bacteria"). Label length is not the criterion.
     | Prefetch and other workers use this when they generate terms.
     | POST /api/concepts/relationships "complexity" only filters stored terms;
     | it does not drive generation or apply this default to the walk.
     |
     */
-    'default_complexity' => env('CONCEPTS_DEFAULT_COMPLEXITY', 2),
+    'default_complexity' => env('CONCEPTS_DEFAULT_COMPLEXITY', 3),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Target laterality band (generation)
+    |--------------------------------------------------------------------------
+    |
+    | Edges produced by concepts:prefetch must fall in [min, max] on the 0–1
+    | laterality scale (Ball–Baseball = 0, Ball–Algorithm = 1). Stored in
+    | app_settings and editable at /admin/concept-generation-settings; these
+    | values are the defaults when no row is saved.
+    |
+    */
+    'laterality_band_min' => env('CONCEPTS_LATERALITY_BAND_MIN', 0.4),
+    'laterality_band_max' => env('CONCEPTS_LATERALITY_BAND_MAX', 0.6),
 
     /*
     |--------------------------------------------------------------------------

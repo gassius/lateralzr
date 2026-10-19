@@ -29,6 +29,9 @@ class ConceptRelationshipForm
                     ->required(),
                 TextInput::make('last_laterality')
                     ->numeric()
+                    ->minValue(0)
+                    ->maxValue(1)
+                    ->step(0.01)
                     ->disabled(),
             ]);
     }

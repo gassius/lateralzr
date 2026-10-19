@@ -49,7 +49,7 @@ class ConceptCompleteInfoDispatchService
             'type' => ConceptGraphRun::TYPE_COMPLETE_INFO,
             'provider' => null,
             'model' => null,
-            'complexity' => (int) config('concepts.default_complexity', 2),
+            'complexity' => (int) config('concepts.default_complexity', 3),
             'queue' => $queue,
             'seed_count' => count($batches),
             'seeds' => [

@@ -52,7 +52,7 @@ class ConceptGraphRepeatableReadRaceTest extends TestCase
                 'strength' => 0.28000,
                 'llm_occurrences' => 1,
                 'user_weight' => 0,
-                'last_laterality' => 3,
+                'last_laterality' => 0.5,
                 'last_generated_at' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -63,11 +63,11 @@ class ConceptGraphRepeatableReadRaceTest extends TestCase
                 'Plain SELECT must still see the REPEATABLE READ snapshot after the sibling commit.'
             );
 
-            return $store->upsertEdge($from, $to, 4);
+            return $store->upsertEdge($from, $to, 0.75);
         });
 
         $this->assertSame(2, (int) $edge->llm_occurrences);
-        $this->assertSame(4, (int) $edge->last_laterality);
+        $this->assertEqualsWithDelta(0.75, (float) $edge->last_laterality, 0.001);
         $this->assertSame(1, ConceptRelationship::query()
             ->where('from_concept_id', $from->id)
             ->where('to_concept_id', $to->id)

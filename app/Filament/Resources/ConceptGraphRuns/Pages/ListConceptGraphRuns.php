@@ -184,9 +184,9 @@ class ListConceptGraphRuns extends ListRecords
                         ->maxValue(100)
                         ->required(),
                     TextInput::make('complexity')
-                        ->label('Concept label complexity (1–5)')
+                        ->label('Concept complexity (1–5, conceptual difficulty)')
                         ->numeric()
-                        ->default((int) config('concepts.default_complexity', 2))
+                        ->default((int) config('concepts.default_complexity', 3))
                         ->minValue(1)
                         ->maxValue(5)
                         ->required(),
@@ -207,7 +207,7 @@ class ListConceptGraphRuns extends ListRecords
                             randomIdea: (bool) ($data['random_idea'] ?? false),
                             targetCount: (int) ($data['count'] ?? 100),
                             batchSize: (int) ($data['batch_size'] ?? 10),
-                            complexity: (int) ($data['complexity'] ?? 2),
+                            complexity: (int) ($data['complexity'] ?? config('concepts.default_complexity', 3)),
                             provider: ($data['provider'] ?? null) ? (string) $data['provider'] : null,
                             model: ($data['model'] ?? null) ? (string) $data['model'] : null,
                             queue: (string) ($data['queue'] ?? 'default'),

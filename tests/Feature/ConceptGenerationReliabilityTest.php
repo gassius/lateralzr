@@ -57,12 +57,12 @@ class ConceptGenerationReliabilityTest extends TestCase
         $to = Concept::query()->create(['canonical_key' => 'algorithm']);
         $store = app(ConceptGraphStore::class);
 
-        $first = $store->upsertEdge($from, $to, 3);
-        $second = $store->upsertEdge($from, $to, 4);
+        $first = $store->upsertEdge($from, $to, 0.5);
+        $second = $store->upsertEdge($from, $to, 0.75);
 
         $this->assertSame($first->id, $second->id);
         $this->assertSame(2, (int) $second->llm_occurrences);
-        $this->assertSame(4, (int) $second->last_laterality);
+        $this->assertEqualsWithDelta(0.75, (float) $second->last_laterality, 0.001);
         $this->assertSame(1, ConceptRelationship::query()->where('from_concept_id', $from->id)->where('to_concept_id', $to->id)->count());
     }
 

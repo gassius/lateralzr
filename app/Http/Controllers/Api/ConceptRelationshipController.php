@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Services\ConceptGraphQuery;
 use App\Support\ConceptLocale;
+use App\Support\Laterality;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,7 @@ class ConceptRelationshipController
             'depth' => ['sometimes', 'integer', 'min:1', 'max:5'],
             'minStrength' => ['sometimes', 'numeric', 'min:0', 'max:1'],
             'laterality' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
+            'laterality_score' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:1'],
             'locale' => ['sometimes', 'nullable', 'string', 'max:16', Rule::in(ConceptLocale::supported())],
             'complexity' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:5'],
         ]);
@@ -55,9 +57,10 @@ class ConceptRelationshipController
         $complexity = array_key_exists('complexity', $validated) && $validated['complexity'] !== null
             ? (int) $validated['complexity']
             : null;
-        $laterality = array_key_exists('laterality', $validated) && $validated['laterality'] !== null
-            ? (int) $validated['laterality']
-            : null;
+        $lateralityGrade = $validated['laterality'] ?? null;
+        $lateralityScore = $validated['laterality_score'] ?? null;
+        $laterality = Laterality::fromApiRequest($lateralityGrade, $lateralityScore);
+        $lateralityAsGrade = Laterality::requestUsesLegacyGrade($lateralityGrade, $lateralityScore);
 
         try {
             $result = $this->query->getGraph(
@@ -69,7 +72,8 @@ class ConceptRelationshipController
                 canonicalStart: $canonicalStart,
                 onlyWithMedia: $onlyWithMedia,
                 complexity: $complexity,
-                laterality: $laterality
+                laterality: $laterality,
+                lateralityAsGrade: $lateralityAsGrade,
             );
 
             if ($result === null) {

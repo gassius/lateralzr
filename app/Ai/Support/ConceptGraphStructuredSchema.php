@@ -39,7 +39,7 @@ final class ConceptGraphStructuredSchema
                     $schema->object([
                         'from' => $schema->string()->min(1)->required(),
                         'to' => $schema->string()->min(1)->required(),
-                        'laterality' => $schema->integer()->min(1)->max(5)->required(),
+                        'laterality' => $schema->number()->min(0)->max(1)->required(),
                     ])->withoutAdditionalProperties()
                 )
                 ->required(),
