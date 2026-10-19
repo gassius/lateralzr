@@ -1,4 +1,0 @@
-Baseline diff for status_loading-200_390x844_en.png
-actual: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/screenshots/status_loading-200_390x844_en.png
-baseline: /home/runner/work/lateralzr/lateralzr/apps/client/e2e/baselines/status_loading-200_390x844_en.png
-diff ratio 0.0129 > 0.01 (17024 px)
