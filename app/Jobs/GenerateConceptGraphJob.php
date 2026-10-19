@@ -75,11 +75,14 @@ class GenerateConceptGraphJob implements ShouldQueue
             AiRequestContext::using($this->runUuid, $trackingKey, function () use ($service, $store, $startedAt, $trackingKey, $previousProvider, $previousModel): void {
                 try {
                     $deadlineAt = time() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
-                    $worstCase = ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS + self::PERSIST_BUDGET_SECONDS;
-                    if (time() + $worstCase >= $deadlineAt) {
-                        throw new RuntimeException(
-                            'Graph job soft deadline reached before the LLM call; stopping to stay under the worker timeout.'
+
+                    if ($this->secondsUntilDeadline($deadlineAt) < ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS + self::PERSIST_BUDGET_SECONDS) {
+                        $this->markSoftDeadlinePartial(
+                            $trackingKey,
+                            'Not enough time to start the LLM before the worker timeout.'
                         );
+
+                        return;
                     }
 
                     $result = $service->generateRelationships(
@@ -88,6 +91,15 @@ class GenerateConceptGraphJob implements ShouldQueue
                         agent: null,
                         complexity: $this->complexity
                     );
+
+                    if ($this->secondsUntilDeadline($deadlineAt) < self::PERSIST_BUDGET_SECONDS) {
+                        $this->markSoftDeadlinePartial(
+                            $trackingKey,
+                            'LLM finished too close to the worker timeout; graph was not persisted.'
+                        );
+
+                        return;
+                    }
 
                     $provider = AiRequestContext::lastSentProvider()
                         ?? $this->provider
@@ -132,7 +144,9 @@ class GenerateConceptGraphJob implements ShouldQueue
                 } catch (Throwable $e) {
                     $retryable = AiRequestError::isRetryable($e);
                     $willRetry = $retryable && $this->attempts() < $this->tries;
-                    $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+                    $provider = $this->effectiveProvider();
+                    $model = $this->effectiveModel();
+                    $mapped = AiRequestError::displayMessage($e, $provider, $model, $willRetry);
 
                     Log::warning('GenerateConceptGraphJob failed', [
                         'run_uuid' => $this->runUuid,
@@ -141,8 +155,8 @@ class GenerateConceptGraphJob implements ShouldQueue
                         'attempt' => $this->attempts(),
                         'retryable' => $retryable,
                         'will_retry' => $willRetry,
-                        'provider' => $this->provider,
-                        'model' => $this->model,
+                        'provider' => $provider,
+                        'model' => $model,
                         'error' => $mapped,
                     ]);
 
@@ -174,7 +188,7 @@ class GenerateConceptGraphJob implements ShouldQueue
         }
 
         $message = $exception
-            ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
+            ? AiRequestError::displayMessage($exception, $this->effectiveProvider(), $this->effectiveModel(), false)
             : 'Job failed or timed out.';
 
         ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
@@ -183,5 +197,38 @@ class GenerateConceptGraphJob implements ShouldQueue
             'finished_at' => now(),
             'error_message' => $message,
         ]);
+    }
+
+    protected function secondsUntilDeadline(int $deadlineAt): int
+    {
+        return $deadlineAt - time();
+    }
+
+    protected function markSoftDeadlinePartial(string $trackingKey, string $message): void
+    {
+        ConceptGraphRunJob::mark($this->runUuid, $trackingKey, [
+            'status' => 'partial',
+            'attempts' => (int) $this->attempts(),
+            'finished_at' => now(),
+            'error_message' => $message,
+        ]);
+
+        Log::info('GenerateConceptGraphJob partial (soft deadline)', [
+            'run_uuid' => $this->runUuid,
+            'job_key' => $trackingKey,
+            'provider' => $this->effectiveProvider(),
+            'model' => $this->effectiveModel(),
+            'error' => $message,
+        ]);
+    }
+
+    protected function effectiveProvider(): ?string
+    {
+        return AiRequestContext::lastSentProvider() ?? $this->provider;
+    }
+
+    protected function effectiveModel(): ?string
+    {
+        return AiRequestContext::lastSentModel() ?? $this->model;
     }
 }

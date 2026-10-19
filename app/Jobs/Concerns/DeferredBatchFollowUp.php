@@ -37,7 +37,9 @@ trait DeferredBatchFollowUp
                 $run->save();
             }
 
-            $this->rememberFollowUpJob($followKey);
+            if (! $this->rememberFollowUpJob($followKey)) {
+                return $followKey;
+            }
         }
 
         $this->dispatchFollowUp($ids, $followKey);
@@ -45,7 +47,11 @@ trait DeferredBatchFollowUp
         return $followKey;
     }
 
-    protected function rememberFollowUpJob(string $followKey): void
+    /**
+     * Seed a follow-up tracking row. Returns false when an in-flight or
+     * finished row already exists so we do not reset or re-dispatch it.
+     */
+    protected function rememberFollowUpJob(string $followKey): bool
     {
         $values = [
             'status' => 'pending',
@@ -61,11 +67,25 @@ trait DeferredBatchFollowUp
                 'seed' => $followKey,
                 ...$values,
             ]);
+
+            return true;
         } catch (UniqueConstraintViolationException) {
-            ConceptGraphRunJob::query()
+            $existing = ConceptGraphRunJob::query()
                 ->where('run_uuid', $this->runUuid)
                 ->where('seed', $followKey)
-                ->update($values);
+                ->first();
+
+            if ($existing === null) {
+                return true;
+            }
+
+            if ($existing->status !== 'failed') {
+                return false;
+            }
+
+            $existing->update($values);
+
+            return true;
         }
     }
 

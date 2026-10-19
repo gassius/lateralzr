@@ -239,4 +239,81 @@ class ConceptGenerationReliabilityTest extends TestCase
         $this->assertSame($first->id, $second->id);
         $this->assertSame(1, ConceptMedia::query()->where('concept_id', $concept->id)->where('url', $url)->count());
     }
+
+    public function test_localize_follow_up_does_not_reset_processing_or_succeeded(): void
+    {
+        foreach (['processing', 'succeeded'] as $status) {
+            Queue::fake();
+
+            $runUuid = (string) Str::uuid();
+            ConceptGraphRun::query()->create([
+                'run_uuid' => $runUuid,
+                'type' => ConceptGraphRun::TYPE_LOCALIZE,
+                'complexity' => 2,
+                'queue' => 'default',
+                'seed_count' => 2,
+                'seeds' => [
+                    'from' => 'en',
+                    'to' => 'es',
+                    'missingOnly' => true,
+                    'batchSize' => 10,
+                    'batches' => [
+                        'localize#1' => [42, 7, 8],
+                        'localize#1+1' => [7, 8],
+                    ],
+                ],
+                'related_count' => 3,
+                'dispatched_at' => now(),
+            ]);
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $runUuid,
+                'seed' => 'localize#1',
+                'status' => 'pending',
+                'attempts' => 0,
+            ]);
+            ConceptGraphRunJob::query()->create([
+                'run_uuid' => $runUuid,
+                'seed' => 'localize#1+1',
+                'status' => $status,
+                'attempts' => 2,
+                'error_message' => 'keep me',
+            ]);
+
+            $service = \Mockery::mock(ConceptLocalizeService::class);
+            $service->shouldReceive('localize')->once()->andReturn([
+                'processed' => 1,
+                'created' => 1,
+                'skipped' => 0,
+                'failed' => 0,
+                'deferred' => 2,
+                'deferredConceptIds' => [7, 8],
+            ]);
+
+            $job = new LocalizeConceptBatchJob(
+                conceptIds: [42, 7, 8],
+                fromLocale: 'en',
+                toLocale: 'es',
+                missingOnly: true,
+                provider: 'openrouter',
+                model: 'openai/gpt-4o-mini',
+                runUuid: $runUuid,
+                jobKey: 'localize#1',
+            );
+            $job->withFakeQueueInteractions();
+            $job->handle($service);
+
+            $follow = ConceptGraphRunJob::query()
+                ->where('run_uuid', $runUuid)
+                ->where('seed', 'localize#1+1')
+                ->first();
+
+            $this->assertSame($status, $follow?->status, $status);
+            $this->assertSame(2, (int) $follow?->attempts, $status);
+            $this->assertSame('keep me', $follow?->error_message, $status);
+            Queue::assertNotPushed(
+                LocalizeConceptBatchJob::class,
+                fn (LocalizeConceptBatchJob $followJob) => $followJob->jobKey === 'localize#1+1'
+            );
+        }
+    }
 }

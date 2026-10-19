@@ -274,14 +274,14 @@ class ConceptCanonicalizer
                 usleep(50_000);
             }
 
-            $existingTerm = $this->findTermByLocaleNorm($locale, $normalized);
+            $existingTerm = $this->findTermByLocaleNorm($locale, $normalized, lock: true);
             if ($existingTerm instanceof ConceptTerm) {
                 $this->enrichTerm($existingTerm, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
 
-                return $existingTerm->concept()->firstOrFail();
+                return $this->lockedConceptForTerm($existingTerm);
             }
 
-            $concept = Concept::query()->where('canonical_key', $canonicalKey)->first();
+            $concept = Concept::query()->where('canonical_key', $canonicalKey)->lockForUpdate()->first();
             if ($concept instanceof Concept) {
                 try {
                     $attached = $this->attachPreferredTerm(
@@ -295,18 +295,18 @@ class ConceptCanonicalizer
                         $complexity
                     );
                 } catch (UniqueConstraintViolationException) {
-                    $owned = $this->findTermByLocaleNorm($locale, $normalized);
+                    $owned = $this->findTermByLocaleNorm($locale, $normalized, lock: true);
                     if ($owned instanceof ConceptTerm) {
                         $this->enrichTerm($owned, $shortDescription, $wikiUrl, $mediaUrl, $complexity);
 
-                        return $owned->concept()->firstOrFail();
+                        return $this->lockedConceptForTerm($owned);
                     }
 
                     continue;
                 }
 
                 if ($attached instanceof ConceptTerm) {
-                    return $attached->concept()->firstOrFail();
+                    return $this->lockedConceptForTerm($attached);
                 }
 
                 return $concept;
@@ -314,6 +314,14 @@ class ConceptCanonicalizer
         }
 
         throw $e;
+    }
+
+    protected function lockedConceptForTerm(ConceptTerm $term): Concept
+    {
+        return Concept::query()
+            ->whereKey($term->concept_id)
+            ->lockForUpdate()
+            ->firstOrFail();
     }
 
     protected function findExistingLocaleTerm(string $locale, string $normalized): ?ConceptTerm
@@ -434,6 +442,7 @@ class ConceptCanonicalizer
         $owned = ConceptTerm::query()
             ->where('locale', $locale)
             ->where('normalized_term', $normalized)
+            ->lockForUpdate()
             ->first();
 
         if ($owned instanceof ConceptTerm) {

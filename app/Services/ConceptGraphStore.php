@@ -119,11 +119,18 @@ class ConceptGraphStore
                     userWeight: 0
                 ),
             ]);
-        } catch (UniqueConstraintViolationException) {
+        } catch (UniqueConstraintViolationException $e) {
+            // REPEATABLE READ: a plain SELECT still sees the transaction snapshot
+            // and misses a sibling commit. FOR UPDATE is a current/locking read.
             $edge = ConceptRelationship::query()
                 ->where('from_concept_id', $from->id)
                 ->where('to_concept_id', $to->id)
-                ->firstOrFail();
+                ->lockForUpdate()
+                ->first();
+
+            if (! $edge instanceof ConceptRelationship) {
+                throw $e;
+            }
 
             $edge->last_laterality = $laterality;
             $edge->llm_occurrences = (int) ($edge->llm_occurrences ?? 0) + 1;

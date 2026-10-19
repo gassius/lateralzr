@@ -13,6 +13,14 @@ final class AiRequestContext
     private static ?string $sentModel = null;
 
     /**
+     * Last model actually sent on this worker process. Survives using()
+     * teardown so job failed() callbacks can still read it.
+     */
+    private static ?string $rememberedProvider = null;
+
+    private static ?string $rememberedModel = null;
+
+    /**
      * @var array{prompt:?int,completion:?int,total:?int}|null
      */
     private static ?array $usage = null;
@@ -40,6 +48,8 @@ final class AiRequestContext
         self::$sentProvider = null;
         self::$sentModel = null;
         self::$usage = null;
+        self::$rememberedProvider = null;
+        self::$rememberedModel = null;
 
         try {
             return $callback();
@@ -71,6 +81,8 @@ final class AiRequestContext
     {
         self::$sentProvider = $provider;
         self::$sentModel = $model;
+        self::$rememberedProvider = $provider;
+        self::$rememberedModel = $model;
 
         if ($usage !== null) {
             self::$usage = $usage;
@@ -79,12 +91,12 @@ final class AiRequestContext
 
     public static function lastSentProvider(): ?string
     {
-        return self::$sentProvider;
+        return self::$sentProvider ?? self::$rememberedProvider;
     }
 
     public static function lastSentModel(): ?string
     {
-        return self::$sentModel;
+        return self::$sentModel ?? self::$rememberedModel;
     }
 
     /**

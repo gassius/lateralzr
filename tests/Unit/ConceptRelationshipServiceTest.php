@@ -305,7 +305,12 @@ class ConceptRelationshipServiceTest extends TestCase
         $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
         $mockAgent->shouldReceive('prompt')
             ->once()
-            ->with(Mockery::on(function (string $prompt) use ($defaultSeeds) {
+            ->withArgs(function (...$args) use ($defaultSeeds) {
+                $prompt = $args[0] ?? null;
+                if (! is_string($prompt)) {
+                    return false;
+                }
+
                 foreach ($defaultSeeds as $seed) {
                     if (str_contains($prompt, "\"{$seed}\"")) {
                         return true;
@@ -313,7 +318,7 @@ class ConceptRelationshipServiceTest extends TestCase
                 }
 
                 return false;
-            }))
+            })
             ->andReturn($mockResponse);
 
         $result = $this->service->generateRelationships(null, null, $mockAgent);
@@ -346,9 +351,11 @@ class ConceptRelationshipServiceTest extends TestCase
         $mockAgent = Mockery::mock(\App\Ai\Agents\ConceptsOnlyAgent::class);
         $mockAgent->shouldReceive('prompt')
             ->once()
-            ->with(Mockery::on(function (string $prompt) {
-                return str_contains($prompt, 'Target complexity for this request: **4**');
-            }))
+            ->withArgs(function (...$args) {
+                $prompt = $args[0] ?? null;
+
+                return is_string($prompt) && str_contains($prompt, 'Target complexity for this request: **4**');
+            })
             ->andReturn($mockResponse);
 
         $result = $this->service->generateRelationships('test', null, $mockAgent, 4);

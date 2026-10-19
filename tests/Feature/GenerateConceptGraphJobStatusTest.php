@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Agents\ConceptsOnlyAgent;
+use App\Ai\Support\AiRequestContext;
 use App\Jobs\GenerateConceptGraphJob;
 use App\Models\ConceptGraphRunJob;
 use App\Services\ConceptGraphStore;
@@ -230,5 +232,135 @@ class GenerateConceptGraphJobStatusTest extends TestCase
             $runJob->fresh()->display_error
         );
         $this->assertSame('timed_out', $runJob->fresh()->display_status);
+    }
+
+    public function test_soft_deadline_before_llm_marks_partial_not_failed(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'innovation#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptRelationshipService::class);
+        $service->shouldReceive('generateRelationships')->never();
+
+        $store = Mockery::mock(ConceptGraphStore::class);
+        $store->shouldReceive('storeGraph')->never();
+
+        $job = new GenerateConceptGraphJob(
+            seed: 'innovation',
+            count: 10,
+            complexity: 2,
+            provider: 'openrouter',
+            model: 'openai/gpt-4o-mini',
+            runUuid: $runUuid,
+            jobKey: 'innovation#1',
+        );
+        $job->timeout = 50;
+        $job->withFakeQueueInteractions();
+        $job->handle($service, $store);
+        $job->assertNotFailed();
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'innovation#1')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('Not enough time to start the LLM', (string) $record?->error_message);
+    }
+
+    public function test_soft_deadline_after_llm_marks_partial_without_persist(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'innovation#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptRelationshipService::class);
+        $service->shouldReceive('generateRelationships')->once()->andReturn([
+            'concepts' => [],
+            'edges' => [],
+            'complexity' => 2,
+        ]);
+
+        $store = Mockery::mock(ConceptGraphStore::class);
+        $store->shouldReceive('storeGraph')->never();
+
+        $job = new class('innovation', 10, 2, 'openrouter', 'openai/gpt-4o-mini', $runUuid, 'innovation#1') extends GenerateConceptGraphJob
+        {
+            private int $deadlineChecks = 0;
+
+            protected function secondsUntilDeadline(int $deadlineAt): int
+            {
+                $this->deadlineChecks++;
+
+                return $this->deadlineChecks === 1
+                    ? ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS + GenerateConceptGraphJob::PERSIST_BUDGET_SECONDS + 10
+                    : 5;
+            }
+        };
+        $job->withFakeQueueInteractions();
+        $job->handle($service, $store);
+        $job->assertNotFailed();
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'innovation#1')
+            ->first();
+
+        $this->assertSame('partial', $record?->status);
+        $this->assertStringContainsString('graph was not persisted', (string) $record?->error_message);
+    }
+
+    public function test_handle_failure_message_uses_model_actually_sent(): void
+    {
+        $runUuid = (string) Str::uuid();
+
+        ConceptGraphRunJob::query()->create([
+            'run_uuid' => $runUuid,
+            'seed' => 'innovation#1',
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        $service = Mockery::mock(ConceptRelationshipService::class);
+        $service->shouldReceive('generateRelationships')->once()->andReturnUsing(function () {
+            AiRequestContext::rememberSent('openrouter', 'anthropic/claude-sonnet-4');
+            throw new RuntimeException('HTTP 404 for model anthropic/claude-sonnet-4');
+        });
+
+        $store = Mockery::mock(ConceptGraphStore::class);
+        $store->shouldReceive('storeGraph')->never();
+
+        $job = new GenerateConceptGraphJob(
+            seed: 'innovation',
+            count: 10,
+            complexity: 2,
+            provider: 'openrouter',
+            model: 'deepseek/deepseek-v4-flash-0731',
+            runUuid: $runUuid,
+            jobKey: 'innovation#1',
+        );
+        $job->withFakeQueueInteractions();
+        $job->handle($service, $store);
+        $job->assertFailed();
+
+        $record = ConceptGraphRunJob::query()
+            ->where('run_uuid', $runUuid)
+            ->where('seed', 'innovation#1')
+            ->first();
+
+        $this->assertSame('failed', $record?->status);
+        $this->assertStringContainsString('anthropic/claude-sonnet-4', (string) $record?->error_message);
+        $this->assertStringNotContainsString('deepseek/deepseek-v4-flash-0731', (string) $record?->error_message);
     }
 }

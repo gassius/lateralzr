@@ -121,7 +121,9 @@ class LocalizeConceptBatchJob implements ShouldQueue
                 } catch (Throwable $e) {
                     $retryable = AiRequestError::isRetryable($e);
                     $willRetry = $retryable && $this->attempts() < $this->tries;
-                    $mapped = AiRequestError::displayMessage($e, $this->provider, $this->model, $willRetry);
+                    $provider = $this->effectiveProvider();
+                    $model = $this->effectiveModel();
+                    $mapped = AiRequestError::displayMessage($e, $provider, $model, $willRetry);
 
                     Log::warning('LocalizeConceptBatchJob failed', [
                         'run_uuid' => $this->runUuid,
@@ -130,8 +132,8 @@ class LocalizeConceptBatchJob implements ShouldQueue
                         'attempt' => $this->attempts(),
                         'retryable' => $retryable,
                         'will_retry' => $willRetry,
-                        'provider' => $this->provider,
-                        'model' => $this->model,
+                        'provider' => $provider,
+                        'model' => $model,
                         'error' => $mapped,
                     ]);
 
@@ -161,7 +163,7 @@ class LocalizeConceptBatchJob implements ShouldQueue
         }
 
         $message = $exception
-            ? AiRequestError::displayMessage($exception, $this->provider, $this->model, false)
+            ? AiRequestError::displayMessage($exception, $this->effectiveProvider(), $this->effectiveModel(), false)
             : 'Job failed or timed out.';
 
         ConceptGraphRunJob::mark($this->runUuid, $this->jobKey, [
@@ -197,5 +199,15 @@ class LocalizeConceptBatchJob implements ShouldQueue
     protected function deferredUnitLabel(): string
     {
         return 'concept(s)';
+    }
+
+    protected function effectiveProvider(): ?string
+    {
+        return AiRequestContext::lastSentProvider() ?? $this->provider;
+    }
+
+    protected function effectiveModel(): ?string
+    {
+        return AiRequestContext::lastSentModel() ?? $this->model;
     }
 }
