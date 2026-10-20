@@ -2,6 +2,7 @@
 
 namespace App\Services\ScheduledTasks;
 
+use App\Support\ConceptLocale;
 use Cron\CronExpression;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
@@ -107,12 +108,7 @@ class ScheduledTaskCatalog
                 'complexity' => max(1, min(5, (int) ($options['complexity'] ?? $defaults['complexity']))),
                 'depth' => max(1, min(3, (int) ($options['depth'] ?? $defaults['depth']))),
             ],
-            self::FILL_MISSING => [
-                'locale' => strtolower(trim((string) ($options['locale'] ?? $defaults['locale']))),
-                'from' => strtolower(trim((string) ($options['from'] ?? $defaults['from']))),
-                'fill_locale' => self::bool($options['fill_locale'] ?? $defaults['fill_locale']),
-                'fill_images' => self::bool($options['fill_images'] ?? $defaults['fill_images']),
-            ],
+            self::FILL_MISSING => self::normalizeFillMissingOptions($options, $defaults),
             default => throw new InvalidArgumentException("Unknown scheduled task [{$key}]."),
         };
     }
@@ -127,6 +123,35 @@ class ScheduledTaskCatalog
             'weekly' => $from->copy()->addWeek(),
             default => Carbon::instance((new CronExpression($cadence))->getNextRunDate($from)),
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $options
+     * @param  array<string, mixed>  $defaults
+     * @return array<string, mixed>
+     */
+    protected static function normalizeFillMissingOptions(array $options, array $defaults): array
+    {
+        $locale = strtolower(trim((string) ($options['locale'] ?? $defaults['locale'])));
+        $from = strtolower(trim((string) ($options['from'] ?? $defaults['from'])));
+        $supported = ConceptLocale::supported();
+
+        if (! in_array($locale, $supported, true) || ! in_array($from, $supported, true)) {
+            throw new InvalidArgumentException(
+                'Locale must be in supported list: '.implode(', ', $supported)
+            );
+        }
+
+        if ($locale === $from) {
+            throw new InvalidArgumentException('Fill-missing locale and from must differ.');
+        }
+
+        return [
+            'locale' => $locale,
+            'from' => $from,
+            'fill_locale' => self::bool($options['fill_locale'] ?? $defaults['fill_locale']),
+            'fill_images' => self::bool($options['fill_images'] ?? $defaults['fill_images']),
+        ];
     }
 
     public static function assertKnown(string $key): string

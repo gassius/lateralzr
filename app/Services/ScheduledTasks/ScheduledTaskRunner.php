@@ -43,13 +43,14 @@ class ScheduledTaskRunner
                 throw new InvalidArgumentException("Unknown scheduled task [{$key}].");
             }
 
+            $history = $this->startHistory($record, $trigger);
+            $record->markRan();
+
             return [
                 'task' => $record,
-                'run' => $this->startHistory($record, $trigger),
+                'run' => $history,
             ];
         });
-
-        $claimed['task']->markRan();
 
         return $this->finish($claimed['task'], $claimed['run'], rethrow: true);
     }
@@ -100,25 +101,20 @@ class ScheduledTaskRunner
      */
     protected function claimDue(int $id): ?array
     {
-        $claimed = DB::transaction(function () use ($id): ?array {
+        return DB::transaction(function () use ($id): ?array {
             $task = ScheduledTask::query()->whereKey($id)->lockForUpdate()->first();
             if (! $task instanceof ScheduledTask || ! $task->isDue()) {
                 return null;
             }
 
+            $history = $this->startHistory($task, ScheduledTaskRun::TRIGGER_SCHEDULED);
+            $task->markRan();
+
             return [
                 'task' => $task,
-                'run' => $this->startHistory($task, ScheduledTaskRun::TRIGGER_SCHEDULED),
+                'run' => $history,
             ];
         });
-
-        if ($claimed === null) {
-            return null;
-        }
-
-        $claimed['task']->markRan();
-
-        return $claimed;
     }
 
     protected function startHistory(ScheduledTask $task, string $trigger): ScheduledTaskRun

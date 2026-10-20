@@ -56,7 +56,7 @@ class GrowSparseHandler implements ScheduledTaskHandler
         );
 
         return [
-            'items_processed' => count($labels),
+            'items_processed' => (int) $run->seed_count,
             'pipeline_run_uuid' => $run->run_uuid,
             'details' => [
                 'threshold' => $threshold,

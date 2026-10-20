@@ -30,4 +30,30 @@ class ScheduledTaskCadenceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         ScheduledTaskCatalog::normalizeCadence('sometimes');
     }
+
+    public function test_fill_missing_options_reject_matching_locales(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('must differ');
+
+        ScheduledTaskCatalog::normalizeOptions('fill-missing', [
+            'locale' => 'es',
+            'from' => 'es',
+            'fill_locale' => true,
+            'fill_images' => true,
+        ]);
+    }
+
+    public function test_fill_missing_options_reject_unsupported_locale(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('supported list');
+
+        ScheduledTaskCatalog::normalizeOptions('fill-missing', [
+            'locale' => 'xx',
+            'from' => 'en',
+            'fill_locale' => true,
+            'fill_images' => true,
+        ]);
+    }
 }

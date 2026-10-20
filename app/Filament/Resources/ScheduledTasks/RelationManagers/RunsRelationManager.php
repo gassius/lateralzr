@@ -8,6 +8,7 @@ use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class RunsRelationManager extends RelationManager
 {
@@ -18,6 +19,7 @@ class RunsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('graphRun'))
             ->columns([
                 TextColumn::make('trigger')
                     ->badge(),
@@ -61,7 +63,8 @@ class RunsRelationManager extends RelationManager
                     ->visible(fn (ScheduledTaskRun $record): bool => $record->linkedGraphRun() !== null),
             ])
             ->defaultSort('id', 'desc')
-            ->paginated(false);
+            ->defaultPaginationPageOption(25)
+            ->paginated([25, 50, 100]);
     }
 
     public function isReadOnly(): bool

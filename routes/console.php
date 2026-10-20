@@ -11,5 +11,5 @@ Schedule::command('scheduler:test')
 
 Schedule::command('concepts:schedule:dispatch')
     ->everyMinute()
-    ->withoutOverlapping()
+    ->withoutOverlapping(10)
     ->onOneServer();

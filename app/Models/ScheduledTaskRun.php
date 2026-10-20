@@ -46,13 +46,16 @@ class ScheduledTaskRun extends Model
         return $this->belongsTo(ScheduledTask::class, 'scheduled_task_id');
     }
 
+    public function graphRun(): BelongsTo
+    {
+        return $this->belongsTo(ConceptGraphRun::class, 'pipeline_run_uuid', 'run_uuid');
+    }
+
     public function linkedGraphRun(): ?ConceptGraphRun
     {
-        if ($this->pipeline_run_uuid === null || $this->pipeline_run_uuid === '') {
-            return null;
-        }
+        $run = $this->graphRun;
 
-        return ConceptGraphRun::query()->where('run_uuid', $this->pipeline_run_uuid)->first();
+        return $run instanceof ConceptGraphRun ? $run : null;
     }
 
     /**

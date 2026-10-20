@@ -16,6 +16,7 @@ use App\Models\ScheduledTaskRun;
 use App\Services\ScheduledTasks\ScheduledTaskCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\Feature\Concerns\InteractsWithFilamentAdmin;
@@ -177,5 +178,79 @@ class FilamentScheduledTasksAdminTest extends TestCase
         ])
             ->assertSee('Progress')
             ->assertSee('Worker run');
+    }
+
+    public function test_edit_rejects_fill_missing_when_locale_equals_from(): void
+    {
+        $this->actingAsAdmin();
+
+        $fill = ScheduledTask::query()->where('key', ScheduledTaskCatalog::FILL_MISSING)->first();
+        $this->assertNotNull($fill);
+
+        Livewire::test(EditScheduledTask::class, ['record' => $fill->getKey()])
+            ->fillForm([
+                'cadence' => 'daily',
+                'per_run_cap' => 20,
+                'options' => [
+                    'locale' => 'es',
+                    'from' => 'es',
+                    'fill_locale' => true,
+                    'fill_images' => true,
+                ],
+            ])
+            ->call('save')
+            ->assertNotified();
+
+        $fill->refresh();
+        $this->assertSame('en', $fill->option('from'));
+        $this->assertSame('es', $fill->option('locale'));
+    }
+
+    public function test_run_history_paginates_and_loads_linked_runs_once_per_page(): void
+    {
+        $this->actingAsAdmin();
+
+        $grow = ScheduledTask::query()->where('key', ScheduledTaskCatalog::GROW_SPARSE)->first();
+        $this->assertNotNull($grow);
+
+        for ($i = 0; $i < 5; $i++) {
+            $run = ConceptGraphRun::query()->create([
+                'run_uuid' => (string) Str::uuid(),
+                'type' => ConceptGraphRun::TYPE_PIPELINE,
+                'provider' => 'openrouter',
+                'model' => 'openai/gpt-4o-mini',
+                'complexity' => 3,
+                'queue' => 'default',
+                'seed_count' => 1,
+                'seeds' => ['starts' => ['silence-'.$i], 'depth' => 1, 'targetCount' => 10],
+                'dispatched_at' => now(),
+            ]);
+            ScheduledTaskRun::query()->create([
+                'scheduled_task_id' => $grow->id,
+                'task_key' => $grow->key,
+                'trigger' => ScheduledTaskRun::TRIGGER_MANUAL,
+                'status' => ScheduledTaskRun::STATUS_SUCCEEDED,
+                'items_processed' => 1,
+                'pipeline_run_uuid' => $run->run_uuid,
+                'started_at' => now(),
+                'finished_at' => now(),
+            ]);
+        }
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $livewire = Livewire::test(RunsRelationManager::class, [
+            'ownerRecord' => $grow,
+            'pageClass' => EditScheduledTask::class,
+        ])->assertSuccessful();
+
+        $this->assertSame(25, $livewire->instance()->getTableRecordsPerPage());
+
+        $graphRunSelects = collect(DB::getQueryLog())
+            ->filter(fn (array $query): bool => str_contains(strtolower($query['query']), 'concept_graph_runs'))
+            ->count();
+
+        $this->assertSame(1, $graphRunSelects);
     }
 }

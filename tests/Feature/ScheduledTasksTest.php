@@ -14,12 +14,14 @@ use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Models\ScheduledTask;
 use App\Models\ScheduledTaskRun;
+use App\Services\ScheduledTasks\GrowSparseHandler;
 use App\Services\ScheduledTasks\ScheduledTaskCatalog;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\Feature\Concerns\InteractsWithFilamentAdmin;
 use Tests\TestCase;
 
@@ -317,7 +319,50 @@ class ScheduledTasksTest extends TestCase
         $this->assertNotNull($event);
         $this->assertSame('* * * * *', $event->expression);
         $this->assertTrue($event->withoutOverlapping);
+        $this->assertSame(10, $event->expiresAt);
         $this->assertTrue($event->onOneServer);
+    }
+
+    public function test_handler_failure_still_advances_next_run_and_writes_one_history_row(): void
+    {
+        Carbon::setTestNow('2026-10-19 12:00:00');
+        Bus::fake();
+
+        $this->mock(GrowSparseHandler::class, function ($mock): void {
+            $mock->shouldReceive('handle')->once()->andThrow(new RuntimeException('boom'));
+        });
+
+        $this->artisan('concepts:schedule:run', ['task' => 'grow-sparse'])
+            ->expectsOutputToContain('boom')
+            ->assertFailed();
+
+        $task = ScheduledTask::query()->where('key', 'grow-sparse')->first();
+        $this->assertSame('2026-10-20 12:00:00', $task?->next_run_at?->toDateTimeString());
+        $this->assertSame(1, ScheduledTaskRun::query()->count());
+        $history = ScheduledTaskRun::query()->first();
+        $this->assertSame(ScheduledTaskRun::STATUS_FAILED, $history?->status);
+        $this->assertSame('boom', $history?->error);
+    }
+
+    public function test_grow_sparse_counts_items_after_canonical_dedupe(): void
+    {
+        Bus::fake();
+        $this->makeConcept('Harbor', 'harbor-a');
+        $duplicate = Concept::query()->create(['canonical_key' => 'harbor-b']);
+        ConceptTerm::query()->create([
+            'concept_id' => $duplicate->id,
+            'locale' => 'en',
+            'term' => 'Harbor!',
+            'normalized_term' => 'harbor-b',
+            'complexity' => 2,
+            'is_preferred' => true,
+        ]);
+
+        $this->artisan('concepts:schedule:run', ['task' => 'grow-sparse'])->assertSuccessful();
+
+        $history = ScheduledTaskRun::query()->first();
+        $this->assertSame(1, $history?->items_processed);
+        $this->assertSame(1, ConceptPipelineNode::query()->count());
     }
 
     public function test_empty_run_still_writes_history(): void
