@@ -123,8 +123,11 @@ class ConceptPipelineDispatchService
         $jobs = [new GeneratePipelineNodeJob($node->id)];
 
         $run = $node->run;
-        if ($run instanceof ConceptGraphRun) {
-            foreach ($this->targetLocales($run) as $locale) {
+        $locales = $run instanceof ConceptGraphRun ? $this->targetLocales($run) : [];
+        if ($locales === []) {
+            $jobs[] = new LocalizePipelineNodeJob($node->id, '');
+        } else {
+            foreach ($locales as $locale) {
                 $jobs[] = new LocalizePipelineNodeJob($node->id, $locale);
             }
         }

@@ -367,6 +367,45 @@ class ConceptPipelineGenerateTest extends TestCase
         $this->assertNull($node->localize_error);
     }
 
+    public function test_en_only_locales_mark_localize_skipped_so_the_node_finishes(): void
+    {
+        $this->bindPipelineServiceFakes(1);
+        $localize = Mockery::mock(ConceptLocalizeService::class);
+        $localize->shouldReceive('localize')->never();
+        $this->app->instance(ConceptLocalizeService::class, $localize);
+
+        $run = app(ConceptPipelineDispatchService::class)->dispatch(
+            concepts: ['origami'],
+            count: 10,
+            depth: 1,
+            locales: ['en'],
+        );
+
+        $this->assertSame([], app(ConceptPipelineDispatchService::class)->targetLocales($run));
+        $this->assertGreaterThan(0, $run->pipelineNodes()->count());
+        foreach ($run->pipelineNodes as $node) {
+            $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->localize_status);
+        }
+    }
+
+    public function test_limit_new_concepts_keeps_existing_and_one_new_when_budget_is_one(): void
+    {
+        $this->makeConcept('harbor', 'harbor');
+
+        [$kept, $newCount] = app(ConceptPipelineDispatchService::class)->limitNewConcepts(
+            [
+                ['concept' => 'harbor', 'shortDescription' => 'An existing related concept.'],
+                ['concept' => 'new-one', 'shortDescription' => 'First new related concept.'],
+                ['concept' => 'new-two', 'shortDescription' => 'Second new related concept.'],
+            ],
+            'origami',
+            1,
+        );
+
+        $this->assertSame(['harbor', 'new-one'], array_column($kept, 'concept'));
+        $this->assertSame(1, $newCount);
+    }
+
     public function test_generate_stores_edge_to_existing_related_concept(): void
     {
         Bus::fake();
