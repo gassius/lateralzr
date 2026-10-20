@@ -5,17 +5,21 @@ namespace Tests\Feature;
 use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiRequestContext;
 use App\Jobs\GenerateConceptGraphJob;
+use App\Jobs\GeneratePipelineNodeJob;
 use App\Models\Concept;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
+use App\Models\ConceptPipelineNode;
 use App\Models\ConceptTerm;
 use App\Services\ConceptGraphStore;
 use App\Services\ConceptLocalizeService;
+use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Services\ConceptRelationshipService;
 use App\Support\ConceptLocale;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Log\Events\MessageLogged;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -72,6 +76,51 @@ class ConceptGenerationModelOverrideHttpTest extends TestCase
 
         $this->assertAiLogsRecorded($recordedLogs, $chosenModel, $runUuid, 'origami#1');
         $this->assertSame($chosenModel, ConceptGraphRun::query()->where('run_uuid', $runUuid)->value('model'));
+    }
+
+    public function test_pipeline_generate_job_sends_override_model_in_openrouter_payload(): void
+    {
+        $this->configureOpenRouter();
+        $recordedLogs = $this->captureLogMessages();
+        Bus::fake();
+
+        $chosenModel = 'openai/gpt-4o-mini';
+        Http::fake($this->openRouterResponder($chosenModel, $this->graphStructuredPayload()));
+
+        $run = app(ConceptPipelineDispatchService::class)->dispatch(
+            concepts: ['origami'],
+            count: 3,
+            complexity: 3,
+            depth: 1,
+            provider: 'openrouter',
+            model: $chosenModel,
+        );
+
+        $node = $run->pipelineNodes()->first();
+        $this->assertNotNull($node);
+
+        $job = new GeneratePipelineNodeJob((int) $node->id);
+        $job->withFakeQueueInteractions();
+        $job->handle(
+            app(ConceptRelationshipService::class),
+            app(ConceptGraphStore::class),
+            app(ConceptPipelineDispatchService::class),
+        );
+
+        Http::assertSent(function (Request $request) use ($chosenModel) {
+            return str_contains($request->url(), 'openrouter.ai')
+                && str_contains($request->url(), 'chat/completions')
+                && ($request->data()['model'] ?? null) === $chosenModel;
+        });
+
+        $this->assertAiLogsRecorded(
+            $recordedLogs,
+            $chosenModel,
+            $run->run_uuid,
+            "pipeline-node-{$node->id}-generate"
+        );
+        $node->refresh();
+        $this->assertSame(ConceptPipelineNode::STATUS_SUCCEEDED, $node->generate_status);
     }
 
     public function test_localize_command_sends_override_model_in_openrouter_payload(): void

@@ -15,6 +15,8 @@ class ConceptGraphRun extends Model
 
     public const TYPE_COMPLETE_INFO = 'complete_info';
 
+    public const TYPE_PIPELINE = 'pipeline';
+
     protected $fillable = [
         'run_uuid',
         'type',
@@ -46,6 +48,11 @@ class ConceptGraphRun extends Model
         return $this->type === self::TYPE_COMPLETE_INFO;
     }
 
+    public function isPipeline(): bool
+    {
+        return $this->type === self::TYPE_PIPELINE;
+    }
+
     public function getTargetCountAttribute(): ?int
     {
         $value = data_get($this->seeds, 'targetCount');
@@ -71,6 +78,19 @@ class ConceptGraphRun extends Model
             return "{$localeLabel} · {$mode}";
         }
 
+        if ($this->isPipeline()) {
+            $starts = data_get($this->seeds, 'starts', []);
+            $preview = is_array($starts) && $starts !== []
+                ? implode(', ', array_slice(array_map('strval', $starts), 0, 3))
+                : 'pipeline';
+            if (is_array($starts) && count($starts) > 3) {
+                $preview .= '…';
+            }
+            $depth = data_get($this->seeds, 'depth', 1);
+
+            return "{$preview} · depth {$depth}";
+        }
+
         $starts = data_get($this->seeds, 'starts', []);
         if (is_array($starts) && count($starts) > 0) {
             $preview = implode(', ', array_slice(array_map('strval', $starts), 0, 3));
@@ -87,5 +107,34 @@ class ConceptGraphRun extends Model
     public function jobs(): HasMany
     {
         return $this->hasMany(ConceptGraphRunJob::class, 'run_uuid', 'run_uuid');
+    }
+
+    public function pipelineNodes(): HasMany
+    {
+        return $this->hasMany(ConceptPipelineNode::class, 'run_uuid', 'run_uuid');
+    }
+
+    /**
+     * @return array<string, array<string, int>>
+     */
+    public function pipelineStageAggregates(): array
+    {
+        $aggregates = [];
+        foreach (ConceptPipelineNode::STAGES as $stage) {
+            $column = match ($stage) {
+                ConceptPipelineNode::STAGE_GENERATE => 'generate_status',
+                ConceptPipelineNode::STAGE_LOCALIZE => 'localize_status',
+                ConceptPipelineNode::STAGE_COMPLETE_INFO => 'complete_info_status',
+            };
+
+            $aggregates[$stage] = $this->pipelineNodes()
+                ->selectRaw("{$column} as status, count(*) as total")
+                ->groupBy($column)
+                ->pluck('total', 'status')
+                ->map(fn ($total) => (int) $total)
+                ->all();
+        }
+
+        return $aggregates;
     }
 }

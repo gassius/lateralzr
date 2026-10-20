@@ -20,7 +20,7 @@ class PrefetchConceptGraph extends Command
         {--model= : AI model (default from provider config)}
         {--queue=default : Queue name}';
 
-    protected $description = 'Prefetch an interwoven concept graph into the database (async queued jobs).';
+    protected $description = 'Deprecated: prefer concepts:generate. Prefetch an interwoven concept graph (async queued jobs).';
 
     public function handle(): int
     {

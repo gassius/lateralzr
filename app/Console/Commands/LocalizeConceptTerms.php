@@ -23,7 +23,7 @@ class LocalizeConceptTerms extends Command
         {--queue=default : Queue name for async dispatch}
         {--sync : Run inline instead of enqueueing worker jobs}';
 
-    protected $description = 'Localize existing concept terms from one locale into another (queued by default).';
+    protected $description = 'Deprecated: prefer concepts:generate. Localize existing concept terms from one locale into another (queued by default).';
 
     public function handle(ConceptLocalizeService $service, ConceptLocalizeDispatchService $dispatch): int
     {

@@ -4,9 +4,14 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\ConceptGraphRuns\ConceptGraphRunResource;
 use App\Filament\Resources\ConceptGraphRuns\Pages\ListConceptGraphRuns;
+use App\Jobs\CompleteInfoPipelineNodeJob;
+use App\Jobs\GeneratePipelineNodeJob;
+use App\Jobs\LocalizePipelineNodeJob;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptGraphRunJob;
+use App\Models\ConceptPipelineNode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\Feature\Concerns\InteractsWithFilamentAdmin;
@@ -87,11 +92,45 @@ class FilamentConceptGraphRunsAdminTest extends TestCase
         Livewire::test(ListConceptGraphRuns::class)
             ->assertActionExists('enqueueLocalize')
             ->assertActionExists('enqueuePrefetch')
+            ->assertActionExists('enqueueGenerate')
             ->mountAction('enqueueLocalize')
             ->assertActionMounted('enqueueLocalize')
             ->unmountAction()
             ->mountAction('enqueuePrefetch')
-            ->assertActionMounted('enqueuePrefetch');
+            ->assertActionMounted('enqueuePrefetch')
+            ->unmountAction()
+            ->mountAction('enqueueGenerate')
+            ->assertActionMounted('enqueueGenerate');
+    }
+
+    public function test_generate_concepts_action_enqueues_pipeline_without_batch_size(): void
+    {
+        $this->actingAsAdmin();
+        Bus::fake();
+
+        Livewire::test(ListConceptGraphRuns::class)
+            ->callAction('enqueueGenerate', [
+                'concepts' => ['origami'],
+                'random' => 0,
+                'count' => 10,
+                'complexity' => 3,
+                'depth' => 1,
+                'queue' => 'default',
+            ]);
+
+        $run = ConceptGraphRun::query()->first();
+        $this->assertNotNull($run);
+        $this->assertSame(ConceptGraphRun::TYPE_PIPELINE, $run->type);
+        $this->assertSame(3, (int) $run->complexity);
+        $this->assertSame(1, (int) data_get($run->seeds, 'depth'));
+        $this->assertArrayNotHasKey('batchSize', $run->seeds ?? []);
+        $this->assertSame(1, ConceptPipelineNode::query()->count());
+
+        Bus::assertChained([
+            GeneratePipelineNodeJob::class,
+            LocalizePipelineNodeJob::class,
+            CompleteInfoPipelineNodeJob::class,
+        ]);
     }
 
     /**
