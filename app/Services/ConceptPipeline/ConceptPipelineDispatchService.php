@@ -120,11 +120,35 @@ class ConceptPipelineDispatchService
 
     public function enqueueNodeChain(ConceptPipelineNode $node, string $queue): void
     {
-        Bus::chain([
-            new GeneratePipelineNodeJob($node->id),
-            new LocalizePipelineNodeJob($node->id),
-            new CompleteInfoPipelineNodeJob($node->id),
-        ])->onQueue($queue)->dispatch();
+        $jobs = [new GeneratePipelineNodeJob($node->id)];
+
+        $run = $node->run;
+        if ($run instanceof ConceptGraphRun) {
+            foreach ($this->targetLocales($run) as $locale) {
+                $jobs[] = new LocalizePipelineNodeJob($node->id, $locale);
+            }
+        }
+
+        $jobs[] = new CompleteInfoPipelineNodeJob($node->id);
+
+        Bus::chain($jobs)->onQueue($queue)->dispatch();
+    }
+
+    /**
+     * Locales this run will translate into (supported targets, excluding the default locale).
+     *
+     * @return list<string>
+     */
+    public function targetLocales(ConceptGraphRun $run): array
+    {
+        $locales = data_get($run->seeds, 'locales', []);
+        $locales = is_array($locales) ? array_values(array_filter($locales, 'is_string')) : [];
+        $fromLocale = ConceptLocale::default();
+
+        return array_values(array_filter(
+            $locales,
+            fn (string $locale): bool => $locale !== $fromLocale
+        ));
     }
 
     /**
@@ -256,7 +280,8 @@ class ConceptPipelineDispatchService
     }
 
     /**
-     * Keep the seed plus at most $allowedNew newly created concepts. Extra LLM labels are dropped.
+     * Keep the seed and existing related concepts for edge linking. Count only
+     * newly created concepts against $allowedNew; extra new labels are dropped.
      *
      * @param  list<array<string, mixed>>  $concepts
      * @return array{0: list<array<string, mixed>>, 1: int}
@@ -265,8 +290,8 @@ class ConceptPipelineDispatchService
     {
         $allowedNew = max(0, $allowedNew);
         $kept = [];
+        $seen = [];
         $newCount = 0;
-        $seedIncluded = false;
 
         foreach ($concepts as $concept) {
             if (! is_array($concept)) {
@@ -274,16 +299,16 @@ class ConceptPipelineDispatchService
             }
 
             $key = ConceptTerm::normalizeTerm((string) ($concept['concept'] ?? ''));
-            if ($key === '') {
+            if ($key === '' || isset($seen[$key])) {
                 continue;
             }
 
             $exists = $this->conceptAlreadyExists($key);
             $isSeed = $key === $seedKey;
 
-            if ($isSeed && ! $seedIncluded) {
+            if ($isSeed) {
                 $kept[] = $concept;
-                $seedIncluded = true;
+                $seen[$key] = true;
                 if (! $exists) {
                     $newCount++;
                 }
@@ -291,7 +316,10 @@ class ConceptPipelineDispatchService
                 continue;
             }
 
-            if ($exists || $isSeed) {
+            if ($exists) {
+                $kept[] = $concept;
+                $seen[$key] = true;
+
                 continue;
             }
 
@@ -300,6 +328,7 @@ class ConceptPipelineDispatchService
             }
 
             $kept[] = $concept;
+            $seen[$key] = true;
             $newCount++;
         }
 

@@ -8,6 +8,7 @@ use App\Ai\Support\AiRequestError;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptPipelineNode;
 use App\Services\ConceptLocalizeService;
+use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Support\ConceptLocale;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -26,11 +27,6 @@ class LocalizePipelineNodeJob implements ShouldQueue
 
     public const SOFT_DEADLINE_MARGIN_SECONDS = 60;
 
-    /**
-     * Test seam: unix timestamp used instead of time() when set.
-     */
-    public ?int $nowTimestamp = null;
-
     public bool $failOnTimeout = true;
 
     public int $tries = 3;
@@ -40,17 +36,19 @@ class LocalizePipelineNodeJob implements ShouldQueue
         return [30, 90];
     }
 
-    public function __construct(public int $nodeId) {}
+    public function __construct(public int $nodeId, public string $locale) {}
 
-    public function handle(ConceptLocalizeService $service): void
-    {
+    public function handle(
+        ConceptLocalizeService $service,
+        ConceptPipelineDispatchService $pipeline,
+    ): void {
         $node = $this->node();
         $run = $node->run;
         if (! $run instanceof ConceptGraphRun) {
             throw new RuntimeException("Pipeline run missing for node {$this->nodeId}.");
         }
 
-        $trackingKey = "pipeline-node-{$this->nodeId}-localize";
+        $trackingKey = "pipeline-node-{$this->nodeId}-localize-{$this->locale}";
 
         if (in_array($node->localize_status, [
             ConceptPipelineNode::STATUS_SKIPPED,
@@ -61,12 +59,11 @@ class LocalizePipelineNodeJob implements ShouldQueue
 
         $node->markStage(ConceptPipelineNode::STAGE_LOCALIZE, ConceptPipelineNode::STATUS_PROCESSING);
 
-        $locales = data_get($run->seeds, 'locales', []);
-        $locales = is_array($locales) ? array_values(array_filter($locales, 'is_string')) : [];
         $fromLocale = ConceptLocale::default();
-        $locales = array_values(array_filter($locales, fn (string $locale): bool => $locale !== $fromLocale));
+        $targets = $pipeline->targetLocales($run);
+        $isLast = $targets === [] || $this->locale === $targets[array_key_last($targets)];
 
-        if ($node->concept_id === null || $locales === []) {
+        if ($node->concept_id === null || $this->locale === '' || $this->locale === $fromLocale) {
             $node->markStage(
                 ConceptPipelineNode::STAGE_LOCALIZE,
                 ConceptPipelineNode::STATUS_SKIPPED,
@@ -78,60 +75,34 @@ class LocalizePipelineNodeJob implements ShouldQueue
             return;
         }
 
-        AiConfigOverride::run($run->provider, $run->model, function () use ($service, $node, $run, $fromLocale, $locales, $trackingKey): void {
-            AiRequestContext::using($run->run_uuid, $trackingKey, function () use ($service, $node, $run, $fromLocale, $locales, $trackingKey): void {
+        AiConfigOverride::run($run->provider, $run->model, function () use ($service, $node, $run, $fromLocale, $isLast, $trackingKey): void {
+            AiRequestContext::using($run->run_uuid, $trackingKey, function () use ($service, $node, $run, $fromLocale, $isLast, $trackingKey): void {
                 try {
-                    $deadlineAt = $this->now() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
-                    $completed = [];
-                    $skipped = [];
-                    $stop = false;
+                    $deadlineAt = time() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
 
-                    foreach ($locales as $toLocale) {
-                        if ($stop || $this->now() + ConceptLocalizeService::estimatedWorstCaseSeconds() >= $deadlineAt) {
-                            $skipped[] = $toLocale;
-                            $stop = true;
+                    $service->localize(
+                        fromLocale: $fromLocale,
+                        toLocale: $this->locale,
+                        limit: null,
+                        missingOnly: true,
+                        batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
+                        agent: null,
+                        conceptIds: [(int) $node->concept_id],
+                        deadlineAt: $deadlineAt,
+                    );
 
-                            continue;
-                        }
-
-                        $service->localize(
-                            fromLocale: $fromLocale,
-                            toLocale: $toLocale,
-                            limit: null,
-                            missingOnly: true,
-                            batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
-                            agent: null,
-                            conceptIds: [(int) $node->concept_id],
-                            deadlineAt: $deadlineAt,
-                        );
-                        $completed[] = $toLocale;
-                    }
-
-                    if ($completed === [] && $skipped !== []) {
-                        $message = 'Not enough time to localise before the worker timeout. Skipped locales: '.implode(', ', $locales);
+                    if ($isLast) {
                         $node->markStage(
                             ConceptPipelineNode::STAGE_LOCALIZE,
-                            ConceptPipelineNode::STATUS_FAILED,
-                            $message
+                            ConceptPipelineNode::STATUS_SUCCEEDED
                         );
-                        $node->skipPendingStages();
-                        $this->fail(new RuntimeException($message));
-
-                        return;
                     }
-
-                    $node->markStage(
-                        ConceptPipelineNode::STAGE_LOCALIZE,
-                        ConceptPipelineNode::STATUS_SUCCEEDED,
-                        $skipped === [] ? null : 'Stopped before locales ['.implode(', ', $skipped).']: not enough time before worker timeout.'
-                    );
 
                     Log::info('LocalizePipelineNodeJob succeeded', [
                         'run_uuid' => $run->run_uuid,
                         'node_id' => $node->id,
                         'job_key' => $trackingKey,
-                        'locales' => $completed,
-                        'skipped' => $skipped,
+                        'locale' => $this->locale,
                         'attempt' => $this->attempts(),
                     ]);
                 } catch (Throwable $e) {
@@ -148,6 +119,7 @@ class LocalizePipelineNodeJob implements ShouldQueue
                         'run_uuid' => $run->run_uuid,
                         'node_id' => $node->id,
                         'job_key' => $trackingKey,
+                        'locale' => $this->locale,
                         'attempt' => $this->attempts(),
                         'retryable' => $retryable,
                         'will_retry' => $willRetry,
@@ -205,10 +177,5 @@ class LocalizePipelineNodeJob implements ShouldQueue
         }
 
         return $node;
-    }
-
-    protected function now(): int
-    {
-        return $this->nowTimestamp ?? time();
     }
 }

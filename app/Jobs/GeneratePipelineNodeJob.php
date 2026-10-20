@@ -184,6 +184,7 @@ class GeneratePipelineNodeJob implements ShouldQueue
                     ]);
                 } catch (Throwable $e) {
                     if ($reserved > 0) {
+                        // Release unused reservation so retries and sibling nodes can use the budget.
                         $pipeline->settleConceptBudget($run, $reserved, 0);
                     }
 

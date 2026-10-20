@@ -8,6 +8,7 @@ use App\Jobs\LocalizePipelineNodeJob;
 use App\Models\Concept;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptPipelineNode;
+use App\Models\ConceptRelationship;
 use App\Models\ConceptTerm;
 use App\Services\ConceptCompleteInfoService;
 use App\Services\ConceptGraphStore;
@@ -16,7 +17,6 @@ use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Str;
 use Mockery;
 use Tests\TestCase;
 
@@ -291,50 +291,56 @@ class ConceptPipelineGenerateTest extends TestCase
         $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->localize_status);
         $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->complete_info_status);
 
-        (new LocalizePipelineNodeJob((int) $node->id))->handle(app(ConceptLocalizeService::class));
+        (new LocalizePipelineNodeJob((int) $node->id, 'es'))->handle(
+            app(ConceptLocalizeService::class),
+            app(ConceptPipelineDispatchService::class),
+        );
         $node->refresh();
         $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->localize_status);
     }
 
-    public function test_localize_stops_before_later_locales_when_deadline_expires(): void
+    public function test_each_locale_is_localised_on_its_own_job_and_stage_succeeds_after_the_last(): void
     {
-        $this->makeConcept('origami', 'origami');
-        $conceptId = (int) Concept::query()->where('canonical_key', 'origami')->value('id');
+        config(['concepts.supported_locales' => ['en', 'es', 'fr', 'de']]);
+        Bus::fake();
 
-        $run = ConceptGraphRun::query()->create([
-            'run_uuid' => (string) Str::uuid(),
-            'type' => ConceptGraphRun::TYPE_PIPELINE,
-            'complexity' => 3,
-            'queue' => 'default',
-            'seed_count' => 1,
-            'seeds' => [
-                'starts' => ['origami'],
-                'count' => 10,
-                'depth' => 1,
-                'locales' => ['es', 'fr', 'de'],
-            ],
-            'dispatched_at' => now(),
+        $concept = $this->makeConcept('origami', 'origami');
+        $run = app(ConceptPipelineDispatchService::class)->dispatch(
+            concepts: ['origami'],
+            count: 10,
+            depth: 1,
+            locales: ['es', 'fr', 'de'],
+        );
+        $node = $run->pipelineNodes()->first();
+        $this->assertNotNull($node);
+        $this->assertSame((int) $concept->id, (int) $node->concept_id);
+        $this->assertSame(['es', 'fr', 'de'], data_get($run->seeds, 'locales'));
+
+        $nodeId = (int) $node->id;
+        Bus::assertChained([
+            function (GeneratePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId;
+            },
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === 'es';
+            },
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === 'fr';
+            },
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === 'de';
+            },
+            function (CompleteInfoPipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId;
+            },
         ]);
-        $node = ConceptPipelineNode::query()->create([
-            'run_uuid' => $run->run_uuid,
-            'concept_id' => $conceptId,
-            'canonical_key' => 'origami',
-            'seed_term' => 'origami',
-            'depth' => 0,
-        ]);
 
-        $calls = 0;
-        $job = new LocalizePipelineNodeJob((int) $node->id);
-        $job->nowTimestamp = 1_000_000;
-        $job->timeout = 300;
-        $job->withFakeQueueInteractions();
-
+        $calls = [];
         $localize = Mockery::mock(ConceptLocalizeService::class);
         $localize->shouldReceive('localize')
-            ->once()
-            ->andReturnUsing(function () use ($job, &$calls) {
-                $calls++;
-                $job->nowTimestamp = 1_000_200;
+            ->times(3)
+            ->andReturnUsing(function (string $fromLocale, string $toLocale) use (&$calls) {
+                $calls[] = $toLocale;
 
                 return [
                     'processed' => 1,
@@ -345,14 +351,48 @@ class ConceptPipelineGenerateTest extends TestCase
                     'deferredConceptIds' => [],
                 ];
             });
+        $this->app->instance(ConceptLocalizeService::class, $localize);
 
-        $job->handle($localize);
+        $pipeline = app(ConceptPipelineDispatchService::class);
+        foreach (['es', 'fr', 'de'] as $locale) {
+            (new LocalizePipelineNodeJob($nodeId, $locale))->handle($localize, $pipeline);
+            $node->refresh();
+            if ($locale !== 'de') {
+                $this->assertSame(ConceptPipelineNode::STATUS_PROCESSING, $node->localize_status);
+            }
+        }
 
-        $this->assertSame(1, $calls);
-        $node->refresh();
+        $this->assertSame(['es', 'fr', 'de'], $calls);
         $this->assertSame(ConceptPipelineNode::STATUS_SUCCEEDED, $node->localize_status);
-        $this->assertStringContainsString('fr', (string) $node->localize_error);
-        $this->assertStringContainsString('de', (string) $node->localize_error);
+        $this->assertNull($node->localize_error);
+    }
+
+    public function test_generate_stores_edge_to_existing_related_concept(): void
+    {
+        Bus::fake();
+
+        $seed = $this->makeConcept('origami', 'origami');
+        $existing = $this->makeConcept('harbor', 'harbor');
+
+        $run = app(ConceptPipelineDispatchService::class)->dispatch(
+            concepts: ['origami'],
+            count: 10,
+            depth: 1,
+        );
+        $this->bindRelationshipServiceOnce('origami', ['harbor', 'pufferfish']);
+
+        (new GeneratePipelineNodeJob((int) $run->pipelineNodes()->first()?->id))->handle(
+            app(ConceptRelationshipService::class),
+            app(ConceptGraphStore::class),
+            app(ConceptPipelineDispatchService::class),
+        );
+
+        $this->assertSame(1, Concept::query()->where('canonical_key', 'harbor')->count());
+        $this->assertTrue(Concept::query()->where('canonical_key', 'pufferfish')->exists());
+        $this->assertSame(1, ConceptRelationship::query()
+            ->where('from_concept_id', $seed->id)
+            ->where('to_concept_id', $existing->id)
+            ->count());
     }
 
     public function test_command_rejects_labels_longer_than_255_characters(): void
