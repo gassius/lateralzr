@@ -16,6 +16,7 @@ use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Services\ConceptRelationshipService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Str;
 use Mockery;
 use Tests\TestCase;
 
@@ -200,7 +201,29 @@ class ConceptPipelineGenerateTest extends TestCase
         $this->assertSame(1, $run->pipelineNodes()->where('canonical_key', 'pufferfish')->count());
     }
 
-    public function test_run_never_creates_more_than_200_nodes(): void
+    public function test_run_never_creates_more_than_200_concepts(): void
+    {
+        $this->bindOverflowingGenerateFake();
+        $this->bindLocalizeAndCompleteFakes();
+
+        $before = Concept::query()->count();
+
+        $this->artisan('concepts:generate', [
+            '--concept' => 'seed-run',
+            '--count' => 10,
+            '--depth' => 2,
+        ])->assertSuccessful();
+
+        $created = Concept::query()->count() - $before;
+        $this->assertLessThanOrEqual(200, $created);
+        $this->assertGreaterThan(10, $created);
+
+        $run = ConceptGraphRun::query()->first();
+        $this->assertNotNull($run);
+        $this->assertLessThanOrEqual(200, (int) data_get($run->seeds, 'conceptsCreated'));
+    }
+
+    public function test_generate_persists_at_most_remaining_budget_when_fake_returns_extra(): void
     {
         Bus::fake();
 
@@ -209,30 +232,136 @@ class ConceptPipelineGenerateTest extends TestCase
             count: 10,
             depth: 2,
         );
+        $seeds = $run->seeds ?? [];
+        $seeds['conceptsCreated'] = 198;
+        $run->seeds = $seeds;
+        $run->save();
 
-        $seed = $run->pipelineNodes()->first();
-        $this->assertNotNull($seed);
-
-        for ($i = 0; $i < ConceptPipelineDispatchService::MAX_CONCEPTS - 1; $i++) {
-            ConceptPipelineNode::query()->create([
-                'run_uuid' => $run->run_uuid,
-                'parent_node_id' => $seed->id,
-                'canonical_key' => "filler-{$i}",
-                'seed_term' => "filler-{$i}",
-                'depth' => 1,
-            ]);
+        $related = [];
+        for ($i = 0; $i < 15; $i++) {
+            $related[] = "extra-{$i}";
         }
+        $this->bindRelationshipServiceOnce('origami', $related);
 
-        $this->assertSame(200, $run->pipelineNodes()->count());
-
-        $this->bindRelationshipServiceOnce('origami', ['alpha', 'beta', 'gamma']);
-        (new GeneratePipelineNodeJob((int) $seed->id))->handle(
+        $before = Concept::query()->count();
+        $job = new GeneratePipelineNodeJob((int) $run->pipelineNodes()->first()?->id);
+        $job->withFakeQueueInteractions();
+        $job->handle(
             app(ConceptRelationshipService::class),
             app(ConceptGraphStore::class),
             app(ConceptPipelineDispatchService::class),
         );
 
-        $this->assertSame(200, $run->fresh()->pipelineNodes()->count());
+        $this->assertLessThanOrEqual(2, Concept::query()->count() - $before);
+        $this->assertLessThanOrEqual(200, (int) data_get($run->fresh()->seeds, 'conceptsCreated'));
+    }
+
+    public function test_generate_soft_deadline_fails_the_job_and_does_not_run_later_stages(): void
+    {
+        Bus::fake();
+
+        $run = app(ConceptPipelineDispatchService::class)->dispatch(
+            concepts: ['origami'],
+            count: 10,
+            depth: 1,
+        );
+        $node = $run->pipelineNodes()->first();
+        $this->assertNotNull($node);
+
+        $generate = Mockery::mock(ConceptRelationshipService::class);
+        $generate->shouldReceive('generateRelationships')->never();
+        $this->app->instance(ConceptRelationshipService::class, $generate);
+
+        $localize = Mockery::mock(ConceptLocalizeService::class);
+        $localize->shouldReceive('localize')->never();
+        $this->app->instance(ConceptLocalizeService::class, $localize);
+
+        $job = new GeneratePipelineNodeJob((int) $node->id);
+        $job->timeout = 50;
+        $job->withFakeQueueInteractions();
+        $job->handle(
+            app(ConceptRelationshipService::class),
+            app(ConceptGraphStore::class),
+            app(ConceptPipelineDispatchService::class),
+        );
+        $job->assertFailed();
+
+        $node->refresh();
+        $this->assertSame(ConceptPipelineNode::STATUS_FAILED, $node->generate_status);
+        $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->localize_status);
+        $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->complete_info_status);
+
+        (new LocalizePipelineNodeJob((int) $node->id))->handle(app(ConceptLocalizeService::class));
+        $node->refresh();
+        $this->assertSame(ConceptPipelineNode::STATUS_SKIPPED, $node->localize_status);
+    }
+
+    public function test_localize_stops_before_later_locales_when_deadline_expires(): void
+    {
+        $this->makeConcept('origami', 'origami');
+        $conceptId = (int) Concept::query()->where('canonical_key', 'origami')->value('id');
+
+        $run = ConceptGraphRun::query()->create([
+            'run_uuid' => (string) Str::uuid(),
+            'type' => ConceptGraphRun::TYPE_PIPELINE,
+            'complexity' => 3,
+            'queue' => 'default',
+            'seed_count' => 1,
+            'seeds' => [
+                'starts' => ['origami'],
+                'count' => 10,
+                'depth' => 1,
+                'locales' => ['es', 'fr', 'de'],
+            ],
+            'dispatched_at' => now(),
+        ]);
+        $node = ConceptPipelineNode::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'concept_id' => $conceptId,
+            'canonical_key' => 'origami',
+            'seed_term' => 'origami',
+            'depth' => 0,
+        ]);
+
+        $calls = 0;
+        $job = new LocalizePipelineNodeJob((int) $node->id);
+        $job->nowTimestamp = 1_000_000;
+        $job->timeout = 300;
+        $job->withFakeQueueInteractions();
+
+        $localize = Mockery::mock(ConceptLocalizeService::class);
+        $localize->shouldReceive('localize')
+            ->once()
+            ->andReturnUsing(function () use ($job, &$calls) {
+                $calls++;
+                $job->nowTimestamp = 1_000_200;
+
+                return [
+                    'processed' => 1,
+                    'created' => 1,
+                    'skipped' => 0,
+                    'failed' => 0,
+                    'deferred' => 0,
+                    'deferredConceptIds' => [],
+                ];
+            });
+
+        $job->handle($localize);
+
+        $this->assertSame(1, $calls);
+        $node->refresh();
+        $this->assertSame(ConceptPipelineNode::STATUS_SUCCEEDED, $node->localize_status);
+        $this->assertStringContainsString('fr', (string) $node->localize_error);
+        $this->assertStringContainsString('de', (string) $node->localize_error);
+    }
+
+    public function test_command_rejects_labels_longer_than_255_characters(): void
+    {
+        $this->artisan('concepts:generate', [
+            '--concept' => str_repeat('a', 256),
+        ])
+            ->expectsOutputToContain('at most 255 characters')
+            ->assertFailed();
     }
 
     /**
@@ -255,6 +384,28 @@ class ConceptPipelineGenerateTest extends TestCase
             ->andReturn($this->graphPayload('origami', ['crumple zones', 'pufferfish']));
         $this->app->instance(ConceptRelationshipService::class, $generate);
 
+        $this->bindLocalizeAndCompleteFakes();
+    }
+
+    protected function bindOverflowingGenerateFake(): void
+    {
+        $n = 0;
+        $generate = Mockery::mock(ConceptRelationshipService::class);
+        $generate->shouldReceive('generateRelationships')
+            ->andReturnUsing(function (?string $start) use (&$n) {
+                $n++;
+                $related = [];
+                for ($i = 0; $i < 20; $i++) {
+                    $related[] = "g{$n}-c{$i}";
+                }
+
+                return $this->graphPayload($start ?: 'seed-run', $related);
+            });
+        $this->app->instance(ConceptRelationshipService::class, $generate);
+    }
+
+    protected function bindLocalizeAndCompleteFakes(): void
+    {
         $localize = Mockery::mock(ConceptLocalizeService::class);
         $localize->shouldReceive('localize')->andReturn([
             'processed' => 1,

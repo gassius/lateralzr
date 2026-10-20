@@ -35,8 +35,9 @@ class ListConceptGraphRuns extends ListRecords
                     TagsInput::make('concepts')
                         ->label('Starting concepts')
                         ->placeholder('e.g. Cleopatra, The Lumineers, Denver')
-                        ->helperText('One or more labels (existing or new). Leave empty and set random starts, or combine both.')
+                        ->helperText('One or more labels (existing or new). At most 255 characters each. Leave empty and set random starts, or combine both.')
                         ->separator(',')
+                        ->nestedRecursiveRules(['string', 'max:'.ConceptPipelineDispatchService::MAX_LABEL_LENGTH])
                         ->suggestions(fn () => [])
                         ->columnSpanFull(),
                     TextInput::make('random')

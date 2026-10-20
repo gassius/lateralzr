@@ -24,6 +24,13 @@ class LocalizePipelineNodeJob implements ShouldQueue
 
     public int $timeout = 300;
 
+    public const SOFT_DEADLINE_MARGIN_SECONDS = 60;
+
+    /**
+     * Test seam: unix timestamp used instead of time() when set.
+     */
+    public ?int $nowTimestamp = null;
+
     public bool $failOnTimeout = true;
 
     public int $tries = 3;
@@ -44,6 +51,14 @@ class LocalizePipelineNodeJob implements ShouldQueue
         }
 
         $trackingKey = "pipeline-node-{$this->nodeId}-localize";
+
+        if (in_array($node->localize_status, [
+            ConceptPipelineNode::STATUS_SKIPPED,
+            ConceptPipelineNode::STATUS_FAILED,
+        ], true)) {
+            return;
+        }
+
         $node->markStage(ConceptPipelineNode::STAGE_LOCALIZE, ConceptPipelineNode::STATUS_PROCESSING);
 
         $locales = data_get($run->seeds, 'locales', []);
@@ -66,7 +81,19 @@ class LocalizePipelineNodeJob implements ShouldQueue
         AiConfigOverride::run($run->provider, $run->model, function () use ($service, $node, $run, $fromLocale, $locales, $trackingKey): void {
             AiRequestContext::using($run->run_uuid, $trackingKey, function () use ($service, $node, $run, $fromLocale, $locales, $trackingKey): void {
                 try {
+                    $deadlineAt = $this->now() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
+                    $completed = [];
+                    $skipped = [];
+                    $stop = false;
+
                     foreach ($locales as $toLocale) {
+                        if ($stop || $this->now() + ConceptLocalizeService::estimatedWorstCaseSeconds() >= $deadlineAt) {
+                            $skipped[] = $toLocale;
+                            $stop = true;
+
+                            continue;
+                        }
+
                         $service->localize(
                             fromLocale: $fromLocale,
                             toLocale: $toLocale,
@@ -75,19 +102,36 @@ class LocalizePipelineNodeJob implements ShouldQueue
                             batchSize: ConceptLocalizeService::DEFAULT_BATCH_SIZE,
                             agent: null,
                             conceptIds: [(int) $node->concept_id],
+                            deadlineAt: $deadlineAt,
                         );
+                        $completed[] = $toLocale;
+                    }
+
+                    if ($completed === [] && $skipped !== []) {
+                        $message = 'Not enough time to localise before the worker timeout. Skipped locales: '.implode(', ', $locales);
+                        $node->markStage(
+                            ConceptPipelineNode::STAGE_LOCALIZE,
+                            ConceptPipelineNode::STATUS_FAILED,
+                            $message
+                        );
+                        $node->skipPendingStages();
+                        $this->fail(new RuntimeException($message));
+
+                        return;
                     }
 
                     $node->markStage(
                         ConceptPipelineNode::STAGE_LOCALIZE,
-                        ConceptPipelineNode::STATUS_SUCCEEDED
+                        ConceptPipelineNode::STATUS_SUCCEEDED,
+                        $skipped === [] ? null : 'Stopped before locales ['.implode(', ', $skipped).']: not enough time before worker timeout.'
                     );
 
                     Log::info('LocalizePipelineNodeJob succeeded', [
                         'run_uuid' => $run->run_uuid,
                         'node_id' => $node->id,
                         'job_key' => $trackingKey,
-                        'locales' => $locales,
+                        'locales' => $completed,
+                        'skipped' => $skipped,
                         'attempt' => $this->attempts(),
                     ]);
                 } catch (Throwable $e) {
@@ -161,5 +205,10 @@ class LocalizePipelineNodeJob implements ShouldQueue
         }
 
         return $node;
+    }
+
+    protected function now(): int
+    {
+        return $this->nowTimestamp ?? time();
     }
 }

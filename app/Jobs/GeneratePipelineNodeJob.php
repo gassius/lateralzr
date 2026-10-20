@@ -6,8 +6,10 @@ use App\Ai\Agents\ConceptsOnlyAgent;
 use App\Ai\Support\AiConfigOverride;
 use App\Ai\Support\AiRequestContext;
 use App\Ai\Support\AiRequestError;
+use App\Models\Concept;
 use App\Models\ConceptGraphRun;
 use App\Models\ConceptPipelineNode;
+use App\Models\ConceptTerm;
 use App\Services\ConceptGraphStore;
 use App\Services\ConceptPipeline\ConceptPipelineDispatchService;
 use App\Services\ConceptRelationshipService;
@@ -74,34 +76,44 @@ class GeneratePipelineNodeJob implements ShouldQueue
 
         AiConfigOverride::run($provider, $model, function () use ($service, $store, $pipeline, $node, $run, $count, $complexity, $trackingKey): void {
             AiRequestContext::using($run->run_uuid, $trackingKey, function () use ($service, $store, $pipeline, $node, $run, $count, $complexity, $trackingKey): void {
+                $reserved = 0;
                 try {
                     $deadlineAt = time() + max(30, $this->timeout - self::SOFT_DEADLINE_MARGIN_SECONDS);
 
                     if ($this->secondsUntilDeadline($deadlineAt) < ConceptsOnlyAgent::HTTP_TIMEOUT_SECONDS + self::PERSIST_BUDGET_SECONDS) {
-                        $node->markStage(
-                            ConceptPipelineNode::STAGE_GENERATE,
-                            ConceptPipelineNode::STATUS_FAILED,
+                        $this->failGenerate(
+                            $node,
                             'Not enough time to start the LLM before the worker timeout.'
                         );
-                        $node->skipPendingStages();
+
+                        return;
+                    }
+
+                    $reserved = $pipeline->reserveConceptBudget($run, $count);
+                    if ($reserved <= 0) {
+                        $node->markStage(
+                            ConceptPipelineNode::STAGE_GENERATE,
+                            ConceptPipelineNode::STATUS_SKIPPED,
+                            'Concept budget for this run is exhausted.'
+                        );
 
                         return;
                     }
 
                     $result = $service->generateRelationships(
                         startConcept: $node->seed_term,
-                        count: $count,
+                        count: $reserved,
                         agent: null,
                         complexity: $complexity
                     );
 
                     if ($this->secondsUntilDeadline($deadlineAt) < self::PERSIST_BUDGET_SECONDS) {
-                        $node->markStage(
-                            ConceptPipelineNode::STAGE_GENERATE,
-                            ConceptPipelineNode::STATUS_FAILED,
+                        $pipeline->settleConceptBudget($run, $reserved, 0);
+                        $reserved = 0;
+                        $this->failGenerate(
+                            $node,
                             'LLM finished too close to the worker timeout; graph was not persisted.'
                         );
-                        $node->skipPendingStages();
 
                         return;
                     }
@@ -109,14 +121,24 @@ class GeneratePipelineNodeJob implements ShouldQueue
                     $provider = AiRequestContext::lastSentProvider() ?? $run->provider;
                     $model = AiRequestContext::lastSentModel() ?? $run->model;
 
+                    [$kept] = $pipeline->limitNewConcepts(
+                        is_array($result['concepts'] ?? null) ? $result['concepts'] : [],
+                        $node->canonical_key,
+                        $reserved
+                    );
+                    $preIds = $this->existingConceptIds($kept);
+
                     $resolved = $store->storeGraph(
-                        concepts: $result['concepts'] ?? [],
+                        concepts: $kept,
                         edges: $result['edges'] ?? [],
                         complexity: (int) ($result['complexity'] ?? $complexity),
                         provider: $provider,
                         model: $model,
                         runUuid: $run->run_uuid
                     );
+                    $created = $this->countNewConcepts($resolved, $preIds);
+                    $pipeline->settleConceptBudget($run, $reserved, $created);
+                    $reserved = 0;
 
                     $seedConcept = $resolved[$node->canonical_key] ?? null;
                     if ($seedConcept === null && $node->concept_id !== null) {
@@ -161,6 +183,10 @@ class GeneratePipelineNodeJob implements ShouldQueue
                         'created' => count($createdIds),
                     ]);
                 } catch (Throwable $e) {
+                    if ($reserved > 0) {
+                        $pipeline->settleConceptBudget($run, $reserved, 0);
+                    }
+
                     $retryable = AiRequestError::isRetryable($e);
                     $willRetry = $retryable && $this->attempts() < $this->tries;
                     $mapped = AiRequestError::displayMessage(
@@ -236,6 +262,73 @@ class GeneratePipelineNodeJob implements ShouldQueue
     protected function trackingKey(): string
     {
         return "pipeline-node-{$this->nodeId}-generate";
+    }
+
+    protected function failGenerate(ConceptPipelineNode $node, string $message): void
+    {
+        $node->markStage(
+            ConceptPipelineNode::STAGE_GENERATE,
+            ConceptPipelineNode::STATUS_FAILED,
+            $message
+        );
+        $node->skipPendingStages();
+        $this->fail(new RuntimeException($message));
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $concepts
+     * @return list<int>
+     */
+    protected function existingConceptIds(array $concepts): array
+    {
+        $keys = [];
+        foreach ($concepts as $concept) {
+            $key = ConceptTerm::normalizeTerm((string) ($concept['concept'] ?? ''));
+            if ($key !== '') {
+                $keys[] = $key;
+            }
+        }
+
+        if ($keys === []) {
+            return [];
+        }
+
+        return Concept::query()
+            ->whereIn('canonical_key', $keys)
+            ->pluck('id')
+            ->merge(
+                ConceptTerm::query()
+                    ->whereIn('normalized_term', $keys)
+                    ->pluck('concept_id')
+            )
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, Concept>  $resolved
+     * @param  list<int>  $preIds
+     */
+    protected function countNewConcepts(array $resolved, array $preIds): int
+    {
+        $pre = array_fill_keys($preIds, true);
+        $seen = [];
+        $created = 0;
+
+        foreach ($resolved as $concept) {
+            $id = (int) $concept->id;
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            if (! isset($pre[$id])) {
+                $created++;
+            }
+        }
+
+        return $created;
     }
 
     protected function secondsUntilDeadline(int $deadlineAt): int

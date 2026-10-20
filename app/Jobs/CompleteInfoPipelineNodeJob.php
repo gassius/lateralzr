@@ -34,6 +34,14 @@ class CompleteInfoPipelineNodeJob implements ShouldQueue
     public function handle(ConceptCompleteInfoService $service): void
     {
         $node = $this->node();
+
+        if (in_array($node->complete_info_status, [
+            ConceptPipelineNode::STATUS_SKIPPED,
+            ConceptPipelineNode::STATUS_FAILED,
+        ], true)) {
+            return;
+        }
+
         $node->markStage(ConceptPipelineNode::STAGE_COMPLETE_INFO, ConceptPipelineNode::STATUS_PROCESSING);
 
         if ($node->concept_id === null) {

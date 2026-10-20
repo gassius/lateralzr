@@ -29,6 +29,8 @@ class ConceptPipelineDispatchService
 
     public const DEFAULT_DEPTH = 1;
 
+    public const MAX_LABEL_LENGTH = 255;
+
     /**
      * @param  list<string>  $concepts
      * @param  list<string>|null  $locales
@@ -87,6 +89,8 @@ class ConceptPipelineDispatchService
                 'random' => $random,
                 'targetCount' => $count,
                 'maxConcepts' => self::MAX_CONCEPTS,
+                'conceptsCreated' => 0,
+                'conceptsReserved' => 0,
             ],
             'related_count' => min(255, $count),
             'dispatched_at' => now(),
@@ -206,6 +210,112 @@ class ConceptPipelineDispatchService
     }
 
     /**
+     * Reserve up to $want new-concept slots for this run. Returns how many may be created.
+     */
+    public function reserveConceptBudget(ConceptGraphRun $run, int $want): int
+    {
+        $want = max(0, $want);
+        $allowed = 0;
+
+        DB::transaction(function () use ($run, $want, &$allowed): void {
+            $locked = ConceptGraphRun::query()->whereKey($run->id)->lockForUpdate()->first();
+            if (! $locked instanceof ConceptGraphRun) {
+                return;
+            }
+
+            $seeds = is_array($locked->seeds) ? $locked->seeds : [];
+            $max = (int) ($seeds['maxConcepts'] ?? self::MAX_CONCEPTS);
+            $created = (int) ($seeds['conceptsCreated'] ?? 0);
+            $reserved = (int) ($seeds['conceptsReserved'] ?? 0);
+            $remaining = max(0, $max - $created - $reserved);
+            $allowed = min($want, $remaining);
+            $seeds['maxConcepts'] = $max;
+            $seeds['conceptsCreated'] = $created;
+            $seeds['conceptsReserved'] = $reserved + $allowed;
+            $locked->seeds = $seeds;
+            $locked->save();
+        });
+
+        return $allowed;
+    }
+
+    public function settleConceptBudget(ConceptGraphRun $run, int $reserved, int $created): void
+    {
+        DB::transaction(function () use ($run, $reserved, $created): void {
+            $locked = ConceptGraphRun::query()->whereKey($run->id)->lockForUpdate()->first();
+            if (! $locked instanceof ConceptGraphRun) {
+                return;
+            }
+
+            $seeds = is_array($locked->seeds) ? $locked->seeds : [];
+            $seeds['conceptsReserved'] = max(0, (int) ($seeds['conceptsReserved'] ?? 0) - max(0, $reserved));
+            $seeds['conceptsCreated'] = (int) ($seeds['conceptsCreated'] ?? 0) + max(0, $created);
+            $locked->seeds = $seeds;
+            $locked->save();
+        });
+    }
+
+    /**
+     * Keep the seed plus at most $allowedNew newly created concepts. Extra LLM labels are dropped.
+     *
+     * @param  list<array<string, mixed>>  $concepts
+     * @return array{0: list<array<string, mixed>>, 1: int}
+     */
+    public function limitNewConcepts(array $concepts, string $seedKey, int $allowedNew): array
+    {
+        $allowedNew = max(0, $allowedNew);
+        $kept = [];
+        $newCount = 0;
+        $seedIncluded = false;
+
+        foreach ($concepts as $concept) {
+            if (! is_array($concept)) {
+                continue;
+            }
+
+            $key = ConceptTerm::normalizeTerm((string) ($concept['concept'] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+
+            $exists = $this->conceptAlreadyExists($key);
+            $isSeed = $key === $seedKey;
+
+            if ($isSeed && ! $seedIncluded) {
+                $kept[] = $concept;
+                $seedIncluded = true;
+                if (! $exists) {
+                    $newCount++;
+                }
+
+                continue;
+            }
+
+            if ($exists || $isSeed) {
+                continue;
+            }
+
+            if ($newCount >= $allowedNew) {
+                continue;
+            }
+
+            $kept[] = $concept;
+            $newCount++;
+        }
+
+        return [$kept, $newCount];
+    }
+
+    public function conceptAlreadyExists(string $canonicalKey): bool
+    {
+        if (Concept::query()->where('canonical_key', $canonicalKey)->exists()) {
+            return true;
+        }
+
+        return ConceptTerm::query()->where('normalized_term', $canonicalKey)->exists();
+    }
+
+    /**
      * @param  list<string>  $concepts
      * @return list<array{seed_term: string, canonical_key: string, concept_id: int|null}>
      */
@@ -218,6 +328,12 @@ class ConceptPipelineDispatchService
             $label = trim((string) $raw);
             if ($label === '') {
                 continue;
+            }
+
+            if (mb_strlen($label) > self::MAX_LABEL_LENGTH) {
+                throw new InvalidArgumentException(
+                    'Starting concept labels must be at most '.self::MAX_LABEL_LENGTH.' characters.'
+                );
             }
 
             $canonical = ConceptTerm::normalizeTerm($label);
