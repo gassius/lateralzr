@@ -197,7 +197,7 @@ class ConceptPipelineDispatchService
                 }
 
                 $locked->resetStage($candidate);
-                $jobs[] = $this->jobForStage($locked, $candidate);
+                array_push($jobs, ...$this->jobsForStage($locked, $run, $candidate));
             }
 
             return [
@@ -213,12 +213,18 @@ class ConceptPipelineDispatchService
         Bus::chain($payload['jobs'])->onQueue($payload['queue'])->dispatch();
     }
 
-    protected function jobForStage(ConceptPipelineNode $node, string $stage): GeneratePipelineNodeJob|LocalizePipelineNodeJob|CompleteInfoPipelineNodeJob
+    /**
+     * @return list<GeneratePipelineNodeJob|LocalizePipelineNodeJob|CompleteInfoPipelineNodeJob>
+     */
+    protected function jobsForStage(ConceptPipelineNode $node, ConceptGraphRun $run, string $stage): array
     {
         return match ($stage) {
-            ConceptPipelineNode::STAGE_GENERATE => new GeneratePipelineNodeJob($node->id),
-            ConceptPipelineNode::STAGE_LOCALIZE => new LocalizePipelineNodeJob($node->id),
-            ConceptPipelineNode::STAGE_COMPLETE_INFO => new CompleteInfoPipelineNodeJob($node->id),
+            ConceptPipelineNode::STAGE_GENERATE => [new GeneratePipelineNodeJob($node->id)],
+            ConceptPipelineNode::STAGE_LOCALIZE => array_map(
+                fn (string $locale): LocalizePipelineNodeJob => new LocalizePipelineNodeJob($node->id, $locale),
+                $this->targetLocales($run)
+            ),
+            ConceptPipelineNode::STAGE_COMPLETE_INFO => [new CompleteInfoPipelineNodeJob($node->id)],
             default => throw new InvalidArgumentException("Unknown pipeline stage [{$stage}]."),
         };
     }

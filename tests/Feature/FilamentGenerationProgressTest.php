@@ -200,7 +200,7 @@ class FilamentGenerationProgressTest extends TestCase
             'complexity' => 3,
             'queue' => 'default',
             'seed_count' => 1,
-            'seeds' => ['starts' => ['origami'], 'depth' => 1, 'count' => 10],
+            'seeds' => ['starts' => ['origami'], 'depth' => 1, 'count' => 10, 'locales' => ['es']],
             'dispatched_at' => now(),
         ]);
     }
