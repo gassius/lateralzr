@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\ConceptGraphRuns\Tables;
 
+use App\Filament\Pages\GenerationProgress;
+use App\Models\ConceptGraphRun;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -97,6 +100,10 @@ class ConceptGraphRunsTable
                     ]),
             ])
             ->recordActions([
+                Action::make('generationProgress')
+                    ->label('Progress')
+                    ->url(fn (ConceptGraphRun $record): string => GenerationProgress::getUrl(['record' => $record]))
+                    ->visible(fn (ConceptGraphRun $record): bool => $record->isPipeline()),
                 ViewAction::make(),
             ])
             ->defaultSort('dispatched_at', 'desc');
