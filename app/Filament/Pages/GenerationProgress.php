@@ -84,7 +84,7 @@ class GenerationProgress extends Page
             ->modalHeading('Retry this stage?')
             ->modalDescription('Re-queues only this node and stage. Later skipped stages on the same node are reset so the chain can continue.')
             ->successNotificationTitle('Stage re-queued')
-            ->action(function (array $arguments): void {
+            ->action(function (array $arguments, Action $action): void {
                 $nodeId = (int) ($arguments['nodeId'] ?? 0);
                 $stage = (string) ($arguments['stage'] ?? '');
 
@@ -101,6 +101,9 @@ class GenerationProgress extends Page
                         ->body($e->getMessage())
                         ->danger()
                         ->send();
+
+                    $action->failure();
+                    $action->halt();
                 }
             });
     }

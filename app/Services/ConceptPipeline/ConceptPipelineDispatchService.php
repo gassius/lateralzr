@@ -166,41 +166,51 @@ class ConceptPipelineDispatchService
             throw new InvalidArgumentException("Unknown pipeline stage [{$stage}].");
         }
 
-        if ($node->statusFor($stage) !== ConceptPipelineNode::STATUS_FAILED) {
-            throw new InvalidArgumentException('Only failed pipeline stages can be retried.');
-        }
+        $payload = DB::transaction(function () use ($node, $stage, $stageIndex): array {
+            $locked = ConceptPipelineNode::query()
+                ->lockForUpdate()
+                ->findOrFail($node->id);
 
-        $run = $node->run;
-        if (! $run instanceof ConceptGraphRun) {
-            throw new InvalidArgumentException('Pipeline run missing for this node.');
-        }
-
-        $queue = (string) ($run->queue ?: 'default');
-        $jobs = [];
-
-        foreach (ConceptPipelineNode::STAGES as $index => $candidate) {
-            if ($index < $stageIndex) {
-                continue;
+            if ($locked->statusFor($stage) !== ConceptPipelineNode::STATUS_FAILED) {
+                throw new InvalidArgumentException('Only failed pipeline stages can be retried.');
             }
 
-            $status = $node->statusFor($candidate);
-
-            if ($index > $stageIndex && ! in_array($status, [
-                ConceptPipelineNode::STATUS_SKIPPED,
-                ConceptPipelineNode::STATUS_PENDING,
-            ], true)) {
-                break;
+            $run = $locked->run;
+            if (! $run instanceof ConceptGraphRun) {
+                throw new InvalidArgumentException('Pipeline run missing for this node.');
             }
 
-            $node->resetStage($candidate);
-            $jobs[] = $this->jobForStage($node, $candidate);
-        }
+            $jobs = [];
 
-        if ($jobs === []) {
+            foreach (ConceptPipelineNode::STAGES as $index => $candidate) {
+                if ($index < $stageIndex) {
+                    continue;
+                }
+
+                $status = $locked->statusFor($candidate);
+
+                if ($index > $stageIndex && ! in_array($status, [
+                    ConceptPipelineNode::STATUS_SKIPPED,
+                    ConceptPipelineNode::STATUS_PENDING,
+                ], true)) {
+                    break;
+                }
+
+                $locked->resetStage($candidate);
+                $jobs[] = $this->jobForStage($locked, $candidate);
+            }
+
+            return [
+                'jobs' => $jobs,
+                'queue' => (string) ($run->queue ?: 'default'),
+            ];
+        });
+
+        if ($payload['jobs'] === []) {
             return;
         }
 
-        Bus::chain($jobs)->onQueue($queue)->dispatch();
+        Bus::chain($payload['jobs'])->onQueue($payload['queue'])->dispatch();
     }
 
     protected function jobForStage(ConceptPipelineNode $node, string $stage): GeneratePipelineNodeJob|LocalizePipelineNodeJob|CompleteInfoPipelineNodeJob

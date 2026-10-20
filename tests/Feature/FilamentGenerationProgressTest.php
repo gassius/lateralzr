@@ -118,6 +118,29 @@ class FilamentGenerationProgressTest extends TestCase
         Bus::assertNotDispatched(GeneratePipelineNodeJob::class);
     }
 
+    public function test_rejected_retry_does_not_send_success_notification(): void
+    {
+        $this->actingAsAdmin();
+        Bus::fake();
+
+        $run = $this->makePipelineRun();
+        $node = $this->makeNode($run, [
+            'canonical_key' => 'origami',
+            'seed_term' => 'origami',
+            'depth' => 0,
+            'generate_status' => ConceptPipelineNode::STATUS_SUCCEEDED,
+            'localize_status' => ConceptPipelineNode::STATUS_PENDING,
+            'complete_info_status' => ConceptPipelineNode::STATUS_PENDING,
+        ]);
+
+        Livewire::test(GenerationProgress::class, ['record' => $run->getKey()])
+            ->callAction(TestAction::make('retryStage')->arguments([
+                'nodeId' => $node->id,
+                'stage' => ConceptPipelineNode::STAGE_GENERATE,
+            ]))
+            ->assertNotNotified('Stage re-queued');
+    }
+
     public function test_worker_runs_keeps_view_and_links_pipeline_runs_to_progress(): void
     {
         $this->actingAsAdmin();

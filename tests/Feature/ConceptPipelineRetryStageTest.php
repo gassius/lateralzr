@@ -134,6 +134,40 @@ class ConceptPipelineRetryStageTest extends TestCase
         app(ConceptPipelineDispatchService::class)->retryStage($node, ConceptPipelineNode::STAGE_GENERATE);
     }
 
+    public function test_retry_twice_with_a_stale_node_dispatches_exactly_one_chain(): void
+    {
+        Bus::fake();
+
+        $run = $this->makePipelineRun();
+        $node = ConceptPipelineNode::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'canonical_key' => 'origami',
+            'seed_term' => 'origami',
+            'depth' => 0,
+            'generate_status' => ConceptPipelineNode::STATUS_FAILED,
+            'generate_error' => 'LLM exploded',
+            'localize_status' => ConceptPipelineNode::STATUS_SKIPPED,
+            'complete_info_status' => ConceptPipelineNode::STATUS_SKIPPED,
+        ]);
+
+        $stale = $node->fresh();
+
+        app(ConceptPipelineDispatchService::class)->retryStage($node, ConceptPipelineNode::STAGE_GENERATE);
+
+        try {
+            app(ConceptPipelineDispatchService::class)->retryStage($stale, ConceptPipelineNode::STAGE_GENERATE);
+            $this->fail('Expected a stale retry to be rejected.');
+        } catch (InvalidArgumentException) {
+        }
+
+        Bus::assertDispatchedTimes(GeneratePipelineNodeJob::class, 1);
+        Bus::assertChained([
+            GeneratePipelineNodeJob::class,
+            LocalizePipelineNodeJob::class,
+            CompleteInfoPipelineNodeJob::class,
+        ]);
+    }
+
     protected function makePipelineRun(): ConceptGraphRun
     {
         return ConceptGraphRun::query()->create([
