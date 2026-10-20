@@ -222,7 +222,7 @@ class ConceptPipelineDispatchService
             ConceptPipelineNode::STAGE_GENERATE => [new GeneratePipelineNodeJob($node->id)],
             ConceptPipelineNode::STAGE_LOCALIZE => array_map(
                 fn (string $locale): LocalizePipelineNodeJob => new LocalizePipelineNodeJob($node->id, $locale),
-                $this->targetLocales($run)
+                $this->targetLocales($run) ?: ['']
             ),
             ConceptPipelineNode::STAGE_COMPLETE_INFO => [new CompleteInfoPipelineNodeJob($node->id)],
             default => throw new InvalidArgumentException("Unknown pipeline stage [{$stage}]."),

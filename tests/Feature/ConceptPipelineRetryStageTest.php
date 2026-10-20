@@ -59,7 +59,7 @@ class ConceptPipelineRetryStageTest extends TestCase
     {
         Bus::fake();
 
-        $run = $this->makePipelineRun();
+        $run = $this->makePipelineRun(['es', 'fr']);
         $node = ConceptPipelineNode::query()->create([
             'run_uuid' => $run->run_uuid,
             'canonical_key' => 'origami',
@@ -78,9 +78,47 @@ class ConceptPipelineRetryStageTest extends TestCase
         $this->assertSame(ConceptPipelineNode::STATUS_PENDING, $node->localize_status);
         $this->assertSame(ConceptPipelineNode::STATUS_PENDING, $node->complete_info_status);
 
+        $nodeId = (int) $node->id;
         Bus::assertChained([
-            LocalizePipelineNodeJob::class,
-            CompleteInfoPipelineNodeJob::class,
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === 'es';
+            },
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === 'fr';
+            },
+            function (CompleteInfoPipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId;
+            },
+        ]);
+        Bus::assertNotDispatched(GeneratePipelineNodeJob::class);
+    }
+
+    public function test_retry_localize_with_empty_target_locales_chains_one_empty_locale_job(): void
+    {
+        Bus::fake();
+
+        $run = $this->makePipelineRun([]);
+        $node = ConceptPipelineNode::query()->create([
+            'run_uuid' => $run->run_uuid,
+            'canonical_key' => 'origami',
+            'seed_term' => 'origami',
+            'depth' => 0,
+            'generate_status' => ConceptPipelineNode::STATUS_SUCCEEDED,
+            'localize_status' => ConceptPipelineNode::STATUS_FAILED,
+            'localize_error' => 'translate failed',
+            'complete_info_status' => ConceptPipelineNode::STATUS_SKIPPED,
+        ]);
+
+        app(ConceptPipelineDispatchService::class)->retryStage($node, ConceptPipelineNode::STAGE_LOCALIZE);
+
+        $nodeId = (int) $node->id;
+        Bus::assertChained([
+            function (LocalizePipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId && $job->locale === '';
+            },
+            function (CompleteInfoPipelineNodeJob $job) use ($nodeId): bool {
+                return $job->nodeId === $nodeId;
+            },
         ]);
         Bus::assertNotDispatched(GeneratePipelineNodeJob::class);
     }
@@ -168,7 +206,10 @@ class ConceptPipelineRetryStageTest extends TestCase
         ]);
     }
 
-    protected function makePipelineRun(): ConceptGraphRun
+    /**
+     * @param  list<string>  $locales
+     */
+    protected function makePipelineRun(array $locales = ['es']): ConceptGraphRun
     {
         return ConceptGraphRun::query()->create([
             'run_uuid' => (string) Str::uuid(),
@@ -176,7 +217,7 @@ class ConceptPipelineRetryStageTest extends TestCase
             'complexity' => 3,
             'queue' => 'default',
             'seed_count' => 1,
-            'seeds' => ['starts' => ['origami'], 'depth' => 1, 'count' => 10, 'locales' => ['es']],
+            'seeds' => ['starts' => ['origami'], 'depth' => 1, 'count' => 10, 'locales' => $locales],
             'dispatched_at' => now(),
         ]);
     }
