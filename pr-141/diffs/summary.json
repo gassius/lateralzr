@@ -1,5 +1,62 @@
 [
   {
+    "file": "accessible-nav_focus-button_390x844_en.png",
+    "ratio": 0.008183710049823795,
+    "percent": 0.8183710049823795,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 10775
+  },
+  {
+    "file": "accessible-nav_focus-card_390x844_en.png",
+    "ratio": 0.008183710049823795,
+    "percent": 0.8183710049823795,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 10775
+  },
+  {
+    "file": "accessible-nav_row_390x844_en.png",
+    "ratio": 0.008183710049823795,
+    "percent": 0.8183710049823795,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 10775
+  },
+  {
+    "file": "accessible-nav_row-200_390x844_en.png",
+    "ratio": 0.0281337343541135,
+    "percent": 2.81337343541135,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 37042,
+    "diffImage": "accessible-nav_row-200_390x844_en.diff.png"
+  },
+  {
+    "file": "app-menu_complexity-picker_390x844_en.png",
+    "ratio": 0.005719862680763155,
+    "percent": 0.5719862680763155,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 7531
+  },
+  {
+    "file": "app-menu_motion-picker_390x844_en.png",
+    "ratio": 0.007961933406246203,
+    "percent": 0.7961933406246202,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 10483
+  },
+  {
+    "file": "app-menu_open_390x844_en.png",
+    "ratio": 0.007908767772511848,
+    "percent": 0.7908767772511849,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 10413
+  },
+  {
     "file": "card-back_no-description_390x844_en.png",
     "ratio": 0.001327621825252157,
     "percent": 0.13276218252521568,
