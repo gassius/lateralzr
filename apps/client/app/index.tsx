@@ -59,6 +59,7 @@ import {
   persistMotionPreference,
   type MotionPreference,
 } from '@/lib/motionStorage';
+import { useAppFontsReady } from '@/hooks/appFontsContext';
 import { remainingIntroMs } from '@/lib/introLogo';
 import {
   clampLaterality,
@@ -123,6 +124,7 @@ function firstSearchParam(value: string | string[] | undefined): string | undefi
 }
 
 export default function HomeScreen() {
+  const fontsReady = useAppFontsReady();
   const insets = useSafeAreaInsets();
   const routeParams = useLocalSearchParams<{ complexity?: string | string[] }>();
   const routeComplexity = parseComplexityParam(firstSearchParam(routeParams.complexity));
@@ -327,12 +329,14 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Hold the brand logo for one full pulse cycle even when the API is fast.
+  // Hold the brand logo until Inter is in, then one full pulse cycle (§5.2).
   useEffect(() => {
+    if (!fontsReady) return;
+    introStartedAtRef.current = Date.now();
     const remaining = remainingIntroMs(introStartedAtRef.current, Date.now());
     const timer = setTimeout(() => setIntroGateOpen(true), remaining);
     return () => clearTimeout(timer);
-  }, []);
+  }, [fontsReady]);
 
   const fetchBatch = useCallback(
     async (
@@ -1040,6 +1044,7 @@ export default function HomeScreen() {
   // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
   // After the intro gate opens, a still-empty deck uses the quiet silhouette (not more logo).
   const showIntroLogo =
+    !fontsReady ||
     !complexityHydrated ||
     !lateralityHydrated ||
     !localeReady ||

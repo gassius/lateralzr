@@ -105,11 +105,13 @@ test('title clear area and top ratio match pattern-master / Critiquito anchor', 
   assert.ok(CONCEPT_FRONT_TITLE_TOP_RATIO < 0.52);
 });
 
-test('measure font stack matches RN Web System (not bare system-ui)', () => {
-  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Segoe UI/);
-  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Roboto/);
-  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Arial/);
+test('measure font stack is bundled Inter 700 (not system sans)', () => {
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Inter_700Bold/);
+  assert.match(CONCEPT_FRONT_TITLE_FONT_STACK, /Inter/);
+  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('Roboto'), false);
+  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('Segoe UI'), false);
   assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('system-ui'), false);
+  assert.equal(CONCEPT_FRONT_TITLE_FONT_STACK.includes('-apple-system'), false);
 });
 
 test('wraps at spaces with trailing space before newline (M1)', () => {

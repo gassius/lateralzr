@@ -25,7 +25,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { ConceptItem } from '@/lib/api';
 import { color, layout } from '@/theme/tokens';
-import { textStyle } from '@/theme/typography';
+import { fontFamilyForWeight, textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_MEDIA_CONTENT_FIT,
@@ -39,9 +39,11 @@ import {
   CARD_BACK_MEDIA_DECODE_TIMEOUT_MS,
   CARD_BACK_MEDIA_FADE_IN_MS,
   CARD_BACK_MEDIA_SEAM_OVERLAP,
+  resolveCardBackCoverPosition,
   resolveCardBackMediaBand,
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
+  resolveCardBackMediaPaintSpec,
   resolveContainMediaBox,
   resolveInformativeAlt,
 } from '@/lib/cardBackMedia';
@@ -59,10 +61,12 @@ import {
   CARD_SHADOW,
   cardPadding,
   cardRadius,
+  cardShadowStyle,
 } from '@/lib/cardLayout';
 import { conceptKey } from '@/lib/conceptDeck';
 import {
   CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
+  CONCEPT_FRONT_TITLE_FONT_FAMILY,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
   CONCEPT_FRONT_TITLE_LINE_HEIGHT_RATIO,
@@ -106,18 +110,6 @@ const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 function capitalizeFirstLetter(text: string) {
   if (!text.length) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function coverContentPosition(
-  focalX?: number | null,
-  focalY?: number | null,
-): typeof CARD_BACK_MEDIA_CONTENT_POSITION | { left: string; top: string } {
-  const hasX = typeof focalX === 'number' && Number.isFinite(focalX);
-  const hasY = typeof focalY === 'number' && Number.isFinite(focalY);
-  if (!hasX && !hasY) return CARD_BACK_MEDIA_CONTENT_POSITION;
-  const x = hasX ? Math.min(1, Math.max(0, focalX as number)) : 0.5;
-  const y = hasY ? Math.min(1, Math.max(0, focalY as number)) : 0.5;
-  return { left: `${Math.round(x * 100)}%`, top: `${Math.round(y * 100)}%` };
 }
 
 type ConceptCardProps = {
@@ -600,6 +592,7 @@ export function ConceptCard({
                 styles.nativeTitleProbe,
                 {
                   fontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
+                  fontFamily: CONCEPT_FRONT_TITLE_FONT_FAMILY,
                   fontWeight: frontTitleBaseStyle.fontWeight,
                 },
               ]}
@@ -635,9 +628,10 @@ export function ConceptCard({
             style={[
               styles.conceptNameFront,
               {
-                // Web: pin the same stack measureConceptFrontTitleWidth uses (RN Web System).
-                // Native: leave unset so the platform system sans applies.
-                ...(Platform.OS === 'web' ? { fontFamily: CONCEPT_FRONT_TITLE_FONT_STACK } : null),
+                fontFamily:
+                  Platform.OS === 'web'
+                    ? CONCEPT_FRONT_TITLE_FONT_STACK
+                    : CONCEPT_FRONT_TITLE_FONT_FAMILY,
                 fontSize: displayFontSize,
                 lineHeight: displayLineHeight,
                 fontWeight: frontTitleBaseStyle.fontWeight,
@@ -721,7 +715,15 @@ export function ConceptCard({
         ? bandHeight
         : Math.max(0, bandHeight - CARD_BACK_MEDIA_SEAM_OVERLAP)
       : 0;
-  const coverPosition = coverContentPosition(creditedMedia?.focalX, creditedMedia?.focalY);
+  const coverPosition = resolveCardBackCoverPosition(
+    creditedMedia?.focalX,
+    creditedMedia?.focalY,
+  );
+  const mediaPaint = resolveCardBackMediaPaintSpec({
+    contentFit,
+    bandHeight,
+    fade,
+  });
   const imageTransition = reduceMotion ? 0 : CARD_BACK_MEDIA_FADE_IN_MS;
   const containBox =
     contentFit === 'contain' &&
@@ -977,13 +979,6 @@ export function ConceptCard({
   const showVisibleMediaImage = Boolean(
     showMediaLayer && backLayout.showMediaImage && imageSource,
   );
-  const showMediaDecoder = Boolean(
-    Platform.OS !== 'web' &&
-      mediaUri.length > 0 &&
-      imageSource &&
-      !showVisibleMediaImage &&
-      !mediaError,
-  );
 
   const backMediaLayer =
     showMediaLayer && imageSource ? (
@@ -1000,15 +995,26 @@ export function ConceptCard({
                 mediaFit: contentFit,
                 mediaFitReason: fitPlan.reason,
                 mediaFade: fade.kind,
+                mediaRepeat: mediaPaint.repeat,
               },
             } as Record<string, unknown>)
           : null)}
       >
-        {showVisibleMediaImage ? (
-          contentFit === 'contain' ? (
+        <View
+          style={[
+            styles.mediaImageClip,
+            {
+              height:
+                mediaPaint.imageClipHeight > 0 ? mediaPaint.imageClipHeight : '100%',
+            },
+          ]}
+          collapsable={false}
+          testID="card-back-media-image"
+        >
+          {contentFit === 'contain' ? (
             <Image
               source={imageSource}
-              style={
+              style={[
                 containBox != null && containBox.width > 0
                   ? {
                       position: 'absolute',
@@ -1017,8 +1023,9 @@ export function ConceptCard({
                       left: containBox.left,
                       top: containBox.top,
                     }
-                  : styles.mediaContainPending
-              }
+                  : styles.mediaContainPending,
+                { opacity: showVisibleMediaImage ? 1 : 0 },
+              ]}
               contentFit="contain"
               contentPosition={CARD_BACK_MEDIA_CONTENT_POSITION}
               cachePolicy="memory-disk"
@@ -1035,7 +1042,7 @@ export function ConceptCard({
           ) : (
             <Image
               source={imageSource}
-              style={StyleSheet.absoluteFill}
+              style={[StyleSheet.absoluteFill, { opacity: showVisibleMediaImage ? 1 : 0 }]}
               contentFit={CARD_BACK_MEDIA_CONTENT_FIT}
               contentPosition={coverPosition}
               cachePolicy="memory-disk"
@@ -1049,8 +1056,8 @@ export function ConceptCard({
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             />
-          )
-        ) : null}
+          )}
+        </View>
         {fade.kind !== 'none' && fade.height > 0 ? (
           <View
             style={[styles.mediaFade, { top: fade.startY, height: fade.height }]}
@@ -1190,26 +1197,13 @@ export function ConceptCard({
       accessibilityHint={accessibilityHint}
       accessible={accessibilityHint != null ? true : undefined}
     >
-      {showMediaDecoder ? (
-        <Image
-          source={imageSource}
-          style={styles.mediaDecoder}
-          contentFit="contain"
-          cachePolicy="memory-disk"
-          recyclingKey={`${mediaUri}-decoder`}
-          priority="high"
-          transition={0}
-          testID="card-back-media-decoder"
-          onLoad={onMediaLoad}
-          onError={() => {
-            setMediaError(true);
-          }}
-          pointerEvents="none"
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        />
-      ) : null}
-      <View style={[styles.face, { borderRadius: radius }, CARD_SHADOW]}>
+      <View
+        style={[
+          styles.face,
+          { borderRadius: radius },
+          Platform.OS === 'android' ? cardShadowStyle('android') : CARD_SHADOW,
+        ]}
+      >
         <View style={styles.flipRoot}>
           <Animated.View
             style={[styles.faceSide, styles.faceFront, frontFaceStyle]}
@@ -1252,20 +1246,13 @@ const styles = StyleSheet.create({
     opacity: 0,
     zIndex: 0,
   },
-  /**
-   * Off-screen decoder. Unmounted once the visible back image is showing so
-   * native never has two expo-image views of the same URI (Lz-55). 1×1 so the
-   * native/web loader actually runs (0×0 can skip decode and miss onError).
-   */
-  mediaDecoder: {
+  /** Clip the single painting so overflow cannot paint a second strip below the fade. */
+  mediaImageClip: {
     position: 'absolute',
-    width: 1,
-    height: 1,
-    opacity: 0,
-    overflow: 'hidden',
-    left: -4096,
     top: 0,
-    zIndex: 0,
+    left: 0,
+    right: 0,
+    overflow: 'hidden',
   },
   face: {
     flex: 1,
@@ -1424,6 +1411,7 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 16,
     color: color.ink,
+    fontFamily: fontFamilyForWeight('700'),
     fontWeight: '700',
     textDecorationLine: 'underline',
   },

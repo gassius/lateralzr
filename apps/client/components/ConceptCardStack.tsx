@@ -1341,7 +1341,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     if (!showInitialLoading) return null;
     return (
       <View
-        style={[styles.outer, { paddingTop: cardLayout.topSurplus }]}
+        style={[
+          styles.outer,
+          { minHeight: availableHeight, paddingTop: cardLayout.topSurplus },
+        ]}
         onLayout={(e) => {
           setContainerW(e.nativeEvent.layout.width);
         }}
@@ -1385,7 +1388,10 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
   return (
     <View
-      style={[styles.outer, { paddingTop: cardLayout.topSurplus }]}
+      style={[
+        styles.outer,
+        { minHeight: availableHeight, paddingTop: cardLayout.topSurplus },
+      ]}
       onLayout={(e) => {
         setContainerW(e.nativeEvent.layout.width);
       }}

@@ -1,4 +1,4 @@
-import { color, type } from '../theme/tokens';
+import { color, font, type } from '../theme/tokens';
 
 /**
  * Card-front concept title (Lz-26 / Art Direction v3.3 §7.3 + §6.1).
@@ -37,15 +37,16 @@ export const CONCEPT_FRONT_TITLE_HYPHEN = '-';
 export const CONCEPT_FRONT_TITLE_BOTTOM_RESERVE = 48;
 
 /**
- * RN Web `Text` default (`font: '14px System'` → createReactDOMStyle SYSTEM_FONT_STACK).
- * Must match the rendered title face — not bare `system-ui`, which over-measures on CI.
+ * Bundled Inter 700 — same family name expo-font registers on native and web.
+ * CSS stack keeps a generic sans fallback only while the face is still loading.
  */
-export const CONCEPT_FRONT_TITLE_FONT_STACK =
-  '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+export const CONCEPT_FRONT_TITLE_FONT_FAMILY = font.family.bold;
+
+export const CONCEPT_FRONT_TITLE_FONT_STACK = `${font.family.bold}, Inter, sans-serif`;
 
 /**
  * Fallback advance when DOM/canvas measure is unavailable.
- * Calibrated to Liberation Sans Bold (~231 px for "extraordinariamente" at 24).
+ * Calibrated to Inter Bold (~231 px for "extraordinariamente" at 24).
  */
 export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.51;
 
