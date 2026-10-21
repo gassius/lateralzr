@@ -5,6 +5,7 @@ import { contrastRatio } from '../theme/contrast.ts';
 import { color, type } from '../theme/tokens.ts';
 import {
   CONCEPT_FRONT_TITLE_BOTTOM_RESERVE,
+  CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO,
   CONCEPT_FRONT_TITLE_COLOR,
   CONCEPT_FRONT_TITLE_FONT_SIZE,
   CONCEPT_FRONT_TITLE_FONT_STACK,
@@ -162,8 +163,14 @@ test('phrase prefers space wraps; long token can hyphenate at 24', () => {
   assert.ok(layout.displayText.includes(CONCEPT_FRONT_TITLE_HYPHEN));
 });
 
+test('fallback ratio is Inter Bold extraordinariamente at 24', () => {
+  assert.equal(CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO, 0.527);
+  const measured = 19 * 24 * CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO;
+  assert.ok(measured > 240 && measured < 241);
+});
+
 test('word that fits above 24 is not forced to the floor (extraordinariamente)', () => {
-  // Art director: ~231 px at 24 vs ~253 content → largest fitting size is 26.
+  // Synthetic measure for the size loop (not the Inter Bold pin above).
   const fits = (text: string, fontSize: number) => {
     if (text === 'extraordinariamente') return 231 * (fontSize / 24);
     return text.length * fontSize * 0.51;

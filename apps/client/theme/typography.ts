@@ -75,6 +75,29 @@ export function fontFamilyForWeight(weight?: TextStyle['fontWeight']): string {
 }
 
 /**
+ * True on web, where CSS `font-weight` can sit next to a named face.
+ * Native synthesizes a second bold if both are set — omit weight there.
+ * Unit tests run under tsx (no `document`) and follow the native path.
+ * Do not import `Platform` here — tsx tests cannot load react-native.
+ */
+export function includeCssFontWeight(): boolean {
+  return typeof document !== 'undefined';
+}
+
+/**
+ * Named Inter face. Sets `fontFamily` always; adds `fontWeight` on web only.
+ */
+export function namedFaceStyle(
+  weight?: TextStyle['fontWeight'],
+): Pick<TextStyle, 'fontFamily' | 'fontWeight'> {
+  const resolved = weight ?? '400';
+  if (includeCssFontWeight()) {
+    return { fontFamily: fontFamilyForWeight(resolved), fontWeight: resolved };
+  }
+  return { fontFamily: fontFamilyForWeight(resolved) };
+}
+
+/**
  * Web E2E only: `?e2eTextScale=2` multiplies fontSize and lineHeight together
  * (same joint scale RN applies natively). Ignored in product use / native.
  */
@@ -106,8 +129,7 @@ export function textStyle(role: TypeRole, options: TextStyleOptions = {}): TextS
 
   return {
     fontSize,
-    fontWeight,
-    fontFamily: fontFamilyForWeight(fontWeight),
     lineHeight,
+    ...namedFaceStyle(fontWeight),
   };
 }

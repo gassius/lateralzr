@@ -160,8 +160,6 @@ const styles = StyleSheet.create({
   },
   glyph: {
     color: color.paper,
-    fontSize: 14,
-    lineHeight: 18,
     textAlign: 'center',
     flexShrink: 0,
   },

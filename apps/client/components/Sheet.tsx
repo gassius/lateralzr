@@ -38,7 +38,7 @@ import {
 } from '@/lib/sheetTitle';
 import { t } from '@/lib/i18n';
 import { color, layout, shadow } from '@/theme/tokens';
-import { fontFamilyForWeight, textStyle } from '@/theme/typography';
+import { namedFaceStyle, textStyle } from '@/theme/typography';
 
 export type SheetProps = {
   visible: boolean;
@@ -398,7 +398,9 @@ export function Sheet({
                   {
                     fontSize: titleFontSize,
                     lineHeight: titleLineHeight,
-                    fontWeight: titleBaseStyle.fontWeight,
+                    ...(Platform.OS === 'web'
+                      ? { fontWeight: titleBaseStyle.fontWeight }
+                      : null),
                   },
                   styles.titleWrap,
                 ]}
@@ -524,8 +526,7 @@ const styles = StyleSheet.create({
   backGlyph: {
     color: color.ink,
     fontSize: 32,
-    fontFamily: fontFamilyForWeight('400'),
-    fontWeight: '400',
+    ...namedFaceStyle('400'),
     lineHeight: 36,
     marginTop: -4,
   },
@@ -542,8 +543,7 @@ const styles = StyleSheet.create({
   closeGlyph: {
     color: color.ink,
     fontSize: 28,
-    fontFamily: fontFamilyForWeight('400'),
-    fontWeight: '400',
+    ...namedFaceStyle('400'),
     lineHeight: 32,
     marginTop: -2,
   },

@@ -73,7 +73,7 @@ import {
 import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { focusSheetHost } from '@/lib/sheetFocus';
 import { color, layout } from '@/theme/tokens';
-import { textStyle } from '@/theme/typography';
+import { namedFaceStyle, textStyle } from '@/theme/typography';
 
 const RADIO_DOT = 8;
 
@@ -182,7 +182,7 @@ function AppMenuRow({
           </Text>
           {valueText ? (
             <Text
-              style={styles.rowValue}
+              style={[styles.rowValue, namedFaceStyle('400')]}
               testID={`app-menu-row-value-${row.key}`}
             >
               {valueText}
@@ -680,7 +680,6 @@ const styles = StyleSheet.create({
     color: color.mutedOnPaper,
     fontSize: APP_MENU_VALUE_FONT_SIZE,
     lineHeight: APP_MENU_VALUE_LINE_HEIGHT,
-    fontWeight: '400',
   },
   divider: {
     height: StyleSheet.hairlineWidth,

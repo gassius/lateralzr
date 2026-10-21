@@ -25,7 +25,7 @@ import Animated, {
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { ConceptItem } from '@/lib/api';
 import { color, layout } from '@/theme/tokens';
-import { fontFamilyForWeight, textStyle } from '@/theme/typography';
+import { namedFaceStyle, textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
   CARD_BACK_MEDIA_CONTENT_FIT,
@@ -593,7 +593,9 @@ export function ConceptCard({
                 {
                   fontSize: CONCEPT_FRONT_TITLE_FONT_SIZE,
                   fontFamily: CONCEPT_FRONT_TITLE_FONT_FAMILY,
-                  fontWeight: frontTitleBaseStyle.fontWeight,
+                  ...(Platform.OS === 'web'
+                    ? { fontWeight: frontTitleBaseStyle.fontWeight }
+                    : null),
                 },
               ]}
               onTextLayout={(event) => {
@@ -634,7 +636,9 @@ export function ConceptCard({
                     : CONCEPT_FRONT_TITLE_FONT_FAMILY,
                 fontSize: displayFontSize,
                 lineHeight: displayLineHeight,
-                fontWeight: frontTitleBaseStyle.fontWeight,
+                ...(Platform.OS === 'web'
+                  ? { fontWeight: frontTitleBaseStyle.fontWeight }
+                  : null),
                 color: frontTitleColor,
                 // Native: opacity 0 until measured — first visible frame is final size (no jump).
                 opacity: titleOpacity,
@@ -942,7 +946,7 @@ export function ConceptCard({
   const backAlt = informativeAlt ? (
     <Text
       testID="card-back-media-alt"
-      style={styles.srOnlyAbout}
+      style={[textStyle('meta'), styles.srOnlyAbout]}
       accessibilityRole="text"
     >
       {informativeAlt}
@@ -1130,7 +1134,7 @@ export function ConceptCard({
       <Text
         accessibilityRole="header"
         accessibilityLabel={t('aboutConcept', { concept: title })}
-        style={styles.srOnlyAbout}
+        style={[textStyle('meta'), styles.srOnlyAbout]}
         testID="card-back-about"
       >
         {t('aboutConcept', { concept: title })}
@@ -1411,8 +1415,7 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 16,
     color: color.ink,
-    fontFamily: fontFamilyForWeight('700'),
-    fontWeight: '700',
+    ...namedFaceStyle('700'),
     textDecorationLine: 'underline',
   },
 });

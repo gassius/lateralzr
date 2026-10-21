@@ -46,9 +46,9 @@ export const CONCEPT_FRONT_TITLE_FONT_STACK = `${font.family.bold}, Inter, sans-
 
 /**
  * Fallback advance when DOM/canvas measure is unavailable.
- * Calibrated to Inter Bold (~231 px for "extraordinariamente" at 24).
+ * Inter Bold hmtx: "extraordinariamente" at 24 is 240.15 px (20493 / 2048 × 24).
  */
-export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.51;
+export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.527;
 
 /**
  * Pattern-master `#title-clear-area` in card design units (358×560).
@@ -212,9 +212,9 @@ let measureCanvas: HTMLCanvasElement | null = null;
 let measureHost: HTMLSpanElement | null = null;
 
 /**
- * Width of `text` at `fontSize` / weight 700 using the RN Web System stack.
+ * Width of `text` at `fontSize` using bundled Inter Bold.
  * Prefers a DOM span (same metrics as rendered Text); canvas fallback uses the
- * same family string. Native/SSR: Liberation-calibrated approx.
+ * same family string. Native/SSR: Inter Bold hmtx-calibrated approx.
  */
 export function measureConceptFrontTitleWidth(text: string, fontSize: number): number {
   if (text.length === 0) return 0;

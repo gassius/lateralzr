@@ -69,4 +69,17 @@ describe('bundled Inter (Lz-66)', () => {
     assert.match(indexSrc, /!fontsReady/);
     assert.match(indexSrc, /<LateralzrLogo/);
   });
+
+  it('gives every leftover Text style a named Inter face (B1 / W1)', () => {
+    const menuSrc = readFileSync(join(clientRoot, 'components/AppMenuSheet.tsx'), 'utf8');
+    const navSrc = readFileSync(join(clientRoot, 'components/AccessibleNavRow.tsx'), 'utf8');
+    const cardSrc = readFileSync(join(clientRoot, 'components/ConceptCard.tsx'), 'utf8');
+    const sheetSrc = readFileSync(join(clientRoot, 'components/Sheet.tsx'), 'utf8');
+    assert.match(menuSrc, /namedFaceStyle\('400'\)/);
+    assert.doesNotMatch(menuSrc, /rowValue:[\s\S]*fontWeight:\s*'400'/);
+    assert.match(navSrc, /styles\.glyph,\s*textStyle\('label'\)/);
+    assert.doesNotMatch(navSrc, /glyph:[\s\S]*fontSize:\s*14/);
+    assert.match(cardSrc, /\.\.\.namedFaceStyle\('700'\)/);
+    assert.match(sheetSrc, /\.\.\.namedFaceStyle\('400'\)/);
+  });
 });
