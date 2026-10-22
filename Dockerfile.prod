@@ -64,7 +64,9 @@ RUN cp docker/php/zz-logging.ini "$PHP_INI_DIR/conf.d/zz-logging.ini" \
         /var/www/html/bin/tee-service-log.sh \
         /var/www/html/bin/rotate-prod-logs \
         /var/www/html/bin/logs-host \
-        /var/www/html/bin/storage-host
+        /var/www/html/bin/storage-host \
+        /var/www/html/bin/ensure-prod-log-env \
+        /var/www/html/bin/verify-prod-daily-log
 
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000

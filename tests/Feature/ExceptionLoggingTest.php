@@ -19,6 +19,8 @@ class ExceptionLoggingTest extends TestCase
         $this->assertSame('php://stderr', config('logging.channels.emergency.path'));
         $this->assertSame('daily', config('logging.channels.daily.driver'));
         $this->assertSame(14, (int) config('logging.channels.daily.days'));
+        $this->assertSame(0664, config('logging.channels.daily.permission'));
+        $this->assertSame(0664, config('logging.channels.single.permission'));
     }
 
     public function test_bootstrap_does_not_use_non_compound_throwable_import(): void

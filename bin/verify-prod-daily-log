@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+# Run inside the app container (cwd /var/www/html, vendor present).
+# Writes a deploy marker through the default log channel and asserts the
+# daily file exists. LOG_LEVEL=error, so the marker is Log::error.
+
+set -euo pipefail
+
+if [[ ! -f artisan ]]; then
+    echo "verify-prod-daily-log: run inside the app container (missing artisan)" >&2
+    exit 1
+fi
+
+php_code="$(cat <<'PHP'
+$default = (string) config('logging.default');
+$stack = config('logging.channels.stack.channels');
+$stack = is_array($stack) ? $stack : [];
+echo 'logging.default='.$default.PHP_EOL;
+echo 'logging.stack='.implode(',', $stack).PHP_EOL;
+if (! in_array($default, ['stack', 'daily'], true)) {
+    throw new RuntimeException("LOG_CHANNEL/default must be stack or daily, got {$default}");
+}
+if ($default === 'stack' && ! in_array('daily', $stack, true)) {
+    throw new RuntimeException('LOG_STACK must include daily');
+}
+$marker = 'deploy-prod-daily-marker-'.now()->toIso8601String();
+Illuminate\Support\Facades\Log::error($marker);
+$daily = storage_path('logs/laravel-'.now()->format('Y-m-d').'.log');
+if (! is_file($daily)) {
+    throw new RuntimeException("daily log missing: {$daily}");
+}
+if (! str_contains((string) file_get_contents($daily), $marker)) {
+    throw new RuntimeException("daily log does not contain marker {$marker}");
+}
+$perms = substr(sprintf('%04o', fileperms($daily) & 0777), -4);
+if ($perms === '0666') {
+    throw new RuntimeException("daily log is world-writable ({$perms}): {$daily}");
+}
+echo "OK daily log {$daily} perms={$perms}".PHP_EOL;
+PHP
+)"
+
+php artisan tinker --execute="$php_code"

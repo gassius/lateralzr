@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+
+# Force the VPS .env to a daily Laravel log stack.
+# Leftover LOG_CHANNEL=single (or LOG_STACK without daily) writes laravel.log
+# and never creates laravel-YYYY-MM-DD.log. Prints "changed" or "unchanged".
+
+set -euo pipefail
+
+file="${1:-.env}"
+
+if [[ ! -f "$file" ]]; then
+    echo "ensure-prod-log-env: missing ${file}" >&2
+    exit 1
+fi
+
+upsert_env_key() {
+    local key="$1"
+    local value="$2"
+    local tmp
+    tmp="$(mktemp)"
+    if grep -qE "^${key}=" "$file"; then
+        awk -v key="$key" -v value="$value" '
+            index($0, key "=") == 1 { print key "=" value; next }
+            { print }
+        ' "$file" > "$tmp"
+        cat "$tmp" > "$file"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+    rm -f "$tmp"
+}
+
+env_value() {
+    local key="$1"
+    grep -E "^${key}=" "$file" | head -n1 | cut -d= -f2- | sed 's/#.*//' | tr -d '[:space:]' | tr -d '"' | tr -d "'"
+}
+
+channel="$(env_value LOG_CHANNEL)"
+stack="$(env_value LOG_STACK)"
+changed=0
+
+if [[ "$channel" != "stack" ]]; then
+    echo "📝 Setting LOG_CHANNEL=stack (was '${channel:-<unset>}')" >&2
+    upsert_env_key LOG_CHANNEL stack
+    changed=1
+fi
+
+if [[ "$stack" != "daily,stderr" ]]; then
+    echo "📝 Setting LOG_STACK=daily,stderr (was '${stack:-<unset>}')" >&2
+    upsert_env_key LOG_STACK daily,stderr
+    changed=1
+fi
+
+if [[ "$changed" -eq 1 ]]; then
+    echo "changed"
+else
+    echo "unchanged"
+fi
