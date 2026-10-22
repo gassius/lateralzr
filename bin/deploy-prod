@@ -42,6 +42,11 @@ if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
     exit 1
 fi
 storage_host="$("$SCRIPT_DIR/storage-host" --require-ready)"
+if [[ -x "$SCRIPT_DIR/logs-host" ]]; then
+    logs_host="$("$SCRIPT_DIR/logs-host")"
+else
+    logs_host="${storage_host}/logs"
+fi
 
 echo "📁 Ensuring host storage directories exist (${storage_host})..."
 mkdir -p \
@@ -51,7 +56,33 @@ mkdir -p \
     "${storage_host}/framework/sessions" \
     "${storage_host}/framework/testing" \
     "${storage_host}/framework/views" \
-    "${storage_host}/logs"
+    "${storage_host}/logs/nginx" \
+    "${storage_host}/logs/queue" \
+    "${storage_host}/logs/scheduler"
+echo ""
+
+echo "📁 Ensuring service log files exist (${logs_host}/{nginx,queue,scheduler})..."
+# All under LATERALZR_STORAGE (group-writable www-data). Do not write beside
+# storage — the data-dir parent is root:root 755. Ownership is not changed.
+touch \
+    "${logs_host}/nginx/access.log" \
+    "${logs_host}/nginx/error.log" \
+    "${logs_host}/queue/queue.log" \
+    "${logs_host}/scheduler/scheduler.log"
+# Group-writable + setgid so deploy (cgonzalez, in www-data) and container
+# www-data can both write. nginx:alpine (uid 101) writes the pre-touched
+# 0666 files; copytruncate keeps that inode.
+chmod 2775 "${logs_host}" "${logs_host}/nginx" "${logs_host}/queue" "${logs_host}/scheduler" || true
+chmod 0666 \
+    "${logs_host}/nginx/access.log" \
+    "${logs_host}/nginx/error.log" \
+    "${logs_host}/queue/queue.log" \
+    "${logs_host}/scheduler/scheduler.log" || true
+if [[ -x "$SCRIPT_DIR/rotate-prod-logs" ]]; then
+    if ! LATERALZR_LOGS_ROOT="${logs_host}" "$SCRIPT_DIR/rotate-prod-logs"; then
+        echo "⚠️  rotate-prod-logs failed; continuing deploy" >&2
+    fi
+fi
 echo ""
 
 # Conservative Docker prune (build cache + dangling images only). Fail-soft:
@@ -164,7 +195,8 @@ while [ $attempt -le $MAX_ATTEMPTS ]; do
         echo "   API:   curl https://api.lateralzr.com/api/hello"
         echo "   Admin: curl -I https://api.lateralzr.com/admin/login"
         echo "   Logs:  docker compose -f $COMPOSE_FILE logs --tail=100 app"
-        echo "          tail -n 100 ${storage_host}/logs/laravel.log"
+        echo "          tail -n 100 ${storage_host}/logs/laravel-$(date +%Y-%m-%d).log"
+        echo "          tail -n 100 ${logs_host}/nginx/access.log"
         exit 0
     fi
     
@@ -184,7 +216,8 @@ echo "     curl -i https://api.lateralzr.com/api/hello"
 echo "     curl -i https://api.lateralzr.com/up"
 echo "     curl -i https://api.lateralzr.com/admin/login"
 echo "   Logs:"
-echo "     docker compose -f $COMPOSE_FILE logs --tail=200 app"
-echo "     tail -n 200 ${storage_host}/logs/laravel.log"
+    echo "     docker compose -f $COMPOSE_FILE logs --tail=200 app"
+    echo "     tail -n 200 ${storage_host}/logs/laravel-$(date +%Y-%m-%d).log"
+    echo "     tail -n 200 ${logs_host}/nginx/error.log"
 echo ""
 exit 1

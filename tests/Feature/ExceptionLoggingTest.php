@@ -12,9 +12,13 @@ class ExceptionLoggingTest extends TestCase
         $channels = config('logging.channels.stack.channels');
 
         $this->assertIsArray($channels);
+        $this->assertContains('daily', $channels);
         $this->assertContains('stderr', $channels);
+        $this->assertNotContains('single', $channels);
         $this->assertTrue(config('logging.channels.stack.ignore_exceptions'));
         $this->assertSame('php://stderr', config('logging.channels.emergency.path'));
+        $this->assertSame('daily', config('logging.channels.daily.driver'));
+        $this->assertSame(14, (int) config('logging.channels.daily.days'));
     }
 
     public function test_bootstrap_does_not_use_non_compound_throwable_import(): void

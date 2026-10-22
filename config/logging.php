@@ -7,14 +7,27 @@ use Monolog\Processor\PsrLogMessageProcessor;
 
 $stackChannels = array_values(array_filter(array_map(
     static fn (string $channel): string => trim($channel),
-    explode(',', (string) env('LOG_STACK', 'single')),
+    explode(',', (string) env('LOG_STACK', 'daily')),
 )));
+
+// Promote the unrotated `single` file to `daily` so a leftover VPS
+// LOG_STACK=single,stderr still gets dated files under storage/logs.
+$stackChannels = array_values(array_map(
+    static fn (string $channel): string => $channel === 'single' ? 'daily' : $channel,
+    $stackChannels
+));
+
+if (! in_array('daily', $stackChannels, true)) {
+    $stackChannels[] = 'daily';
+}
 
 // Always mirror to stderr so `docker compose logs app` captures web 500s even
 // when the VPS .env still has LOG_STACK=single and storage/logs is unwritable.
 if (! in_array('stderr', $stackChannels, true)) {
     $stackChannels[] = 'stderr';
 }
+
+$stackChannels = array_values(array_unique($stackChannels));
 
 return [
 

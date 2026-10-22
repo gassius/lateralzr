@@ -50,10 +50,67 @@ for name, target in want.items():
 '
 }
 
+log_bind_sources() {
+    python3 -c '
+import json, os, sys
+data = json.load(sys.stdin)
+want = {
+    "nginx": "/var/log/nginx",
+}
+forbidden = "/var/log/lateralzr-host"
+for name, svc in (data.get("services") or {}).items():
+    for volume in svc.get("volumes") or []:
+        if isinstance(volume, dict) and volume.get("target") == forbidden:
+            sys.stderr.write("%s still bind-mounts %s\n" % (name, forbidden))
+            sys.exit(1)
+for name, target in want.items():
+    found = None
+    for volume in data.get("services", {}).get(name, {}).get("volumes", []):
+        if isinstance(volume, dict) and volume.get("target") == target:
+            source = volume.get("source") or ""
+            found = os.path.normpath(source) if source else None
+            break
+    print("%s=%s" % (name, found))
+'
+}
+
+assert_json_file_logging() {
+    local label="$1"
+    local err
+    if ! err="$("${COMPOSE[@]}" config --format json | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+services = data.get("services") or {}
+if not services:
+    sys.stderr.write("no services in compose config\n")
+    sys.exit(1)
+failed = 0
+for name in sorted(services):
+    logging = services[name].get("logging") or {}
+    driver = logging.get("driver")
+    options = logging.get("options") or {}
+    max_size = str(options.get("max-size") or "")
+    max_file = str(options.get("max-file") or "")
+    if driver != "json-file" or max_size != "10m" or max_file != "3":
+        sys.stderr.write(
+            "%s logging=%s\n" % (name, {"driver": driver, "options": options})
+        )
+        failed = 1
+if failed:
+    sys.exit(1)
+' 2>&1)"; then
+        echo "FAIL ${label} json-file logging" >&2
+        echo "$err" >&2
+        exit 1
+    fi
+    echo "OK ${label} json-file logging"
+}
+
 assert_case() {
     local label="$1"
     local storage="$2"
     local public="$3"
+    local nginx_logs="$4"
     local got
     got="$("${COMPOSE[@]}" config --format json | bind_sources)"
     local expected
@@ -67,24 +124,38 @@ assert_case() {
         exit 1
     fi
     echo "OK ${label}"
+
+    got="$("${COMPOSE[@]}" config --format json | log_bind_sources)"
+    expected=$(printf 'nginx=%s' "$nginx_logs")
+    if [[ "$got" != "$expected" ]]; then
+        echo "FAIL ${label} log binds" >&2
+        echo "expected:" >&2
+        echo "$expected" >&2
+        echo "got:" >&2
+        echo "$got" >&2
+        exit 1
+    fi
+    echo "OK ${label} log binds"
+    assert_json_file_logging "$label"
 }
 
 default_storage="$ROOT/storage"
 default_public="$ROOT/storage/app/public"
+default_nginx_logs="$ROOT/storage/logs/nginx"
 
 echo "=== unset ==="
 unset LATERALZR_STORAGE || true
-assert_case "unset" "$default_storage" "$default_public"
+assert_case "unset" "$default_storage" "$default_public" "$default_nginx_logs"
 
 echo "=== empty LATERALZR_STORAGE ==="
-LATERALZR_STORAGE='' assert_case "empty" "$default_storage" "$default_public"
+LATERALZR_STORAGE='' assert_case "empty" "$default_storage" "$default_public" "$default_nginx_logs"
 
 echo "=== LATERALZR_STORAGE=/mnt/x ==="
-LATERALZR_STORAGE=/mnt/x assert_case "set" "/mnt/x" "/mnt/x/app/public"
+LATERALZR_STORAGE=/mnt/x assert_case "set" "/mnt/x" "/mnt/x/app/public" "/mnt/x/logs/nginx"
 
 echo "=== .env only ==="
 printf 'LATERALZR_STORAGE=/mnt/from-env\n' > .env
 unset LATERALZR_STORAGE || true
-assert_case "env-file" "/mnt/from-env" "/mnt/from-env/app/public"
+assert_case "env-file" "/mnt/from-env" "/mnt/from-env/app/public" "/mnt/from-env/logs/nginx"
 
 echo "All compose storage bind cases passed."

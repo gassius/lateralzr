@@ -89,7 +89,8 @@ verify_services() {
     else
         echo "⚠️  Admin login health check failed (HTTP ${admin_code:-000})"
         docker compose -f "$COMPOSE_FILE" logs --tail=80 app
-        tail -n 80 "${storage_host}/logs/laravel.log" || true
+        tail -n 80 "${storage_host}/logs/laravel-$(date +%Y-%m-%d).log" \
+            || tail -n 80 "${storage_host}/logs/laravel.log" || true
         return 1
     fi
 }

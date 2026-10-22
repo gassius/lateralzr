@@ -11,10 +11,11 @@ cd "$ROOT"
 
 BIND="$ROOT/bin/compose-storage-bind"
 HOST="$ROOT/bin/storage-host"
+LOGS="$ROOT/bin/logs-host"
 VERIFY="$ROOT/bin/deploy-prod-verify"
 
-if [[ ! -x "$BIND" || ! -x "$HOST" || ! -x "$VERIFY" ]]; then
-    echo "compose-storage-bind, storage-host, and deploy-prod-verify must be executable" >&2
+if [[ ! -x "$BIND" || ! -x "$HOST" || ! -x "$LOGS" || ! -x "$VERIFY" ]]; then
+    echo "compose-storage-bind, storage-host, logs-host, and deploy-prod-verify must be executable" >&2
     exit 1
 fi
 
@@ -60,6 +61,7 @@ assert_match_case() {
 
     bind_got="$("$BIND")"
     host_got="$("$HOST")"
+    logs_got="$("$LOGS")"
     host_abs="$(storage_host_abs "$host_got")"
 
     assert_eq "${label} compose-storage-bind" "$expected" "$bind_got"
@@ -68,6 +70,9 @@ assert_match_case() {
         exit 1
     fi
     echo "OK ${label} storage-host matches compose bind"
+
+    expected_logs="${host_got}/logs"
+    assert_eq "${label} logs-host" "$expected_logs" "$logs_got"
 }
 
 echo "=== docker missing (fail-soft, stderr visible) ==="

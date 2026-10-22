@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+# Size-rotate bind-mounted nginx / queue / scheduler files (copytruncate).
+# Laravel daily files under storage/logs are retained by the daily channel.
+# Host /etc is not writable by the deploy user; this script is shell-only.
+#
+# Logs root (first match):
+#   1. LATERALZR_LOGS_ROOT (tests / override)
+#   2. /var/www/html/storage/logs (compose bind inside app/queue/scheduler)
+#   3. $(bin/logs-host) → ${LATERALZR_STORAGE}/logs
+#
+# Files over 10 MiB are snapshotted to file.1 (keeping 3 predecessors) and the
+# live file is truncated in place so open writers (nginx, tee) keep the inode.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+MAX_BYTES="${LATERALZR_LOG_MAX_BYTES:-$((10 * 1024 * 1024))}"
+KEEP=3
+
+resolve_logs_root() {
+    if [[ -n "${LATERALZR_LOGS_ROOT:-}" ]]; then
+        printf '%s\n' "${LATERALZR_LOGS_ROOT}"
+        return
+    fi
+    if [[ -d /var/www/html/storage/logs ]]; then
+        printf '%s\n' /var/www/html/storage/logs
+        return
+    fi
+    if [[ -x "$SCRIPT_DIR/logs-host" ]]; then
+        "$SCRIPT_DIR/logs-host"
+        return
+    fi
+    echo "rotate-prod-logs: cannot resolve logs root" >&2
+    return 1
+}
+
+rotate_file() {
+    local file="$1"
+    local size i prev
+    [[ -f "$file" ]] || return 0
+    case "$(basename "$file")" in
+        laravel.log|laravel-*.log|scheduler-test.log|*.gz) return 0 ;;
+    esac
+    size="$(wc -c < "$file")"
+    if [[ "$size" -le "$MAX_BYTES" ]]; then
+        return 0
+    fi
+    i="$KEEP"
+    while [[ "$i" -ge 2 ]]; do
+        prev=$((i - 1))
+        if [[ -f "${file}.${prev}" ]]; then
+            mv "${file}.${prev}" "${file}.${i}"
+        fi
+        i=$prev
+    done
+    # copytruncate: keep the live inode/mode so nginx and tee keep writing.
+    cp -p "$file" "${file}.1"
+    : > "$file"
+}
+
+logs_root="$(resolve_logs_root)"
+if [[ ! -d "$logs_root" ]]; then
+    exit 0
+fi
+
+shopt -s nullglob
+for file in \
+    "${logs_root}/nginx/"*.log \
+    "${logs_root}/queue/"*.log \
+    "${logs_root}/scheduler/"*.log
+do
+    rotate_file "$file"
+done

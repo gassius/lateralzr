@@ -58,7 +58,7 @@ cd /home/cgonzalez/lateralzr
 ./bin/artisan users:promote-filament-admin you@example.com
 ```
 
-Do not run `php artisan` on the VPS host. The scheduler is the `lateralzr_scheduler` container (`schedule:work`), not host cron. Heartbeat logs every 15 minutes: `$(./bin/storage-host)/logs/laravel.log` and `$(./bin/storage-host)/logs/scheduler-test.log`.
+Do not run `php artisan` on the VPS host. The scheduler is the `lateralzr_scheduler` container (`schedule:work`), not host cron. Heartbeat logs every 15 minutes: `$(./bin/storage-host)/logs/laravel-YYYY-MM-DD.log` and `$(./bin/storage-host)/logs/scheduler-test.log`. Per-service files: `$(./bin/storage-host)/logs/{nginx,queue,scheduler}/`.
 
 ## Architecture
 
@@ -132,7 +132,8 @@ docker network ls | grep gonzalezrico_platform
 ```bash
 docker compose -f docker-compose.prod.yml exec app ls -ld storage/logs
 docker compose -f docker-compose.prod.yml logs --tail=100 app
-tail -n 100 "$(./bin/storage-host)/logs/laravel.log"
+tail -n 100 "$(./bin/storage-host)/logs/laravel-$(date +%Y-%m-%d).log"
+tail -n 100 "$(./bin/storage-host)/logs/nginx/error.log"
 ```
 
 **Filament `/admin/login` 500?** See [DEPLOYMENT.md](DEPLOYMENT.md) "Filament `/admin/login` 500". Check **docker logs** as well as `laravel.log` — PHP-FPM used to drop fatals.
