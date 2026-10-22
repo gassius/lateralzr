@@ -122,7 +122,7 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString('chmod 0664', $script);
         $this->assertStringContainsString('chown 101:www-data', $script);
         $this->assertStringNotContainsString('chmod 0666', $script);
-        $this->assertStringContainsString('umask = 0002', $fpm);
+        $this->assertStringNotContainsString('umask', $fpm); // php-fpm has no umask pool directive; entrypoint umask is inherited
     }
 
     public function test_rotate_prod_logs_rotates_oversized_service_files(): void
