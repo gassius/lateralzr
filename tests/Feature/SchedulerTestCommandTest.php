@@ -41,4 +41,24 @@ class SchedulerTestCommandTest extends TestCase
         $this->assertNotNull($event, 'scheduler:test should be registered on the Laravel schedule.');
         $this->assertSame('*/15 * * * *', $event->expression);
     }
+
+    public function test_rotate_prod_logs_is_scheduled_daily(): void
+    {
+        $this->artisan('schedule:list')
+            ->expectsOutputToContain('rotate-prod-logs')
+            ->assertSuccessful();
+
+        $event = collect(app(Schedule::class)->events())
+            ->first(function ($event) {
+                $haystack = implode(' ', array_filter([
+                    $event->command ?? null,
+                    $event->description ?? null,
+                ]));
+
+                return str_contains($haystack, 'rotate-prod-logs');
+            });
+
+        $this->assertNotNull($event, 'rotate-prod-logs should be registered on the Laravel schedule.');
+        $this->assertSame('0 0 * * *', $event->expression);
+    }
 }

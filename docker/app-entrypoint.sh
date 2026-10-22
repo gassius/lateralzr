@@ -16,9 +16,23 @@ mkdir -p \
     storage/logs \
     bootstrap/cache
 
+if [ -d /var/log/lateralzr-host ]; then
+    mkdir -p \
+        /var/log/lateralzr-host/queue \
+        /var/log/lateralzr-host/scheduler
+fi
+
 if [ "$(id -u)" = "0" ]; then
     chown -R www-data:www-data storage bootstrap/cache || true
     chmod -R ug+rwX,o+rX storage bootstrap/cache || true
+    if [ -d /var/log/lateralzr-host ]; then
+        chown -R www-data:www-data \
+            /var/log/lateralzr-host/queue \
+            /var/log/lateralzr-host/scheduler || true
+        chmod -R ug+rwX,o+rX \
+            /var/log/lateralzr-host/queue \
+            /var/log/lateralzr-host/scheduler || true
+    fi
 fi
 
 # public/ lives in the image (not bind-mounted). Recreate the storage symlink

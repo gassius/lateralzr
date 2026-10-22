@@ -60,7 +60,11 @@ RUN chown -R www-data:www-data /var/www/html \
 RUN cp docker/php/zz-logging.ini "$PHP_INI_DIR/conf.d/zz-logging.ini" \
     && cp docker/php/zz-fpm-logging.conf /usr/local/etc/php-fpm.d/zz-logging.conf \
     && cp docker/app-entrypoint.sh /usr/local/bin/app-entrypoint.sh \
-    && chmod 755 /usr/local/bin/app-entrypoint.sh
+    && chmod 755 /usr/local/bin/app-entrypoint.sh \
+        /var/www/html/bin/tee-service-log.sh \
+        /var/www/html/bin/rotate-prod-logs \
+        /var/www/html/bin/logs-host \
+        /var/www/html/bin/storage-host
 
 # Expose port 9000 for PHP-FPM
 EXPOSE 9000

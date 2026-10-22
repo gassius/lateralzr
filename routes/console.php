@@ -9,6 +9,11 @@ Schedule::command('scheduler:test')
     ->everyFifteenMinutes()
     ->appendOutputTo(storage_path('logs/scheduler-test.log'));
 
+Schedule::exec(base_path('bin/rotate-prod-logs'))
+    ->daily()
+    ->name('rotate-prod-logs')
+    ->withoutOverlapping();
+
 Schedule::command('concepts:schedule:dispatch')
     ->everyMinute()
     ->withoutOverlapping(10)

@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+
+# Rotate bind-mounted prod service logs (nginx / queue / scheduler).
+# Laravel daily files under storage/logs are retained by the daily channel.
+#
+# Logs root (first match):
+#   1. LATERALZR_LOGS_ROOT (tests / override)
+#   2. /var/log/lateralzr-host (compose bind inside app/queue/scheduler)
+#   3. bin/logs-host (parent of LATERALZR_STORAGE + /logs)
+#
+# If logrotate is on PATH and a conf exists, use it. Otherwise rotate any
+# file over 10 MiB and keep 3 predecessors (file, file.1, file.2, file.3).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+MAX_BYTES="${LATERALZR_LOG_MAX_BYTES:-$((10 * 1024 * 1024))}"
+KEEP=3
+
+resolve_logs_root() {
+    if [[ -n "${LATERALZR_LOGS_ROOT:-}" ]]; then
+        printf '%s\n' "${LATERALZR_LOGS_ROOT}"
+        return
+    fi
+    if [[ -d /var/log/lateralzr-host ]]; then
+        printf '%s\n' /var/log/lateralzr-host
+        return
+    fi
+    if [[ -x "$SCRIPT_DIR/logs-host" ]]; then
+        "$SCRIPT_DIR/logs-host"
+        return
+    fi
+    printf '%s\n' "${PROJECT_ROOT}/logs"
+}
+
+write_logrotate_conf() {
+    local root="$1"
+    local conf="${root}/logrotate.conf"
+    cat > "$conf" <<EOF
+${root}/nginx/*.log
+${root}/queue/*.log
+${root}/scheduler/*.log {
+    daily
+    rotate 14
+    maxsize 10M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+EOF
+}
+
+rotate_file() {
+    local file="$1"
+    local size i prev
+    [[ -f "$file" ]] || return 0
+    case "$(basename "$file")" in
+        laravel-*.log|*.gz) return 0 ;;
+    esac
+    size="$(wc -c < "$file")"
+    if [[ "$size" -le "$MAX_BYTES" ]]; then
+        return 0
+    fi
+    i="$KEEP"
+    while [[ "$i" -ge 2 ]]; do
+        prev=$((i - 1))
+        if [[ -f "${file}.${prev}" ]]; then
+            mv "${file}.${prev}" "${file}.${i}"
+        fi
+        i=$prev
+    done
+    mv "$file" "${file}.1"
+    : > "$file"
+}
+
+logs_root="$(resolve_logs_root)"
+if [[ ! -d "$logs_root" ]]; then
+    exit 0
+fi
+
+write_logrotate_conf "$logs_root"
+
+# Tests set LATERALZR_LOG_MAX_BYTES to exercise the size fallback.
+if [[ -z "${LATERALZR_LOG_MAX_BYTES:-}" ]] && command -v logrotate >/dev/null 2>&1; then
+    if logrotate -s "${logs_root}/logrotate.status" "${logs_root}/logrotate.conf"; then
+        exit 0
+    fi
+    echo "rotate-prod-logs: logrotate failed, falling back to size rotation" >&2
+fi
+
+shopt -s nullglob
+for file in \
+    "${logs_root}/nginx/"*.log \
+    "${logs_root}/queue/"*.log \
+    "${logs_root}/scheduler/"*.log
+do
+    rotate_file "$file"
+done
