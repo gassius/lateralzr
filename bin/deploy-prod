@@ -41,7 +41,13 @@ if [[ -z "$APP_KEY_VALUE" ]]; then
     exit 1
 fi
 
-PROD_LOG_ENV_CHANGED=0
+# Keep a pass-1 rewrite across re-exec. Pass 2's ensure is then "unchanged"
+# and must not drop --force-recreate.
+if [[ "${PROD_LOG_ENV_CHANGED:-0}" == "1" ]]; then
+    PROD_LOG_ENV_CHANGED=1
+else
+    PROD_LOG_ENV_CHANGED=0
+fi
 if [[ -x "$SCRIPT_DIR/ensure-prod-log-env" ]]; then
     echo "📝 Ensuring LOG_CHANNEL/LOG_STACK resolve to daily..."
     ensure_out="$("$SCRIPT_DIR/ensure-prod-log-env" .env)"
@@ -159,7 +165,7 @@ if [[ "${DEPLOY_PROD_REEXEC:-}" != "1" ]]; then
         echo "⬇️  Pulling latest changes..."
         git pull origin "$CURRENT_BRANCH"
         echo "🔁 Re-executing updated ${SELF}..."
-        DEPLOY_PROD_REEXEC=1 exec "$SELF" "${ORIG_ARGS[@]}"
+        DEPLOY_PROD_REEXEC=1 PROD_LOG_ENV_CHANGED="$PROD_LOG_ENV_CHANGED" exec "$SELF" "${ORIG_ARGS[@]}"
     else
         echo "✅ Already up to date with origin/$CURRENT_BRANCH"
     fi

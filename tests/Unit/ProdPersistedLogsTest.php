@@ -40,7 +40,10 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString('chmod 0664', $script);
         $this->assertStringContainsString('umask 002', $script);
         $this->assertStringContainsString('rotate-prod-logs failed; continuing deploy', $script);
-        $this->assertStringContainsString('DEPLOY_PROD_REEXEC=1 exec "$SELF"', $script);
+        $this->assertStringContainsString(
+            'DEPLOY_PROD_REEXEC=1 PROD_LOG_ENV_CHANGED="$PROD_LOG_ENV_CHANGED" exec "$SELF"',
+            $script
+        );
         $this->assertStringContainsString('ensure-prod-log-env', $script);
         $this->assertStringContainsString('verify-prod-daily-log', $script);
         $this->assertStringContainsString('Processing jobs|queue:work|tee-service-log', $script);
@@ -50,6 +53,18 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringNotContainsString('logs/app', $script);
         $this->assertStringNotContainsString('logrotate.conf', $script);
         $this->assertDoesNotMatchRegularExpression('/rotate-prod-logs.*\|\| true/', $script);
+    }
+
+    public function test_deploy_prod_keeps_log_env_changed_across_reexec(): void
+    {
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/deploy-prod');
+
+        $this->assertStringContainsString(
+            'DEPLOY_PROD_REEXEC=1 PROD_LOG_ENV_CHANGED="$PROD_LOG_ENV_CHANGED" exec "$SELF"',
+            $script
+        );
+        $this->assertStringContainsString('"${PROD_LOG_ENV_CHANGED:-0}" == "1"', $script);
+        $this->assertStringContainsString('--force-recreate', $script);
     }
 
     public function test_nginx_writes_access_and_error_to_files_and_stdout(): void
