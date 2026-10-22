@@ -6,6 +6,12 @@ set -euo pipefail
 # Designed to run in /home/cgonzalez/lateralzr ONLY
 # Never touches the gonzalezrico compose stack
 
+# New files created here (and by PHP after entrypoint umask) should be 0664.
+umask 002
+
+SELF="$(realpath "${BASH_SOURCE[0]}")"
+ORIG_ARGS=("$@")
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="docker-compose.prod.yml"
@@ -33,6 +39,17 @@ if [[ -z "$APP_KEY_VALUE" ]]; then
     echo "❌ Error: APP_KEY is empty in .env"
     echo "   Generate with: docker compose -f $COMPOSE_FILE run --rm app php artisan key:generate --show"
     exit 1
+fi
+
+PROD_LOG_ENV_CHANGED=0
+if [[ -x "$SCRIPT_DIR/ensure-prod-log-env" ]]; then
+    echo "📝 Ensuring LOG_CHANNEL/LOG_STACK resolve to daily..."
+    ensure_out="$("$SCRIPT_DIR/ensure-prod-log-env" .env)"
+    echo "   ${ensure_out}"
+    if [[ "$ensure_out" == "changed" ]]; then
+        PROD_LOG_ENV_CHANGED=1
+    fi
+    echo ""
 fi
 
 # Resolve like Compose (shell env, then .env, then ./storage). Do not export
@@ -70,14 +87,21 @@ touch \
     "${logs_host}/queue/queue.log" \
     "${logs_host}/scheduler/scheduler.log"
 # Group-writable + setgid so deploy (cgonzalez, in www-data) and container
-# www-data can both write. nginx:alpine (uid 101) writes the pre-touched
-# 0666 files; copytruncate keeps that inode.
+# www-data can both write. nginx:alpine (uid 101) is re-owned on the
+# files after compose up. copytruncate keeps the inode.
 chmod 2775 "${logs_host}" "${logs_host}/nginx" "${logs_host}/queue" "${logs_host}/scheduler" || true
-chmod 0666 \
+# 0664 (umask 002): group-writable, not world-writable. nginx (uid 101)
+# is re-owned 101:www-data by the app entrypoint after compose up.
+chmod 0664 \
     "${logs_host}/nginx/access.log" \
     "${logs_host}/nginx/error.log" \
     "${logs_host}/queue/queue.log" \
     "${logs_host}/scheduler/scheduler.log" || true
+for laravel_log in "${logs_host}"/laravel-*.log; do
+    if [[ -f "$laravel_log" ]]; then
+        chmod 0664 "$laravel_log" || true
+    fi
+done
 if [[ -x "$SCRIPT_DIR/rotate-prod-logs" ]]; then
     if ! LATERALZR_LOGS_ROOT="${logs_host}" "$SCRIPT_DIR/rotate-prod-logs"; then
         echo "⚠️  rotate-prod-logs failed; continuing deploy" >&2
@@ -124,17 +148,23 @@ fi
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 echo "📍 Current branch: $CURRENT_BRANCH"
 
-echo "🔄 Fetching latest from origin..."
-git fetch origin "$CURRENT_BRANCH"
+if [[ "${DEPLOY_PROD_REEXEC:-}" != "1" ]]; then
+    echo "🔄 Fetching latest from origin..."
+    git fetch origin "$CURRENT_BRANCH"
 
-LOCAL_REV=$(git rev-parse HEAD)
-REMOTE_REV=$(git rev-parse "origin/$CURRENT_BRANCH")
+    LOCAL_REV=$(git rev-parse HEAD)
+    REMOTE_REV=$(git rev-parse "origin/$CURRENT_BRANCH")
 
-if [[ "$LOCAL_REV" != "$REMOTE_REV" ]]; then
-    echo "⬇️  Pulling latest changes..."
-    git pull origin "$CURRENT_BRANCH"
+    if [[ "$LOCAL_REV" != "$REMOTE_REV" ]]; then
+        echo "⬇️  Pulling latest changes..."
+        git pull origin "$CURRENT_BRANCH"
+        echo "🔁 Re-executing updated ${SELF}..."
+        DEPLOY_PROD_REEXEC=1 exec "$SELF" "${ORIG_ARGS[@]}"
+    else
+        echo "✅ Already up to date with origin/$CURRENT_BRANCH"
+    fi
 else
-    echo "✅ Already up to date with origin/$CURRENT_BRANCH"
+    echo "✅ Skipping fetch/pull (already re-exec'd updated deploy-prod)"
 fi
 
 echo ""
@@ -147,7 +177,12 @@ docker compose -f "$COMPOSE_FILE" run --rm app php artisan migrate --force
 
 echo ""
 echo "🚀 Starting services (docker-compose.prod.yml only)..."
-docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+up_args=(up -d --remove-orphans)
+if [[ "$PROD_LOG_ENV_CHANGED" -eq 1 ]]; then
+    echo "   Recreating containers so env_file picks up LOG_CHANNEL/LOG_STACK"
+    up_args+=(--force-recreate)
+fi
+docker compose -f "$COMPOSE_FILE" "${up_args[@]}"
 
 # Rebuild retags lateralzr_app:prod / lateralzr_nginx:prod; after containers
 # switch, the previous digests are dangling (~1.27GB each). Reclaim them
@@ -163,6 +198,36 @@ docker compose -f "$COMPOSE_FILE" exec -T -u www-data app php artisan route:cach
 docker compose -f "$COMPOSE_FILE" exec -T -u www-data app php artisan view:cache
 docker compose -f "$COMPOSE_FILE" exec -T -u www-data queue php artisan config:cache
 docker compose -f "$COMPOSE_FILE" exec -T -u www-data scheduler php artisan config:cache
+
+echo ""
+echo "📝 Verifying Laravel daily log..."
+if [[ ! -x "$SCRIPT_DIR/verify-prod-daily-log" ]]; then
+    echo "❌ bin/verify-prod-daily-log is missing or not executable" >&2
+    exit 1
+fi
+docker compose -f "$COMPOSE_FILE" exec -T -u www-data app /var/www/html/bin/verify-prod-daily-log
+
+echo ""
+echo "📝 Verifying queue.log captures worker stdout/stderr..."
+queue_ok=0
+for attempt in 1 2 3 4 5 6 7 8; do
+    if [[ -s "${logs_host}/queue/queue.log" ]] \
+        && grep -qE 'Processing jobs|queue:work|tee-service-log' "${logs_host}/queue/queue.log"; then
+        echo "✅ queue.log captured worker output"
+        queue_ok=1
+        break
+    fi
+    echo "   waiting for queue worker startup line (${attempt}/8)..."
+    sleep 2
+done
+if [[ "$queue_ok" -ne 1 ]]; then
+    echo "❌ queue.log did not capture worker stdout/stderr" >&2
+    echo "   path: ${logs_host}/queue/queue.log" >&2
+    wc -c "${logs_host}/queue/queue.log" >&2 || true
+    tail -n 20 "${logs_host}/queue/queue.log" >&2 || true
+    docker compose -f "$COMPOSE_FILE" logs --tail=40 queue >&2 || true
+    exit 1
+fi
 
 echo ""
 echo "✅ Deployment complete!"

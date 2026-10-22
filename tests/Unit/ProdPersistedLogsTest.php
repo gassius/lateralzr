@@ -37,9 +37,16 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString('${storage_host}/logs/queue', $script);
         $this->assertStringContainsString('${storage_host}/logs/scheduler', $script);
         $this->assertStringContainsString('chmod 2775', $script);
+        $this->assertStringContainsString('chmod 0664', $script);
+        $this->assertStringContainsString('umask 002', $script);
         $this->assertStringContainsString('rotate-prod-logs failed; continuing deploy', $script);
+        $this->assertStringContainsString('DEPLOY_PROD_REEXEC=1 exec "$SELF"', $script);
+        $this->assertStringContainsString('ensure-prod-log-env', $script);
+        $this->assertStringContainsString('verify-prod-daily-log', $script);
+        $this->assertStringContainsString('Processing jobs|queue:work|tee-service-log', $script);
         $this->assertStringNotContainsString('sudo', $script);
         $this->assertStringNotContainsString('chown', $script);
+        $this->assertStringNotContainsString('chmod 0666', $script);
         $this->assertStringNotContainsString('logs/app', $script);
         $this->assertStringNotContainsString('logrotate.conf', $script);
         $this->assertDoesNotMatchRegularExpression('/rotate-prod-logs.*\|\| true/', $script);
@@ -61,6 +68,8 @@ class ProdPersistedLogsTest extends TestCase
 
         $this->assertStringContainsString("env('LOG_STACK', 'daily')", $contents);
         $this->assertStringContainsString("\$channel === 'single' ? 'daily' : \$channel", $contents);
+        $this->assertStringContainsString("\$defaultChannel === 'single'", $contents);
+        $this->assertStringContainsString("'permission' => 0664", $contents);
         $this->assertStringContainsString("in_array('daily'", $contents);
         $this->assertStringContainsString("in_array('stderr'", $contents);
     }
@@ -81,6 +90,39 @@ class ProdPersistedLogsTest extends TestCase
 
         $this->assertStringContainsString('shellcheck disable=SC2317,SC2329', $script);
         $this->assertStringContainsString('trap cleanup EXIT', $script);
+        $this->assertStringContainsString('> "$fifo" 2>&1', $script);
+        $this->assertStringContainsString('stdbuf -oL -eL tee -a', $script);
+        $this->assertStringContainsString('umask 002', $script);
+        $this->assertStringContainsString('tee-service-log: starting', $script);
+    }
+
+    public function test_verify_prod_daily_log_writes_error_marker(): void
+    {
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/verify-prod-daily-log');
+
+        $this->assertStringContainsString('Log::error($marker)', $script);
+        $this->assertStringContainsString("laravel-'.now()->format('Y-m-d').'.log", $script);
+        $this->assertStringContainsString("'0666'", $script);
+    }
+
+    public function test_deploy_prod_workflow_serializes_without_cancel(): void
+    {
+        $yml = (string) file_get_contents(dirname(__DIR__, 2).'/.github/workflows/deploy-prod.yml');
+
+        $this->assertStringContainsString('group: deploy-prod', $yml);
+        $this->assertStringContainsString('cancel-in-progress: false', $yml);
+    }
+
+    public function test_entrypoint_uses_umask_002_not_world_writable_chmod(): void
+    {
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/docker/app-entrypoint.sh');
+        $fpm = (string) file_get_contents(dirname(__DIR__, 2).'/docker/php/zz-fpm-logging.conf');
+
+        $this->assertStringContainsString('umask 002', $script);
+        $this->assertStringContainsString('chmod 0664', $script);
+        $this->assertStringContainsString('chown 101:www-data', $script);
+        $this->assertStringNotContainsString('chmod 0666', $script);
+        $this->assertStringContainsString('umask = 0002', $fpm);
     }
 
     public function test_rotate_prod_logs_rotates_oversized_service_files(): void
@@ -156,6 +198,65 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertSame('/mnt/data/lateralzr/storage/logs', $stdout);
 
         $this->removeTree($root);
+    }
+
+    public function test_ensure_prod_log_env_rewrites_single_to_daily_stack(): void
+    {
+        $file = sys_get_temp_dir().'/lateralzr-log-env-'.uniqid('', true);
+        file_put_contents($file, "APP_KEY=base64:test\nLOG_CHANNEL=single\nLOG_STACK=single,stderr\n");
+        $script = dirname(__DIR__, 2).'/bin/ensure-prod-log-env';
+
+        exec(sprintf('%s %s', escapeshellarg($script), escapeshellarg($file)), $output, $code);
+        $this->assertSame(0, $code, implode("\n", $output));
+        $this->assertSame('changed', end($output));
+
+        $contents = (string) file_get_contents($file);
+        $this->assertStringContainsString("LOG_CHANNEL=stack\n", $contents);
+        $this->assertStringContainsString("LOG_STACK=daily,stderr\n", $contents);
+        $this->assertStringNotContainsString('LOG_CHANNEL=single', $contents);
+        $this->assertStringContainsString('APP_KEY=base64:test', $contents);
+
+        $output = [];
+        exec(sprintf('%s %s', escapeshellarg($script), escapeshellarg($file)), $output, $code);
+        $this->assertSame(0, $code);
+        $this->assertSame('unchanged', end($output));
+        unlink($file);
+    }
+
+    public function test_tee_service_log_writes_stdout_and_stderr_before_child_exits(): void
+    {
+        $log = sys_get_temp_dir().'/lateralzr-tee-'.uniqid('', true).'.log';
+        $script = dirname(__DIR__, 2).'/bin/tee-service-log.sh';
+        $command = sprintf(
+            '%s %s sh -c %s',
+            escapeshellarg($script),
+            escapeshellarg($log),
+            escapeshellarg('echo stdout-line; echo stderr-line >&2; sleep 20')
+        );
+
+        $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $this->assertIsResource($process);
+        $contents = '';
+        for ($i = 0; $i < 25; $i++) {
+            usleep(100000);
+            $contents = is_file($log) ? (string) file_get_contents($log) : '';
+            if (str_contains($contents, 'stdout-line') && str_contains($contents, 'stderr-line')) {
+                break;
+            }
+        }
+        proc_terminate($process);
+        if (is_resource($pipes[1])) {
+            fclose($pipes[1]);
+        }
+        if (is_resource($pipes[2])) {
+            fclose($pipes[2]);
+        }
+        proc_close($process);
+        @unlink($log);
+
+        $this->assertStringContainsString('tee-service-log: starting', $contents);
+        $this->assertStringContainsString('stdout-line', $contents);
+        $this->assertStringContainsString('stderr-line', $contents);
     }
 
     private function removeTree(string $path): void

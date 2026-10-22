@@ -93,6 +93,27 @@ verify_services() {
             || tail -n 80 "${storage_host}/logs/laravel.log" || true
         return 1
     fi
+
+    local logs_host="${storage_host}/logs"
+    local marker_found=0
+    local daily_file
+    for daily_file in "${logs_host}"/laravel-*.log; do
+        if [[ -f "$daily_file" ]] && grep -q 'deploy-prod-daily-marker' "$daily_file"; then
+            marker_found=1
+            break
+        fi
+    done
+    if [[ "$marker_found" -ne 1 ]]; then
+        echo "❌ daily log is missing the deploy marker" >&2
+        return 1
+    fi
+    echo "✅ daily log contains the deploy marker"
+    if [[ ! -s "${logs_host}/queue/queue.log" ]] \
+        || ! grep -qE 'Processing jobs|queue:work|tee-service-log' "${logs_host}/queue/queue.log"; then
+        echo "❌ queue.log did not capture worker stdout/stderr" >&2
+        return 1
+    fi
+    echo "✅ queue.log captured worker output"
 }
 
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
