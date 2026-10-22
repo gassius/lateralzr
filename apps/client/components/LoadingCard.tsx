@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import {
   LOADING_CARD_HAIRLINE_ALPHA,
@@ -8,7 +8,7 @@ import {
   LOADING_PATTERN_VARIANT,
 } from '@/lib/loadingCard';
 import { patternSvgForVariant } from '@/lib/patternPlacement';
-import { CARD_SHADOW, cardRadius } from '@/lib/cardLayout';
+import { CARD_SHADOW, cardRadius, cardShadowStyle } from '@/lib/cardLayout';
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
 
@@ -36,7 +36,7 @@ export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
       <View
         style={[
           styles.face,
-          CARD_SHADOW,
+          Platform.OS === 'android' ? cardShadowStyle('android') : CARD_SHADOW,
           {
             borderRadius: radius,
             backgroundColor: hexToRgba(color.rail, LOADING_CARD_RAIL_ALPHA),

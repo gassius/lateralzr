@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { media } from '../theme/tokens.ts';
 import {
   CARD_BACK_MEDIA_CONTAIN_INSET,
   CARD_BACK_MEDIA_FADE_RATIO,
@@ -11,9 +15,12 @@ import {
   mediaTypeIsJpegOrWebp,
   mediaUrlIsJpegOrWebp,
   mediaUrlPathname,
+  CARD_BACK_MEDIA_REPEAT,
+  resolveCardBackCoverPosition,
   resolveCardBackMediaBand,
   resolveCardBackMediaFade,
   resolveCardBackMediaFit,
+  resolveCardBackMediaPaintSpec,
   resolveContainMediaBox,
   resolveInformativeAlt,
 } from './cardBackMedia';
@@ -236,6 +243,58 @@ test('fade is cover-only and raises the start for dark/busy tone', () => {
     resolveCardBackMediaFade({ bandHeight: 0, contentFit: 'cover' }),
     { startY: 0, height: 0, kind: 'none' },
   );
+});
+
+test('cover position maps focalX/focalY the same way on every platform', () => {
+  assert.equal(resolveCardBackCoverPosition(), 'center');
+  assert.equal(resolveCardBackCoverPosition(null, null), 'center');
+  assert.deepEqual(resolveCardBackCoverPosition(0.5, 0.5), {
+    left: '50%',
+    top: '50%',
+  });
+  assert.deepEqual(resolveCardBackCoverPosition(0.2, 0.8), {
+    left: '20%',
+    top: '80%',
+  });
+  assert.deepEqual(resolveCardBackCoverPosition(1.4, -0.2), {
+    left: '100%',
+    top: '0%',
+  });
+});
+
+test('card media never tiles — tokens, paint spec, and ConceptCard agree', () => {
+  assert.equal(media.repeat, 'never');
+  assert.equal(media.singleInstance, true);
+  const cardSrc = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../components/ConceptCard.tsx'),
+    'utf8',
+  );
+  assert.doesNotMatch(cardSrc, /resizeMode\s*=\s*['"]repeat['"]/);
+  assert.doesNotMatch(cardSrc, /contentFit\s*=\s*['"](?:repeat|none)['"]/);
+  assert.doesNotMatch(cardSrc, /mediaDecoder/);
+  assert.doesNotMatch(cardSrc, /card-back-media-decoder/);
+  assert.match(cardSrc, /card-back-media-image/);
+  assert.match(cardSrc, /resolveCardBackMediaPaintSpec/);
+  const imageTags = cardSrc.match(/<Image\b/g) ?? [];
+  assert.equal(imageTags.length, 2, 'contain and cover branches are mutually exclusive');
+});
+
+test('paint spec is one instance, never tiles, and clips to the fade floor', () => {
+  assert.equal(CARD_BACK_MEDIA_REPEAT, 'never');
+  const fade = resolveCardBackMediaFade({
+    bandHeight: 200,
+    contentFit: 'cover',
+  });
+  const spec = resolveCardBackMediaPaintSpec({
+    contentFit: 'cover',
+    bandHeight: 200,
+    fade,
+  });
+  assert.equal(spec.visibleInstanceCount, 1);
+  assert.equal(spec.repeat, 'never');
+  assert.equal(spec.contentFit, 'cover');
+  assert.equal(spec.imageClipHeight, 200);
+  assert.equal(spec.imageClipHeight, fade.startY + fade.height);
 });
 
 test('informative alt is exposed once and skipped when it repeats the description', () => {

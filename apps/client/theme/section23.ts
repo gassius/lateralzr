@@ -79,7 +79,7 @@ export const GUIDE_SECTION_23 = {
     minImageBandRatio: 0.28,
   },
   type: {
-    family: 'system-sans',
+    family: 'Inter',
     concept: 32,
     conceptMinOnOrange: 24,
     sheetTitle: 22,
@@ -87,6 +87,15 @@ export const GUIDE_SECTION_23 = {
     row: 17,
     label: 14,
     meta: 13,
+  },
+  /** Lz-66: bundled Inter OFL — amends guide §7.1 platform system sans. */
+  font: {
+    family: {
+      regular: 'Inter_400Regular',
+      medium: 'Inter_500Medium',
+      semiBold: 'Inter_600SemiBold',
+      bold: 'Inter_700Bold',
+    },
   },
   motion: {
     controlMs: 150,

@@ -20,7 +20,12 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.layout.sheetPattern, 'none');
     assert.equal(tokens.color.sheetGroup, '#FFFFFF8C');
     assert.equal(tokens.color.scrim, '#00000073');
+    assert.equal(tokens.type.family, 'Inter');
     assert.equal(tokens.type.sheetTitle, 22);
+    assert.equal(tokens.font.family.regular, 'Inter_400Regular');
+    assert.equal(tokens.font.family.medium, 'Inter_500Medium');
+    assert.equal(tokens.font.family.semiBold, 'Inter_600SemiBold');
+    assert.equal(tokens.font.family.bold, 'Inter_700Bold');
     assert.equal(
       Object.prototype.hasOwnProperty.call(tokens.layout, 'sheetTopRadius'),
       false,

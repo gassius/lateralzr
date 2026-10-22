@@ -8,7 +8,10 @@
  */
 
 import { media as mediaTokens } from '@/theme/tokens';
-import type { CardBackMediaContentFit } from './cardBackLayout';
+import {
+  CARD_BACK_MEDIA_CONTENT_POSITION,
+  type CardBackMediaContentFit,
+} from './cardBackLayout';
 
 /** Minimum visible image band as a fraction of face height. */
 export const CARD_BACK_MEDIA_MIN_BAND_RATIO = 0.28;
@@ -59,6 +62,60 @@ export const CARD_BACK_MEDIA_MIN_READING_STRIP = 27;
  * does not show a 1 px seam against the opaque paper edge (guide §9.3).
  */
 export const CARD_BACK_MEDIA_SEAM_OVERLAP = 2;
+
+/** §9.3 / tokens.media.repeat — card media never tiles. */
+export const CARD_BACK_MEDIA_REPEAT = mediaTokens.repeat;
+
+export type CardBackCoverPosition =
+  | typeof CARD_BACK_MEDIA_CONTENT_POSITION
+  | { left: string; top: string };
+
+/**
+ * Same focal → contentPosition object on native and web (expo-image).
+ * Missing / non-finite focals stay centred.
+ */
+export function resolveCardBackCoverPosition(
+  focalX?: number | null,
+  focalY?: number | null,
+): CardBackCoverPosition {
+  const hasX = typeof focalX === 'number' && Number.isFinite(focalX);
+  const hasY = typeof focalY === 'number' && Number.isFinite(focalY);
+  if (!hasX && !hasY) return CARD_BACK_MEDIA_CONTENT_POSITION;
+  const x = hasX ? Math.min(1, Math.max(0, focalX as number)) : 0.5;
+  const y = hasY ? Math.min(1, Math.max(0, focalY as number)) : 0.5;
+  return { left: `${Math.round(x * 100)}%`, top: `${Math.round(y * 100)}%` };
+}
+
+export type CardBackMediaPaintSpec = {
+  /** Exactly one visible expo-image of the painting. */
+  visibleInstanceCount: 1;
+  repeat: typeof CARD_BACK_MEDIA_REPEAT;
+  contentFit: CardBackMediaContentFit;
+  /** Clip box so the photo cannot paint below the fade / into the paper gap. */
+  imageClipHeight: number;
+};
+
+/**
+ * Single-instance paint plan (§9.3). Never `resizeMode="repeat"`.
+ * Image clip equals the band (fade already reaches the band floor).
+ */
+export function resolveCardBackMediaPaintSpec(input: {
+  contentFit: CardBackMediaContentFit;
+  bandHeight: number;
+  fade: CardBackMediaFade;
+}): CardBackMediaPaintSpec {
+  const band = input.bandHeight > 0 ? input.bandHeight : 0;
+  const fadeEnd =
+    input.fade.kind === 'none' || !(input.fade.height > 0)
+      ? band
+      : input.fade.startY + input.fade.height;
+  return {
+    visibleInstanceCount: 1,
+    repeat: CARD_BACK_MEDIA_REPEAT,
+    contentFit: input.contentFit,
+    imageClipHeight: Math.min(band, Math.max(0, fadeEnd)),
+  };
+}
 
 export type CardBackMediaBand = {
   bandHeight: number;

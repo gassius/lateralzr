@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { type } from './tokens.ts';
+import { font, type } from './tokens.ts';
 import {
+  fontFamilyForWeight,
+  includeCssFontWeight,
+  namedFaceStyle,
   textStyle,
   typeLineHeightRatio,
   typeSize,
@@ -43,16 +46,25 @@ describe('v3.4 typography roles', () => {
     assert.equal(typeLineHeightRatio('meta'), 1.4);
   });
 
-  it('builds textStyle without fontFamily', () => {
+  it('builds textStyle with an explicit Inter family per weight', () => {
+    assert.equal(includeCssFontWeight(), false);
     for (const role of ROLES) {
       const style = textStyle(role);
       assert.equal(style.fontSize, typeSize(role));
-      assert.equal(style.fontWeight, typeWeight(role));
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(style, 'fontFamily'),
-        false,
-      );
+      assert.equal(style.fontFamily, fontFamilyForWeight(typeWeight(role)));
+      // Native / tsx: named face only — `fontWeight` would faux-bold on Android.
+      assert.equal(style.fontWeight, undefined);
     }
+    assert.equal(fontFamilyForWeight('400'), font.family.regular);
+    assert.equal(fontFamilyForWeight('500'), font.family.medium);
+    assert.equal(fontFamilyForWeight('600'), font.family.semiBold);
+    assert.equal(fontFamilyForWeight('700'), font.family.bold);
+    assert.equal(fontFamilyForWeight('bold'), font.family.bold);
+    assert.equal(textStyle('concept').fontFamily, font.family.bold);
+    assert.equal(textStyle('body').fontFamily, font.family.regular);
+    assert.equal(textStyle('row').fontFamily, font.family.medium);
+    assert.deepEqual(namedFaceStyle('700'), { fontFamily: font.family.bold });
+    assert.equal('fontWeight' in namedFaceStyle('400'), false);
   });
 
   it('returns unscaled lineHeight (RN scales fontSize and lineHeight together)', () => {
@@ -70,7 +82,8 @@ describe('v3.4 typography roles', () => {
 
   it('allows weight override without changing size', () => {
     const style = textStyle('row', { fontWeight: '400' });
-    assert.equal(style.fontWeight, '400');
+    assert.equal(style.fontFamily, font.family.regular);
+    assert.equal(style.fontWeight, undefined);
     assert.equal(style.fontSize, 17);
   });
 });

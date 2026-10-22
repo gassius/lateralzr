@@ -1,10 +1,11 @@
 import type { TextStyle } from 'react-native';
 
-import { type } from './tokens';
+import { font, type } from './tokens';
 
 /**
  * v3.4 type roles (Lz-22 / guide §7.2 + §23 `type.*`; Lz-59 `sheetTitle` 22).
- * Platform system sans — leave `fontFamily` unset (never `'System'` on web).
+ * Lz-66: bundled Inter (SIL OFL 1.1) on every device — explicit family names
+ * per weight. Do not leave `fontFamily` unset or rely on Android synthesis.
  *
  * Return unscaled `fontSize` / `lineHeight`. React Native already multiplies both
  * by the OS font-size multiplier when `allowFontScaling` is on — do not pre-scale
@@ -54,6 +55,49 @@ export function typeLineHeightRatio(role: TypeRole): number {
 }
 
 /**
+ * Named Inter family for a CSS/RN weight. Android must use this string —
+ * `fontWeight` alone synthesizes a different face.
+ */
+export function fontFamilyForWeight(weight?: TextStyle['fontWeight']): string {
+  switch (String(weight ?? '400')) {
+    case '500':
+      return font.family.medium;
+    case '600':
+      return font.family.semiBold;
+    case '700':
+    case '800':
+    case '900':
+    case 'bold':
+      return font.family.bold;
+    default:
+      return font.family.regular;
+  }
+}
+
+/**
+ * True on web, where CSS `font-weight` can sit next to a named face.
+ * Native synthesizes a second bold if both are set — omit weight there.
+ * Unit tests run under tsx (no `document`) and follow the native path.
+ * Do not import `Platform` here — tsx tests cannot load react-native.
+ */
+export function includeCssFontWeight(): boolean {
+  return typeof document !== 'undefined';
+}
+
+/**
+ * Named Inter face. Sets `fontFamily` always; adds `fontWeight` on web only.
+ */
+export function namedFaceStyle(
+  weight?: TextStyle['fontWeight'],
+): Pick<TextStyle, 'fontFamily' | 'fontWeight'> {
+  const resolved = weight ?? '400';
+  if (includeCssFontWeight()) {
+    return { fontFamily: fontFamilyForWeight(resolved), fontWeight: resolved };
+  }
+  return { fontFamily: fontFamilyForWeight(resolved) };
+}
+
+/**
  * Web E2E only: `?e2eTextScale=2` multiplies fontSize and lineHeight together
  * (same joint scale RN applies natively). Ignored in product use / native.
  */
@@ -73,7 +117,7 @@ function e2eTextScale(): number {
 }
 
 /**
- * Text style for a v3.3 role. Does not set `fontFamily`.
+ * Text style for a v3.4 role. Sets `fontFamily` to the matching Inter file.
  * `lineHeight` = round(size × ratio) — unscaled; RN scales with fontSize.
  */
 export function textStyle(role: TypeRole, options: TextStyleOptions = {}): TextStyle {
@@ -81,10 +125,11 @@ export function textStyle(role: TypeRole, options: TextStyleOptions = {}): TextS
   const scale = e2eTextScale();
   const fontSize = Math.round(spec.size * scale);
   const lineHeight = Math.round(spec.size * spec.lineHeightRatio * scale);
+  const fontWeight = options.fontWeight ?? spec.weight;
 
   return {
     fontSize,
-    fontWeight: options.fontWeight ?? spec.weight,
     lineHeight,
+    ...namedFaceStyle(fontWeight),
   };
 }

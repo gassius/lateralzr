@@ -20,7 +20,12 @@
         "foregroundImage": "./assets/images/logo/lateralzr-android-adaptive-foreground-1024.png",
         "backgroundColor": "#F78D1E"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "edgeToEdgeEnabled": true
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#082D3D",
+      "barStyle": "light-content"
     },
     "web": {
       "bundler": "metro",
@@ -47,7 +52,14 @@
           "backgroundColor": "#F78D1E"
         }
       ],
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false,
+          "style": "light"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

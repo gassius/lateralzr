@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import { cardAspect, layout, shadow } from '../theme/tokens.ts';
 import {
@@ -8,6 +11,7 @@ import {
   CARD_STACK_GUTTER,
   cardPadding,
   cardRadius,
+  cardShadowStyle,
   cardVerticalBudget,
   resolveCardAspectLayout,
   resolveNativeCardLayout,
@@ -53,12 +57,18 @@ describe('cardLayout shadow', () => {
     assert.equal(CARD_SHADOW.shadowOffset.height, shadow.card.offsetHeight);
     assert.equal(CARD_SHADOW.shadowOpacity, shadow.card.opacity);
     assert.equal(CARD_SHADOW.shadowRadius, shadow.card.radius);
-    assert.equal(CARD_SHADOW.elevation, shadow.card.elevation);
     assert.equal(CARD_SHADOW.shadowOpacity, 0.18);
     assert.equal(CARD_SHADOW.shadowRadius, 12);
-    assert.equal(CARD_SHADOW.elevation, 4);
     assert.ok(CARD_SHADOW.shadowOpacity < 0.25);
-    assert.ok(CARD_SHADOW.elevation < 8);
+  });
+
+  it('drops Android elevation and uses a soft boxShadow', () => {
+    const android = cardShadowStyle('android');
+    assert.equal(android.elevation, 0);
+    assert.equal(android.boxShadow, '0px 4px 12px rgba(0,0,0,0.18)');
+    const ios = cardShadowStyle('ios');
+    assert.equal(ios.elevation, shadow.card.elevation);
+    assert.equal(ios.boxShadow, undefined);
   });
 });
 
@@ -102,6 +112,22 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.equal(cardAspect.min, 1.3);
     assert.equal(cardAspect.max, 1.5);
     assert.equal(cardAspect.minCardWidth, 288);
+  });
+
+  it('takes insetTop/insetBottom from the caller (useSafeAreaInsets), never hard-coded', () => {
+    const layoutSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'cardLayout.ts'),
+      'utf8',
+    );
+    const indexSrc = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '../app/index.tsx'),
+      'utf8',
+    );
+    assert.match(indexSrc, /useSafeAreaInsets/);
+    assert.match(indexSrc, /insets\.top/);
+    assert.match(indexSrc, /insets\.bottom/);
+    assert.doesNotMatch(layoutSrc, /insetTop:\s*47/);
+    assert.doesNotMatch(layoutSrc, /insetBottom:\s*34/);
   });
 
   it('returns a 1.30–1.50 ratio on 390×844 with 47/34 insets, surplus above', () => {

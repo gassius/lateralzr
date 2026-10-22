@@ -31,8 +31,16 @@ export function cardPadding(width: number): number {
  */
 export const CARD_FACE_FALLBACK_WIDTH = 341;
 
-/** Subdued cast shadow — no dark halo on shell `#082D3D` (Critiquito / `shadow.card`). */
-export const CARD_SHADOW = {
+export type CardShadowStyle = {
+  shadowColor: string;
+  shadowOffset: { width: number; height: number };
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
+  boxShadow?: string;
+};
+
+const CARD_SHADOW_BASE = {
   shadowColor: shadow.card.color,
   shadowOffset: {
     width: shadow.card.offsetWidth,
@@ -40,8 +48,29 @@ export const CARD_SHADOW = {
   },
   shadowOpacity: shadow.card.opacity,
   shadowRadius: shadow.card.radius,
-  elevation: shadow.card.elevation,
 } as const;
+
+/**
+ * Soft token shadow. Android `elevation` is a hard Material blob — drop it
+ * and approximate `shadow.card` with RN `boxShadow` (New Arch).
+ * Do not import `Platform` here (unit tests run under tsx).
+ */
+export function cardShadowStyle(os: 'ios' | 'android' | 'web' | 'windows' | 'macos'): CardShadowStyle {
+  if (os === 'android') {
+    return {
+      ...CARD_SHADOW_BASE,
+      elevation: 0,
+      boxShadow: `0px ${shadow.card.offsetHeight}px ${shadow.card.radius}px rgba(0,0,0,${shadow.card.opacity})`,
+    };
+  }
+  return {
+    ...CARD_SHADOW_BASE,
+    elevation: shadow.card.elevation,
+  };
+}
+
+/** iOS / web shadow. Native Android uses {@link cardShadowStyle}('android'). */
+export const CARD_SHADOW = cardShadowStyle('ios');
 
 /**
  * Horizontal inset each side of the card inside the practice column (guide §8

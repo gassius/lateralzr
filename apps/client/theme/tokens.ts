@@ -14,6 +14,7 @@ export const color = tokens.color;
 export const spacing = tokens.spacing;
 export const layout = tokens.layout;
 export const type = tokens.type;
+export const font = tokens.font;
 export const motion = tokens.motion;
 export const laterality = tokens.laterality;
 export const pattern = tokens.pattern;

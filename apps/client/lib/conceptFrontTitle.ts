@@ -1,4 +1,4 @@
-import { color, type } from '../theme/tokens';
+import { color, font, type } from '../theme/tokens';
 
 /**
  * Card-front concept title (Lz-26 / Art Direction v3.3 §7.3 + §6.1).
@@ -37,17 +37,18 @@ export const CONCEPT_FRONT_TITLE_HYPHEN = '-';
 export const CONCEPT_FRONT_TITLE_BOTTOM_RESERVE = 48;
 
 /**
- * RN Web `Text` default (`font: '14px System'` → createReactDOMStyle SYSTEM_FONT_STACK).
- * Must match the rendered title face — not bare `system-ui`, which over-measures on CI.
+ * Bundled Inter 700 — same family name expo-font registers on native and web.
+ * CSS stack keeps a generic sans fallback only while the face is still loading.
  */
-export const CONCEPT_FRONT_TITLE_FONT_STACK =
-  '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+export const CONCEPT_FRONT_TITLE_FONT_FAMILY = font.family.bold;
+
+export const CONCEPT_FRONT_TITLE_FONT_STACK = `${font.family.bold}, Inter, sans-serif`;
 
 /**
  * Fallback advance when DOM/canvas measure is unavailable.
- * Calibrated to Liberation Sans Bold (~231 px for "extraordinariamente" at 24).
+ * Inter Bold hmtx: "extraordinariamente" at 24 is 240.15 px (20493 / 2048 × 24).
  */
-export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.51;
+export const CONCEPT_FRONT_TITLE_CHAR_WIDTH_RATIO = 0.527;
 
 /**
  * Pattern-master `#title-clear-area` in card design units (358×560).
@@ -211,9 +212,9 @@ let measureCanvas: HTMLCanvasElement | null = null;
 let measureHost: HTMLSpanElement | null = null;
 
 /**
- * Width of `text` at `fontSize` / weight 700 using the RN Web System stack.
+ * Width of `text` at `fontSize` using bundled Inter Bold.
  * Prefers a DOM span (same metrics as rendered Text); canvas fallback uses the
- * same family string. Native/SSR: Liberation-calibrated approx.
+ * same family string. Native/SSR: Inter Bold hmtx-calibrated approx.
  */
 export function measureConceptFrontTitleWidth(text: string, fontSize: number): number {
   if (text.length === 0) return 0;
