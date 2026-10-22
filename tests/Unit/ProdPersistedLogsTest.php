@@ -18,27 +18,31 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString('driver: json-file', $yml);
         $this->assertStringContainsString('max-size: "10m"', $yml);
         $this->assertStringContainsString('max-file: "3"', $yml);
-        $this->assertStringContainsString('${LATERALZR_STORAGE:-./storage}/../logs:/var/log/lateralzr-host', $yml);
-        $this->assertStringContainsString('${LATERALZR_STORAGE:-./storage}/../logs/nginx:/var/log/nginx', $yml);
+        $this->assertStringContainsString('${LATERALZR_STORAGE:-./storage}/logs/nginx:/var/log/nginx', $yml);
         $this->assertStringContainsString('/var/www/html/bin/tee-service-log.sh', $yml);
-        $this->assertStringContainsString('/var/log/lateralzr-host/queue/queue.log', $yml);
-        $this->assertStringContainsString('/var/log/lateralzr-host/scheduler/scheduler.log', $yml);
+        $this->assertStringContainsString('/var/www/html/storage/logs/queue/queue.log', $yml);
+        $this->assertStringContainsString('/var/www/html/storage/logs/scheduler/scheduler.log', $yml);
+        $this->assertStringNotContainsString('../logs', $yml);
+        $this->assertStringNotContainsString('lateralzr-host', $yml);
+        $this->assertStringNotContainsString('version:', $yml);
         $this->assertStringNotContainsString("\n  db:", $yml);
         $this->assertStringNotContainsString("\n  mysql:", $yml);
     }
 
-    public function test_deploy_prod_creates_log_dirs_and_app_symlink(): void
+    public function test_deploy_prod_creates_group_writable_log_dirs_without_sudo(): void
     {
         $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/deploy-prod');
 
-        $this->assertStringContainsString('logs-host', $script);
-        $this->assertStringContainsString('${logs_host}/nginx', $script);
-        $this->assertStringContainsString('${logs_host}/queue', $script);
-        $this->assertStringContainsString('${logs_host}/scheduler', $script);
-        $this->assertStringContainsString('ln -sfn', $script);
-        $this->assertStringContainsString('chown -R 33:33', $script);
-        $this->assertStringContainsString('chown -R 101:101', $script);
-        $this->assertStringContainsString('rotate-prod-logs', $script);
+        $this->assertStringContainsString('${storage_host}/logs/nginx', $script);
+        $this->assertStringContainsString('${storage_host}/logs/queue', $script);
+        $this->assertStringContainsString('${storage_host}/logs/scheduler', $script);
+        $this->assertStringContainsString('chmod 2775', $script);
+        $this->assertStringContainsString('rotate-prod-logs failed; continuing deploy', $script);
+        $this->assertStringNotContainsString('sudo', $script);
+        $this->assertStringNotContainsString('chown', $script);
+        $this->assertStringNotContainsString('logs/app', $script);
+        $this->assertStringNotContainsString('logrotate.conf', $script);
+        $this->assertDoesNotMatchRegularExpression('/rotate-prod-logs.*\|\| true/', $script);
     }
 
     public function test_nginx_writes_access_and_error_to_files_and_stdout(): void
@@ -59,6 +63,24 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString("\$channel === 'single' ? 'daily' : \$channel", $contents);
         $this->assertStringContainsString("in_array('daily'", $contents);
         $this->assertStringContainsString("in_array('stderr'", $contents);
+    }
+
+    public function test_rotate_prod_logs_is_copytruncate_without_logrotate(): void
+    {
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/rotate-prod-logs');
+
+        $this->assertStringContainsString('cp -p "$file" "${file}.1"', $script);
+        $this->assertStringContainsString(': > "$file"', $script);
+        $this->assertStringNotContainsString('logrotate', $script);
+        $this->assertDoesNotMatchRegularExpression('/mv "\$file" "\$\{file\}\.1"/', $script);
+    }
+
+    public function test_tee_service_log_disables_trap_shellcheck(): void
+    {
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/tee-service-log.sh');
+
+        $this->assertStringContainsString('shellcheck disable=SC2317,SC2329', $script);
+        $this->assertStringContainsString('trap cleanup EXIT', $script);
     }
 
     public function test_rotate_prod_logs_rotates_oversized_service_files(): void
@@ -85,16 +107,17 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertSame(0, $code, implode("\n", $output));
 
         $this->assertFileExists($root.'/nginx/access.log.1');
+        $this->assertSame(str_repeat('a', 200), (string) file_get_contents($root.'/nginx/access.log.1'));
+        $this->assertSame('', file_get_contents($root.'/nginx/access.log'));
         $this->assertFileExists($root.'/scheduler/scheduler.log.1');
         $this->assertFileDoesNotExist($root.'/queue/queue.log.1');
         $this->assertFileDoesNotExist($root.'/queue/laravel-2026-10-22.log.1');
         $this->assertSame(200, strlen((string) file_get_contents($root.'/queue/laravel-2026-10-22.log')));
-        $this->assertSame('', file_get_contents($root.'/nginx/access.log'));
 
         $this->removeTree($root);
     }
 
-    public function test_logs_host_is_parent_of_storage_plus_logs(): void
+    public function test_logs_host_is_storage_plus_logs(): void
     {
         $root = sys_get_temp_dir().'/lateralzr-logs-host-'.uniqid('', true);
         mkdir($root.'/bin', 0777, true);
@@ -119,7 +142,7 @@ class ProdPersistedLogsTest extends TestCase
         $code = proc_close($process);
 
         $this->assertSame(0, $code);
-        $this->assertSame('./logs', $stdout);
+        $this->assertSame('./storage/logs', $stdout);
 
         $command = ['env', 'LATERALZR_STORAGE=/mnt/data/lateralzr/storage', $root.'/bin/logs-host'];
         $process = proc_open($command, $spec, $pipes, $root);
@@ -130,7 +153,7 @@ class ProdPersistedLogsTest extends TestCase
         $code = proc_close($process);
 
         $this->assertSame(0, $code);
-        $this->assertSame('/mnt/data/lateralzr/logs', $stdout);
+        $this->assertSame('/mnt/data/lateralzr/storage/logs', $stdout);
 
         $this->removeTree($root);
     }

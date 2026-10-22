@@ -55,11 +55,14 @@ log_bind_sources() {
 import json, os, sys
 data = json.load(sys.stdin)
 want = {
-    "app": "/var/log/lateralzr-host",
-    "queue": "/var/log/lateralzr-host",
-    "scheduler": "/var/log/lateralzr-host",
     "nginx": "/var/log/nginx",
 }
+forbidden = "/var/log/lateralzr-host"
+for name, svc in (data.get("services") or {}).items():
+    for volume in svc.get("volumes") or []:
+        if isinstance(volume, dict) and volume.get("target") == forbidden:
+            sys.stderr.write("%s still bind-mounts %s\n" % (name, forbidden))
+            sys.exit(1)
 for name, target in want.items():
     found = None
     for volume in data.get("services", {}).get(name, {}).get("volumes", []):
@@ -67,7 +70,7 @@ for name, target in want.items():
             source = volume.get("source") or ""
             found = os.path.normpath(source) if source else None
             break
-    print(f"{name}={found}")
+    print("%s=%s" % (name, found))
 '
 }
 
@@ -107,8 +110,7 @@ assert_case() {
     local label="$1"
     local storage="$2"
     local public="$3"
-    local logs="$4"
-    local nginx_logs="$5"
+    local nginx_logs="$4"
     local got
     got="$("${COMPOSE[@]}" config --format json | bind_sources)"
     local expected
@@ -124,7 +126,7 @@ assert_case() {
     echo "OK ${label}"
 
     got="$("${COMPOSE[@]}" config --format json | log_bind_sources)"
-    expected=$(printf 'app=%s\nqueue=%s\nscheduler=%s\nnginx=%s' "$logs" "$logs" "$logs" "$nginx_logs")
+    expected=$(printf 'nginx=%s' "$nginx_logs")
     if [[ "$got" != "$expected" ]]; then
         echo "FAIL ${label} log binds" >&2
         echo "expected:" >&2
@@ -139,22 +141,21 @@ assert_case() {
 
 default_storage="$ROOT/storage"
 default_public="$ROOT/storage/app/public"
-default_logs="$ROOT/logs"
-default_nginx_logs="$ROOT/logs/nginx"
+default_nginx_logs="$ROOT/storage/logs/nginx"
 
 echo "=== unset ==="
 unset LATERALZR_STORAGE || true
-assert_case "unset" "$default_storage" "$default_public" "$default_logs" "$default_nginx_logs"
+assert_case "unset" "$default_storage" "$default_public" "$default_nginx_logs"
 
 echo "=== empty LATERALZR_STORAGE ==="
-LATERALZR_STORAGE='' assert_case "empty" "$default_storage" "$default_public" "$default_logs" "$default_nginx_logs"
+LATERALZR_STORAGE='' assert_case "empty" "$default_storage" "$default_public" "$default_nginx_logs"
 
 echo "=== LATERALZR_STORAGE=/mnt/x ==="
-LATERALZR_STORAGE=/mnt/x assert_case "set" "/mnt/x" "/mnt/x/app/public" "/mnt/logs" "/mnt/logs/nginx"
+LATERALZR_STORAGE=/mnt/x assert_case "set" "/mnt/x" "/mnt/x/app/public" "/mnt/x/logs/nginx"
 
 echo "=== .env only ==="
 printf 'LATERALZR_STORAGE=/mnt/from-env\n' > .env
 unset LATERALZR_STORAGE || true
-assert_case "env-file" "/mnt/from-env" "/mnt/from-env/app/public" "/mnt/logs" "/mnt/logs/nginx"
+assert_case "env-file" "/mnt/from-env" "/mnt/from-env/app/public" "/mnt/from-env/logs/nginx"
 
 echo "All compose storage bind cases passed."

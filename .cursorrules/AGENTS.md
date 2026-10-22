@@ -25,7 +25,7 @@ Lateralzr is a mobile app. It is built with Expo so one simple codebase serves i
 - **Laravel Boost**: MCP integration for AI-assisted development
 - **MySQL**: Primary database (via Sail)
 - **PHPUnit**: Testing framework
-- **Admin backoffice**: Filament 5 panel at `/admin`; access restricted to users with the `super_admin` role (Spatie Laravel Permission). Roles/permissions are extensible; the first role is `super_admin` with full capabilities. Filament resources provide quick CRUD for models (e.g. Concept, User). The Concept model (table `concepts`) is the main entity for concept/URL data; User model holds app users and roles. Production Filament is served at `https://api.lateralzr.com/admin`. Web 500s must appear in `storage/logs/laravel-YYYY-MM-DD.log` **and** `docker compose logs app` (PHP `log_errors=On`, FPM `catch_workers_output`, Laravel stack includes `daily` + `stderr`). Per-service host files live at `$(./bin/logs-host)/<service>/`.
+- **Admin backoffice**: Filament 5 panel at `/admin`; access restricted to users with the `super_admin` role (Spatie Laravel Permission). Roles/permissions are extensible; the first role is `super_admin` with full capabilities. Filament resources provide quick CRUD for models (e.g. Concept, User). The Concept model (table `concepts`) is the main entity for concept/URL data; User model holds app users and roles. Production Filament is served at `https://api.lateralzr.com/admin`. Web 500s must appear in `storage/logs/laravel-YYYY-MM-DD.log` **and** `docker compose logs app` (PHP `log_errors=On`, FPM `catch_workers_output`, Laravel stack includes `daily` + `stderr`). Per-service host files live at `$(./bin/storage-host)/logs/<service>/`.
 
 ### API Design Principles
 - RESTful API design

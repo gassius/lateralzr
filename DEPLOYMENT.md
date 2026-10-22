@@ -54,10 +54,9 @@ The production setup consists of:
 
 Volumes (intentionally narrow — do **not** bind-mount the host repo over `/var/www/html`):
 
-- `${LATERALZR_STORAGE:-./storage}` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, Laravel daily logs, cache)
+- `${LATERALZR_STORAGE:-./storage}` → `/var/www/html/storage` on app/queue/scheduler (writable uploads, Laravel daily logs, queue/scheduler file logs, cache)
 - `${LATERALZR_STORAGE:-./storage}/app/public` → `/var/www/html/public/storage` on nginx (public disk files)
-- `${LATERALZR_STORAGE:-./storage}/../logs` → `/var/log/lateralzr-host` on app/queue/scheduler (per-service file logs)
-- `${LATERALZR_STORAGE:-./storage}/../logs/nginx` → `/var/log/nginx` (access/error)
+- `${LATERALZR_STORAGE:-./storage}/logs/nginx` → `/var/log/nginx` (access/error)
 - `./docker/nginx/prod.conf` → nginx config (read-only)
 - `.env` via `env_file` (not copied into the image)
 
@@ -71,7 +70,7 @@ Hetzner Volume cutover (keep `./storage` until verified):
 2. `rsync -a --numeric-ids ./storage/ /mnt/data/lateralzr/storage/`
 3. `touch /mnt/data/lateralzr/storage/.lateralzr-storage`
 4. Set `LATERALZR_STORAGE=/mnt/data/lateralzr/storage` in `.env`
-5. Deploy (`./bin/deploy-prod`) and confirm uploads, public disk, `$(./bin/storage-host)/logs/laravel-$(date +%Y-%m-%d).log`, and `$(./bin/logs-host)/{app,nginx,queue,scheduler}/`
+5. Deploy (`./bin/deploy-prod`) and confirm uploads, public disk, `$(./bin/storage-host)/logs/laravel-$(date +%Y-%m-%d).log`, and `$(./bin/storage-host)/logs/{nginx,queue,scheduler}/`
 
 The app image **entrypoint** (`docker/app-entrypoint.sh`) runs on every start: it recreates `storage/framework/*` and `storage/logs` on the bind mount, `chown`s them to `www-data`, and symlinks `public/storage`. Queue and scheduler artisan processes are dropped to `www-data` so they cannot recreate `laravel.log` as `root:root`.
 
@@ -314,16 +313,13 @@ Filament / Laravel **web** 500s must show up in **both** places below. If `larav
 # Laravel daily files (host bind-mount of storage/)
 tail -n 200 "$(./bin/storage-host)/logs/laravel-$(date +%Y-%m-%d).log"
 
-# Same files via the data-dir convenience symlink
-tail -n 200 "$(./bin/logs-host)/app/laravel-$(date +%Y-%m-%d).log"
-
-# Nginx access / error (host bind)
-tail -n 200 "$(./bin/logs-host)/nginx/access.log"
-tail -n 200 "$(./bin/logs-host)/nginx/error.log"
+# Nginx access / error (host bind under storage/logs)
+tail -n 200 "$(./bin/storage-host)/logs/nginx/access.log"
+tail -n 200 "$(./bin/storage-host)/logs/nginx/error.log"
 
 # Queue / scheduler artisan stdout (also in docker json-file logs)
-tail -n 200 "$(./bin/logs-host)/queue/queue.log"
-tail -n 200 "$(./bin/logs-host)/scheduler/scheduler.log"
+tail -n 200 "$(./bin/storage-host)/logs/queue/queue.log"
+tail -n 200 "$(./bin/storage-host)/logs/scheduler/scheduler.log"
 
 # PHP-FPM + Laravel stderr (PHP fatals, reportable exceptions)
 docker compose -f docker-compose.prod.yml logs --tail=200 app
@@ -346,7 +342,7 @@ Expected: `log_errors=1` and `error_log=/proc/self/fd/2`.
 
 The production log stack is `daily` (`storage/logs/laravel-YYYY-MM-DD.log`, 14-day retention) **plus** `stderr`. A leftover VPS `LOG_STACK=single` is promoted to `daily`. `ignore_exceptions` is enabled so a root-owned laravel.log cannot silence docker logs. Emergency fallback is `php://stderr`.
 
-File logs for nginx, queue, and scheduler live at `$(./bin/logs-host)/<service>/` — the parent of `LATERALZR_STORAGE` plus `/logs`. `bin/rotate-prod-logs` runs daily from the scheduler (logrotate when available, otherwise 10 MiB × 3 files). Container stdout uses the Docker `json-file` driver (`max-size: 10m`, `max-file: 3`). Shared MySQL (`mysql_db_1`) is not in this compose file; its logs stay with the gonzalezrico stack.
+File logs for nginx, queue, and scheduler live at `$(./bin/storage-host)/logs/<service>/` (the writable storage tree). `bin/rotate-prod-logs` runs daily from the scheduler and copytruncates files over 10 MiB (keeps 3). It does not call logrotate. Container stdout uses the Docker `json-file` driver (`max-size: 10m`, `max-file: 3`). Shared MySQL (`mysql_db_1`) is not in this compose file; its logs stay with the gonzalezrico stack.
 
 ### Run Artisan commands from the VPS host
 
@@ -405,10 +401,10 @@ Check that it is running:
 docker compose -f docker-compose.prod.yml logs -f scheduler
 tail -f "$(./bin/storage-host)/logs/laravel-$(date +%Y-%m-%d).log"
 tail -f "$(./bin/storage-host)/logs/scheduler-test.log"
-tail -f "$(./bin/logs-host)/scheduler/scheduler.log"
+tail -f "$(./bin/storage-host)/logs/scheduler/scheduler.log"
 ```
 
-Laravel daily files live on `${LATERALZR_STORAGE:-./storage}` (resolved by `bin/storage-host`). Per-service file logs live on `$(./bin/logs-host)/<service>/`.
+Laravel daily files and per-service file logs both live on `${LATERALZR_STORAGE:-./storage}/logs` (resolved by `bin/storage-host` / `bin/logs-host`).
 
 ### Access Application Shell
 

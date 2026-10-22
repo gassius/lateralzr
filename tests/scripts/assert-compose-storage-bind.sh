@@ -71,7 +71,7 @@ assert_match_case() {
     fi
     echo "OK ${label} storage-host matches compose bind"
 
-    expected_logs="$(dirname "$host_got")/logs"
+    expected_logs="${host_got}/logs"
     assert_eq "${label} logs-host" "$expected_logs" "$logs_got"
 }
 

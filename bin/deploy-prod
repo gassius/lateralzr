@@ -45,7 +45,7 @@ storage_host="$("$SCRIPT_DIR/storage-host" --require-ready)"
 if [[ -x "$SCRIPT_DIR/logs-host" ]]; then
     logs_host="$("$SCRIPT_DIR/logs-host")"
 else
-    logs_host="$(dirname "$storage_host")/logs"
+    logs_host="${storage_host}/logs"
 fi
 
 echo "📁 Ensuring host storage directories exist (${storage_host})..."
@@ -56,40 +56,32 @@ mkdir -p \
     "${storage_host}/framework/sessions" \
     "${storage_host}/framework/testing" \
     "${storage_host}/framework/views" \
-    "${storage_host}/logs"
+    "${storage_host}/logs/nginx" \
+    "${storage_host}/logs/queue" \
+    "${storage_host}/logs/scheduler"
 echo ""
 
-echo "📁 Ensuring host log directories exist (${logs_host})..."
-mkdir -p \
-    "${logs_host}/nginx" \
-    "${logs_host}/queue" \
-    "${logs_host}/scheduler"
-# logs/app is a convenience view of Laravel daily files (storage/logs).
-if [[ -d "${logs_host}/app" && ! -L "${logs_host}/app" ]]; then
-    rmdir "${logs_host}/app" 2>/dev/null || true
-fi
-if [[ ! -e "${logs_host}/app" ]]; then
-    ln -sfn "$(realpath -m "${storage_host}/logs")" "${logs_host}/app"
-fi
+echo "📁 Ensuring service log files exist (${logs_host}/{nginx,queue,scheduler})..."
+# All under LATERALZR_STORAGE (group-writable www-data). Do not write beside
+# storage — the data-dir parent is root:root 755. Ownership is not changed.
 touch \
     "${logs_host}/nginx/access.log" \
     "${logs_host}/nginx/error.log" \
     "${logs_host}/queue/queue.log" \
     "${logs_host}/scheduler/scheduler.log"
-# php official images use www-data 33:33; nginx:alpine uses nginx 101:101.
-# Deploy often runs as a non-root VPS user, so always grant container write.
-if [[ "$(id -u)" = "0" ]]; then
-    chown -R 33:33 "${storage_host}/logs" "${logs_host}/queue" "${logs_host}/scheduler" || true
-    chown -R 101:101 "${logs_host}/nginx" || true
-fi
-chmod 0775 "${logs_host}" "${logs_host}/nginx" "${logs_host}/queue" "${logs_host}/scheduler" || true
+# Group-writable + setgid so deploy (cgonzalez, in www-data) and container
+# www-data can both write. nginx:alpine (uid 101) writes the pre-touched
+# 0666 files; copytruncate keeps that inode.
+chmod 2775 "${logs_host}" "${logs_host}/nginx" "${logs_host}/queue" "${logs_host}/scheduler" || true
 chmod 0666 \
     "${logs_host}/nginx/access.log" \
     "${logs_host}/nginx/error.log" \
     "${logs_host}/queue/queue.log" \
     "${logs_host}/scheduler/scheduler.log" || true
 if [[ -x "$SCRIPT_DIR/rotate-prod-logs" ]]; then
-    LATERALZR_LOGS_ROOT="${logs_host}" "$SCRIPT_DIR/rotate-prod-logs" || true
+    if ! LATERALZR_LOGS_ROOT="${logs_host}" "$SCRIPT_DIR/rotate-prod-logs"; then
+        echo "⚠️  rotate-prod-logs failed; continuing deploy" >&2
+    fi
 fi
 echo ""
 

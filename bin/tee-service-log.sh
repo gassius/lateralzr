@@ -30,25 +30,27 @@ tee -a "$log" < "$fifo" &
 tee_pid=$!
 cmd_pid=""
 
-# Invoked from the TERM/INT trap (ShellCheck SC2329 cannot see that).
-# shellcheck disable=SC2329
+# Invoked from traps. ShellCheck cannot see trap-called functions.
+# shellcheck disable=SC2317,SC2329
 cleanup() {
-    if [ -n "$cmd_pid" ]; then
+    if [ -n "${cmd_pid:-}" ]; then
         kill -TERM "$cmd_pid" 2>/dev/null || true
         wait "$cmd_pid" || true
     fi
-    kill -TERM "$tee_pid" 2>/dev/null || true
-    wait "$tee_pid" || true
+    if [ -n "${tee_pid:-}" ]; then
+        kill -TERM "$tee_pid" 2>/dev/null || true
+        wait "$tee_pid" || true
+    fi
     rm -f "$fifo"
 }
 
-trap 'cleanup; exit 0' TERM INT
+trap cleanup EXIT
+trap 'exit 0' TERM INT
 
 "$@" > "$fifo" 2>&1 &
 cmd_pid=$!
 wait "$cmd_pid"
 status=$?
-kill -TERM "$tee_pid" 2>/dev/null || true
-wait "$tee_pid" || true
-rm -f "$fifo"
+# Wait for the child before EXIT removes the fifo (B1 / review minor).
+cmd_pid=""
 exit "$status"

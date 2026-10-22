@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 
-# Rotate bind-mounted prod service logs (nginx / queue / scheduler).
+# Size-rotate bind-mounted nginx / queue / scheduler files (copytruncate).
 # Laravel daily files under storage/logs are retained by the daily channel.
+# Host /etc is not writable by the deploy user; this script is shell-only.
 #
 # Logs root (first match):
 #   1. LATERALZR_LOGS_ROOT (tests / override)
-#   2. /var/log/lateralzr-host (compose bind inside app/queue/scheduler)
-#   3. bin/logs-host (parent of LATERALZR_STORAGE + /logs)
+#   2. /var/www/html/storage/logs (compose bind inside app/queue/scheduler)
+#   3. $(bin/logs-host) → ${LATERALZR_STORAGE}/logs
 #
-# If logrotate is on PATH and a conf exists, use it. Otherwise rotate any
-# file over 10 MiB and keep 3 predecessors (file, file.1, file.2, file.3).
+# Files over 10 MiB are snapshotted to file.1 (keeping 3 predecessors) and the
+# live file is truncated in place so open writers (nginx, tee) keep the inode.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 MAX_BYTES="${LATERALZR_LOG_MAX_BYTES:-$((10 * 1024 * 1024))}"
 KEEP=3
@@ -24,34 +24,16 @@ resolve_logs_root() {
         printf '%s\n' "${LATERALZR_LOGS_ROOT}"
         return
     fi
-    if [[ -d /var/log/lateralzr-host ]]; then
-        printf '%s\n' /var/log/lateralzr-host
+    if [[ -d /var/www/html/storage/logs ]]; then
+        printf '%s\n' /var/www/html/storage/logs
         return
     fi
     if [[ -x "$SCRIPT_DIR/logs-host" ]]; then
         "$SCRIPT_DIR/logs-host"
         return
     fi
-    printf '%s\n' "${PROJECT_ROOT}/logs"
-}
-
-write_logrotate_conf() {
-    local root="$1"
-    local conf="${root}/logrotate.conf"
-    cat > "$conf" <<EOF
-${root}/nginx/*.log
-${root}/queue/*.log
-${root}/scheduler/*.log {
-    daily
-    rotate 14
-    maxsize 10M
-    missingok
-    notifempty
-    compress
-    delaycompress
-    copytruncate
-}
-EOF
+    echo "rotate-prod-logs: cannot resolve logs root" >&2
+    return 1
 }
 
 rotate_file() {
@@ -59,7 +41,7 @@ rotate_file() {
     local size i prev
     [[ -f "$file" ]] || return 0
     case "$(basename "$file")" in
-        laravel-*.log|*.gz) return 0 ;;
+        laravel.log|laravel-*.log|scheduler-test.log|*.gz) return 0 ;;
     esac
     size="$(wc -c < "$file")"
     if [[ "$size" -le "$MAX_BYTES" ]]; then
@@ -73,23 +55,14 @@ rotate_file() {
         fi
         i=$prev
     done
-    mv "$file" "${file}.1"
+    # copytruncate: keep the live inode/mode so nginx and tee keep writing.
+    cp -p "$file" "${file}.1"
     : > "$file"
 }
 
 logs_root="$(resolve_logs_root)"
 if [[ ! -d "$logs_root" ]]; then
     exit 0
-fi
-
-write_logrotate_conf "$logs_root"
-
-# Tests set LATERALZR_LOG_MAX_BYTES to exercise the size fallback.
-if [[ -z "${LATERALZR_LOG_MAX_BYTES:-}" ]] && command -v logrotate >/dev/null 2>&1; then
-    if logrotate -s "${logs_root}/logrotate.status" "${logs_root}/logrotate.conf"; then
-        exit 0
-    fi
-    echo "rotate-prod-logs: logrotate failed, falling back to size rotation" >&2
 fi
 
 shopt -s nullglob

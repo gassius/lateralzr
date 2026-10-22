@@ -13,26 +13,24 @@ mkdir -p \
     storage/framework/sessions \
     storage/framework/testing \
     storage/framework/views \
-    storage/logs \
+    storage/logs/nginx \
+    storage/logs/queue \
+    storage/logs/scheduler \
     bootstrap/cache
 
-if [ -d /var/log/lateralzr-host ]; then
-    mkdir -p \
-        /var/log/lateralzr-host/queue \
-        /var/log/lateralzr-host/scheduler
-fi
+touch \
+    storage/logs/nginx/access.log \
+    storage/logs/nginx/error.log \
+    storage/logs/queue/queue.log \
+    storage/logs/scheduler/scheduler.log \
+    2>/dev/null || true
 
 if [ "$(id -u)" = "0" ]; then
     chown -R www-data:www-data storage bootstrap/cache || true
     chmod -R ug+rwX,o+rX storage bootstrap/cache || true
-    if [ -d /var/log/lateralzr-host ]; then
-        chown -R www-data:www-data \
-            /var/log/lateralzr-host/queue \
-            /var/log/lateralzr-host/scheduler || true
-        chmod -R ug+rwX,o+rX \
-            /var/log/lateralzr-host/queue \
-            /var/log/lateralzr-host/scheduler || true
-    fi
+    chmod 2775 storage/logs storage/logs/nginx storage/logs/queue storage/logs/scheduler || true
+    # nginx:alpine writes as uid 101 into the shared storage/logs/nginx bind.
+    chmod 0666 storage/logs/nginx/access.log storage/logs/nginx/error.log || true
 fi
 
 # public/ lives in the image (not bind-mounted). Recreate the storage symlink

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-# Resolve the prod file-log host root: <data-dir>/logs
-# where data-dir is the parent of the storage bind (bin/storage-host).
+# Resolve the prod file-log host root: ${LATERALZR_STORAGE}/logs
+# (same tree as Laravel daily files). Service dirs are
+# <this>/nginx, <this>/queue, <this>/scheduler.
 #
-#   ./storage          → ./logs
-#   /mnt/data/lateralzr/storage → /mnt/data/lateralzr/logs
+#   ./storage          → ./storage/logs
+#   /mnt/data/lateralzr/storage → /mnt/data/lateralzr/storage/logs
 #
 # Usage:
 #   bin/logs-host                 # print the resolved path
@@ -20,4 +21,4 @@ if [[ ! -x "$SCRIPT_DIR/storage-host" ]]; then
 fi
 
 storage_host="$("$SCRIPT_DIR/storage-host" "$@")"
-printf '%s/logs\n' "$(dirname "$storage_host")"
+printf '%s/logs\n' "$storage_host"
