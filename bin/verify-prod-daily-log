@@ -3,6 +3,9 @@
 # Run inside the app container (cwd /var/www/html, vendor present).
 # Writes a deploy marker through the default log channel and asserts the
 # daily file exists. LOG_LEVEL=error, so the marker is Log::error.
+#
+# Bootstrap Laravel directly. Do not use artisan tinker: PsySH tries to
+# create $HOME/.config/psysh, and www-data HOME /var/www is not writable.
 
 set -euo pipefail
 
@@ -11,7 +14,20 @@ if [[ ! -f artisan ]]; then
     exit 1
 fi
 
-php_code="$(cat <<'PHP'
+if [[ ! -f vendor/autoload.php || ! -f bootstrap/app.php ]]; then
+    echo "verify-prod-daily-log: missing Laravel bootstrap files" >&2
+    exit 1
+fi
+
+php <<'PHP'
+<?php
+
+require 'vendor/autoload.php';
+
+/** @var \Illuminate\Foundation\Application $app */
+$app = require 'bootstrap/app.php';
+$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+
 $default = (string) config('logging.default');
 $stack = config('logging.channels.stack.channels');
 $stack = is_array($stack) ? $stack : [];
@@ -38,6 +54,3 @@ if ($perms === '0666') {
 }
 echo "OK daily log {$daily} perms={$perms}".PHP_EOL;
 PHP
-)"
-
-php artisan tinker --execute="$php_code"
