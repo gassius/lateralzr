@@ -1,6 +1,6 @@
 # Production Dockerfile for Lateralzr Laravel API
 # Stages: `app` (PHP-FPM) and `nginx` (static public/ + reverse proxy to FPM)
-FROM php:8.5-fpm-bookworm AS app
+FROM php:8.5.12-fpm-bookworm@sha256:d3db5340c7ecfb1e3a26af5d3d9de8b4e160cdd75692a830b5cb74b0b85db2cf AS app
 
 ENV DEBIAN_FRONTEND=noninteractive
 
