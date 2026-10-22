@@ -103,6 +103,11 @@ class ProdPersistedLogsTest extends TestCase
         $this->assertStringContainsString('Log::error($marker)', $script);
         $this->assertStringContainsString("laravel-'.now()->format('Y-m-d').'.log", $script);
         $this->assertStringContainsString("'0666'", $script);
+        $this->assertStringContainsString('bootstrap/app.php', $script);
+        $this->assertStringContainsString('Kernel::class)->bootstrap()', $script);
+        $this->assertStringNotContainsString('tinker --execute', $script);
+        $this->assertStringNotContainsString('PSYSH_CONFIG', $script);
+        $this->assertStringNotContainsString('XDG_CONFIG_HOME', $script);
     }
 
     public function test_deploy_prod_workflow_serializes_without_cancel(): void
