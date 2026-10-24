@@ -279,25 +279,24 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     player.volume = 1;
     // No pitch shift (director decision). Keep rate at unity if exposed later.
 
-    try {
-      const seek = player.seekTo(0);
-      if (seek && typeof (seek as Promise<void>).then === 'function') {
-        void (seek as Promise<void>).then(() => {
-          try {
-            player.play();
-          } catch {
-            // ignore
-          }
-        });
-      } else {
-        player.play();
-      }
-    } catch {
+    const playSafe = (): void => {
       try {
         player.play();
       } catch {
-        return;
+        // ignore
       }
+    };
+
+    try {
+      const seek = player.seekTo(0);
+      if (seek && typeof (seek as Promise<void>).then === 'function') {
+        // Rejection handler avoids unhandled rejection; still attempt play.
+        void (seek as Promise<void>).then(playSafe, playSafe);
+      } else {
+        playSafe();
+      }
+    } catch {
+      playSafe();
     }
 
     rt.lastPlayedAt = t;
