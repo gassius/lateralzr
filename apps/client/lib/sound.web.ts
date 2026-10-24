@@ -725,7 +725,7 @@ export function __createWebAudioPlayerForTests(
   ctx: AudioContext,
   source: SoundAssetRef | string,
 ): SoundPlayer {
-  return createWebAudioPlayer(ctx, source as SoundAssetRef);
+  return createWebAudioPlayer(ctx, source);
 }
 
 /** Test helper — clear decode cache only. */
