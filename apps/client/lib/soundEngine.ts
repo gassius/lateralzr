@@ -5,6 +5,7 @@
  * Pitch shift intentionally omitted (audio director 2026-10-24).
  * Tone layers + reduced-motion gain: Sound 4 (see `lib/soundMap.ts`).
  * Big-movement RM fade shorten + Random wide land: Sound 5.
+ * Sound 7: thin pause/resume/duck + system gates (Sound 6 plugs music hooks).
  */
 
 import {
@@ -25,6 +26,15 @@ import {
   type SoundAssetRef,
   type SoundMapEntry,
 } from '@/lib/soundMap';
+import {
+  applyMusicLifecycleTransition,
+  DEFAULT_SOUND_SYSTEM_FLAGS,
+  NOOP_MUSIC_HOOKS,
+  resolvePlaybackGates,
+  shouldPlaySoundEvent,
+  type SoundMusicLifecycleHooks,
+  type SoundSystemFlags,
+} from '@/lib/soundSystem';
 import {
   DEFAULT_SOUND_PREFERENCES,
   type SoundEvent,
@@ -73,6 +83,22 @@ export type SoundController = {
   getPoolSize: () => number;
   /** Test: release all players. */
   reset: () => void;
+  /** Sound 7: current system flags (AppState / a11y / interruption). */
+  getSystemFlags: () => SoundSystemFlags;
+  /** Sound 7: apply system flags and run music lifecycle side effects. */
+  applySystemFlags: (next: SoundSystemFlags) => void;
+  /**
+   * Sound 6 registers real music players here. Until then hooks are no-ops
+   * so Sound 7 can still stop the effects pool and gate events.
+   */
+  registerMusicHooks: (hooks: Partial<SoundMusicLifecycleHooks> | null) => void;
+  /** Thin pause/resume/duck surface Sound 6 / tests can call directly. */
+  pauseMusic: () => void;
+  resumeMusic: (opts?: { fadeIn?: boolean }) => void;
+  duckMusic: (volume: number) => void;
+  stopAllSound: () => void;
+  /** Whether a music bed / layer may start right now. */
+  canStartMusic: () => boolean;
 };
 
 function clampLadderLevel(value: number): number {
@@ -309,7 +335,41 @@ export function createEffectsPool(options: {
     onDone?.();
   }
 
-  return { acquire, countVoices, clear, size, fadeMusicThenPause, slots };
+  function pauseMatching(isMatch: (name: SoundEventName) => boolean): void {
+    for (const slot of slots) {
+      if (slot.eventName == null || !isMatch(slot.eventName)) continue;
+      try {
+        slot.player.pause();
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  function setVolumeForBus(
+    isBus: (name: SoundEventName) => boolean,
+    volume: number,
+  ): void {
+    for (const slot of slots) {
+      if (slot.eventName == null || !isBus(slot.eventName)) continue;
+      try {
+        slot.player.volume = volume;
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return {
+    acquire,
+    countVoices,
+    clear,
+    size,
+    fadeMusicThenPause,
+    pauseMatching,
+    setVolumeForBus,
+    slots,
+  };
 }
 
 export function createSoundController(options: SoundEngineOptions): SoundController {
@@ -319,6 +379,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   const resolveEntry = options.resolveEntry ?? getSoundMapEntry;
 
   let prefs: SoundPreferences = { ...DEFAULT_SOUND_PREFERENCES };
+  let systemFlags: SoundSystemFlags = { ...DEFAULT_SOUND_SYSTEM_FLAGS };
+  let musicHooks: SoundMusicLifecycleHooks = { ...NOOP_MUSIC_HOOKS };
   let sessionReady = false;
   const eventRuntime = new Map<SoundEventName, EventRuntime>();
 
@@ -335,6 +397,10 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       eventRuntime.set(name, rt);
     }
     return rt;
+  }
+
+  function gates() {
+    return resolvePlaybackGates(prefs, systemFlags);
   }
 
   async function ensureSession(): Promise<void> {
@@ -359,6 +425,23 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       // ignore
     }
     rmFadeByPlayer.delete(player);
+  }
+
+  function stopAllSound(): void {
+    for (const player of [...rmFadeByPlayer.keys()]) {
+      cancelRmFade(player);
+    }
+    pool.clear();
+    try {
+      musicHooks.stop();
+    } catch {
+      // ignore
+    }
+    try {
+      musicHooks.pauseDropIns();
+    } catch {
+      // ignore
+    }
   }
 
   function playSource(
@@ -423,6 +506,9 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     const entry = resolveEntry(event.name);
     if (!isBusEnabled(prefs, entry.bus)) return;
 
+    const currentGates = gates();
+    if (!shouldPlaySoundEvent(event.name, entry.bus, currentGates)) return;
+
     const reduceMotion = Boolean(options?.reduceMotion);
     const ladderSource = resolveLadderSource(event);
     const wideLand = resolveReshuffleLandSource(event);
@@ -460,7 +546,9 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     void ensureSession();
 
     const assetGainDb = 0; // per-file gain lives in authored peaks; map gainDb reserved for music mix
-    const volume = resolveEventGain(assetGainDb, event.name, reduceMotion);
+    const busScale =
+      entry.bus === 'music' ? currentGates.musicVolume : currentGates.effectsVolume;
+    const volume = resolveEventGain(assetGainDb, event.name, reduceMotion) * busScale;
     if (!playSource(source, event.name, volume, reduceMotion)) return;
 
     rt.lastPlayedAt = t;
@@ -474,11 +562,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       (event.name === 'swipe_next' || event.name === 'swipe_back')
     ) {
       const tone = swipeToneModule(event.name);
-      const toneVolume = resolveEventGain(
-        SWIPE_TONE_LAYER_GAIN_DB,
-        event.name,
-        reduceMotion,
-      );
+      const toneVolume =
+        resolveEventGain(SWIPE_TONE_LAYER_GAIN_DB, event.name, reduceMotion) * busScale;
       playSource(tone, event.name, toneVolume, reduceMotion);
     }
   }
@@ -496,7 +581,78 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     if (musicWasOn && musicNowOff) {
       // Fade, don't cut — immediate volume 0 + pause until a real fader lands with music.
       pool.fadeMusicThenPause((name) => resolveEntry(name).bus === 'music');
+      try {
+        musicHooks.stop();
+        musicHooks.pauseDropIns();
+      } catch {
+        // ignore
+      }
     }
+  }
+
+  function applySystemFlags(next: SoundSystemFlags): void {
+    const prev = systemFlags;
+    systemFlags = {
+      appActive: Boolean(next.appActive),
+      interrupted: Boolean(next.interrupted),
+      screenReaderEnabled: Boolean(next.screenReaderEnabled),
+      otherAudioPlaying: Boolean(next.otherAudioPlaying),
+      announcementActive: Boolean(next.announcementActive),
+    };
+
+    if (prev.appActive && !systemFlags.appActive) {
+      // Background: clear effects immediately; music hooks stop via lifecycle.
+      for (const player of [...rmFadeByPlayer.keys()]) {
+        cancelRmFade(player);
+      }
+      pool.clear();
+    }
+
+    try {
+      applyMusicLifecycleTransition(musicHooks, prefs, systemFlags, prev);
+    } catch {
+      // ignore
+    }
+
+    const g = gates();
+    pool.setVolumeForBus((name) => resolveEntry(name).bus === 'music', g.musicVolume);
+    pool.setVolumeForBus((name) => resolveEntry(name).bus === 'effects', g.effectsVolume);
+  }
+
+  function registerMusicHooks(hooks: Partial<SoundMusicLifecycleHooks> | null): void {
+    musicHooks = { ...NOOP_MUSIC_HOOKS, ...(hooks ?? {}) };
+  }
+
+  function pauseMusic(): void {
+    // Music only — effects must keep playing (M3).
+    pool.pauseMatching((name) => resolveEntry(name).bus === 'music');
+    try {
+      musicHooks.pause();
+    } catch {
+      // ignore
+    }
+  }
+
+  function resumeMusic(opts: { fadeIn?: boolean } = {}): void {
+    try {
+      musicHooks.resume({ fadeIn: opts.fadeIn !== false });
+    } catch {
+      // ignore
+    }
+  }
+
+  function duckMusic(volume: number): void {
+    const level = Math.max(0, Math.min(1, volume));
+    pool.setVolumeForBus((name) => resolveEntry(name).bus === 'music', level);
+    try {
+      musicHooks.duck(level);
+    } catch {
+      // ignore
+    }
+  }
+
+  function canStartMusic(): boolean {
+    return gates().allowMusicStart;
   }
 
   function isSoundAvailable(): boolean {
@@ -510,6 +666,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     pool.clear();
     eventRuntime.clear();
     prefs = { ...DEFAULT_SOUND_PREFERENCES };
+    systemFlags = { ...DEFAULT_SOUND_SYSTEM_FLAGS };
+    musicHooks = { ...NOOP_MUSIC_HOOKS };
     sessionReady = false;
   }
 
@@ -520,5 +678,13 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     getPreferences: () => ({ ...prefs }),
     getPoolSize: () => pool.size(),
     reset,
+    getSystemFlags: () => ({ ...systemFlags }),
+    applySystemFlags,
+    registerMusicHooks,
+    pauseMusic,
+    resumeMusic,
+    duckMusic,
+    stopAllSound,
+    canStartMusic,
   };
 }
