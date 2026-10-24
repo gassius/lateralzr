@@ -561,6 +561,26 @@ export function setSoundPreferences(prefs: SoundPreferences): void {
 }
 
 /**
+ * Reduced Motion → fewer texture layers (Sound 6 music engine).
+ * Web music bus still plays mapped beds via Sound 8; generative texture
+ * scheduling remains native until a web music-engine wire lands.
+ */
+export function setSoundReducedMotion(_enabled: boolean): void {
+  // no-op on web preview for now
+}
+
+/**
+ * Drive bed brightness / texture count from Complexity + Laterality (Sound 6).
+ * No-op on web until generative music engine is wired to Web Audio players.
+ */
+export function setSoundMusicProgress(
+  _complexity: number,
+  _lateralityStep: number,
+): void {
+  // no-op on web preview for now
+}
+
+/**
  * True in browsers with Web Audio. Menu / Sound 2 use this on web preview
  * (Master: web plays sound).
  */

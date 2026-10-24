@@ -1,20 +1,36 @@
 /**
- * Native sound module (iOS / Android) — Sound 1 foundation + Sound 7 system.
+ * Native sound module (iOS / Android) — Sound 1 + Sound 6 music + Sound 7 system.
  *
  * Screens announce events via {@link soundEvent}; they never play files.
  * From Reanimated worklets use `runOnJS(soundEvent)(event)`.
  *
  * Requires a development build (expo-audio is not in Expo Go). See apps/client/AGENTS.md.
  *
+ * Sound 6: generative music engine (`lib/soundMusic.ts`) registers into Sound 7
+ * lifecycle hooks. Loop lengths come from manifest `durationMs` (AAC padding) —
+ * native has no `loopEnd`; dual-copy crossfade uses the same seconds value Sound 8
+ * sets as web `loopEnd`.
+ *
  * Sound 7: silent switch, mixWithOthers, AppState stop/restart, screen-reader
- * ducking. Music lifecycle hooks are placeholders until Sound 6 registers players.
- * expo-audio has no JS interruption event — `notifySoundInterruption` is for Sound 6.
+ * ducking; music lifecycle via hooks Sound 6 registers below.
+ * expo-audio has no JS interruption event — `notifySoundInterruption` is manual/tests.
  */
 
 import { createAudioPlayer, setAudioModeAsync, setIsAudioActiveAsync, type AudioPlayer } from 'expo-audio';
 import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
 
+import {
+  getSoundAsset,
+  getSoundAssetDurationMs,
+  type SoundAssetName,
+} from '@/lib/soundAssets';
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
+import { getSoundMapEntry } from '@/lib/soundMap';
+import {
+  createSoundMusicEngine,
+  loopEndSecondsFromDurationMs,
+  type MusicPlayer,
+} from '@/lib/soundMusic';
 import { NATIVE_AUDIO_MODE } from '@/lib/soundPolicy';
 import {
   bindSoundSystem,
@@ -83,8 +99,17 @@ export {
 } from '@/lib/soundSystem';
 export type { SoundMusicLifecycleHooks, SoundSystemFlags, SoundPlaybackGates } from '@/lib/soundSystem';
 export { runAccessibilityAnnounce } from '@/lib/soundAnnounce';
+export {
+  createSoundMusicEngine,
+  computeMusicProgress,
+  textureCountForProgress,
+  bedAssetForProgress,
+  loopEndSecondsFromDurationMs,
+  MUSIC_MAX_PLAYERS,
+  MUSIC_INTRO_LOOP,
+} from '@/lib/soundMusic';
 
-function wrapPlayer(player: AudioPlayer): SoundPlayer {
+function wrapPlayer(player: AudioPlayer): SoundPlayer & MusicPlayer {
   return {
     get volume() {
       return player.volume;
@@ -94,6 +119,12 @@ function wrapPlayer(player: AudioPlayer): SoundPlayer {
     },
     get playing() {
       return player.playing;
+    },
+    get loop() {
+      return player.loop;
+    },
+    set loop(v: boolean) {
+      player.loop = v;
     },
     play() {
       player.play();
@@ -131,6 +162,40 @@ const controller = createSoundController({
   },
   configureSession: configureNativeSession,
   available: true,
+});
+
+const musicEngine = createSoundMusicEngine({
+  createPlayer: (source) => {
+    if (source == null) {
+      throw new Error('sound music: missing asset');
+    }
+    const player = wrapPlayer(createAudioPlayer(source));
+    // Never rely on native `loop` alone — crossfade from durationMs instead.
+    player.loop = false;
+    return player;
+  },
+  resolveModule: (name: SoundAssetName) => getSoundAsset(name).module,
+  getDurationMs: (name) => getSoundAssetDurationMs(name),
+  canStartMusic: () => controller.canStartMusic(),
+  areDropInsBlocked: () => {
+    const flags = controller.getSystemFlags();
+    return flags.screenReaderEnabled || flags.announcementActive || flags.interrupted;
+  },
+});
+
+/** Intro-loop end (seconds) from manifest — mirrors Sound 8 web `loopEnd`. */
+export const NATIVE_INTRO_LOOP_END_SECONDS = loopEndSecondsFromDurationMs(
+  getSoundAssetDurationMs('music-intro-loop'),
+);
+
+controller.registerMusicHooks({
+  pause: () => musicEngine.pause(),
+  resume: (opts) => musicEngine.resume(opts),
+  duck: (volume) => musicEngine.duck(volume),
+  stop: () => musicEngine.stop(),
+  restartBed: (opts) => musicEngine.restartBed(opts),
+  pauseDropIns: () => musicEngine.pauseDropIns(),
+  resumeDropIns: () => musicEngine.resumeDropIns(),
 });
 
 const systemBinding = bindSoundSystem(
@@ -191,12 +256,31 @@ async function refreshOtherAudioPlaying(): Promise<void> {
 
 /** Announce UI/game events. Safe no-op if disabled or missing assets. */
 export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
+  // Music engine owns beds / intro / textures / drop-ins / discovery ducks.
+  musicEngine.handleEvent(event);
+
+  const entry = getSoundMapEntry(event.name);
+  if (entry.bus === 'music') {
+    // Do not also play music assets through the effects pool.
+    return;
+  }
   controller.soundEvent(event, options);
 }
 
 /** Push persisted prefs into the module (buses on/off). Immediate; music fades, not cut. */
 export function setSoundPreferences(prefs: SoundPreferences): void {
   controller.setSoundPreferences(prefs);
+  musicEngine.setEnabled(Boolean(prefs.sound && prefs.music));
+}
+
+/** Reduced Motion → fewer texture layers (cap 1). */
+export function setSoundReducedMotion(enabled: boolean): void {
+  musicEngine.setReducedMotion(enabled);
+}
+
+/** Drive bed brightness / texture count from Complexity + Laterality. */
+export function setSoundMusicProgress(complexity: number, lateralityStep: number): void {
+  musicEngine.setProgressInputs(complexity, lateralityStep);
 }
 
 /** True on native when expo-audio is linked (dev / production builds). */
@@ -204,7 +288,7 @@ export function isSoundAvailable(): boolean {
   return controller.isSoundAvailable();
 }
 
-/** Sound 6: register music engine pause/resume/duck/restart hooks. */
+/** Sound 6: register music engine pause/resume/duck/restart hooks (tests / overrides). */
 export function registerSoundMusicHooks(
   hooks: Partial<SoundMusicLifecycleHooks> | null,
 ): void {
@@ -253,12 +337,14 @@ export function getSoundSystemFlags(): SoundSystemFlags {
 }
 
 /**
- * Manual interruption gate for Sound 6 (and tests).
+ * Manual / test interruption gate.
  *
- * expo-audio 57 does **not** expose a JS interruption / audio-focus event —
- * native code pauses/resumes players itself under `mixWithOthers`. Sound 7
- * therefore does not wire this to the OS. Sound 6 may call it when it has its
- * own probe; until then AppState background remains the stop/restart path.
+ * **Outcome (Sound 6 owned deferral):** expo-audio 57 `AudioEventKeys` are only
+ * playback / sample / recording / playlist — there is **no** JS interruption or
+ * audio-focus event. `mediaServicesDidReset` is an iOS media-daemon crash flag,
+ * not a call/alarm interrupt. OS wiring is therefore **not** possible; this hook
+ * stays for manual calls and unit tests. AppState `background` remains the
+ * automatic stop/restart path (Sound 7).
  */
 export function notifySoundInterruption(began: boolean): void {
   systemBinding.notifyInterruption(began);
@@ -288,4 +374,9 @@ export function __disposeSoundSystemForTests(): void {
  */
 export function notifySoundFirstCardReady(): void {
   // no-op on native
+}
+
+/** Test helper — music engine diagnostics. */
+export function __getMusicEngineForTests() {
+  return musicEngine;
 }
