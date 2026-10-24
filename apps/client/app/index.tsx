@@ -64,7 +64,9 @@ import { isClientTestOrDevBuild } from '@/lib/e2eFlags';
 import {
   isSoundAvailable,
   notifySoundFirstCardReady,
+  setSoundMusicProgress,
   setSoundPreferences,
+  setSoundReducedMotion,
   soundEvent,
 } from '@/lib/sound';
 import {
@@ -171,6 +173,8 @@ export default function HomeScreen() {
   /** False until the intro logo has been on screen for at least one animation cycle (~3s). */
   const [introGateOpen, setIntroGateOpen] = useState(false);
   const introStartedAtRef = useRef(Date.now());
+  const introMusicStartedRef = useRef(false);
+  const introMusicReadyRef = useRef(false);
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
@@ -402,6 +406,25 @@ export default function HomeScreen() {
     const timer = setTimeout(() => setIntroGateOpen(true), remaining);
     return () => clearTimeout(timer);
   }, [fontsReady]);
+
+  // Sound 6: intro pad only after prefs load (Music off → silence; M1).
+  useEffect(() => {
+    if (!fontsReady || !soundHydrated) return;
+    if (introMusicStartedRef.current) return;
+    introMusicStartedRef.current = true;
+    soundEvent({ name: 'intro_started' });
+  }, [fontsReady, soundHydrated]);
+
+  // Sound 6: Reduced Motion caps texture layers.
+  useEffect(() => {
+    setSoundReducedMotion(reduceMotion);
+  }, [reduceMotion]);
+
+  // Sound 6: progress from Complexity + Laterality (SFX events land with Sound 4/5).
+  useEffect(() => {
+    if (!complexityHydrated || !lateralityHydrated) return;
+    setSoundMusicProgress(complexity, laterality);
+  }, [complexity, laterality, complexityHydrated, lateralityHydrated]);
 
   const fetchBatch = useCallback(
     async (
@@ -1153,6 +1176,15 @@ export default function HomeScreen() {
   const showDeckLoading = deckSlotState === 'loading';
   const prefsReady =
     complexityHydrated && lateralityHydrated && localeReady && motionHydrated && soundHydrated;
+
+  // Sound 6: first card / intro gate opens → arrival + crossfade into bed.
+  useEffect(() => {
+    if (introMusicReadyRef.current) return;
+    if (!introGateOpen || !prefsReady) return;
+    if (concepts.length === 0 && !error) return;
+    introMusicReadyRef.current = true;
+    soundEvent({ name: 'intro_ready' });
+  }, [introGateOpen, prefsReady, concepts.length, error]);
 
   const menuChromeHeight = practiceMenuChromeHeight();
   const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;

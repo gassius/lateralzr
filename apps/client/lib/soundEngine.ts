@@ -54,6 +54,8 @@ export type SoundPlayer = {
   release(): void;
   volume: number;
   playing: boolean;
+  /** expo-audio loop flag; music engine keeps this false and crossfades instead. */
+  loop?: boolean;
 };
 
 export type SoundPlayerFactory = (source: SoundAssetRef) => SoundPlayer;
