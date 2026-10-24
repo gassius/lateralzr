@@ -1,6 +1,6 @@
 [
   {
-    "file": "status_fetch-failed_390x844_en.png",
+    "file": "card-front_short-label_390x844_en.png",
     "ratio": 0,
     "percent": 0,
     "threshold": 0.01,
@@ -8,47 +8,7 @@
     "mismatchedPixels": 0
   },
   {
-    "file": "status_loading_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
-    "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
-  },
-  {
-    "file": "status_loading-200_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
-    "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
-  },
-  {
-    "file": "status_loading-initial_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
-    "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
-  },
-  {
-    "file": "status_neighbourhood-loading_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
-    "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
-  },
-  {
-    "file": "status_no-next-idea_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
-    "threshold": 0.01,
-    "status": "pass",
-    "mismatchedPixels": 0
-  },
-  {
-    "file": "status_offline_390x844_en.png",
+    "file": "laterality-bar_grade-3_390x844_en.png",
     "ratio": 0,
     "percent": 0,
     "threshold": 0.01,
