@@ -65,11 +65,13 @@ function createFakeClock() {
   };
 }
 
-function mockPlayer(): MusicPlayer & {
+type MockMusicPlayer = MusicPlayer & {
   calls: { play: number; pause: number; release: number };
-} {
+};
+
+function mockPlayer(): MockMusicPlayer {
   const calls = { play: 0, pause: 0, release: 0 };
-  const player: MusicPlayer & { calls: typeof calls } = {
+  const player: MockMusicPlayer = {
     calls,
     volume: 0,
     playing: false,
@@ -109,8 +111,8 @@ function createEngine(
     getDurationMs?: (name: SoundAssetName) => number;
     fadeMs?: number;
   } = {},
-): { engine: MusicEngine; players: MusicPlayer[] } {
-  const players: MusicPlayer[] = [];
+): { engine: MusicEngine; players: MockMusicPlayer[] } {
+  const players: MockMusicPlayer[] = [];
   let rand = 0.1;
   const random = opts.random ?? (() => {
     rand = (rand + 0.17) % 1;
@@ -343,33 +345,47 @@ test('B1: multi-loop crossfade arms next copy when B is created (no silence gap)
   const clock = createFakeClock();
   const loopMs = 10_000;
   const fadeMs = 4_000;
+  const leadMs = loopMs - fadeMs;
+  const createAt: number[] = [];
   const { engine, players } = createEngine(clock, {
     getDurationMs: () => loopMs,
     fadeMs,
-    // Keep progress low so only the bed loops (no texture noise).
     random: () => 0,
   });
+  // Record create times (createEngine pushes into players; stamp after each growth).
+  const stampCreates = () => {
+    while (createAt.length < players.length) createAt.push(clock.now());
+  };
 
   engine.setProgressInputs(1, 1);
   engine.handleEvent({ name: 'intro_ready' });
-  clock.advance(50);
-  assert.equal(engine.getPhase(), 'bed');
+  stampCreates();
+  // arrival + bed at t≈0
+  const initialCreates = players.length;
+  assert.ok(initialCreates >= 2);
 
-  // Three full loop periods: with B1, next crossfade is armed at B create
-  // (lead = loopMs - fadeMs after each copy starts), so a live player always
-  // overlaps. Old bug waited for fade-in end → later loops faded over silence.
-  const samples: number[] = [];
-  for (let t = 0; t < loopMs * 3; t += 500) {
-    clock.advance(500);
-    samples.push(engine.getActivePlayerCount());
-  }
-  assert.ok(samples.every((n) => n >= 1), 'at least one player across multi-loop');
-  assert.ok(
-    samples.some((n) => n >= 2),
-    'crossfade overlap (2 copies) observed',
-  );
-  assert.ok(players.some((p) => p.playing));
-  assert.ok(engine.getFades().length >= 4);
+  // B1: copies start at lead, 2*lead, 3*lead…
+  // Old bug armed the next loop only after fade-in → 3rd copy at 2*lead+fade.
+  clock.advance(leadMs);
+  stampCreates();
+  const after1 = players.length;
+  assert.equal(after1, initialCreates + 1, '2nd bed copy starts at lead');
+
+  clock.advance(leadMs);
+  stampCreates();
+  const after2 = players.length;
+  assert.equal(after2, after1 + 1, '3rd bed copy starts at 2*lead (not 2*lead+fade)');
+
+  clock.advance(leadMs);
+  stampCreates();
+  const after3 = players.length;
+  assert.equal(after3, after2 + 1, '4th bed copy starts at 3*lead');
+
+  // Confirm create timestamps align with lead cadence (not lead+fade).
+  const bedCopyTimes = createAt.slice(initialCreates);
+  assert.equal(bedCopyTimes[0], leadMs);
+  assert.equal(bedCopyTimes[1], 2 * leadMs);
+  assert.equal(bedCopyTimes[2], 3 * leadMs);
 
   engine.reset();
 });
@@ -415,11 +431,12 @@ test('B2: quick off→on / stop→restartBed does not leave music silent', () =>
   engine.reset();
 });
 
-test('B3: pause clears timers; resume re-arms crossfade', () => {
+test('B3: pause clears timers; no creates while paused; resume re-arms', () => {
   const clock = createFakeClock();
   const loopMs = 10_000;
   const fadeMs = 4_000;
-  const { engine } = createEngine(clock, {
+  const leadMs = loopMs - fadeMs;
+  const { engine, players } = createEngine(clock, {
     getDurationMs: () => loopMs,
     fadeMs,
     random: () => 0,
@@ -428,17 +445,75 @@ test('B3: pause clears timers; resume re-arms crossfade', () => {
   engine.setProgressInputs(1, 1);
   engine.handleEvent({ name: 'intro_ready' });
   clock.advance(100);
-  engine.pause();
-  // Advance past where a crossfade would have fired if timers were left armed.
-  clock.advance(loopMs);
-  const duringPause = engine.getActivePlayerCount();
-  assert.ok(duringPause >= 1);
+  const createsBeforePause = players.length;
 
-  engine.resume({ fadeIn: true });
-  clock.advance(fadeMs + (loopMs - fadeMs));
-  assert.ok(engine.getActivePlayerCount() >= 1);
-  // A crossfade after resume should have produced an overlap or extra fade.
-  assert.ok(engine.getFades().length >= 2);
+  engine.pause();
+  // Stay inside the original lead window so resume uses remaining lead (not 0).
+  clock.advance(500);
+  assert.equal(
+    players.length,
+    createsBeforePause,
+    'no new players while paused (crossfade timer must be cleared)',
+  );
+
+  engine.resume({ fadeIn: false });
+  // Remaining lead from loopAnchorAt: leadMs - 100 - 500.
+  const remaining = leadMs - 100 - 500;
+  clock.advance(remaining - 1);
+  assert.equal(players.length, createsBeforePause, 'no create before remaining lead');
+  clock.advance(1);
+  assert.equal(
+    players.length,
+    createsBeforePause + 1,
+    'resume re-arms crossfade — new copy at remaining lead',
+  );
+
+  engine.reset();
+});
+
+test('pause frees stopping + one-shot slots (no leak across pause/resume)', () => {
+  const clock = createFakeClock();
+  const loopMs = 10_000;
+  const fadeMs = 4_000;
+  const leadMs = loopMs - fadeMs;
+  const { engine, players } = createEngine(clock, {
+    getDurationMs: () => loopMs,
+    fadeMs,
+    random: () => 0,
+  });
+
+  const releaseCount = () => players.reduce((sum, p) => sum + p.calls.release, 0);
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  // Mid-crossfade: A stopping (fade-out) + B live.
+  clock.advance(leadMs + 100);
+  const midCount = engine.getActivePlayerCount();
+  assert.ok(midCount >= 2, 'crossfade overlap before pause');
+  const releasesBefore = releaseCount();
+
+  engine.pause();
+  // Stopping copy finished immediately; arrival already freed as one-shot.
+  assert.ok(engine.getActivePlayerCount() < midCount);
+  assert.ok(releaseCount() > releasesBefore, 'stopping players released on pause');
+
+  // Drop-in one-shot then pause before its end timer — must free, not leak.
+  engine.resume({ fadeIn: false });
+  clock.advance(MUSIC_GESTURE_IDLE_MS + 1);
+  engine.tryDropInNow();
+  assert.ok(engine.getLastDropIn() != null);
+  const withDropIn = engine.getActivePlayerCount();
+  const releasesMid = releaseCount();
+  engine.pause();
+  assert.ok(engine.getActivePlayerCount() < withDropIn, 'drop-in freed on pause');
+  assert.ok(releaseCount() > releasesMid);
+
+  engine.resume({ fadeIn: false });
+  const liveAfter = engine.getActivePlayerCount();
+  clock.advance(loopMs * 3);
+  assert.ok(engine.getActivePlayerCount() <= MUSIC_MAX_PLAYERS);
+  // Live set must not accumulate paused leftovers across loops.
+  assert.ok(engine.getActivePlayerCount() <= liveAfter + 1);
 
   engine.reset();
 });

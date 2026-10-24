@@ -804,10 +804,21 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   function pause(): void {
     paused = true;
-    // B3: clear loop / drop-in / texture / discovery timers (and mid-fade ticks).
+    // B3: clear loop / drop-in / texture / discovery / fade / one-shot end timers.
     clearAllTimers();
-    for (const slot of slots.values()) {
+    for (const slot of [...slots.values()]) {
       slot.loopTimerId = null;
+      // Fade-out onDone releases were cancelled with the timers — finish now.
+      if (slot.stopping) {
+        releaseSlot(slot.id);
+        continue;
+      }
+      // Arrival / drop-in end timers were cancelled — free so they neither
+      // leak nor replay on resume (one-shots are not re-armed).
+      if (slot.kind === 'arrival' || slot.kind === 'dropin') {
+        releaseSlot(slot.id);
+        continue;
+      }
       try {
         slot.player.pause();
       } catch {
@@ -820,10 +831,21 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     paused = false;
     if (!enabled || !canStart()) return;
 
-    // Drop duplicate pair copies left mid-crossfade; keep one live per kind+asset.
+    // Pause may interrupt a dual-copy crossfade with two live slots of the same
+    // kind+asset (A not yet marked stopping, B already playing). Keep one;
+    // release the rest so we do not double-schedule loops or blow the player cap.
     const seen = new Set<string>();
     for (const slot of [...slots.values()]) {
-      if (slot.stopping) continue;
+      if (slot.stopping) {
+        // Should already be gone after pause; belt-and-suspenders.
+        releaseSlot(slot.id);
+        continue;
+      }
+      if (slot.kind === 'arrival' || slot.kind === 'dropin') {
+        // One-shot end timers were cleared on pause and not re-armed — free now.
+        releaseSlot(slot.id);
+        continue;
+      }
       const key = `${slot.kind}:${slot.asset}`;
       if (seen.has(key)) {
         releaseSlot(slot.id);
@@ -833,7 +855,6 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
 
     for (const slot of slots.values()) {
-      if (slot.stopping) continue;
       try {
         slot.player.play();
       } catch {
@@ -850,7 +871,6 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
     // B3: re-arm crossfade / drop-ins / texture rotate from remaining lead.
     for (const slot of slots.values()) {
-      if (slot.stopping) continue;
       if (slot.kind === 'intro' || slot.kind === 'bed' || slot.kind === 'texture') {
         scheduleCrossfadeLoop(slot);
       }
