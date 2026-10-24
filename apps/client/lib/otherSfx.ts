@@ -57,8 +57,8 @@ export function reshuffleLandedSoundEvent(random: boolean): SoundEvent {
 }
 
 /**
- * Card appear outside a forward swipe: first load, after reshuffle land,
- * after error recovery. Never on swipe_next commits.
+ * Card appear outside a reshuffle: first load and error recovery.
+ * Never on forward swipes; never paired with reshuffle_landed.
  */
 export function cardArrivedSoundEvent(): SoundEvent {
   return { name: 'card_arrived' };

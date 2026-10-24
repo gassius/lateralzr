@@ -108,6 +108,7 @@ export function resolveReshuffleLandSource(
 /**
  * Under reduced motion, shorten big-movement SFX: play a fraction, then fade out.
  * Returns a cancel handle (clearTimeout) for tests / reset.
+ * Calls `onComplete` when the fade finishes naturally (not on cancel).
  */
 export function scheduleReducedMotionFade(
   player: SoundPlayer,
@@ -118,18 +119,21 @@ export function scheduleReducedMotionFade(
     fadeMs?: number;
     setTimeoutFn?: typeof setTimeout;
     clearTimeoutFn?: typeof clearTimeout;
+    onComplete?: () => void;
   },
 ): () => void {
   const playRatio = opts?.playRatio ?? REDUCED_MOTION_SFX_PLAY_RATIO;
   const fadeMs = opts?.fadeMs ?? REDUCED_MOTION_SFX_FADE_MS;
   const setTimeoutFn = opts?.setTimeoutFn ?? setTimeout;
   const clearTimeoutFn = opts?.clearTimeoutFn ?? clearTimeout;
+  const onComplete = opts?.onComplete;
 
   const playMs = Math.max(40, Math.floor(durationMs * playRatio));
   const steps = Math.max(2, Math.floor(fadeMs / 20));
   const stepMs = Math.max(10, Math.floor(fadeMs / steps));
 
   let step = 0;
+  let finished = false;
   let fadeTimer: ReturnType<typeof setTimeout> | null = null;
   const playTimer = setTimeoutFn(() => {
     const tick = () => {
@@ -147,6 +151,10 @@ export function scheduleReducedMotionFade(
           // ignore
         }
         fadeTimer = null;
+        if (!finished) {
+          finished = true;
+          onComplete?.();
+        }
         return;
       }
       fadeTimer = setTimeoutFn(tick, stepMs);
@@ -339,7 +347,19 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     }
   }
 
-  const rmFadeCancels: Array<() => void> = [];
+  /** Active RM fade cancels keyed by pooled player (drop on finish / before reuse). */
+  const rmFadeByPlayer = new Map<SoundPlayer, () => void>();
+
+  function cancelRmFade(player: SoundPlayer): void {
+    const cancel = rmFadeByPlayer.get(player);
+    if (!cancel) return;
+    try {
+      cancel();
+    } catch {
+      // ignore
+    }
+    rmFadeByPlayer.delete(player);
+  }
 
   function playSource(
     source: SoundAssetRef,
@@ -354,6 +374,9 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     } catch {
       return false;
     }
+
+    // Pool reuse: stop any in-flight RM fade on this player before replacing source.
+    cancelRmFade(player);
 
     player.volume = volume;
     // No pitch shift (director decision). Keep rate at unity if exposed later.
@@ -370,7 +393,12 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         typeof source === 'number'
       ) {
         const durationMs = getSoundAssetDurationMsForModule(source) ?? 400;
-        rmFadeCancels.push(scheduleReducedMotionFade(player, volume, durationMs));
+        const cancel = scheduleReducedMotionFade(player, volume, durationMs, {
+          onComplete: () => {
+            rmFadeByPlayer.delete(player);
+          },
+        });
+        rmFadeByPlayer.set(player, cancel);
       }
     };
 
@@ -476,12 +504,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   }
 
   function reset(): void {
-    for (const cancel of rmFadeCancels.splice(0)) {
-      try {
-        cancel();
-      } catch {
-        // ignore
-      }
+    for (const player of [...rmFadeByPlayer.keys()]) {
+      cancelRmFade(player);
     }
     pool.clear();
     eventRuntime.clear();

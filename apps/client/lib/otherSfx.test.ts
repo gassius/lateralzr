@@ -166,7 +166,7 @@ describe('reshuffle land + reduced-motion engine helpers', () => {
 });
 
 describe('index / stack / status wiring', () => {
-  it('emits laterality_step, reshuffle gather once, land, card_arrived, sheet, error, no_match', () => {
+  it('emits laterality_step, reshuffle gather once, land, sheet, error, no_match; card_arrived outside reshuffle', () => {
     assert.match(indexSrc, /lateralityStepIfChanged/);
     assert.match(indexSrc, /reshuffleStartedSoundEvent\(random\)/);
     assert.match(indexSrc, /reshuffleLandedSoundEvent\(random\)/);
@@ -184,6 +184,37 @@ describe('index / stack / status wiring', () => {
     assert.doesNotMatch(
       indexSrc,
       /setLateralitySwap\(\{ token, phase: 'shuffle' \}\)[\s\S]{0,80}reshuffleStarted/,
+    );
+    // B1: land is the reshuffle cue — no card_arrived on the deal path.
+    assert.match(
+      indexSrc,
+      /playOtherSfx\(reshuffleLandedSoundEvent\(random\)\);\s*await settleCue\('deal'\);\s*if \(!stillCurrent\(\)\) return;\s*endSwap\(\);/,
+    );
+    assert.doesNotMatch(
+      indexSrc,
+      /reshuffleLandedSoundEvent\(random\)[\s\S]{0,200}cardArrivedSoundEvent/,
+    );
+  });
+
+  it('reshuffle sequence against mocked lib/sound: step → gather → land (wide); no card_arrived', () => {
+    const { play, calls } = mockPlay();
+    const step = lateralityStepIfChanged(1, RANDOM_LATERALITY_GRADE);
+    assert.ok(step);
+    emitOtherSfx(step, play, { reduceMotion: false });
+    emitOtherSfx(reshuffleStartedSoundEvent(true), play, { reduceMotion: true });
+    emitOtherSfx(reshuffleLandedSoundEvent(true), play, { reduceMotion: true });
+
+    assert.deepEqual(
+      calls.map((c) => c.event.name),
+      ['laterality_step', 'reshuffle_started', 'reshuffle_landed'],
+    );
+    assert.deepEqual(calls[0]?.event, { name: 'laterality_step', step: 5 });
+    assert.deepEqual(calls[1]?.event, { name: 'reshuffle_started', random: true });
+    assert.deepEqual(calls[2]?.event, { name: 'reshuffle_landed', random: true });
+    assert.equal(calls[1]?.options?.reduceMotion, true);
+    assert.equal(
+      calls.some((c) => c.event.name === 'card_arrived'),
+      false,
     );
   });
 

@@ -638,6 +638,8 @@ export default function HomeScreen() {
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);
+    // M2: clear stale recovery when dismissing the error face; re-mark for this retry.
+    loadMoreErrorRecoveryRef.current = true;
     resetEmptyRetryCycle('manualRetry');
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
@@ -791,6 +793,7 @@ export default function HomeScreen() {
     setLateralityStatusReady(false);
     setLateralityFetchFailed(false);
     setLoadMoreError(false);
+    loadMoreErrorRecoveryRef.current = false;
     // Lz-38: Laterality change resets the empty-retry counter.
     resetEmptyRetryCycle('laterality');
 
@@ -901,11 +904,10 @@ export default function HomeScreen() {
       lateralitySnapshotRef.current = null;
       lateralityRetryGradeRef.current = null;
       lateralityFocusPendingRef.current = true;
-      // Land SFX for Sound 6 discovery coordination; then card_arrived (outside reshuffle cue).
+      // Land SFX for Sound 6 discovery coordination (card_arrived is outside reshuffle only).
       playOtherSfx(reshuffleLandedSoundEvent(random));
       await settleCue('deal');
       if (!stillCurrent()) return;
-      playOtherSfx(cardArrivedSoundEvent());
       endSwap();
     } catch {
       if (!stillCurrent()) return;
@@ -1120,6 +1122,7 @@ export default function HomeScreen() {
         // Lz-38: Complexity change resets the empty-retry counter.
         resetEmptyRetryCycle('complexity');
         setLoadMoreError(false);
+        loadMoreErrorRecoveryRef.current = false;
         void persistComplexity(result.complexity);
         void prefetchComplexityTree(result.complexity);
       }
