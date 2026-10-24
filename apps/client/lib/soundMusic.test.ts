@@ -448,7 +448,6 @@ test('B3: pause clears timers; no creates while paused; resume re-arms', () => {
   const createsBeforePause = players.length;
 
   engine.pause();
-  // Stay inside the original lead window so resume uses remaining lead (not 0).
   clock.advance(500);
   assert.equal(
     players.length,
@@ -457,8 +456,9 @@ test('B3: pause clears timers; no creates while paused; resume re-arms', () => {
   );
 
   engine.resume({ fadeIn: false });
-  // Remaining lead from loopAnchorAt: leadMs - 100 - 500.
-  const remaining = leadMs - 100 - 500;
+  // Pause duration is added to loopAnchorAt — remaining lead is leadMs - 100
+  // (played time only), not leadMs - 100 - 500.
+  const remaining = leadMs - 100;
   clock.advance(remaining - 1);
   assert.equal(players.length, createsBeforePause, 'no create before remaining lead');
   clock.advance(1);
@@ -467,6 +467,45 @@ test('B3: pause clears timers; no creates while paused; resume re-arms', () => {
     createsBeforePause + 1,
     'resume re-arms crossfade — new copy at remaining lead',
   );
+
+  engine.reset();
+});
+
+test('pause longer than lead does not crossfade immediately on resume', () => {
+  const clock = createFakeClock();
+  const loopMs = 10_000;
+  const fadeMs = 4_000;
+  const leadMs = loopMs - fadeMs;
+  const { engine, players } = createEngine(clock, {
+    getDurationMs: () => loopMs,
+    fadeMs,
+    random: () => 0,
+  });
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  clock.advance(100);
+  const n = players.length;
+
+  engine.pause();
+  clock.advance(leadMs + 2000);
+  assert.equal(players.length, n);
+
+  engine.resume({ fadeIn: false });
+  // Flush any zero-delay schedule (old bug: pause longer than lead → leadMs=0).
+  clock.advance(1);
+  assert.equal(
+    players.length,
+    n,
+    'long pause must not make next copy start immediately',
+  );
+  // Played time before pause was 100ms; remaining lead is leadMs - 100.
+  // Already advanced 1ms after resume, so wait remaining - 2 more before the edge.
+  const remaining = leadMs - 100;
+  clock.advance(remaining - 2);
+  assert.equal(players.length, n);
+  clock.advance(1);
+  assert.equal(players.length, n + 1, 'copy starts after played remaining lead');
 
   engine.reset();
 });
@@ -509,11 +548,23 @@ test('pause frees stopping + one-shot slots (no leak across pause/resume)', () =
   assert.ok(releaseCount() > releasesMid);
 
   engine.resume({ fadeIn: false });
+  const creates0 = players.length;
+  const releases0 = releaseCount();
   const liveAfter = engine.getActivePlayerCount();
   clock.advance(loopMs * 3);
+  const createsDelta = players.length - creates0;
+  const releasesDelta = releaseCount() - releases0;
+  assert.ok(createsDelta >= 3, 'at least one new copy per loop');
+  assert.ok(
+    releasesDelta >= createsDelta - 1,
+    'releases balance creates (no leaked slots)',
+  );
   assert.ok(engine.getActivePlayerCount() <= MUSIC_MAX_PLAYERS);
-  // Live set must not accumulate paused leftovers across loops.
-  assert.ok(engine.getActivePlayerCount() <= liveAfter + 1);
+  // Steady state: one live bed, or two during a crossfade overlap.
+  assert.ok(
+    engine.getActivePlayerCount() <= 2,
+    `live count ${engine.getActivePlayerCount()} (was ${liveAfter} at resume)`,
+  );
 
   engine.reset();
 });

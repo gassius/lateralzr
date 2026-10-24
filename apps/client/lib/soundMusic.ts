@@ -244,6 +244,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   let dropInTimer: TimerId | null = null;
   let textureRotateTimer: TimerId | null = null;
   let discoveryTimer: TimerId | null = null;
+  /** Wall-clock when pause() began — resume shifts loopAnchorAt by this span. */
+  let pausedAt: number | null = null;
 
   function schedule(fn: () => void, ms: number): TimerId {
     const id = setTimer(() => {
@@ -804,6 +806,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   function pause(): void {
     paused = true;
+    pausedAt = now();
     // B3: clear loop / drop-in / texture / discovery / fade / one-shot end timers.
     clearAllTimers();
     for (const slot of [...slots.values()]) {
@@ -828,6 +831,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   }
 
   function resume(opts: { fadeIn: boolean }): void {
+    // Shift loop anchors by paused wall time so elapsed ignores the pause
+    // (otherwise a long pause makes the next crossfade fire immediately).
+    const pauseMs = pausedAt != null ? Math.max(0, now() - pausedAt) : 0;
+    pausedAt = null;
     paused = false;
     if (!enabled || !canStart()) return;
 
@@ -855,6 +862,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
 
     for (const slot of slots.values()) {
+      slot.loopAnchorAt += pauseMs;
       try {
         slot.player.play();
       } catch {
@@ -915,6 +923,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function restartBed(opts: { fadeIn: boolean }): void {
     if (!enabled || !canStart()) return;
     paused = false;
+    pausedAt = null;
     phase = 'bed';
     // Clear non-bed leftovers (fade out; cancel prior fades via fadeGeneration).
     for (const slot of [...slots.values()]) {
@@ -958,6 +967,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     progress = computeMusicProgress(3, 3);
     phase = 'idle';
     paused = false;
+    pausedAt = null;
     duckGain = 1;
     discoveryDuck = 1;
     dropInsPaused = false;
