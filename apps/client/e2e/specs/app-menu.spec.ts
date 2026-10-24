@@ -147,17 +147,36 @@ test.describe('app menu', () => {
     });
   }
 
-  test('master Sound off disables Music/Effects and updates the row summary', async ({ page }) => {
-    await openApp(page, 'canonicalConcept=mushroom&locale=en');
-    await openAppMenu(page);
-    await page.getByTestId('app-menu-row-sound').click();
-    await expect(page.getByTestId('app-menu-sound-toggle-sound')).toBeVisible();
-    await page.getByTestId('app-menu-sound-toggle-sound').click();
-    await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeDisabled();
-    await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeDisabled();
-    await page.getByTestId('app-menu-back').click();
-    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Off');
-  });
+  // AD: plain Sound-off capture (en + es). PRR M1: aria-checked stays true while disabled.
+  for (const locale of ['en', 'es'] as const) {
+    test(`master Sound off disables Music/Effects (${locale})`, async ({ page }, testInfo) => {
+      await openApp(page, `canonicalConcept=mushroom&locale=${locale}`);
+      await openAppMenu(page);
+      await page.getByTestId('app-menu-row-sound').click();
+      await expect(page.getByTestId('app-menu-sound-toggle-sound')).toBeVisible();
+      const music = page.getByTestId('app-menu-sound-toggle-music');
+      const effects = page.getByTestId('app-menu-sound-toggle-effects');
+      await page.getByTestId('app-menu-sound-toggle-sound').click();
+      await expect(music).toBeDisabled();
+      await expect(effects).toBeDisabled();
+      await expect(music).toHaveAttribute('aria-checked', 'true');
+      await expect(effects).toHaveAttribute('aria-checked', 'true');
+      await capture(page, testInfo, {
+        screen: 'app-menu',
+        state: 'sound-off',
+        locale,
+      });
+      await page.getByTestId('app-menu-sound-toggle-sound').click();
+      await expect(music).toBeEnabled();
+      await expect(effects).toBeEnabled();
+      await expect(music).toHaveAttribute('aria-checked', 'true');
+      await expect(effects).toHaveAttribute('aria-checked', 'true');
+      await page.getByTestId('app-menu-back').click();
+      await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText(
+        locale === 'es' ? 'Activado' : 'On',
+      );
+    });
+  }
 
   test('Music-only summary persists after reload', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');

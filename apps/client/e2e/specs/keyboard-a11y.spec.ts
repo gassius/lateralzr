@@ -228,13 +228,24 @@ test.describe('keyboard a11y', () => {
     await expect(page.getByTestId('app-menu-sound')).toBeVisible();
 
     const master = page.getByTestId('app-menu-sound-toggle-sound');
+    const music = page.getByTestId('app-menu-sound-toggle-music');
+    const effects = page.getByTestId('app-menu-sound-toggle-effects');
     await master.focus();
     await expect(master).toBeFocused();
     await page.keyboard.press('Space');
-    await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeDisabled();
-    await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeDisabled();
+    await expect(music).toBeDisabled();
+    await expect(effects).toBeDisabled();
+    await expect(music).toHaveAttribute('aria-checked', 'true');
+    await expect(effects).toHaveAttribute('aria-checked', 'true');
+    await master.focus();
+    await expect(master).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(music).toBeEnabled();
+    await expect(effects).toBeEnabled();
+    await expect(music).toHaveAttribute('aria-checked', 'true');
+    await expect(effects).toHaveAttribute('aria-checked', 'true');
     await page.getByTestId('app-menu-back').click();
-    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Off');
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('On');
   });
 
   test('focused card + nav button captures', async ({ page }, testInfo) => {

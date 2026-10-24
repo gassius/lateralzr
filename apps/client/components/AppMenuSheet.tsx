@@ -178,10 +178,12 @@ function SoundToggleRow({
   onChange: (next: boolean) => void;
 }) {
   const label = t(labelKey);
-  const webKeyProps =
+  // RN-web omits aria-checked when disabled; pin it so M1 can assert checked-while-off.
+  const webProps =
     Platform.OS === 'web'
       ? ({
           tabIndex: disabled ? -1 : 0,
+          'aria-checked': checked,
           onKeyDown: (event: {
             nativeEvent?: { key?: string };
             preventDefault?: () => void;
@@ -209,14 +211,14 @@ function SoundToggleRow({
       style={({ pressed }) => [
         styles.soundToggleRow,
         pressed && !disabled ? styles.rowPressed : null,
-        disabled ? styles.soundToggleRowDisabled : null,
       ]}
-      {...webKeyProps}
+      {...webProps}
     >
       <Text
         style={[
           styles.soundToggleLabel,
           textStyle('row'),
+          // Single disabled treatment: muted label only (AD #149 — no row opacity).
           disabled ? styles.soundToggleLabelDisabled : null,
         ]}
         accessible={false}
@@ -227,7 +229,6 @@ function SoundToggleRow({
         style={[
           styles.switchTrack,
           checked ? styles.switchTrackOn : styles.switchTrackOff,
-          disabled ? styles.switchTrackDisabled : null,
         ]}
         accessible={false}
       >
@@ -907,13 +908,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: LATERALITY_SHEET_ROW_RADIUS,
   },
-  soundToggleRowDisabled: {
-    opacity: 0.48,
-  },
   soundToggleLabel: {
     flex: 1,
     color: color.ink,
   },
+  /** mutedOnPaper on paper ≥ 5.49:1 — sole disabled cue (no row/track opacity). */
   soundToggleLabelDisabled: {
     color: color.mutedOnPaper,
   },
@@ -931,9 +930,6 @@ const styles = StyleSheet.create({
   switchTrackOff: {
     backgroundColor: color.controlBorder,
     alignItems: 'flex-start',
-  },
-  switchTrackDisabled: {
-    opacity: 0.7,
   },
   switchThumb: {
     width: 24,
