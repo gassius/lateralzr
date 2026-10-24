@@ -25,6 +25,15 @@ export {
   createSoundController,
   createEffectsPool,
 } from '@/lib/soundEngine';
+export {
+  SOUND_ASSETS,
+  SOUND_VARIANT_GROUPS,
+  getSoundAsset,
+  getSoundAssetDurationMs,
+  resolveVariantModules,
+  type SoundAssetName,
+  type SoundAssetMeta,
+} from '@/lib/soundAssets';
 
 function wrapPlayer(player: AudioPlayer): SoundPlayer {
   return {

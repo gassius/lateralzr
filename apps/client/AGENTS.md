@@ -106,7 +106,9 @@ pnpm exec eas-cli@latest build --profile development --platform ios
 # or --platform android
 ```
 
-Public API (Sound 1): `lib/sound.ts` / `lib/sound.web.ts` export `soundEvent`, `setSoundPreferences`, `isSoundAvailable`. Screens announce typed events only; never `require` audio files at call sites. From Reanimated worklets: `runOnJS(soundEvent)(event)`. Web preview stubs are safe no-ops (`isSoundAvailable()` is `false` until Sound 8). Audio assets land in Sound 3 — the map in `lib/soundMap.ts` may be empty placeholders.
+Public API (Sound 1): `lib/sound.ts` / `lib/sound.web.ts` export `soundEvent`, `setSoundPreferences`, `isSoundAvailable`. Screens announce typed events only; never `require` audio files at call sites. From Reanimated worklets: `runOnJS(soundEvent)(event)`. Web preview stubs are safe no-ops (`isSoundAvailable()` is `false` until Sound 8).
+
+Sound 3 assets: `assets/audio/{music,sfx}/*.{m4a,web.m4a}`, index `docs/audio/README.md`, machine manifest `assets/audio/manifest.json` (Sound 8 shape: `assets` map with `path` / `nativePath`, `durationMs`, `loop`, optional `level` / `placeholder`). Typed `require` map + variant groups: `lib/soundAssets.ts` (+ `.web.ts`). `music-texture-tonedrift-c` is a placeholder (`placeholder: true`). CI: `.github/scripts/audio-budget.mjs` (≤8 MiB native / ≤3 MiB web).
 
 ## Build switches (reference links / media credits)
 

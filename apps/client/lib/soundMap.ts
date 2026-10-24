@@ -1,16 +1,19 @@
 /**
- * Event → asset table (Sound 1).
+ * Event → asset table (Sound 1 + Sound 3).
  *
- * Variants are placeholders until Sound 3 ships audio files. Empty `variants`
- * makes `soundEvent` a safe no-op for that event. Swapping a file later is a
- * one-line change here (asset module id from `require(...)`).
+ * Variants come from {@link SOUND_VARIANT_GROUPS} / `require` module ids in
+ * `lib/soundAssets.ts` (web: `soundAssets.web.ts`). Empty lists stay a no-op.
  *
  * Pitch shift: skipped (audio director 2026-10-24).
  */
 
+import {
+  resolveVariantModules,
+  SOUND_VARIANT_GROUPS,
+} from '@/lib/soundAssets';
 import type { SoundBus, SoundEventName } from '@/lib/soundTypes';
 
-/** Asset module id (`require`) or null placeholder until Sound 3. */
+/** Asset module id (`require`) or null placeholder. */
 export type SoundAssetRef = number | null;
 
 export type SoundMapEntry = {
@@ -46,27 +49,71 @@ const MUSIC = (
 });
 
 /**
- * Central mapping. All variant lists are empty placeholders (Sound 3).
- * Intervals/voice caps are conservative defaults for fast swipe UX.
+ * Central mapping. Variant lists resolve through Sound 3 asset groups so
+ * adding/replacing a file is a one-line group change (no call-site edits).
  */
 export const SOUND_MAP: Readonly<Record<SoundEventName, SoundMapEntry>> = {
-  card_flip: SFX(50, 2),
-  card_flip_back: SFX(50, 2),
-  swipe_next: SFX(40, 2),
-  swipe_back: SFX(40, 2),
-  swipe_cancel: SFX(60, 1),
-  swipe_resistance: SFX(120, 1),
-  complexity_changed: SFX(80, 1),
-  laterality_step: SFX(80, 1),
-  reshuffle_started: SFX(100, 1),
-  reshuffle_landed: SFX(100, 1),
-  card_arrived: SFX(40, 2),
-  sheet_open: SFX(80, 1),
-  sheet_close: SFX(80, 1),
-  error_soft: SFX(150, 1),
-  no_match: SFX(150, 1),
-  intro_started: MUSIC(0, 1),
-  intro_ready: MUSIC(0, 1),
+  card_flip: SFX(50, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.card_flip)),
+  card_flip_back: SFX(
+    50,
+    2,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.card_flip_back),
+  ),
+  swipe_next: SFX(40, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_next)),
+  swipe_back: SFX(40, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_back)),
+  swipe_cancel: SFX(
+    60,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_cancel),
+  ),
+  swipe_resistance: SFX(
+    120,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_resistance),
+  ),
+  complexity_changed: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.complexity_changed),
+  ),
+  laterality_step: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.laterality_step),
+  ),
+  reshuffle_started: SFX(
+    100,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.reshuffle_started),
+  ),
+  reshuffle_landed: SFX(
+    100,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.reshuffle_landed),
+  ),
+  card_arrived: SFX(
+    40,
+    2,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.card_arrived),
+  ),
+  sheet_open: SFX(80, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.sheet_open)),
+  sheet_close: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.sheet_close),
+  ),
+  error_soft: SFX(150, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.error_soft)),
+  no_match: SFX(150, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.no_match)),
+  intro_started: MUSIC(
+    0,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.intro_started),
+  ),
+  intro_ready: MUSIC(
+    0,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.intro_ready),
+  ),
 };
 
 export function getSoundMapEntry(name: SoundEventName): SoundMapEntry {

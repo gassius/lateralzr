@@ -140,6 +140,9 @@ jobs:
         run: pnpm exec tsc --noEmit
         working-directory: apps/client
 
+      - name: Audio size budget (Sound 3)
+        run: node .github/scripts/audio-budget.mjs
+
       - name: Client unit tests
         run: pnpm test
         working-directory: apps/client

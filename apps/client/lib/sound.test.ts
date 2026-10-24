@@ -88,6 +88,16 @@ test('SOUND_MAP covers every SoundEvent name', () => {
   assert.equal(Object.keys(SOUND_MAP).length, names.length);
 });
 
+test('every Sound 1 map event has at least one playable asset (Sound 3)', () => {
+  for (const name of Object.keys(SOUND_MAP) as SoundEventName[]) {
+    const playable = playableVariants(SOUND_MAP[name]);
+    assert.ok(
+      playable.length >= 1,
+      `Sound 3: expected ≥1 asset for event ${name}`,
+    );
+  }
+});
+
 test('playableVariants drops null placeholders', () => {
   assert.deepEqual(
     playableVariants({
@@ -247,17 +257,17 @@ test('disabled master / effects bus makes no player calls', () => {
   ctrl.reset();
 });
 
-test('missing assets are a no-op (placeholder map)', () => {
+test('empty variant list is a no-op (missing assets)', () => {
   let createCount = 0;
   const ctrl = createSoundController({
     createPlayer: () => {
       createCount += 1;
       return mockPlayer();
     },
+    resolveEntry: entryWithVariants('card_flip', []),
   });
   ctrl.soundEvent({ name: 'card_flip' });
   assert.equal(createCount, 0);
-  assert.equal(playableVariants(SOUND_MAP.card_flip).length, 0);
 });
 
 test('isBusEnabled respects master and per-bus flags', () => {
