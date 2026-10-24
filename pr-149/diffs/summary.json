@@ -1,0 +1,59 @@
+[
+  {
+    "file": "accessible-nav_focus-button_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "accessible-nav_focus-card_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "accessible-nav_row_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "accessible-nav_row-200_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "app-menu_complexity-picker_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "app-menu_motion-picker_390x844_en.png",
+    "ratio": 0,
+    "percent": 0,
+    "threshold": 0.01,
+    "status": "pass",
+    "mismatchedPixels": 0
+  },
+  {
+    "file": "app-menu_open_390x844_en.png",
+    "ratio": 0.12723219710778952,
+    "percent": 12.723219710778952,
+    "threshold": 0.01,
+    "status": "over-threshold",
+    "mismatchedPixels": 167519,
+    "diffImage": "app-menu_open_390x844_en.diff.png"
+  }
+]
