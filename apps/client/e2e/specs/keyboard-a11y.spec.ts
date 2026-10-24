@@ -206,6 +206,37 @@ test.describe('keyboard a11y', () => {
     }
   });
 
+  test('Sound view close returns focus to the Sound row 10 times (F7)', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await expect(page.getByTestId('app-menu-title')).toBeFocused();
+    for (let i = 0; i < 10; i += 1) {
+      await page.getByTestId('app-menu-row-sound').click();
+      await expect(page.getByTestId('app-menu-sound')).toBeVisible();
+      await expect(page.getByTestId('app-menu-title')).toBeFocused();
+      await page.getByTestId('app-menu-back').click();
+      await expect(page.getByTestId('app-menu-row-sound')).toBeFocused();
+    }
+  });
+
+  test('keyboard can toggle Sound master and Music stays disabled while off', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await page.getByTestId('app-menu-row-sound').click();
+    await expect(page.getByTestId('app-menu-sound')).toBeVisible();
+
+    const master = page.getByTestId('app-menu-sound-toggle-sound');
+    await master.focus();
+    await expect(master).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeDisabled();
+    await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeDisabled();
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Off');
+  });
+
   test('focused card + nav button captures', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;
     test.skip(vp !== '390x844', 'one viewport for focus captures');

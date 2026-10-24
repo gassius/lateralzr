@@ -38,6 +38,7 @@ import {
   DEFAULT_APP_MENU_FEATURES,
   focusMotionRowOnClose,
   focusSheetTitleOnOpen,
+  focusSoundRowOnClose,
   groupedAppMenuRows,
   isAppMenuNestedView,
   visibleAppMenuRows,
@@ -58,6 +59,7 @@ import {
   SUPPORTED_LOCALES,
   t,
   type AppLocale,
+  type MessageKey,
 } from '@/lib/i18n';
 import {
   LATERALITY_SHEET_RADIO_SIZE,
@@ -70,6 +72,11 @@ import {
   motionPreferenceLabelKey,
   type MotionPreference,
 } from '@/lib/motionStorage';
+import {
+  DEFAULT_SOUND_PREFERENCES,
+  soundPreferenceSummaryKey,
+  type SoundPreferences,
+} from '@/lib/soundStorage';
 import { A11Y_FOCUS_RING } from '@/lib/cardActions';
 import { focusSheetHost } from '@/lib/sheetFocus';
 import { color, layout } from '@/theme/tokens';
@@ -98,9 +105,20 @@ type AppMenuSheetProps = {
   /** In-app Motion preference (Lz-46). */
   motionPreference?: MotionPreference;
   onMotionPreferenceChange?: (pref: MotionPreference) => void;
+  /** In-app Sound preferences (Sound 2). */
+  soundPreferences?: SoundPreferences;
+  onSoundPreferencesChange?: (prefs: SoundPreferences) => void;
   returnFocusRef?: RefObject<ViewType | null>;
   features?: AppMenuFeatures;
 };
+
+type SoundToggleKey = 'sound' | 'music' | 'effects';
+
+const SOUND_TOGGLE_ROWS: readonly { key: SoundToggleKey; labelKey: MessageKey }[] = [
+  { key: 'sound', labelKey: 'soundMaster' },
+  { key: 'music', labelKey: 'soundMusic' },
+  { key: 'effects', labelKey: 'soundEffects' },
+] as const;
 
 function ChevronRight({ stroke }: { stroke: string }) {
   return (
@@ -143,6 +161,84 @@ function MenuRadio({ checked }: { checked: boolean }) {
     >
       {checked ? <View style={styles.radioDot} /> : null}
     </View>
+  );
+}
+
+function SoundToggleRow({
+  labelKey,
+  checked,
+  disabled = false,
+  testID,
+  onChange,
+}: {
+  labelKey: MessageKey;
+  checked: boolean;
+  disabled?: boolean;
+  testID: string;
+  onChange: (next: boolean) => void;
+}) {
+  const label = t(labelKey);
+  const webKeyProps =
+    Platform.OS === 'web'
+      ? ({
+          tabIndex: disabled ? -1 : 0,
+          onKeyDown: (event: {
+            nativeEvent?: { key?: string };
+            preventDefault?: () => void;
+          }) => {
+            if (disabled) return;
+            const key = event.nativeEvent?.key;
+            if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return;
+            event.preventDefault?.();
+            onChange(!checked);
+          },
+        } as Record<string, unknown>)
+      : {};
+
+  return (
+    <Pressable
+      onPress={() => {
+        if (disabled) return;
+        onChange(!checked);
+      }}
+      disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityState={{ checked, disabled }}
+      accessibilityLabel={label}
+      testID={testID}
+      style={({ pressed }) => [
+        styles.soundToggleRow,
+        pressed && !disabled ? styles.rowPressed : null,
+        disabled ? styles.soundToggleRowDisabled : null,
+      ]}
+      {...webKeyProps}
+    >
+      <Text
+        style={[
+          styles.soundToggleLabel,
+          textStyle('row'),
+          disabled ? styles.soundToggleLabelDisabled : null,
+        ]}
+        accessible={false}
+      >
+        {label}
+      </Text>
+      <View
+        style={[
+          styles.switchTrack,
+          checked ? styles.switchTrackOn : styles.switchTrackOff,
+          disabled ? styles.switchTrackDisabled : null,
+        ]}
+        accessible={false}
+      >
+        <View
+          style={[
+            styles.switchThumb,
+            checked ? styles.switchThumbOn : styles.switchThumbOff,
+          ]}
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -273,6 +369,8 @@ export function AppMenuSheet({
   onSelectComplexity,
   motionPreference = DEFAULT_MOTION_PREFERENCE,
   onMotionPreferenceChange,
+  soundPreferences = DEFAULT_SOUND_PREFERENCES,
+  onSoundPreferencesChange,
   returnFocusRef,
   features = DEFAULT_APP_MENU_FEATURES,
 }: AppMenuSheetProps) {
@@ -280,6 +378,7 @@ export function AppMenuSheet({
   const languageRowRef = useRef<ViewType | null>(null);
   const complexityRowRef = useRef<ViewType | null>(null);
   const motionRowRef = useRef<ViewType | null>(null);
+  const soundRowRef = useRef<ViewType | null>(null);
   const sheetBackRef = useRef<ViewType | null>(null);
   const sheetTitleRef = useRef<ViewType | null>(null);
   const reduceMotion = useReducedMotion(motionPreference);
@@ -296,6 +395,7 @@ export function AppMenuSheet({
         language: () => setView('language'),
         complexity: () => setView('complexity'),
         motion: () => setView('motion'),
+        sound: () => setView('sound'),
         about: () => setView('about'),
         replayTips: () => {
           onReplayGestureTips();
@@ -320,9 +420,23 @@ export function AppMenuSheet({
             valueKey: motionPreferenceLabelKey(motionPreference),
           };
         }
+        if (row.key === 'sound') {
+          return {
+            ...row,
+            valueKey: soundPreferenceSummaryKey(soundPreferences),
+          };
+        }
         return row;
       }),
-    [complexityValue, features, locale, motionPreference, onDismiss, onReplayGestureTips],
+    [
+      complexityValue,
+      features,
+      locale,
+      motionPreference,
+      onDismiss,
+      onReplayGestureTips,
+      soundPreferences,
+    ],
   );
 
   useEffect(() => {
@@ -332,6 +446,7 @@ export function AppMenuSheet({
   const viewRef = useRef(view);
   viewRef.current = view;
   const pendingMotionRowFocusRef = useRef(false);
+  const pendingSoundRowFocusRef = useRef(false);
 
   const focusMenuTitle = useCallback(() => {
     focusSheetTitleOnOpen(focusSheetHost, sheetTitleRef);
@@ -351,16 +466,27 @@ export function AppMenuSheet({
     }
   }, []);
 
-  // F7: nested open → title; Motion close → Motion row.
+  const focusSoundMenuRow = useCallback(() => {
+    focusSoundRowOnClose(focusSheetHost, soundRowRef);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      document
+        .querySelector<HTMLElement>('[data-testid="app-menu-row-sound"]')
+        ?.focus?.();
+    }
+  }, []);
+
+  // F7: nested open → title; Motion/Sound close → their rows.
   // Web: layout-effect (Playwright fake clock). Native: after interactions so
   // VoiceOver/TalkBack see the committed host (PRR B2).
   useLayoutEffect(() => {
     if (!visible) {
       pendingMotionRowFocusRef.current = false;
+      pendingSoundRowFocusRef.current = false;
       return;
     }
     if (view !== 'root') {
       pendingMotionRowFocusRef.current = false;
+      pendingSoundRowFocusRef.current = false;
       if (Platform.OS === 'web') {
         focusMenuTitle();
         return;
@@ -368,18 +494,38 @@ export function AppMenuSheet({
       const handle = InteractionManager.runAfterInteractions(focusMenuTitle);
       return () => handle.cancel();
     }
-    if (!pendingMotionRowFocusRef.current) return;
-    const applyMotionRow = () => {
-      focusMotionMenuRow();
-      pendingMotionRowFocusRef.current = false;
+    if (pendingMotionRowFocusRef.current) {
+      const applyMotionRow = () => {
+        focusMotionMenuRow();
+        pendingMotionRowFocusRef.current = false;
+      };
+      if (Platform.OS === 'web') {
+        applyMotionRow();
+        return;
+      }
+      const handle = InteractionManager.runAfterInteractions(applyMotionRow);
+      return () => handle.cancel();
+    }
+    if (!pendingSoundRowFocusRef.current) return;
+    const applySoundRow = () => {
+      focusSoundMenuRow();
+      pendingSoundRowFocusRef.current = false;
     };
     if (Platform.OS === 'web') {
-      applyMotionRow();
+      applySoundRow();
       return;
     }
-    const handle = InteractionManager.runAfterInteractions(applyMotionRow);
+    const handle = InteractionManager.runAfterInteractions(applySoundRow);
     return () => handle.cancel();
-  }, [view, visible, motionPreference, reduceMotion, focusMenuTitle, focusMotionMenuRow]);
+  }, [
+    view,
+    visible,
+    motionPreference,
+    reduceMotion,
+    focusMenuTitle,
+    focusMotionMenuRow,
+    focusSoundMenuRow,
+  ]);
 
   const onRowPress = (row: AppMenuRowDef) => {
     if (row.onPress) {
@@ -395,6 +541,9 @@ export function AppMenuSheet({
     if (row.opensView && row.key === 'motion') {
       setView('motion');
     }
+    if (row.opensView && row.key === 'sound') {
+      setView('sound');
+    }
     if (row.opensView && row.key === 'about') {
       setView('about');
     }
@@ -405,6 +554,11 @@ export function AppMenuSheet({
     const current = viewRef.current;
     if (current === 'motion') {
       pendingMotionRowFocusRef.current = true;
+      setView('root');
+      return;
+    }
+    if (current === 'sound') {
+      pendingSoundRowFocusRef.current = true;
       setView('root');
       return;
     }
@@ -422,6 +576,14 @@ export function AppMenuSheet({
     [onMotionPreferenceChange],
   );
 
+  const onSoundToggle = useCallback(
+    (key: SoundToggleKey, next: boolean) => {
+      const updated: SoundPreferences = { ...soundPreferences, [key]: next };
+      onSoundPreferencesChange?.(updated);
+    },
+    [onSoundPreferencesChange, soundPreferences],
+  );
+
   const sheetTitle =
     view === 'language'
       ? t('menuLanguage')
@@ -429,9 +591,11 @@ export function AppMenuSheet({
         ? t('menuComplexity')
         : view === 'motion'
           ? t('menuMotion')
-          : view === 'about'
-            ? t('menuAbout')
-            : t('menuTitle');
+          : view === 'sound'
+            ? t('menuSound')
+            : view === 'about'
+              ? t('menuAbout')
+              : t('menuTitle');
 
   return (
     <Sheet
@@ -471,7 +635,9 @@ export function AppMenuSheet({
                         ? complexityRowRef
                         : row.key === 'motion'
                           ? motionRowRef
-                          : undefined
+                          : row.key === 'sound'
+                            ? soundRowRef
+                            : undefined
                   }
                 />
               ))}
@@ -610,6 +776,26 @@ export function AppMenuSheet({
           </View>
         </View>
       ) : null}
+      {view === 'sound' ? (
+        <View style={styles.languageView} testID="app-menu-sound">
+          <View style={[styles.languageList, styles.group]} testID="app-menu-sound-rows">
+            {SOUND_TOGGLE_ROWS.map((row) => {
+              const checked = soundPreferences[row.key];
+              const disabled = row.key !== 'sound' && !soundPreferences.sound;
+              return (
+                <SoundToggleRow
+                  key={row.key}
+                  labelKey={row.labelKey}
+                  checked={checked}
+                  disabled={disabled}
+                  testID={`app-menu-sound-toggle-${row.key}`}
+                  onChange={(next) => onSoundToggle(row.key, next)}
+                />
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
       {view === 'about' ? <AppMenuAboutView onBack={() => setView('root')} /> : null}
     </Sheet>
   );
@@ -711,6 +897,52 @@ const styles = StyleSheet.create({
   languageRowLabelSelected: {
     color: color.ink,
   },
+  soundToggleRow: {
+    minHeight: LATERALITY_SHEET_ROW_MIN_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: LATERALITY_SHEET_ROW_RADIUS,
+  },
+  soundToggleRowDisabled: {
+    opacity: 0.48,
+  },
+  soundToggleLabel: {
+    flex: 1,
+    color: color.ink,
+  },
+  soundToggleLabelDisabled: {
+    color: color.mutedOnPaper,
+  },
+  switchTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchTrackOn: {
+    backgroundColor: color.front,
+    alignItems: 'flex-end',
+  },
+  switchTrackOff: {
+    backgroundColor: color.controlBorder,
+    alignItems: 'flex-start',
+  },
+  switchTrackDisabled: {
+    opacity: 0.7,
+  },
+  switchThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: color.paper,
+  },
+  switchThumbOn: {},
+  switchThumbOff: {},
   radio: {
     width: LATERALITY_SHEET_RADIO_SIZE,
     height: LATERALITY_SHEET_RADIO_SIZE,

@@ -15,6 +15,7 @@ import {
   DEFAULT_APP_MENU_FEATURES,
   focusMotionRowOnClose,
   focusSheetTitleOnOpen,
+  focusSoundRowOnClose,
   groupedAppMenuRows,
   visibleAppMenuRows,
   withAppMenuRowPress,
@@ -24,12 +25,12 @@ import { layout } from '../theme/tokens.ts';
 import { t } from './i18n.ts';
 
 describe('visibleAppMenuRows', () => {
-  it('defaults to Language + Complexity + Motion + About + Replay gesture tips', () => {
+  it('defaults to Language + Complexity + Motion + Sound + About + Replay gesture tips', () => {
     const rows = visibleAppMenuRows();
-    assert.equal(rows.length, 5);
+    assert.equal(rows.length, 6);
     assert.deepEqual(
       rows.map((r) => r.key),
-      ['language', 'complexity', 'motion', 'about', 'replayTips'],
+      ['language', 'complexity', 'motion', 'sound', 'about', 'replayTips'],
     );
     assert.equal(rows[0]!.opensView, true);
     assert.equal(rows[1]!.opensView, true);
@@ -37,9 +38,12 @@ describe('visibleAppMenuRows', () => {
     assert.equal(rows[2]!.key, 'motion');
     assert.equal(rows[2]!.labelKey, 'menuMotion');
     assert.equal(rows[2]!.opensView, true);
+    assert.equal(rows[3]!.key, 'sound');
+    assert.equal(rows[3]!.labelKey, 'menuSound');
     assert.equal(rows[3]!.opensView, true);
-    assert.equal(rows[3]!.valueKey, undefined);
-    assert.equal(rows[4]!.opensView, false);
+    assert.equal(rows[4]!.opensView, true);
+    assert.equal(rows[4]!.valueKey, undefined);
+    assert.equal(rows[5]!.opensView, false);
   });
 
   it('filters out disabled features and keeps fixed order', () => {
@@ -47,6 +51,7 @@ describe('visibleAppMenuRows', () => {
       language: true,
       complexity: false,
       motion: true,
+      sound: false,
       about: false,
       replayTips: true,
     };
@@ -59,6 +64,7 @@ describe('visibleAppMenuRows', () => {
       language: false,
       complexity: false,
       motion: false,
+      sound: false,
       about: false,
       replayTips: false,
     };
@@ -74,11 +80,13 @@ describe('appMenuRowShowsChevron', () => {
     const language = visibleAppMenuRows().find((r) => r.key === 'language')!;
     const complexity = visibleAppMenuRows().find((r) => r.key === 'complexity')!;
     const motion = visibleAppMenuRows().find((r) => r.key === 'motion')!;
+    const sound = visibleAppMenuRows().find((r) => r.key === 'sound')!;
     const about = visibleAppMenuRows().find((r) => r.key === 'about')!;
     const replay = visibleAppMenuRows().find((r) => r.key === 'replayTips')!;
     assert.equal(appMenuRowShowsChevron(language), true);
     assert.equal(appMenuRowShowsChevron(complexity), true);
     assert.equal(appMenuRowShowsChevron(motion), true);
+    assert.equal(appMenuRowShowsChevron(sound), true);
     assert.equal(appMenuRowShowsChevron(about), true);
     assert.equal(appMenuRowShowsChevron(replay), false);
   });
@@ -141,7 +149,7 @@ describe('withAppMenuRowPress', () => {
         replayCalls += 1;
       },
     });
-    assert.equal(rows.length, 5);
+    assert.equal(rows.length, 6);
     rows.find((r) => r.key === 'about')!.onPress!();
     const replay = rows.find((r) => r.key === 'replayTips');
     assert.equal(typeof replay?.onPress, 'function');
@@ -170,7 +178,7 @@ describe('appMenuRowA11yLabel value field', () => {
 });
 
 describe('groupedAppMenuRows', () => {
-  it('puts Language / Complexity / Motion / About in one group and Replay alone', () => {
+  it('puts Language / Complexity / Motion / Sound / About in one group and Replay alone', () => {
     const groups = groupedAppMenuRows();
     assert.deepEqual(
       groups.map((g) => g.key),
@@ -178,7 +186,7 @@ describe('groupedAppMenuRows', () => {
     );
     assert.deepEqual(
       groups[0]!.rows.map((r) => r.key),
-      ['language', 'complexity', 'motion', 'about'],
+      ['language', 'complexity', 'motion', 'sound', 'about'],
     );
     assert.deepEqual(
       groups[1]!.rows.map((r) => r.key),
@@ -192,6 +200,7 @@ describe('groupedAppMenuRows', () => {
         language: true,
         complexity: true,
         motion: true,
+        sound: true,
         about: true,
         replayTips: false,
       }),
@@ -203,11 +212,12 @@ describe('groupedAppMenuRows', () => {
   });
 });
 
-describe('focusSheetTitleOnOpen / focusMotionRowOnClose (F7)', () => {
-  it('10× nested open focuses the title host, Motion close focuses the Motion row (not Back)', () => {
+describe('focusSheetTitleOnOpen / focusMotionRowOnClose / focusSoundRowOnClose (F7)', () => {
+  it('10× nested open focuses the title host, Motion/Sound close focuses their rows (not Back)', () => {
     const titleRef = { current: { id: 'title' } };
     const backRef = { current: { id: 'back' } };
     const motionRowRef = { current: { id: 'motion-row' } };
+    const soundRowRef = { current: { id: 'sound-row' } };
     for (let i = 0; i < 10; i += 1) {
       const focused: Array<{ id: string }> = [];
       const focus = (ref: { current: { id: string } | null }) => {
@@ -218,6 +228,8 @@ describe('focusSheetTitleOnOpen / focusMotionRowOnClose (F7)', () => {
       assert.notEqual(focused.at(-1)?.id, backRef.current.id);
       focusMotionRowOnClose(focus, motionRowRef);
       assert.equal(focused.at(-1)?.id, 'motion-row');
+      focusSoundRowOnClose(focus, soundRowRef);
+      assert.equal(focused.at(-1)?.id, 'sound-row');
     }
   });
 });
@@ -247,11 +259,12 @@ describe('app menu metrics', () => {
     assert.equal(APP_MENU_ROW_VALUE_FLEX_GROW, 0);
   });
 
-  it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + Motion + About + Replay', () => {
+  it('matches DEFAULT_APP_MENU_FEATURES to Language + Complexity + Motion + Sound + About + Replay', () => {
     assert.deepEqual(DEFAULT_APP_MENU_FEATURES, {
       language: true,
       complexity: true,
       motion: true,
+      sound: true,
       about: true,
       replayTips: true,
     });
@@ -264,5 +277,9 @@ describe('app menu metrics', () => {
   it('labels Motion as Motion (not Motion & haptics)', () => {
     assert.equal(t('menuMotion'), 'Motion');
     assert.equal(t('menuMotion').includes('haptic'), false);
+  });
+
+  it('labels Sound as Sound', () => {
+    assert.equal(t('menuSound'), 'Sound');
   });
 });

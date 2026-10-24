@@ -27,6 +27,13 @@ test.describe('app menu', () => {
       await expect(page.getByTestId('app-menu-row-label-motion')).toHaveText(
         locale === 'es' ? 'Movimiento' : 'Motion',
       );
+      await expect(page.getByTestId('app-menu-row-sound')).toBeVisible();
+      await expect(page.getByTestId('app-menu-row-label-sound')).toHaveText(
+        locale === 'es' ? 'Sonido' : 'Sound',
+      );
+      await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText(
+        locale === 'es' ? 'Activado' : 'On',
+      );
       await expect(page.getByTestId('app-menu-row-reference')).toHaveCount(0);
       await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
       await expect(page.getByTestId('app-menu-row-chevron-replayTips')).toHaveCount(0);
@@ -52,6 +59,7 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-language')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-complexity')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-motion')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-sound')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-about')).toBeVisible();
     await expect(page.getByTestId('app-menu-row-replayTips')).toBeVisible();
     await expect(page.getByTestId('app-menu-group-settings')).toBeVisible();
@@ -59,6 +67,8 @@ test.describe('app menu', () => {
     await expect(page.getByTestId('app-menu-row-label-complexity')).toHaveText('Complejidad');
     await expect(page.getByTestId('app-menu-row-label-motion')).toHaveText('Movimiento');
     await expect(page.getByTestId('app-menu-row-value-motion')).toHaveText('Según el sistema');
+    await expect(page.getByTestId('app-menu-row-label-sound')).toHaveText('Sonido');
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Activado');
 
     await capture(page, testInfo, {
       screen: 'app-menu',
@@ -114,6 +124,88 @@ test.describe('app menu', () => {
       });
     });
   }
+
+  // Sound 2: Sound / Music / Effects toggles (Music/Effects disabled when master off).
+  for (const locale of ['en', 'es'] as const) {
+    test(`sound picker (${locale})`, async ({ page }, testInfo) => {
+      await openApp(page, `canonicalConcept=mushroom&locale=${locale}`);
+      await openAppMenu(page);
+      await expect(page.getByTestId('app-menu-row-sound')).toBeVisible();
+      await page.getByTestId('app-menu-row-sound').click();
+      await expect(page.getByTestId('app-menu-sound-rows')).toBeVisible();
+      await expect(page.getByTestId('app-menu-sound-toggle-sound')).toBeVisible();
+      await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeVisible();
+      await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeVisible();
+      await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeEnabled();
+      await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeEnabled();
+      await expect(page.getByTestId('app-menu-back')).toBeVisible();
+      await capture(page, testInfo, {
+        screen: 'app-menu',
+        state: 'sound-picker',
+        locale,
+      });
+    });
+  }
+
+  test('master Sound off disables Music/Effects and updates the row summary', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-sound').click();
+    await expect(page.getByTestId('app-menu-sound-toggle-sound')).toBeVisible();
+    await page.getByTestId('app-menu-sound-toggle-sound').click();
+    await expect(page.getByTestId('app-menu-sound-toggle-music')).toBeDisabled();
+    await expect(page.getByTestId('app-menu-sound-toggle-effects')).toBeDisabled();
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Off');
+  });
+
+  test('Music-only summary persists after reload', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-sound').click();
+    await page.getByTestId('app-menu-sound-toggle-effects').click();
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Music only');
+
+    await preserveStorageAcrossNextLoad(page);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settleAfterNavigation(page);
+    await openAppMenu(page);
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Music only');
+  });
+
+  test('Tab to Effects toggle, Space flips it, and Back returns focus to Sound row', async ({
+    page,
+  }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await openAppMenu(page);
+    await page.getByTestId('app-menu-row-sound').click();
+    await expect(page.getByTestId('app-menu-sound')).toBeVisible();
+
+    const back = page.getByTestId('app-menu-back');
+    await expect(back).toBeVisible();
+    await back.focus();
+    await expect(back).toBeFocused();
+
+    let landedOnEffects = false;
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      const id = await page.evaluate(
+        () => (document.activeElement as HTMLElement | null)?.dataset?.testid ?? '',
+      );
+      if (id === 'app-menu-sound-toggle-effects') {
+        landedOnEffects = true;
+        break;
+      }
+    }
+    expect(landedOnEffects, 'Tab should land on Effects toggle').toBeTruthy();
+
+    await page.keyboard.press('Space');
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu-rows')).toBeVisible();
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('Music only');
+    await expect(page.getByTestId('app-menu-row-sound')).toBeFocused();
+  });
 
   test('picking Reduced updates the Motion row and persists after reload', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=en');

@@ -46,6 +46,7 @@ export const A11Y_FOCUS_PAPER_TEST_ID_PREFIXES = [
   'app-menu-language-row-',
   'app-menu-complexity-row-',
   'app-menu-motion-row-',
+  'app-menu-sound-toggle-',
 ] as const;
 
 /** axe: only serious + critical fail the gate (guide AC). */
