@@ -106,6 +106,8 @@ function createEngine(
     canStartMusic?: () => boolean;
     areDropInsBlocked?: () => boolean;
     maxPlayers?: number;
+    getDurationMs?: (name: SoundAssetName) => number;
+    fadeMs?: number;
   } = {},
 ): { engine: MusicEngine; players: MusicPlayer[] } {
   const players: MusicPlayer[] = [];
@@ -122,7 +124,7 @@ function createEngine(
       return p;
     },
     resolveModule: (name) => moduleFor(name),
-    getDurationMs: (name) => getSoundAssetDurationMs(name),
+    getDurationMs: opts.getDurationMs ?? ((name) => getSoundAssetDurationMs(name)),
     now: clock.now,
     random,
     setTimeout: clock.timers.setTimeout as typeof setTimeout,
@@ -130,7 +132,7 @@ function createEngine(
     canStartMusic: opts.canStartMusic,
     areDropInsBlocked: opts.areDropInsBlocked,
     maxPlayers: opts.maxPlayers,
-    fadeMs: MUSIC_FADE_MS,
+    fadeMs: opts.fadeMs ?? MUSIC_FADE_MS,
   });
 
   return { engine, players };
@@ -333,6 +335,110 @@ test('pause / resume / duck / restartBed hooks are fade-based', () => {
   engine.restartBed({ fadeIn: true });
   assert.ok(engine.getFades().length > n);
   assert.ok(engine.getActivePlayerCount() <= MUSIC_MAX_PLAYERS);
+
+  engine.reset();
+});
+
+test('B1: multi-loop crossfade arms next copy when B is created (no silence gap)', () => {
+  const clock = createFakeClock();
+  const loopMs = 10_000;
+  const fadeMs = 4_000;
+  const { engine, players } = createEngine(clock, {
+    getDurationMs: () => loopMs,
+    fadeMs,
+    // Keep progress low so only the bed loops (no texture noise).
+    random: () => 0,
+  });
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  clock.advance(50);
+  assert.equal(engine.getPhase(), 'bed');
+
+  // Three full loop periods: with B1, next crossfade is armed at B create
+  // (lead = loopMs - fadeMs after each copy starts), so a live player always
+  // overlaps. Old bug waited for fade-in end → later loops faded over silence.
+  const samples: number[] = [];
+  for (let t = 0; t < loopMs * 3; t += 500) {
+    clock.advance(500);
+    samples.push(engine.getActivePlayerCount());
+  }
+  assert.ok(samples.every((n) => n >= 1), 'at least one player across multi-loop');
+  assert.ok(
+    samples.some((n) => n >= 2),
+    'crossfade overlap (2 copies) observed',
+  );
+  assert.ok(players.some((p) => p.playing));
+  assert.ok(engine.getFades().length >= 4);
+
+  engine.reset();
+});
+
+test('B2: quick off→on / stop→restartBed does not leave music silent', () => {
+  const clock = createFakeClock();
+  const { engine, players } = createEngine(clock, { random: () => 0 });
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  clock.advance(MUSIC_FADE_MS);
+  assert.ok(engine.getActivePlayerCount() >= 1);
+
+  // Off → on before stop's delayed release sweep fires.
+  engine.setEnabled(false);
+  assert.equal(engine.getPhase(), 'stopped');
+  engine.setEnabled(true);
+  clock.advance(MUSIC_FADE_MS + 20);
+
+  assert.equal(engine.getPhase(), 'bed');
+  assert.ok(engine.getActivePlayerCount() >= 1, 'bed alive after off→on race');
+  assert.ok(engine.getBedAsset() != null);
+  assert.ok(players.some((p) => p.playing));
+
+  // stop → restartBed mid-fade.
+  engine.stop();
+  engine.restartBed({ fadeIn: true });
+  clock.advance(MUSIC_FADE_MS + 20);
+  assert.equal(engine.getPhase(), 'bed');
+  assert.ok(engine.getActivePlayerCount() >= 1, 'bed alive after stop→restart race');
+
+  // fadeIn: false snaps on a fresh bed start (M2).
+  engine.stop();
+  clock.advance(MUSIC_FADE_MS + 20);
+  const before = engine.getFades().length;
+  engine.setProgressInputs(5, 5);
+  engine.restartBed({ fadeIn: false });
+  const snap = engine.getFades().slice(before).find((f) => f.durationMs === 0 && f.to > 0);
+  assert.ok(snap, 'fadeIn false uses a 0-ms snap fade');
+  assert.equal(engine.getBedAsset(), MUSIC_BED_BRIGHT);
+  assert.ok(engine.getActivePlayerCount() >= 1);
+
+  engine.reset();
+});
+
+test('B3: pause clears timers; resume re-arms crossfade', () => {
+  const clock = createFakeClock();
+  const loopMs = 10_000;
+  const fadeMs = 4_000;
+  const { engine } = createEngine(clock, {
+    getDurationMs: () => loopMs,
+    fadeMs,
+    random: () => 0,
+  });
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  clock.advance(100);
+  engine.pause();
+  // Advance past where a crossfade would have fired if timers were left armed.
+  clock.advance(loopMs);
+  const duringPause = engine.getActivePlayerCount();
+  assert.ok(duringPause >= 1);
+
+  engine.resume({ fadeIn: true });
+  clock.advance(fadeMs + (loopMs - fadeMs));
+  assert.ok(engine.getActivePlayerCount() >= 1);
+  // A crossfade after resume should have produced an overlap or extra fade.
+  assert.ok(engine.getFades().length >= 2);
 
   engine.reset();
 });

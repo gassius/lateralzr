@@ -134,6 +134,14 @@ type PlayerSlot = {
   targetVolume: number;
   /** Sister slot during a loop crossfade (other copy). */
   pairId: number | null;
+  /** Fading out toward release — syncBed / resume skip these. */
+  stopping: boolean;
+  /** Bumped to cancel an in-flight fadeSlot. */
+  fadeGeneration: number;
+  /** Wall-clock when this copy started (seek 0) — for pause/resume lead. */
+  loopAnchorAt: number;
+  /** Pending crossfade schedule for this copy. */
+  loopTimerId: TimerId | null;
 };
 
 type TimerId = ReturnType<typeof setTimeout>;
@@ -289,9 +297,15 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
   }
 
+  /** Cancel any in-flight fade on this slot (B2 — new fade wins). */
+  function cancelFade(slot: PlayerSlot): void {
+    slot.fadeGeneration += 1;
+  }
+
   /**
    * Linear fade via timer steps. Always records a fade (never a hard cut).
    * Zero-duration still records a fade for audit, then snaps.
+   * A later fadeSlot / cancelFade bumps fadeGeneration so older ticks no-op.
    */
   function fadeSlot(
     slot: PlayerSlot,
@@ -299,6 +313,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     durationMs: number,
     onDone?: () => void,
   ): void {
+    cancelFade(slot);
+    const gen = slot.fadeGeneration;
     const to = effectiveVolume(toTarget);
     const from = slot.player.volume;
     const dur = Math.max(0, durationMs);
@@ -307,7 +323,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
     if (dur <= 0 || from === to) {
       applyVolume(slot, to);
-      onDone?.();
+      if (slot.fadeGeneration === gen && slots.has(slot.id)) onDone?.();
       return;
     }
 
@@ -315,6 +331,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     const stepMs = dur / steps;
     let i = 0;
     const tick = (): void => {
+      if (slot.fadeGeneration !== gen || !slots.has(slot.id)) return;
       i += 1;
       const t = i / steps;
       applyVolume(slot, from + (to - from) * t);
@@ -331,6 +348,11 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function releaseSlot(id: number): void {
     const slot = slots.get(id);
     if (!slot) return;
+    cancelFade(slot);
+    if (slot.loopTimerId != null) {
+      clearScheduled(slot.loopTimerId);
+      slot.loopTimerId = null;
+    }
     try {
       slot.player.pause();
     } catch {
@@ -349,6 +371,11 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   }
 
   function ensureBudget(need: number): void {
+    // Free stopping slots first so a quick restartBed is not blocked by fade-outs.
+    for (const slot of [...slots.values()]) {
+      if (activeCount() + need <= maxPlayers) break;
+      if (slot.stopping) releaseSlot(slot.id);
+    }
     while (activeCount() + need > maxPlayers) {
       // Drop lowest-priority: dropin → texture → arrival → bed pair idle → intro
       const dropin = [...slots.values()].find((s) => s.kind === 'dropin');
@@ -395,6 +422,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       kind,
       targetVolume,
       pairId: null,
+      stopping: false,
+      fadeGeneration: 0,
+      loopAnchorAt: now(),
+      loopTimerId: null,
     };
     slots.set(slot.id, slot);
     applyVolume(slot, 0);
@@ -424,13 +455,18 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   /**
    * Schedule seamless loop via dual-copy crossfade keyed off manifest durationMs.
+   * B1: arm the next loop as soon as copy B is created (not after its fade-in),
+   * so later loops still overlap instead of fading over silence.
    */
   function scheduleCrossfadeLoop(primary: PlayerSlot): void {
+    if (primary.stopping || primary.loopTimerId != null) return;
     const durationMs = getDurationMs(primary.asset);
-    const leadMs = Math.max(0, durationMs - fadeMs);
+    const elapsed = Math.max(0, now() - primary.loopAnchorAt);
+    const leadMs = Math.max(0, durationMs - fadeMs - elapsed);
 
-    schedule(() => {
-      if (!slots.has(primary.id) || paused || !enabled) return;
+    primary.loopTimerId = schedule(() => {
+      primary.loopTimerId = null;
+      if (!slots.has(primary.id) || primary.stopping || paused || !enabled) return;
       if (phase === 'stopped') return;
 
       ensureBudget(1);
@@ -443,12 +479,13 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       primary.pairId = secondary.id;
       secondary.pairId = primary.id;
 
+      primary.stopping = true;
       fadeSlot(primary, 0, fadeMs, () => {
-        releaseSlot(primary.id);
+        if (slots.has(primary.id)) releaseSlot(primary.id);
       });
-      fadeSlot(secondary, secondary.targetVolume, fadeMs, () => {
-        scheduleCrossfadeLoop(secondary);
-      });
+      fadeSlot(secondary, secondary.targetVolume, fadeMs);
+      // Arm B's next crossfade immediately (B1) — do not wait for fade-in.
+      scheduleCrossfadeLoop(secondary);
     }, leadMs);
   }
 
@@ -458,7 +495,15 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   function stopKind(kind: SlotKind, fadeOutMs: number): void {
     for (const slot of slotsOfKind(kind)) {
-      fadeSlot(slot, 0, fadeOutMs, () => releaseSlot(slot.id));
+      if (slot.stopping) continue;
+      slot.stopping = true;
+      if (slot.loopTimerId != null) {
+        clearScheduled(slot.loopTimerId);
+        slot.loopTimerId = null;
+      }
+      fadeSlot(slot, 0, fadeOutMs, () => {
+        if (slots.has(slot.id)) releaseSlot(slot.id);
+      });
     }
   }
 
@@ -484,8 +529,14 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     if (arrival) {
       fadeSlot(arrival, 1, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
       const arrivalDur = getDurationMs(arrivalName);
+      const arrivalId = arrival.id;
       schedule(() => {
-        fadeSlot(arrival, 0, MUSIC_FADE_MIN_MS, () => releaseSlot(arrival.id));
+        const slot = slots.get(arrivalId);
+        if (!slot || slot.stopping) return;
+        slot.stopping = true;
+        fadeSlot(slot, 0, MUSIC_FADE_MIN_MS, () => {
+          if (slots.has(arrivalId)) releaseSlot(arrivalId);
+        });
       }, Math.max(0, arrivalDur - MUSIC_FADE_MIN_MS));
     }
 
@@ -499,7 +550,15 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
     // Fade intro out while bed comes in.
     for (const intro of slotsOfKind('intro')) {
-      fadeSlot(intro, 0, fadeMs, () => releaseSlot(intro.id));
+      if (intro.stopping) continue;
+      intro.stopping = true;
+      if (intro.loopTimerId != null) {
+        clearScheduled(intro.loopTimerId);
+        intro.loopTimerId = null;
+      }
+      fadeSlot(intro, 0, fadeMs, () => {
+        if (slots.has(intro.id)) releaseSlot(intro.id);
+      });
     }
     phase = 'bed';
     syncTextures();
@@ -510,19 +569,32 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function syncBed(fadeIn: boolean): void {
     if (!enabled || !canStart() || phase === 'intro') return;
     const next = bedAssetForProgress(progress, randomEntry);
-    const current = slotsOfKind('bed')[0];
+    // Skip beds already fading out (B2) — don't treat them as the live bed.
+    const current = slotsOfKind('bed').find((s) => !s.stopping);
     if (current && current.asset === next) {
       bedAsset = next;
       return;
     }
     bedAsset = next;
     for (const slot of slotsOfKind('bed')) {
-      fadeSlot(slot, 0, fadeMs, () => releaseSlot(slot.id));
+      if (slot.stopping) continue;
+      slot.stopping = true;
+      if (slot.loopTimerId != null) {
+        clearScheduled(slot.loopTimerId);
+        slot.loopTimerId = null;
+      }
+      fadeSlot(slot, 0, fadeMs, () => {
+        if (slots.has(slot.id)) releaseSlot(slot.id);
+      });
     }
     const bed = createSlot(next, 'bed', 1);
     if (!bed) return;
-    if (fadeIn) fadeSlot(bed, 1, fadeMs);
-    else fadeSlot(bed, 1, fadeMs);
+    if (fadeIn) {
+      fadeSlot(bed, 1, fadeMs);
+    } else {
+      // M2: fadeIn false → snap to target (still recorded as a 0-ms fade).
+      fadeSlot(bed, 1, 0);
+    }
     scheduleCrossfadeLoop(bed);
     phase = 'bed';
   }
@@ -531,11 +603,21 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     if (phase !== 'bed' || !enabled || paused) return;
     const allowed = new Set(texturesForProgress(progress, reduceMotion));
     for (const slot of slotsOfKind('texture')) {
-      if (!allowed.has(slot.asset)) {
-        fadeSlot(slot, 0, fadeMs, () => releaseSlot(slot.id));
+      if (slot.stopping || allowed.has(slot.asset)) continue;
+      slot.stopping = true;
+      if (slot.loopTimerId != null) {
+        clearScheduled(slot.loopTimerId);
+        slot.loopTimerId = null;
       }
+      fadeSlot(slot, 0, fadeMs, () => {
+        if (slots.has(slot.id)) releaseSlot(slot.id);
+      });
     }
-    const present = new Set(slotsOfKind('texture').map((s) => s.asset));
+    const present = new Set(
+      slotsOfKind('texture')
+        .filter((s) => !s.stopping)
+        .map((s) => s.asset),
+    );
     const missing = [...allowed].filter((a) => !present.has(a));
     // Fill up to allowed count, respecting player budget (leave room for bed pair + drop-in).
     const room = Math.max(0, maxPlayers - activeCount() - 1);
@@ -558,11 +640,18 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     textureRotateTimer = schedule(() => {
       textureRotateTimer = null;
       if (phase !== 'bed' || paused) return;
-      const present = slotsOfKind('texture');
+      const present = slotsOfKind('texture').filter((s) => !s.stopping);
       // Fade one out / one in within allowed set.
       if (present.length > 0 && random() < 0.6) {
         const victim = present[Math.floor(random() * present.length)]!;
-        fadeSlot(victim, 0, fadeMs, () => releaseSlot(victim.id));
+        victim.stopping = true;
+        if (victim.loopTimerId != null) {
+          clearScheduled(victim.loopTimerId);
+          victim.loopTimerId = null;
+        }
+        fadeSlot(victim, 0, fadeMs, () => {
+          if (slots.has(victim.id)) releaseSlot(victim.id);
+        });
       }
       syncTextures();
       scheduleTextureRotate();
@@ -599,8 +688,14 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     if (!slot) return;
     fadeSlot(slot, 0.85, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
     const dur = getDurationMs(pick);
+    const dropId = slot.id;
     schedule(() => {
-      fadeSlot(slot, 0, MUSIC_FADE_MIN_MS, () => releaseSlot(slot.id));
+      const live = slots.get(dropId);
+      if (!live || live.stopping) return;
+      live.stopping = true;
+      fadeSlot(live, 0, MUSIC_FADE_MIN_MS, () => {
+        if (slots.has(dropId)) releaseSlot(dropId);
+      });
     }, Math.max(0, dur - MUSIC_FADE_MIN_MS));
   }
 
@@ -608,9 +703,18 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     discoveryDuck = MUSIC_DISCOVERY_DUCK_GAIN;
     // Thin: fade textures out; duck bed gain.
     for (const slot of slotsOfKind('texture')) {
-      fadeSlot(slot, 0, MUSIC_DISCOVERY_RETURN_MS, () => releaseSlot(slot.id));
+      if (slot.stopping) continue;
+      slot.stopping = true;
+      if (slot.loopTimerId != null) {
+        clearScheduled(slot.loopTimerId);
+        slot.loopTimerId = null;
+      }
+      fadeSlot(slot, 0, MUSIC_DISCOVERY_RETURN_MS, () => {
+        if (slots.has(slot.id)) releaseSlot(slot.id);
+      });
     }
     for (const slot of slotsOfKind('bed')) {
+      if (slot.stopping) continue;
       fadeSlot(slot, slot.targetVolume, MUSIC_DISCOVERY_RETURN_MS);
     }
     clearScheduled(discoveryTimer);
@@ -618,6 +722,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       discoveryTimer = null;
       discoveryDuck = 1;
       for (const slot of [...slots.values()]) {
+        if (slot.stopping || !slots.has(slot.id)) continue;
         fadeSlot(slot, slot.targetVolume, MUSIC_DISCOVERY_RETURN_MS);
       }
       syncTextures();
@@ -699,7 +804,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   function pause(): void {
     paused = true;
+    // B3: clear loop / drop-in / texture / discovery timers (and mid-fade ticks).
+    clearAllTimers();
     for (const slot of slots.values()) {
+      slot.loopTimerId = null;
       try {
         slot.player.pause();
       } catch {
@@ -711,7 +819,21 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function resume(opts: { fadeIn: boolean }): void {
     paused = false;
     if (!enabled || !canStart()) return;
+
+    // Drop duplicate pair copies left mid-crossfade; keep one live per kind+asset.
+    const seen = new Set<string>();
+    for (const slot of [...slots.values()]) {
+      if (slot.stopping) continue;
+      const key = `${slot.kind}:${slot.asset}`;
+      if (seen.has(key)) {
+        releaseSlot(slot.id);
+        continue;
+      }
+      seen.add(key);
+    }
+
     for (const slot of slots.values()) {
+      if (slot.stopping) continue;
       try {
         slot.player.play();
       } catch {
@@ -721,14 +843,28 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
         applyVolume(slot, 0);
         fadeSlot(slot, slot.targetVolume, fadeMs);
       } else {
-        applyVolume(slot, effectiveVolume(slot.targetVolume));
+        // M2: snap when fadeIn is false.
+        fadeSlot(slot, slot.targetVolume, 0);
       }
+    }
+
+    // B3: re-arm crossfade / drop-ins / texture rotate from remaining lead.
+    for (const slot of slots.values()) {
+      if (slot.stopping) continue;
+      if (slot.kind === 'intro' || slot.kind === 'bed' || slot.kind === 'texture') {
+        scheduleCrossfadeLoop(slot);
+      }
+    }
+    if (phase === 'bed') {
+      if (!dropInsPaused) scheduleDropIn();
+      scheduleTextureRotate();
     }
   }
 
   function duck(volume: number): void {
     duckGain = Math.max(0, Math.min(1, volume));
     for (const slot of slots.values()) {
+      if (slot.stopping) continue;
       fadeSlot(slot, slot.targetVolume, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
     }
   }
@@ -736,12 +872,23 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function stop(): void {
     phase = 'stopped';
     clearAllTimers();
-    for (const slot of [...slots.values()]) {
-      fadeSlot(slot, 0, fadeMs, () => releaseSlot(slot.id));
+    for (const slot of slots.values()) {
+      slot.loopTimerId = null;
     }
-    // Ensure release even if fade scheduling is cleared mid-stop.
+    // B2: only the players present at stop — not ones restartBed creates after.
+    const idsAtStop = [...slots.keys()];
+    for (const id of idsAtStop) {
+      const slot = slots.get(id);
+      if (!slot) continue;
+      slot.stopping = true;
+      fadeSlot(slot, 0, fadeMs, () => {
+        if (slots.has(id)) releaseSlot(id);
+      });
+    }
     schedule(() => {
-      for (const id of [...slots.keys()]) releaseSlot(id);
+      for (const id of idsAtStop) {
+        if (slots.has(id)) releaseSlot(id);
+      }
     }, fadeMs + 10);
   }
 
@@ -749,10 +896,17 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     if (!enabled || !canStart()) return;
     paused = false;
     phase = 'bed';
-    // Clear non-bed leftovers.
+    // Clear non-bed leftovers (fade out; cancel prior fades via fadeGeneration).
     for (const slot of [...slots.values()]) {
-      if (slot.kind === 'bed') continue;
-      fadeSlot(slot, 0, opts.fadeIn ? fadeMs : fadeMs, () => releaseSlot(slot.id));
+      if (slot.kind === 'bed' || slot.stopping) continue;
+      slot.stopping = true;
+      if (slot.loopTimerId != null) {
+        clearScheduled(slot.loopTimerId);
+        slot.loopTimerId = null;
+      }
+      fadeSlot(slot, 0, fadeMs, () => {
+        if (slots.has(slot.id)) releaseSlot(slot.id);
+      });
     }
     syncBed(opts.fadeIn);
     syncTextures();

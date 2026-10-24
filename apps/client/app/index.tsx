@@ -402,15 +402,18 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!fontsReady) return;
     introStartedAtRef.current = Date.now();
-    // Sound 6: preload + loop intro pad as soon as the logo gate starts.
-    if (!introMusicStartedRef.current) {
-      introMusicStartedRef.current = true;
-      soundEvent({ name: 'intro_started' });
-    }
     const remaining = remainingIntroMs(introStartedAtRef.current, Date.now());
     const timer = setTimeout(() => setIntroGateOpen(true), remaining);
     return () => clearTimeout(timer);
   }, [fontsReady]);
+
+  // Sound 6: intro pad only after prefs load (Music off → silence; M1).
+  useEffect(() => {
+    if (!fontsReady || !soundHydrated) return;
+    if (introMusicStartedRef.current) return;
+    introMusicStartedRef.current = true;
+    soundEvent({ name: 'intro_started' });
+  }, [fontsReady, soundHydrated]);
 
   // Sound 6: Reduced Motion caps texture layers.
   useEffect(() => {
