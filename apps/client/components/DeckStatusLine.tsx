@@ -63,7 +63,7 @@ export function DeckStatusLine({
     }
     if (announcedStatusRef.current === announceKey) return;
     announcedStatusRef.current = announceKey;
-    // Suppress reshuffle SFX while VoiceOver/TalkBack speaks status copy (Sound 7 hooks).
+    // Suppress reshuffle SFX while VoiceOver/TalkBack speaks status copy (Sound 7).
     return runAccessibilityAnnounce(announceKey, {
       announce: (msg) => {
         AccessibilityInfo.announceForAccessibility?.(msg);

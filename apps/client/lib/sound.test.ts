@@ -318,6 +318,60 @@ test('web stub API is safe no-op and unavailable', async () => {
   assert.doesNotThrow(() =>
     web.setSoundPreferences({ sound: false, music: false, effects: false }),
   );
+  assert.equal(web.canStartMusic(), false);
+  assert.doesNotThrow(() => web.registerSoundMusicHooks(null));
+  assert.doesNotThrow(() => web.beginSoundAnnouncement());
+  assert.doesNotThrow(() => web.endSoundAnnouncement());
+  assert.doesNotThrow(() => web.notifySoundInterruption(true));
+});
+
+test('pause/resume/duck hooks are callable before Sound 6 registers players', () => {
+  const ctrl = createSoundController({
+    createPlayer: () => mockPlayer(),
+    resolveEntry: entryWithVariants('card_flip', [1]),
+  });
+  assert.doesNotThrow(() => ctrl.pauseMusic());
+  assert.doesNotThrow(() => ctrl.resumeMusic({ fadeIn: true }));
+  assert.doesNotThrow(() => ctrl.duckMusic(0.1));
+  assert.equal(ctrl.canStartMusic(), true);
+  ctrl.applySystemFlags({
+    appActive: true,
+    interrupted: false,
+    screenReaderEnabled: false,
+    otherAudioPlaying: true,
+    announcementActive: false,
+  });
+  assert.equal(ctrl.canStartMusic(), false);
+  ctrl.reset();
+});
+
+test('pauseMusic pauses music bus only, not effects (M3)', () => {
+  const musicPlayer = mockPlayer();
+  const effectsPlayer = mockPlayer();
+  musicPlayer.playing = true;
+  effectsPlayer.playing = true;
+  let n = 0;
+  const ctrl = createSoundController({
+    createPlayer: () => {
+      n += 1;
+      return n === 1 ? musicPlayer : effectsPlayer;
+    },
+    resolveEntry: (name) =>
+      name === 'intro_started'
+        ? { bus: 'music', variants: [9], minIntervalMs: 0, maxVoices: 1 }
+        : { bus: 'effects', variants: [8], minIntervalMs: 0, maxVoices: 2 },
+  });
+
+  ctrl.soundEvent({ name: 'intro_started' });
+  ctrl.soundEvent({ name: 'card_flip' });
+  assert.equal(musicPlayer.calls.play, 1);
+  assert.equal(effectsPlayer.calls.play, 1);
+
+  ctrl.pauseMusic();
+  assert.equal(musicPlayer.calls.pause, 1);
+  assert.equal(effectsPlayer.calls.pause, 0);
+  assert.equal(effectsPlayer.playing, true);
+  ctrl.reset();
 });
 
 test('complexity_changed picks the ladder asset for the event level', () => {
