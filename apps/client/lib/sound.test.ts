@@ -311,18 +311,21 @@ test('music off fades music players instead of hard-cutting only effects', () =>
   ctrl.reset();
 });
 
-test('web stub API is safe no-op and unavailable', async () => {
+test('web API is safe in Node (no Web Audio) and does not throw', async () => {
   const web = await import('@/lib/sound.web.ts');
+  // Node unit tests have no AudioContext — honest unavailability.
   assert.equal(web.isSoundAvailable(), false);
   assert.doesNotThrow(() => web.soundEvent({ name: 'card_flip' }));
   assert.doesNotThrow(() =>
     web.setSoundPreferences({ sound: false, music: false, effects: false }),
   );
+  assert.doesNotThrow(() => web.notifySoundFirstCardReady());
   assert.equal(web.canStartMusic(), false);
   assert.doesNotThrow(() => web.registerSoundMusicHooks(null));
   assert.doesNotThrow(() => web.beginSoundAnnouncement());
   assert.doesNotThrow(() => web.endSoundAnnouncement());
   assert.doesNotThrow(() => web.notifySoundInterruption(true));
+  assert.doesNotThrow(() => web.__disposeSoundSystemForTests());
 });
 
 test('pause/resume/duck hooks are callable before Sound 6 registers players', () => {
@@ -372,6 +375,21 @@ test('pauseMusic pauses music bus only, not effects (M3)', () => {
   assert.equal(effectsPlayer.calls.pause, 0);
   assert.equal(effectsPlayer.playing, true);
   ctrl.reset();
+});
+
+test('loopEndSecondsFromManifest uses Sound 3 durationMs not buffer length', async () => {
+  const { loopEndSecondsFromManifest, getAudioManifestAsset, AUDIO_MANIFEST } =
+    await import('@/lib/audioManifest.ts');
+  assert.equal(AUDIO_MANIFEST.version, 1);
+  const intro = getAudioManifestAsset('music-intro-loop');
+  assert.ok(intro);
+  assert.equal(intro!.loop, true);
+  assert.equal(intro!.durationMs, 6000);
+  assert.ok(typeof intro!.path === 'string' && intro!.path.includes('intro-loop'));
+  // AAC padding would make buffer.duration ≈ 6.014 — must not be used as loopEnd.
+  assert.equal(loopEndSecondsFromManifest(intro!.durationMs), 6);
+  assert.equal(loopEndSecondsFromManifest(null), null);
+  assert.equal(loopEndSecondsFromManifest(0), null);
 });
 
 test('complexity_changed picks the ladder asset for the event level', () => {
@@ -448,4 +466,151 @@ test('reduced motion lowers motion-tied SFX volume by ~3 dB', () => {
   const expected = Math.pow(10, -3 / 20);
   assert.ok(Math.abs(players[0]!.volume - expected) < 1e-9);
   ctrl.reset();
+});
+
+function fakeAudioContext(options?: {
+  decode?: (ab: ArrayBuffer) => Promise<AudioBuffer>;
+}): {
+  ctx: AudioContext;
+  startCount: () => number;
+} {
+  let starts = 0;
+  const fakeBuffer = {
+    duration: 1,
+    length: 8,
+    numberOfChannels: 1,
+    sampleRate: 44100,
+  } as AudioBuffer;
+
+  const ctx = {
+    state: 'running' as AudioContextState,
+    destination: {} as AudioDestinationNode,
+    resume: async () => {},
+    createGain: () => ({
+      gain: { value: 1 },
+      connect() {},
+      disconnect() {},
+    }),
+    createBufferSource: () => ({
+      buffer: null as AudioBuffer | null,
+      loop: false,
+      loopStart: 0,
+      loopEnd: 0,
+      onended: null as (() => void) | null,
+      connect() {},
+      disconnect() {},
+      start() {
+        starts += 1;
+      },
+      stop() {},
+    }),
+    decodeAudioData:
+      options?.decode ??
+      (async (_ab: ArrayBuffer) => fakeBuffer),
+  };
+
+  return {
+    ctx: ctx as unknown as AudioContext,
+    startCount: () => starts,
+  };
+}
+
+test('web play after preload starts once shared buffer resolves', async () => {
+  const web = await import('@/lib/sound.web.ts');
+  web.__clearWebBufferCacheForTests();
+
+  const uri = '/assets/audio/test-sfx.web.m4a';
+  const { ctx, startCount } = fakeAudioContext();
+  const originalFetch = globalThis.fetch;
+  let fetchCount = 0;
+  globalThis.fetch = (async () => {
+    fetchCount += 1;
+    return {
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    } as Response;
+  }) as typeof fetch;
+
+  try {
+    web.__warmBufferCacheForTests(ctx, uri);
+    await web.__decodeUriForTests(ctx, uri);
+    assert.equal(fetchCount, 1);
+
+    // Second warm/decode must reuse the cache (M1 — no double fetch).
+    web.__warmBufferCacheForTests(ctx, uri);
+    await web.__decodeUriForTests(ctx, uri);
+    assert.equal(fetchCount, 1);
+
+    const player = web.__createWebAudioPlayerForTests(ctx, uri);
+    player.play();
+    assert.equal(startCount(), 1);
+
+    // replace with same uri reuses resolved buffer; play still works.
+    // Test helper accepts string URIs; SoundPlayer.replace is typed for module ids.
+    player.replace(uri as unknown as number);
+    player.play();
+    assert.equal(startCount(), 2);
+    assert.equal(fetchCount, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    web.__clearWebBufferCacheForTests();
+  }
+});
+
+test('web play defers start until decode finishes; pause cancels pending play', async () => {
+  const web = await import('@/lib/sound.web.ts');
+  web.__clearWebBufferCacheForTests();
+
+  const uri = '/assets/audio/deferred.web.m4a';
+  let resolveDecode!: (buf: AudioBuffer) => void;
+  const pending = new Promise<AudioBuffer>((resolve) => {
+    resolveDecode = resolve;
+  });
+  const { ctx, startCount } = fakeAudioContext({
+    decode: () => pending,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }) as Response) as typeof fetch;
+
+  const fakeBuf = {
+    duration: 1,
+    length: 8,
+    numberOfChannels: 1,
+    sampleRate: 44100,
+  } as AudioBuffer;
+
+  try {
+    const player = web.__createWebAudioPlayerForTests(ctx, uri);
+    player.play();
+    assert.equal(startCount(), 0, 'must not start before decode');
+
+    const decodeP = web.__decodeUriForTests(ctx, uri);
+    resolveDecode(fakeBuf);
+    await decodeP;
+    assert.equal(startCount(), 1);
+
+    // Pending play cancelled by pause before decode settles.
+    web.__clearWebBufferCacheForTests();
+    let resolve2!: (buf: AudioBuffer) => void;
+    const pending2 = new Promise<AudioBuffer>((resolve) => {
+      resolve2 = resolve;
+    });
+    const slow = fakeAudioContext({ decode: () => pending2 });
+    const cancelUri = '/assets/audio/cancel.web.m4a';
+    const player2 = web.__createWebAudioPlayerForTests(slow.ctx, cancelUri);
+    player2.play();
+    player2.pause();
+    const decodeP2 = web.__decodeUriForTests(slow.ctx, cancelUri);
+    resolve2(fakeBuf);
+    await decodeP2;
+    assert.equal(slow.startCount(), 0, 'pause must cancel deferred start');
+  } finally {
+    globalThis.fetch = originalFetch;
+    web.__clearWebBufferCacheForTests();
+  }
 });

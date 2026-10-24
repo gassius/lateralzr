@@ -61,7 +61,12 @@ import {
   type MotionPreference,
 } from '@/lib/motionStorage';
 import { isClientTestOrDevBuild } from '@/lib/e2eFlags';
-import { isSoundAvailable, setSoundPreferences, soundEvent } from '@/lib/sound';
+import {
+  isSoundAvailable,
+  notifySoundFirstCardReady,
+  setSoundPreferences,
+  soundEvent,
+} from '@/lib/sound';
 import {
   cardArrivedSoundEvent,
   complexityChangedIfChanged,
@@ -198,8 +203,8 @@ export default function HomeScreen() {
     useState<SoundPreferences>(DEFAULT_SOUND_PREFERENCES);
   const [soundHydrated, setSoundHydrated] = useState(false);
   const reduceMotion = useReducedMotion(motionPreference);
-  // Native: isSoundAvailable(). Web stub is false until Sound 8; still show the
-  // row in E2E / __DEV__ so Sound 2 settings UI can be exercised.
+  // Native + web (Sound 8): isSoundAvailable(). E2E / __DEV__ still forces the
+  // row on so Sound 2 settings UI can be exercised without audio hardware.
   const appMenuFeatures: AppMenuFeatures = {
     ...DEFAULT_APP_MENU_FEATURES,
     sound: isSoundAvailable() || isClientTestOrDevBuild(),
@@ -652,6 +657,12 @@ export default function HomeScreen() {
     }
     retryLoadMore();
   }, [beginOfflineRetry, loadConcepts, retryLoadMore]);
+
+  // Sound 8: defer music until the first card is on screen (effects may already play post-unlock).
+  useEffect(() => {
+    if (!introGateOpen || concepts.length === 0) return;
+    notifySoundFirstCardReady();
+  }, [introGateOpen, concepts.length]);
 
   useEffect(() => {
     if (offline) return;

@@ -280,3 +280,12 @@ export function endSoundAnnouncement(): void {
 export function __disposeSoundSystemForTests(): void {
   systemBinding.dispose();
 }
+
+/**
+ * Web-only: allow music after the first card is ready. Native has no gesture
+ * unlock / deferred music gate — this is a no-op so shared callers can import
+ * from `@/lib/sound` on both platforms.
+ */
+export function notifySoundFirstCardReady(): void {
+  // no-op on native
+}
