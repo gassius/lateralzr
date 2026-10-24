@@ -21,6 +21,7 @@ import { useWebPhoneFrameSize } from '@/components/WebPhoneFrame';
 import { useAccessibleNavVisible } from '@/hooks/useAccessibleNavVisible';
 import { useConnectivity } from '@/hooks/useConnectivity';
 import { MotionPreferenceProvider } from '@/hooks/motionPreferenceContext';
+import { SoundPreferenceProvider } from '@/hooks/soundPreferenceContext';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { A11Y_PASS_FOCUS } from '@/lib/a11yPass';
@@ -59,6 +60,18 @@ import {
   persistMotionPreference,
   type MotionPreference,
 } from '@/lib/motionStorage';
+import { isClientTestOrDevBuild } from '@/lib/e2eFlags';
+import { isSoundAvailable, setSoundPreferences, soundEvent } from '@/lib/sound';
+import {
+  DEFAULT_SOUND_PREFERENCES,
+  loadStoredSound,
+  persistSound,
+  type SoundPreferences,
+} from '@/lib/soundStorage';
+import {
+  DEFAULT_APP_MENU_FEATURES,
+  type AppMenuFeatures,
+} from '@/lib/appMenu';
 import { useAppFontsReady } from '@/hooks/appFontsContext';
 import { remainingIntroMs } from '@/lib/introLogo';
 import {
@@ -168,7 +181,16 @@ export default function HomeScreen() {
   const [motionPreference, setMotionPreference] =
     useState<MotionPreference>(DEFAULT_MOTION_PREFERENCE);
   const [motionHydrated, setMotionHydrated] = useState(false);
+  const [soundPreferences, setSoundPreferencesState] =
+    useState<SoundPreferences>(DEFAULT_SOUND_PREFERENCES);
+  const [soundHydrated, setSoundHydrated] = useState(false);
   const reduceMotion = useReducedMotion(motionPreference);
+  // Native: isSoundAvailable(). Web stub is false until Sound 8; still show the
+  // row in E2E / __DEV__ so Sound 2 settings UI can be exercised.
+  const appMenuFeatures: AppMenuFeatures = {
+    ...DEFAULT_APP_MENU_FEATURES,
+    sound: isSoundAvailable() || isClientTestOrDevBuild(),
+  };
   const lateralityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
@@ -308,6 +330,19 @@ export default function HomeScreen() {
         setMotionPreference(stored);
         setMotionHydrated(true);
       }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadStoredSound().then((stored) => {
+      if (cancelled) return;
+      setSoundPreferencesState(stored);
+      setSoundPreferences(stored);
+      setSoundHydrated(true);
     });
     return () => {
       cancelled = true;
@@ -905,15 +940,23 @@ export default function HomeScreen() {
 
   const openAppMenu = useCallback(() => {
     setAppMenuOpen(true);
+    soundEvent({ name: 'sheet_open' });
   }, []);
 
   const dismissAppMenu = useCallback(() => {
     setAppMenuOpen(false);
+    soundEvent({ name: 'sheet_close' });
   }, []);
 
   const onMotionPreferenceChange = useCallback((pref: MotionPreference) => {
     setMotionPreference(pref);
     void persistMotionPreference(pref);
+  }, []);
+
+  const onSoundPreferencesChange = useCallback((prefs: SoundPreferences) => {
+    setSoundPreferencesState(prefs);
+    setSoundPreferences(prefs);
+    void persistSound(prefs);
   }, []);
 
   const onReplayGestureTipsReady = useCallback((replay: () => void) => {
@@ -1036,7 +1079,8 @@ export default function HomeScreen() {
   });
   // Lz-38: only the loading face replaces the card; failure / no-next keep the card readable.
   const showDeckLoading = deckSlotState === 'loading';
-  const prefsReady = complexityHydrated && lateralityHydrated && localeReady && motionHydrated;
+  const prefsReady =
+    complexityHydrated && lateralityHydrated && localeReady && motionHydrated && soundHydrated;
 
   const menuChromeHeight = practiceMenuChromeHeight();
   const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;
@@ -1049,6 +1093,7 @@ export default function HomeScreen() {
     !lateralityHydrated ||
     !localeReady ||
     !motionHydrated ||
+    !soundHydrated ||
     (!error && !introGateOpen);
 
   /** Lz-35: after intro, empty deck → quiet silhouette (no decorative pulse on the card). */
@@ -1118,10 +1163,12 @@ export default function HomeScreen() {
   if (showIntroLogo) {
     return (
       <MotionPreferenceProvider value={motionPreference}>
+      <SoundPreferenceProvider value={soundPreferences}>
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
         <LateralzrLogo animate={motionHydrated} />
       </View>
+      </SoundPreferenceProvider>
       </MotionPreferenceProvider>
     );
   }
@@ -1129,6 +1176,7 @@ export default function HomeScreen() {
   if (error && concepts.length === 0) {
     return (
       <MotionPreferenceProvider value={motionPreference}>
+      <SoundPreferenceProvider value={soundPreferences}>
       <View style={[styles.loadingRoot, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <StatusBar style="light" />
         <LateralzrLogo animate={false} />
@@ -1137,12 +1185,14 @@ export default function HomeScreen() {
           <Text style={[styles.retryText, textStyle('row')]}>{t('retry')}</Text>
         </Pressable>
       </View>
+      </SoundPreferenceProvider>
       </MotionPreferenceProvider>
     );
   }
 
   return (
     <MotionPreferenceProvider value={motionPreference}>
+    <SoundPreferenceProvider value={soundPreferences}>
     <View
       style={[
         styles.mainRoot,
@@ -1397,8 +1447,12 @@ export default function HomeScreen() {
         returnFocusRef={appMenuTriggerRef}
         motionPreference={motionPreference}
         onMotionPreferenceChange={onMotionPreferenceChange}
+        soundPreferences={soundPreferences}
+        onSoundPreferencesChange={onSoundPreferencesChange}
+        features={appMenuFeatures}
       />
     </View>
+    </SoundPreferenceProvider>
     </MotionPreferenceProvider>
   );
 }

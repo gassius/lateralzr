@@ -31,6 +31,7 @@ export type AppMenuRowKey =
   | 'language'
   | 'complexity'
   | 'motion'
+  | 'sound'
   | 'about'
   | 'replayTips';
 
@@ -65,12 +66,13 @@ export type AppMenuFeatures = Record<AppMenuRowKey, boolean>;
 
 /**
  * Fixed order. Each row ships only when its feature flag is on (§4.5).
- * Language / Complexity / Motion / About land in Lz-44…Lz-47.
+ * Language / Complexity / Motion / Sound / About land in Lz-44…Lz-47 + Sound 2.
  */
 export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
   { key: 'language', labelKey: 'menuLanguage', opensView: true },
   { key: 'complexity', labelKey: 'menuComplexity', opensView: true },
   { key: 'motion', labelKey: 'menuMotion', opensView: true },
+  { key: 'sound', labelKey: 'menuSound', opensView: true },
   { key: 'about', labelKey: 'menuAbout', opensView: true },
   { key: 'replayTips', labelKey: 'menuReplayTips', opensView: false },
 ] as const;
@@ -78,17 +80,18 @@ export const APP_MENU_ROW_ORDER: readonly AppMenuRowDef[] = [
 /** About lockup width on paper (guide §5.3 / Lz-47). */
 export const ABOUT_LOGO_WIDTH = 160;
 
-/** Language + Complexity + Motion + About + Replay gesture tips. */
+/** Language + Complexity + Motion + Sound + About + Replay gesture tips. */
 export const DEFAULT_APP_MENU_FEATURES: AppMenuFeatures = {
   language: true,
   complexity: true,
   motion: true,
+  sound: true,
   about: true,
   replayTips: true,
 };
 
 /** In-sheet view keys. Sub-views replace content; never stack modals. */
-export type AppMenuView = 'root' | 'language' | 'complexity' | 'motion' | 'about';
+export type AppMenuView = 'root' | 'language' | 'complexity' | 'motion' | 'sound' | 'about';
 
 /** Visual groups in the floating Paper menu (§12.2). */
 export type AppMenuGroupKey = 'settings' | 'replay';
@@ -99,6 +102,7 @@ export const APP_MENU_ROW_GROUP: Record<AppMenuRowKey, AppMenuGroupKey> = {
   language: 'settings',
   complexity: 'settings',
   motion: 'settings',
+  sound: 'settings',
   about: 'settings',
   replayTips: 'replay',
 };
@@ -149,6 +153,14 @@ export function focusMotionRowOnClose<T>(
   motionRowRef: { current: T | null },
 ): void {
   focus(motionRowRef);
+}
+
+/** F7: closing the Sound view returns focus to the Sound row. */
+export function focusSoundRowOnClose<T>(
+  focus: (ref: { current: T | null }) => void,
+  soundRowRef: { current: T | null },
+): void {
+  focus(soundRowRef);
 }
 
 /** Screen-reader label: “Name” or “Name, value”. */

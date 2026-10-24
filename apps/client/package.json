@@ -24,6 +24,7 @@
     "@react-native-community/netinfo": "12.0.1",
     "@react-native/metro-config": "0.86.3",
     "expo": "~57.0.28",
+    "expo-audio": "~57.0.5",
     "expo-build-properties": "~57.0.22",
     "expo-constants": "~57.0.21",
     "expo-font": "~57.0.4",

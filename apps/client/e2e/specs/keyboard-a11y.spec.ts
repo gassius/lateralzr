@@ -206,6 +206,48 @@ test.describe('keyboard a11y', () => {
     }
   });
 
+  test('Sound view close returns focus to the Sound row 10 times (F7)', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await expect(page.getByTestId('app-menu-title')).toBeFocused();
+    for (let i = 0; i < 10; i += 1) {
+      await page.getByTestId('app-menu-row-sound').click();
+      await expect(page.getByTestId('app-menu-sound')).toBeVisible();
+      await expect(page.getByTestId('app-menu-title')).toBeFocused();
+      await page.getByTestId('app-menu-back').click();
+      await expect(page.getByTestId('app-menu-row-sound')).toBeFocused();
+    }
+  });
+
+  test('keyboard can toggle Sound master and Music stays disabled while off', async ({ page }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    await page.getByTestId('app-menu-trigger').click();
+    await expect(page.getByTestId('app-menu')).toBeVisible();
+    await page.getByTestId('app-menu-row-sound').click();
+    await expect(page.getByTestId('app-menu-sound')).toBeVisible();
+
+    const master = page.getByTestId('app-menu-sound-toggle-sound');
+    const music = page.getByTestId('app-menu-sound-toggle-music');
+    const effects = page.getByTestId('app-menu-sound-toggle-effects');
+    await master.focus();
+    await expect(master).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(music).toBeDisabled();
+    await expect(effects).toBeDisabled();
+    await expect(music).toHaveAttribute('aria-checked', 'true');
+    await expect(effects).toHaveAttribute('aria-checked', 'true');
+    await master.focus();
+    await expect(master).toBeFocused();
+    await page.keyboard.press('Space');
+    await expect(music).toBeEnabled();
+    await expect(effects).toBeEnabled();
+    await expect(music).toHaveAttribute('aria-checked', 'true');
+    await expect(effects).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('app-menu-back').click();
+    await expect(page.getByTestId('app-menu-row-value-sound')).toHaveText('On');
+  });
+
   test('focused card + nav button captures', async ({ page }, testInfo) => {
     const vp = testInfo.project.name;
     test.skip(vp !== '390x844', 'one viewport for focus captures');
