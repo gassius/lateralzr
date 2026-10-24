@@ -228,7 +228,9 @@ function SoundToggleRow({
       <View
         style={[
           styles.switchTrack,
+          // Thumb side follows checked; disabled uses §6.2 neutral track (not orange).
           checked ? styles.switchTrackOn : styles.switchTrackOff,
+          disabled ? styles.switchTrackDisabled : null,
         ]}
         accessible={false}
       >
@@ -930,6 +932,10 @@ const styles = StyleSheet.create({
   switchTrackOff: {
     backgroundColor: color.controlBorder,
     alignItems: 'flex-start',
+  },
+  /** Guide §6.2 disabled controls — neutral track; keeps thumb alignment from On/Off. */
+  switchTrackDisabled: {
+    backgroundColor: color.controlBorder,
   },
   switchThumb: {
     width: 24,
