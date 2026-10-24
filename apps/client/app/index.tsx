@@ -69,16 +69,15 @@ import {
   setSoundReducedMotion,
   soundEvent,
 } from '@/lib/sound';
+import { scheduleLateralityRowMix } from '@/lib/lateralityMix';
 import {
   cardArrivedSoundEvent,
   complexityChangedIfChanged,
   emitOtherSfx,
   errorSoftSoundEvent,
   isRandomLaterality,
-  lateralityStepIfChanged,
   noMatchSoundEvent,
   reshuffleLandedSoundEvent,
-  reshuffleStartedSoundEvent,
   sheetCloseSoundEvent,
   sheetOpenSoundEvent,
 } from '@/lib/otherSfx';
@@ -271,16 +270,25 @@ export default function HomeScreen() {
   const lateralityRetryGradeRef = useRef<LateralityGrade | null>(null);
   const lateralitySnapshotRef = useRef<LateralityRestoreSnapshot | null>(null);
   const lateralityFocusPendingRef = useRef(false);
+  /** Sound 9: skip dismiss sheet_close when laterality-row mix already owns it. */
+  const skipNextSheetCloseRef = useRef(false);
+  const lateralityMixCancelRef = useRef<(() => void) | null>(null);
   /** Play card_arrived once after a successful load-more that cleared an error. */
   const loadMoreErrorRecoveryRef = useRef(false);
   const reduceMotionRef = useRef(reduceMotion);
   reduceMotionRef.current = reduceMotion;
   const journeyTestParamsRef = useRef(readJourneyTestParams());
 
-  /** Sound 5 — inject `soundEvent`; RM from latest preference. */
+  /** Sound 5 / 9 — inject `soundEvent`; RM from latest preference. */
   const playOtherSfx = useCallback(
-    (event: Parameters<typeof soundEvent>[0]) => {
-      emitOtherSfx(event, soundEvent, { reduceMotion: reduceMotionRef.current });
+    (
+      event: Parameters<typeof soundEvent>[0],
+      options?: Parameters<typeof soundEvent>[1],
+    ) => {
+      emitOtherSfx(event, soundEvent, {
+        reduceMotion: reduceMotionRef.current,
+        ...options,
+      });
     },
     [],
   );
@@ -822,8 +830,7 @@ export default function HomeScreen() {
     const token = ++lateralitySwapTokenRef.current;
     const random = isRandomLaterality(lateralityRef.current);
     setLateralitySwap({ token, phase: 'gather' });
-    // Gather rings once — do not re-trigger on shuffle / long loads (director).
-    playOtherSfx(reshuffleStartedSoundEvent(random));
+    // Sound 9: gather SFX is scheduled by laterality-row mix (+250 ms) — not here.
     setLateralityStatusReady(false);
     setLateralityFetchFailed(false);
     setLoadMoreError(false);
@@ -973,8 +980,6 @@ export default function HomeScreen() {
     const previous = lateralityRef.current;
     const next = clampLaterality(grade);
     if (next === previous) return;
-    const stepEvt = lateralityStepIfChanged(previous, next);
-    if (stepEvt) playOtherSfx(stepEvt);
     lateralitySnapshotRef.current = snapshotLateralityDeck(
       conceptsRef.current,
       currentIndexRef.current,
@@ -985,6 +990,8 @@ export default function HomeScreen() {
     setLateralityFetchFailed(false);
     lateralityRetryGradeRef.current = null;
     if (conceptsRef.current.length === 0) {
+      // Empty deck: step only (no reshuffle / sheet_close stagger).
+      playOtherSfx({ name: 'laterality_step', step: next });
       if (shouldPersistLateralityAfterSwap('control', 'success')) {
         void persistLaterality(next);
       }
@@ -992,9 +999,19 @@ export default function HomeScreen() {
       lateralitySnapshotRef.current = null;
       return;
     }
+    // Sound 9: step @0 → sheet_close −3 dB @+80 → gather @+250.
+    // Sheet dismiss after row select must not double-play sheet_close.
+    skipNextSheetCloseRef.current = lateralitySheetOpen;
+    lateralityMixCancelRef.current?.();
+    lateralityMixCancelRef.current = scheduleLateralityRowMix({
+      step: next,
+      previousStep: previous,
+      random: isRandomLaterality(next),
+      play: playOtherSfx,
+    }).cancel;
     lateralitySwapActiveRef.current = true;
     void prefetchLateralityTree();
-  }, [lateralitySwap, playOtherSfx, prefetchLateralityTree]);
+  }, [lateralitySheetOpen, lateralitySwap, playOtherSfx, prefetchLateralityTree]);
 
   const onDeckStatusRetry = useCallback(() => {
     const retryGrade = lateralityRetryGradeRef.current;
@@ -1022,6 +1039,10 @@ export default function HomeScreen() {
 
   const dismissLateralitySheet = useCallback(() => {
     setLateralitySheetOpen(false);
+    if (skipNextSheetCloseRef.current) {
+      skipNextSheetCloseRef.current = false;
+      return;
+    }
     playOtherSfx(sheetCloseSoundEvent());
   }, [playOtherSfx]);
 

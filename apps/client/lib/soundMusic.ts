@@ -8,11 +8,17 @@
  */
 
 import {
+  getSoundAsset,
   getSoundAssetDurationMs,
   type SoundAssetName,
 } from '@/lib/soundAssets';
-import type { SoundAssetRef } from '@/lib/soundMap';
+import { gainFromDb, type SoundAssetRef } from '@/lib/soundMap';
 import type { SoundEvent } from '@/lib/soundTypes';
+
+/** Layer base × manifest `gainDb` (Sound 9 — same native + web). */
+export function musicAssetVolume(asset: SoundAssetName, layerGain = 1): number {
+  return layerGain * gainFromDb(getSoundAsset(asset).gainDb);
+}
 
 /** Hard cap on simultaneous music players (ticket: 4–5). */
 export const MUSIC_MAX_PLAYERS = 5;
@@ -513,9 +519,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     if (!enabled || !canStart()) return;
     phase = 'intro';
     stopKind('intro', fadeMs);
-    const slot = createSlot(MUSIC_INTRO_LOOP, 'intro', 1);
+    const introVol = musicAssetVolume(MUSIC_INTRO_LOOP, 1);
+    const slot = createSlot(MUSIC_INTRO_LOOP, 'intro', introVol);
     if (!slot) return;
-    fadeSlot(slot, 1, fadeMs);
+    fadeSlot(slot, introVol, fadeMs);
     scheduleCrossfadeLoop(slot);
     // Background-load hint: warm bed module (no play yet).
     void options.resolveModule(bedAssetForProgress(progress, randomEntry));
@@ -527,9 +534,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     // Arrival one-shot (variant a/b).
     const arrivalName: SoundAssetName =
       random() < 0.5 ? 'music-intro-arrival-a' : 'music-intro-arrival-b';
-    const arrival = createSlot(arrivalName, 'arrival', 1);
+    const arrivalVol = musicAssetVolume(arrivalName, 1);
+    const arrival = createSlot(arrivalName, 'arrival', arrivalVol);
     if (arrival) {
-      fadeSlot(arrival, 1, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
+      fadeSlot(arrival, arrivalVol, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
       const arrivalDur = getDurationMs(arrivalName);
       const arrivalId = arrival.id;
       schedule(() => {
@@ -545,9 +553,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     // Intro pad keeps going and crossfades into bed (no hard stop).
     const nextBed = bedAssetForProgress(progress, randomEntry);
     bedAsset = nextBed;
-    const bed = createSlot(nextBed, 'bed', 1);
+    const bedVol = musicAssetVolume(nextBed, 1);
+    const bed = createSlot(nextBed, 'bed', bedVol);
     if (bed) {
-      fadeSlot(bed, 1, fadeMs);
+      fadeSlot(bed, bedVol, fadeMs);
       scheduleCrossfadeLoop(bed);
     }
     // Fade intro out while bed comes in.
@@ -589,13 +598,14 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
         if (slots.has(slot.id)) releaseSlot(slot.id);
       });
     }
-    const bed = createSlot(next, 'bed', 1);
+    const bedVol = musicAssetVolume(next, 1);
+    const bed = createSlot(next, 'bed', bedVol);
     if (!bed) return;
     if (fadeIn) {
-      fadeSlot(bed, 1, fadeMs);
+      fadeSlot(bed, bedVol, fadeMs);
     } else {
       // M2: fadeIn false → snap to target (still recorded as a 0-ms fade).
-      fadeSlot(bed, 1, 0);
+      fadeSlot(bed, bedVol, 0);
     }
     scheduleCrossfadeLoop(bed);
     phase = 'bed';
@@ -624,9 +634,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     // Fill up to allowed count, respecting player budget (leave room for bed pair + drop-in).
     const room = Math.max(0, maxPlayers - activeCount() - 1);
     for (const asset of missing.slice(0, room)) {
-      const slot = createSlot(asset, 'texture', 0.7);
+      const texVol = musicAssetVolume(asset, 0.7);
+      const slot = createSlot(asset, 'texture', texVol);
       if (!slot) break;
-      fadeSlot(slot, 0.7, fadeMs);
+      fadeSlot(slot, texVol, fadeMs);
       scheduleCrossfadeLoop(slot);
     }
   }
@@ -686,9 +697,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     lastDropIn = pick;
 
     ensureBudget(1);
-    const slot = createSlot(pick, 'dropin', 0.85);
+    const dropVol = musicAssetVolume(pick, 0.85);
+    const slot = createSlot(pick, 'dropin', dropVol);
     if (!slot) return;
-    fadeSlot(slot, 0.85, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
+    fadeSlot(slot, dropVol, Math.min(fadeMs, MUSIC_FADE_MIN_MS));
     const dur = getDurationMs(pick);
     const dropId = slot.id;
     schedule(() => {

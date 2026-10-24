@@ -21,14 +21,14 @@
       "nativePath": "music/texture-shimmer-a.m4a",
       "durationMs": 23000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -4
     },
     "music-texture-subswell-b": {
       "path": "music/texture-subswell-b.web.m4a",
       "nativePath": "music/texture-subswell-b.m4a",
       "durationMs": 29000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -4
     },
     "music-texture-tonedrift-c": {
       "path": "music/texture-tonedrift-c.web.m4a",
@@ -36,14 +36,14 @@
       "durationMs": 37000,
       "loop": true,
       "placeholder": true,
-      "gainDb": 0
+      "gainDb": -4
     },
     "music-texture-air-d": {
       "path": "music/texture-air-d.web.m4a",
       "nativePath": "music/texture-air-d.m4a",
       "durationMs": 41000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -4
     },
     "music-intro-loop": {
       "path": "music/intro-loop.web.m4a",
@@ -57,182 +57,182 @@
       "nativePath": "music/intro-arrival-a.m4a",
       "durationMs": 1500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": 1
     },
     "music-intro-arrival-b": {
       "path": "music/intro-arrival-b.web.m4a",
       "nativePath": "music/intro-arrival-b.m4a",
       "durationMs": 1500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": 1
     },
     "music-dropin-01": {
       "path": "music/dropin-01.web.m4a",
       "nativePath": "music/dropin-01.m4a",
       "durationMs": 4300,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-02": {
       "path": "music/dropin-02.web.m4a",
       "nativePath": "music/dropin-02.m4a",
       "durationMs": 4600,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-03": {
       "path": "music/dropin-03.web.m4a",
       "nativePath": "music/dropin-03.m4a",
       "durationMs": 4700,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-04": {
       "path": "music/dropin-04.web.m4a",
       "nativePath": "music/dropin-04.m4a",
       "durationMs": 5700,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-05": {
       "path": "music/dropin-05.web.m4a",
       "nativePath": "music/dropin-05.m4a",
       "durationMs": 7200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-06": {
       "path": "music/dropin-06.web.m4a",
       "nativePath": "music/dropin-06.m4a",
       "durationMs": 4400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-07": {
       "path": "music/dropin-07.web.m4a",
       "nativePath": "music/dropin-07.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-08": {
       "path": "music/dropin-08.web.m4a",
       "nativePath": "music/dropin-08.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-09": {
       "path": "music/dropin-09.web.m4a",
       "nativePath": "music/dropin-09.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-10": {
       "path": "music/dropin-10.web.m4a",
       "nativePath": "music/dropin-10.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-11": {
       "path": "music/dropin-11.web.m4a",
       "nativePath": "music/dropin-11.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-12": {
       "path": "music/dropin-12.web.m4a",
       "nativePath": "music/dropin-12.m4a",
       "durationMs": 5400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-13": {
       "path": "music/dropin-13.web.m4a",
       "nativePath": "music/dropin-13.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-14": {
       "path": "music/dropin-14.web.m4a",
       "nativePath": "music/dropin-14.m4a",
       "durationMs": 4200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-15": {
       "path": "music/dropin-15.web.m4a",
       "nativePath": "music/dropin-15.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-16": {
       "path": "music/dropin-16.web.m4a",
       "nativePath": "music/dropin-16.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-17": {
       "path": "music/dropin-17.web.m4a",
       "nativePath": "music/dropin-17.m4a",
       "durationMs": 4500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-18": {
       "path": "music/dropin-18.web.m4a",
       "nativePath": "music/dropin-18.m4a",
       "durationMs": 4400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-19": {
       "path": "music/dropin-19.web.m4a",
       "nativePath": "music/dropin-19.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-20": {
       "path": "music/dropin-20.web.m4a",
       "nativePath": "music/dropin-20.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-21": {
       "path": "music/dropin-21.web.m4a",
       "nativePath": "music/dropin-21.m4a",
       "durationMs": 6900,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-22": {
       "path": "music/dropin-22.web.m4a",
       "nativePath": "music/dropin-22.m4a",
       "durationMs": 4500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-23": {
       "path": "music/dropin-23.web.m4a",
       "nativePath": "music/dropin-23.m4a",
       "durationMs": 5000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "music-dropin-24": {
       "path": "music/dropin-24.web.m4a",
       "nativePath": "music/dropin-24.m4a",
       "durationMs": 4200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -3
     },
     "sfx-swipe-next-a": {
       "path": "sfx/swipe-next-a.web.m4a",
@@ -268,7 +268,7 @@
       "durationMs": 450,
       "loop": false,
       "defaultEnabled": false,
-      "gainDb": 0
+      "gainDb": -10
     },
     "sfx-swipe-tone-down": {
       "path": "sfx/swipe-tone-down.web.m4a",
@@ -276,7 +276,7 @@
       "durationMs": 450,
       "loop": false,
       "defaultEnabled": false,
-      "gainDb": 0
+      "gainDb": -10
     },
     "sfx-card-flip-a": {
       "path": "sfx/card-flip-a.web.m4a",
@@ -380,7 +380,7 @@
       "durationMs": 300,
       "loop": false,
       "level": 1,
-      "gainDb": 0
+      "gainDb": 2
     },
     "sfx-laterality-snap-2": {
       "path": "sfx/laterality-snap-2.web.m4a",
@@ -388,7 +388,7 @@
       "durationMs": 300,
       "loop": false,
       "level": 2,
-      "gainDb": 0
+      "gainDb": 2
     },
     "sfx-laterality-snap-3": {
       "path": "sfx/laterality-snap-3.web.m4a",
@@ -396,7 +396,7 @@
       "durationMs": 300,
       "loop": false,
       "level": 3,
-      "gainDb": 0
+      "gainDb": 2
     },
     "sfx-laterality-snap-4": {
       "path": "sfx/laterality-snap-4.web.m4a",
@@ -404,7 +404,7 @@
       "durationMs": 300,
       "loop": false,
       "level": 4,
-      "gainDb": 0
+      "gainDb": 2
     },
     "sfx-laterality-snap-5": {
       "path": "sfx/laterality-snap-5.web.m4a",
@@ -412,14 +412,14 @@
       "durationMs": 300,
       "loop": false,
       "level": 5,
-      "gainDb": 0
+      "gainDb": 2
     },
     "sfx-reshuffle-gather": {
       "path": "sfx/reshuffle-gather.web.m4a",
       "nativePath": "sfx/reshuffle-gather.m4a",
       "durationMs": 1118,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-reshuffle-land-a": {
       "path": "sfx/reshuffle-land-a.web.m4a",
@@ -447,14 +447,14 @@
       "nativePath": "sfx/card-arrive-a.m4a",
       "durationMs": 400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-card-arrive-b": {
       "path": "sfx/card-arrive-b.web.m4a",
       "nativePath": "sfx/card-arrive-b.m4a",
       "durationMs": 400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-sheet-open": {
       "path": "sfx/sheet-open.web.m4a",

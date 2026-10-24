@@ -6,6 +6,7 @@
  * Tone layers + reduced-motion gain: Sound 4 (see `lib/soundMap.ts`).
  * Big-movement RM fade shorten + Random wide land: Sound 5.
  * Sound 7: thin pause/resume/duck + system gates (Sound 6 plugs music hooks).
+ * Sound 9: manifest gainDb, max-2 effects cut, 60 ms retrigger, music duck.
  */
 
 import {
@@ -14,15 +15,23 @@ import {
   type SoundAssetName,
 } from '@/lib/soundAssets';
 import {
+  EFFECT_CUT_FADE_MS,
+  EFFECT_MUSIC_DUCK_ATTACK_MS,
+  EFFECT_MUSIC_DUCK_DB,
+  EFFECT_MUSIC_DUCK_RELEASE_MS,
+  EFFECT_RETRIGGER_IGNORE_MS,
   ENABLE_SWIPE_TONE_LAYERS,
+  gainFromDb,
+  getSoundAssetGainDbForModule,
   getSoundMapEntry,
+  MAX_CONCURRENT_EFFECTS,
+  MEANING_CARRYING_EFFECTS,
   playableVariants,
   REDUCED_MOTION_SFX_FADE_MS,
   REDUCED_MOTION_SFX_PLAY_RATIO,
   resolveEventGain,
   shouldShortenReducedMotionFade,
   swipeToneModule,
-  SWIPE_TONE_LAYER_GAIN_DB,
   type SoundAssetRef,
   type SoundMapEntry,
 } from '@/lib/soundMap';
@@ -273,6 +282,27 @@ export function createEffectsPool(options: {
     return oldest;
   }
 
+  /** Oldest playing non-meaning-carrying effect (Sound 9 cut target). */
+  function findOldestCuttablePlayingIndex(): number {
+    let best = -1;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i]!;
+      if (!slot.player.playing || slot.eventName == null) continue;
+      if (MEANING_CARRYING_EFFECTS.has(slot.eventName)) continue;
+      if (best < 0 || slot.lastUsedAt < slots[best]!.lastUsedAt) best = i;
+    }
+    return best;
+  }
+
+  function countPlayingEffects(
+    isEffect: (name: SoundEventName) => boolean,
+  ): number {
+    return slots.filter(
+      (s) =>
+        s.eventName != null && isEffect(s.eventName) && s.player.playing,
+    ).length;
+  }
+
   function acquire(source: SoundAssetRef, eventName: SoundEventName): SoundPlayer {
     const idle = findIdleIndex();
     if (idle >= 0) {
@@ -366,12 +396,64 @@ export function createEffectsPool(options: {
   return {
     acquire,
     countVoices,
+    countPlayingEffects,
+    findOldestCuttablePlayingIndex,
     clear,
     size,
     fadeMusicThenPause,
     pauseMatching,
     setVolumeForBus,
     slots,
+  };
+}
+
+/** Short linear fade-out then pause (Sound 9 voice cut). */
+export function scheduleEffectCutFade(
+  player: SoundPlayer,
+  fadeMs: number = EFFECT_CUT_FADE_MS,
+  opts?: {
+    setTimeoutFn?: typeof setTimeout;
+    clearTimeoutFn?: typeof clearTimeout;
+    onDone?: () => void;
+  },
+): () => void {
+  const setTimeoutFn = opts?.setTimeoutFn ?? setTimeout;
+  const clearTimeoutFn = opts?.clearTimeoutFn ?? clearTimeout;
+  const startVolume = player.volume;
+  const steps = Math.max(2, Math.floor(fadeMs / 10));
+  const stepMs = Math.max(5, Math.floor(fadeMs / steps));
+  let step = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let finished = false;
+
+  const tick = () => {
+    step += 1;
+    const t = Math.min(1, step / steps);
+    try {
+      player.volume = startVolume * (1 - t);
+    } catch {
+      // ignore
+    }
+    if (t >= 1) {
+      try {
+        player.pause();
+      } catch {
+        // ignore
+      }
+      timer = null;
+      if (!finished) {
+        finished = true;
+        opts?.onDone?.();
+      }
+      return;
+    }
+    timer = setTimeoutFn(tick, stepMs);
+  };
+  // First step sync so the cut is audible / testable without waiting on timers.
+  tick();
+
+  return () => {
+    if (timer != null) clearTimeoutFn(timer);
   };
 }
 
@@ -418,6 +500,12 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
 
   /** Active RM fade cancels keyed by pooled player (drop on finish / before reuse). */
   const rmFadeByPlayer = new Map<SoundPlayer, () => void>();
+  /** Sound 9 cut-fade cancels. */
+  const cutFadeByPlayer = new Map<SoundPlayer, () => void>();
+  /** Active effect end timers for music duck release. */
+  const effectEndTimers = new Set<ReturnType<typeof setTimeout>>();
+  let activeEffectGenerations = 0;
+  let musicDuckedForEffects = false;
 
   function cancelRmFade(player: SoundPlayer): void {
     const cancel = rmFadeByPlayer.get(player);
@@ -430,10 +518,79 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     rmFadeByPlayer.delete(player);
   }
 
+  function cancelCutFade(player: SoundPlayer): void {
+    const cancel = cutFadeByPlayer.get(player);
+    if (!cancel) return;
+    try {
+      cancel();
+    } catch {
+      // ignore
+    }
+    cutFadeByPlayer.delete(player);
+  }
+
+  function clearEffectDuckTimers(): void {
+    for (const id of effectEndTimers) {
+      clearTimeout(id);
+    }
+    effectEndTimers.clear();
+  }
+
+  function applyEffectsMusicDuck(active: boolean): void {
+    if (active === musicDuckedForEffects) return;
+    musicDuckedForEffects = active;
+    try {
+      if (active) {
+        musicHooks.duck(gainFromDb(EFFECT_MUSIC_DUCK_DB));
+      } else {
+        musicHooks.duck(1);
+      }
+    } catch {
+      // ignore
+    }
+    void EFFECT_MUSIC_DUCK_ATTACK_MS;
+    void EFFECT_MUSIC_DUCK_RELEASE_MS;
+  }
+
+  function noteEffectStarted(durationMs: number): void {
+    activeEffectGenerations += 1;
+    applyEffectsMusicDuck(true);
+    const gen = activeEffectGenerations;
+    const id = setTimeout(() => {
+      effectEndTimers.delete(id);
+      // Release only when this was the last scheduled end and nothing newer started.
+      if (gen === activeEffectGenerations) {
+        applyEffectsMusicDuck(false);
+      }
+    }, Math.max(durationMs, EFFECT_MUSIC_DUCK_RELEASE_MS));
+    effectEndTimers.add(id);
+  }
+
+  function logDevActive(eventName: SoundEventName): void {
+    try {
+      // Optional director debug — never throw.
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        const active = pool.slots
+          .filter((s) => s.player.playing && s.eventName != null)
+          .map((s) => s.eventName);
+        // eslint-disable-next-line no-console
+        console.debug('[sound]', eventName, 'active=', active);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   function stopAllSound(): void {
     for (const player of [...rmFadeByPlayer.keys()]) {
       cancelRmFade(player);
     }
+    for (const player of [...cutFadeByPlayer.keys()]) {
+      cancelCutFade(player);
+    }
+    clearEffectDuckTimers();
+    activeEffectGenerations = 0;
+    applyEffectsMusicDuck(false);
     pool.clear();
     try {
       musicHooks.stop();
@@ -445,6 +602,29 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     } catch {
       // ignore
     }
+  }
+
+  function maybeCutOldestEffect(incoming: SoundEventName): boolean {
+    const playing = pool.countPlayingEffects(
+      (name) => resolveEntry(name).bus === 'effects',
+    );
+    if (playing < MAX_CONCURRENT_EFFECTS) return true;
+
+    const cutIdx = pool.findOldestCuttablePlayingIndex();
+    if (cutIdx < 0) {
+      // Both voices are meaning-carrying — only allow another meaning-carrying.
+      return MEANING_CARRYING_EFFECTS.has(incoming);
+    }
+    const slot = pool.slots[cutIdx]!;
+    cancelRmFade(slot.player);
+    cancelCutFade(slot.player);
+    const cancel = scheduleEffectCutFade(slot.player, EFFECT_CUT_FADE_MS, {
+      onDone: () => {
+        cutFadeByPlayer.delete(slot.player);
+      },
+    });
+    cutFadeByPlayer.set(slot.player, cancel);
+    return true;
   }
 
   function playSource(
@@ -461,8 +641,9 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       return false;
     }
 
-    // Pool reuse: stop any in-flight RM fade on this player before replacing source.
+    // Pool reuse: stop any in-flight RM / cut fade on this player before replace.
     cancelRmFade(player);
+    cancelCutFade(player);
 
     player.volume = volume;
     // No pitch shift (director decision). Keep rate at unity if exposed later.
@@ -473,12 +654,18 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       } catch {
         // ignore
       }
+      const durationMs =
+        typeof source === 'number'
+          ? (getSoundAssetDurationMsForModule(source) ?? 400)
+          : 400;
+      if (resolveEntry(eventName).bus === 'effects') {
+        noteEffectStarted(durationMs);
+      }
       if (
         reduceMotion &&
         shouldShortenReducedMotionFade(eventName) &&
         typeof source === 'number'
       ) {
-        const durationMs = getSoundAssetDurationMsForModule(source) ?? 400;
         const cancel = scheduleReducedMotionFade(player, volume, durationMs, {
           onComplete: () => {
             rmFadeByPlayer.delete(player);
@@ -537,7 +724,11 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     const t = now();
     const rt = runtimeFor(event.name);
 
-    if (entry.minIntervalMs > 0 && t - rt.lastPlayedAt < entry.minIntervalMs) {
+    const minGap =
+      entry.bus === 'effects'
+        ? Math.max(entry.minIntervalMs, EFFECT_RETRIGGER_IGNORE_MS)
+        : entry.minIntervalMs;
+    if (minGap > 0 && t - rt.lastPlayedAt < minGap) {
       return;
     }
 
@@ -546,18 +737,26 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       return;
     }
 
+    if (entry.bus === 'effects' && !maybeCutOldestEffect(event.name)) {
+      return;
+    }
+
     void ensureSession();
 
-    const assetGainDb = 0; // per-file gain lives in authored peaks; map gainDb reserved for music mix
+    const assetGainDb =
+      typeof source === 'number' ? getSoundAssetGainDbForModule(source) : 0;
+    const offsetDb = options?.gainDbOffset ?? 0;
     const busScale =
       entry.bus === 'music' ? currentGates.musicVolume : currentGates.effectsVolume;
-    const volume = resolveEventGain(assetGainDb, event.name, reduceMotion) * busScale;
+    const volume =
+      resolveEventGain(assetGainDb + offsetDb, event.name, reduceMotion) * busScale;
     if (!playSource(source, event.name, volume, reduceMotion)) return;
 
     rt.lastPlayedAt = t;
     if (variantIndex != null) {
       rt.lastVariantIndex = variantIndex;
     }
+    logDevActive(event.name);
 
     // Optional tone layer under swipe air (QA flag; default off).
     if (
@@ -565,8 +764,10 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       (event.name === 'swipe_next' || event.name === 'swipe_back')
     ) {
       const tone = swipeToneModule(event.name);
+      const toneGainDb =
+        typeof tone === 'number' ? getSoundAssetGainDbForModule(tone) : 0;
       const toneVolume =
-        resolveEventGain(SWIPE_TONE_LAYER_GAIN_DB, event.name, reduceMotion) * busScale;
+        resolveEventGain(toneGainDb, event.name, reduceMotion) * busScale;
       playSource(tone, event.name, toneVolume, reduceMotion);
     }
   }
@@ -666,6 +867,12 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     for (const player of [...rmFadeByPlayer.keys()]) {
       cancelRmFade(player);
     }
+    for (const player of [...cutFadeByPlayer.keys()]) {
+      cancelCutFade(player);
+    }
+    clearEffectDuckTimers();
+    activeEffectGenerations = 0;
+    musicDuckedForEffects = false;
     pool.clear();
     eventRuntime.clear();
     prefs = { ...DEFAULT_SOUND_PREFERENCES };

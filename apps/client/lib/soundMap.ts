@@ -1,11 +1,12 @@
 /**
- * Event → asset table (Sound 1 + Sound 3).
+ * Event → asset table (Sound 1 + Sound 3) + Sound 9 mix / gain table.
  *
  * Variants come from {@link SOUND_VARIANT_GROUPS} / `require` module ids in
  * `lib/soundAssets.ts` (web: `soundAssets.web.ts`). Empty lists stay a no-op.
  *
  * Pitch shift: skipped (audio director 2026-10-24).
  * Tone layers: internal QA A/B flag only (not a user setting) — default OFF.
+ * Gain: per-file `gainDb` in the manifest / SOUND_ASSETS (same native + web).
  */
 
 import {
@@ -15,6 +16,122 @@ import {
   type SoundAssetName,
 } from '@/lib/soundAssets';
 import type { SoundBus, SoundEventName } from '@/lib/soundTypes';
+
+// --- Sound 9 mix policy (audio director 2026-10-24) ---
+
+/** Max simultaneous effects voices; a new one cuts the oldest cuttable. */
+export const MAX_CONCURRENT_EFFECTS = 2;
+
+/** Fade when cutting an older effect to free a voice. */
+export const EFFECT_CUT_FADE_MS = 30;
+
+/** Ignore retrigger of the same effect within this window. */
+export const EFFECT_RETRIGGER_IGNORE_MS = 60;
+
+/** Duck music while any effect is playing. */
+export const EFFECT_MUSIC_DUCK_DB = -3;
+export const EFFECT_MUSIC_DUCK_ATTACK_MS = 50;
+export const EFFECT_MUSIC_DUCK_RELEASE_MS = 400;
+
+/** Laterality-row stagger (step → sheet_close → gather). */
+export const LATERALITY_SHEET_CLOSE_DELAY_MS = 80;
+export const LATERALITY_GATHER_DELAY_MS = 250;
+export const LATERALITY_SHEET_CLOSE_ATTENUATION_DB = -3;
+
+/** Meaning-carrying effects — never cut to free a voice. */
+export const MEANING_CARRYING_EFFECTS: ReadonlySet<SoundEventName> = new Set([
+  'laterality_step',
+  'error_soft',
+]);
+
+/**
+ * Director starting gainDb (Sound 9). Manifest / SOUND_ASSETS stay in sync;
+ * retune by editing the manifest only, then mirror into SOUND_ASSETS.
+ */
+export const DIRECTOR_GAIN_DB: Readonly<Record<SoundAssetName, number>> = {
+  'music-bed-calm-a': 0,
+  'music-bed-bright-b': 0,
+  'music-texture-shimmer-a': -4,
+  'music-texture-subswell-b': -4,
+  'music-texture-tonedrift-c': -4,
+  'music-texture-air-d': -4,
+  'music-intro-loop': 0,
+  'music-intro-arrival-a': 1,
+  'music-intro-arrival-b': 1,
+  'music-dropin-01': -3,
+  'music-dropin-02': -3,
+  'music-dropin-03': -3,
+  'music-dropin-04': -3,
+  'music-dropin-05': -3,
+  'music-dropin-06': -3,
+  'music-dropin-07': -3,
+  'music-dropin-08': -3,
+  'music-dropin-09': -3,
+  'music-dropin-10': -3,
+  'music-dropin-11': -3,
+  'music-dropin-12': -3,
+  'music-dropin-13': -3,
+  'music-dropin-14': -3,
+  'music-dropin-15': -3,
+  'music-dropin-16': -3,
+  'music-dropin-17': -3,
+  'music-dropin-18': -3,
+  'music-dropin-19': -3,
+  'music-dropin-20': -3,
+  'music-dropin-21': -3,
+  'music-dropin-22': -3,
+  'music-dropin-23': -3,
+  'music-dropin-24': -3,
+  'sfx-swipe-next-a': 0,
+  'sfx-swipe-next-b': 0,
+  'sfx-swipe-next-c': 0,
+  'sfx-swipe-back-a': 0,
+  'sfx-swipe-tone-up': -10,
+  'sfx-swipe-tone-down': -10,
+  'sfx-card-flip-a': 0,
+  'sfx-card-flip-c': 0,
+  'sfx-card-flip-back-a': 0,
+  'sfx-card-flip-back-c': 0,
+  'sfx-swipe-cancel-a': 0,
+  'sfx-swipe-cancel-b': 0,
+  'sfx-swipe-resistance-a': 0,
+  'sfx-swipe-resistance-b': 0,
+  'sfx-complexity-1': 0,
+  'sfx-complexity-2': 0,
+  'sfx-complexity-3': 0,
+  'sfx-complexity-4': 0,
+  'sfx-complexity-5': 0,
+  'sfx-laterality-snap-1': 2,
+  'sfx-laterality-snap-2': 2,
+  'sfx-laterality-snap-3': 2,
+  'sfx-laterality-snap-4': 2,
+  'sfx-laterality-snap-5': 2,
+  'sfx-reshuffle-gather': -2,
+  'sfx-reshuffle-land-a': 0,
+  'sfx-reshuffle-land-b': 0,
+  'sfx-reshuffle-land-wide': 0,
+  'sfx-card-arrive-a': -2,
+  'sfx-card-arrive-b': -2,
+  'sfx-sheet-open': 0,
+  'sfx-sheet-close': 0,
+  'sfx-error-soft-a': 0,
+  'sfx-error-soft-b': 0,
+  'sfx-no-match-soft': 0,
+};
+
+export function getDirectorGainDb(name: SoundAssetName): number {
+  return DIRECTOR_GAIN_DB[name] ?? 0;
+}
+
+/** Look up authored `gainDb` for a `require` module id (native + web). */
+export function getSoundAssetGainDbForModule(moduleId: number): number {
+  for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
+    if (SOUND_ASSETS[name].module === moduleId) {
+      return SOUND_ASSETS[name].gainDb;
+    }
+  }
+  return 0;
+}
 
 /** Asset module id (`require`) or null placeholder. */
 export type SoundAssetRef = number | null;
@@ -36,7 +153,10 @@ export type SoundMapEntry = {
  */
 export const ENABLE_SWIPE_TONE_LAYERS = false;
 
-/** Tone layer under swipe air when {@link ENABLE_SWIPE_TONE_LAYERS} is on. */
+/**
+ * Tone layer under swipe air when {@link ENABLE_SWIPE_TONE_LAYERS} is on.
+ * Matches manifest `sfx-swipe-tone-*` gainDb (−10); engine uses the asset value.
+ */
 export const SWIPE_TONE_LAYER_GAIN_DB = -10;
 
 /** Motion-tied SFX under reduced motion (director: ~3 dB lower; no separate files). */

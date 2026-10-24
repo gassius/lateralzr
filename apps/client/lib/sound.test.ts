@@ -185,7 +185,8 @@ test('effects pool prefers idle slot over eviction', () => {
 test('rate limit skips plays inside minIntervalMs', () => {
   let t = 1000;
   const players: ReturnType<typeof mockPlayer>[] = [];
-  const minIntervalMs = 50;
+  // Sound 9: effects also honour EFFECT_RETRIGGER_IGNORE_MS (60) as a floor.
+  const minIntervalMs = 80;
   const ctrl = createSoundController({
     createPlayer: () => {
       const p = mockPlayer();
