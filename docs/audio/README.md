@@ -2,7 +2,7 @@
 
 Audio index for `apps/client/assets/audio/`. Machine-readable list: `apps/client/assets/audio/manifest.json`.
 68 sounds, two files each: `<name>.m4a` (native, AAC 44.1 kHz; music stereo 128 kbps, sfx mono 96 kbps) and `<name>.web.m4a` (web preview; music stereo 64 kbps, sfx mono 64 kbps).
-Sizes: native set 5.82 MB, web set 3.04 MB.
+Sizes: native set 5.55 MiB, web set 2.90 MiB (budget caps: 8 MiB native / 3 MiB web).
 
 Durations measured with ffprobe on the native file. Loudness measured on the native file with ffmpeg ebur128 (true peak) and volumedetect (sample peak). LUFS is omitted for sfx shorter than 0.4 s (below the gating window). AAC can overshoot the source peak by up to about 2 dB on a few short sfx (swipe-next-b, complexity-5, reshuffle-land-a); all files stay below -1 dBTP.
 

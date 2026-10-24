@@ -37,6 +37,23 @@ test('manifest is Sound 8 shape with real director paths', () => {
   assert.equal(Object.keys(manifest.assets).length, Object.keys(SOUND_ASSETS).length);
 });
 
+/** Parse `require('../assets/audio/<rel>')` paths keyed by asset name. */
+function requirePathsFromSource(source: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const block =
+    /'((?:music|sfx)-[^']+)':\s*\{[\s\S]*?module:\s*require\('(\.\.\/assets\/audio\/[^']+)'\)/g;
+  for (const match of source.matchAll(block)) {
+    const name = match[1]!;
+    const req = match[2]!;
+    assert.ok(
+      req.startsWith('../assets/audio/'),
+      `${name}: unexpected require prefix ${req}`,
+    );
+    out.set(name, req.slice('../assets/audio/'.length));
+  }
+  return out;
+}
+
 test('every require-map asset has matching manifest durationMs and path', () => {
   for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
     const meta = getSoundAsset(name);
@@ -48,6 +65,28 @@ test('every require-map asset has matching manifest durationMs and path', () => 
     assert.equal(meta.loop, entry.loop);
     assert.equal(getSoundAssetDurationMs(name), entry.durationMs);
     assert.equal(typeof meta.module, 'number');
+  }
+});
+
+test('soundAssets.ts require() paths match manifest nativePath', () => {
+  const source = readFileSync(join(here, 'soundAssets.ts'), 'utf8');
+  const paths = requirePathsFromSource(source);
+  assert.equal(paths.size, Object.keys(manifest.assets).length);
+  for (const [name, entry] of Object.entries(manifest.assets)) {
+    assert.equal(
+      paths.get(name),
+      entry.nativePath,
+      `native require drift for ${name}`,
+    );
+  }
+});
+
+test('soundAssets.web.ts require() paths match manifest path (web)', () => {
+  const source = readFileSync(join(here, 'soundAssets.web.ts'), 'utf8');
+  const paths = requirePathsFromSource(source);
+  assert.equal(paths.size, Object.keys(manifest.assets).length);
+  for (const [name, entry] of Object.entries(manifest.assets)) {
+    assert.equal(paths.get(name), entry.path, `web require drift for ${name}`);
   }
 });
 
