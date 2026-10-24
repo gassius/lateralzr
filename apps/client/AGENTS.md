@@ -87,6 +87,27 @@ Docs: https://docs.expo.dev/eas/index.md
 
 When native builds need GTM, map the same **names** from GitHub Environment `prod` into EAS secrets/env (see Analytics / GTM below). Do not paste container IDs into the repo.
 
+## Sound / expo-audio (native development build)
+
+`expo-audio` is a native module. **Expo Go cannot play Lateralzr sounds** — use a development build after installing or upgrading `expo-audio`.
+
+Local (device / simulator):
+
+```bash
+cd apps/client
+pnpm exec expo run:ios      # or: pnpm exec expo run:android
+```
+
+EAS development client:
+
+```bash
+cd apps/client
+pnpm exec eas-cli@latest build --profile development --platform ios
+# or --platform android
+```
+
+Public API (Sound 1): `lib/sound.ts` / `lib/sound.web.ts` export `soundEvent`, `setSoundPreferences`, `isSoundAvailable`. Screens announce typed events only; never `require` audio files at call sites. From Reanimated worklets: `runOnJS(soundEvent)(event)`. Web preview stubs are safe no-ops (`isSoundAvailable()` is `false` until Sound 8). Audio assets land in Sound 3 — the map in `lib/soundMap.ts` may be empty placeholders.
+
 ## Build switches (reference links / media credits)
 
 v3.4 §9.5. Both default **On**. There is no in-app setting. Do **not** add `eas.json` or `app.config.*` for these — Expo inlines `EXPO_PUBLIC_*` at bundle time from the environment (EAS env for native builds; Vercel project env for the web preview). Record each build’s values in its release notes.

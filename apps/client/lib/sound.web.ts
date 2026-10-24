@@ -1,0 +1,56 @@
+/**
+ * Web sound stub (Sound 1 / Sound 8 preview).
+ *
+ * Metro resolves this file on web so native-only `expo-audio` is never imported
+ * at the shared module top level. Until Sound 8 unlocks web audio, prefer
+ * honest unavailability and safe no-ops.
+ */
+
+import type { SoundEvent, SoundPreferences } from '@/lib/soundTypes';
+
+export type { SoundEvent, SoundEventName, SoundPreferences, SoundBus } from '@/lib/soundTypes';
+export {
+  DEFAULT_SOUND_PREFERENCES,
+  SOUND_PREFERENCES_STORAGE_KEY,
+} from '@/lib/soundTypes';
+export { SOUND_MAP, getSoundMapEntry, playableVariants } from '@/lib/soundMap';
+export {
+  EFFECTS_POOL_SIZE,
+  pickVariantIndex,
+  isBusEnabled,
+  createSoundController,
+  createEffectsPool,
+} from '@/lib/soundEngine';
+
+let prefs: SoundPreferences = {
+  sound: true,
+  music: true,
+  effects: true,
+};
+
+/** Announce UI/game events. Always a no-op on web until Sound 8. */
+export function soundEvent(_event: SoundEvent): void {
+  // no-op
+}
+
+/** Accept prefs so Sound 2 can call the same API; no buses play on web yet. */
+export function setSoundPreferences(next: SoundPreferences): void {
+  prefs = {
+    sound: Boolean(next.sound),
+    music: Boolean(next.music),
+    effects: Boolean(next.effects),
+  };
+}
+
+/**
+ * Honest availability until Sound 8 ships a web unlock path.
+ * Hide Sound menu row on web preview.
+ */
+export function isSoundAvailable(): boolean {
+  return false;
+}
+
+/** Test helper — not part of the public Sound 1↔2 API. */
+export function __getWebSoundPreferencesForTests(): SoundPreferences {
+  return { ...prefs };
+}
