@@ -67,7 +67,8 @@ export type SoundEngineOptions = {
   poolSize?: number;
   /**
    * When true, {@link SoundController.isSoundAvailable} returns true.
-   * Web stubs pass false until Sound 8 unlock path exists.
+   * Web (Sound 8) passes true when AudioContext exists; unlock gating
+   * lives in `lib/sound.web.ts`, not here.
    */
   available?: boolean;
   /** Override map lookup (tests). Defaults to {@link getSoundMapEntry}. */
