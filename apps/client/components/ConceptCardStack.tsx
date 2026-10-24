@@ -100,6 +100,14 @@ import {
   swipeShouldSlideOutOnCommit,
 } from '@/lib/cardSwipe';
 import { flipDurationMs } from '@/lib/cardFlip';
+import {
+  emitCardStackSound,
+  flipSoundEvent,
+  horizontalSwipeSoundEvent,
+  shouldEmitSwipeCancel,
+  shouldEmitSwipeResistance,
+  verticalSwipeSoundEvent,
+} from '@/lib/cardStackSound';
 import { clampComplexity } from '@/lib/complexityStorage';
 import { deckEnterLandsSettled, deckSettleDurationMs, deckSettleEnterShiftPx } from '@/lib/deckSettle';
 import {
@@ -110,6 +118,8 @@ import { coachMessageKey } from '@/lib/discoveryCoaching';
 import { isFlipSuppressed, suppressUntil } from '@/lib/flipSuppress';
 import { getActiveLocale, t } from '@/lib/i18n';
 import { requestedMediaWidth, resolveCardMediaUrl } from '@/lib/remoteImage';
+import { soundEvent } from '@/lib/sound';
+import type { SoundEvent } from '@/lib/soundTypes';
 import { color } from '@/theme/tokens';
 
 export type ConceptCardStackHandle = {
@@ -294,6 +304,16 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   useEffect(() => {
     reduceMotionSV.value = reduceMotion ? 1 : 0;
   }, [reduceMotion, reduceMotionSV]);
+
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
+
+  /** Stable for `runOnJS` — reads latest RM via ref. */
+  const playStackSound = useCallback((event: SoundEvent) => {
+    emitCardStackSound(event, soundEvent, {
+      reduceMotion: reduceMotionRef.current,
+    });
+  }, []);
 
   const cardLayout = resolveCardAspectLayout({
     columnWidth: containerW,
@@ -572,30 +592,36 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     noteSwipedHorizontal();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('left', ctx);
+    playStackSound(horizontalSwipeSoundEvent('left'));
     navIntentRef.current = 'forward';
     onSwipeLeft();
-  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeLeft]);
+  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeLeft, playStackSound]);
 
   const commitSwipeVertical = useCallback(
     (direction: 'up' | 'down') => {
       noteSwipedVertical();
+      const complexityBefore = complexityRef.current;
+      const complexityAfter = clampComplexity(
+        complexityBefore + (direction === 'up' ? 1 : -1),
+      );
       const ctx = analyticsContextForIndex(currentIndexRef.current);
       if (ctx) {
-        const complexityAfter = clampComplexity(
-          complexityRef.current + (direction === 'up' ? 1 : -1),
-        );
         trackSwipe(direction, { ...ctx, complexity_after: complexityAfter });
       }
+      // Complexity note only when the level changes — no air sweep (director).
+      const complexitySound = verticalSwipeSoundEvent(complexityBefore, complexityAfter);
+      if (complexitySound) playStackSound(complexitySound);
       navIntentRef.current = 'forward';
       onSwipeForwardVertical(direction);
     },
-    [analyticsContextForIndex, noteSwipedVertical, onSwipeForwardVertical],
+    [analyticsContextForIndex, noteSwipedVertical, onSwipeForwardVertical, playStackSound],
   );
 
   const commitSwipeRight = useCallback(() => {
     noteSwipedHorizontal();
     const ctx = analyticsContextForIndex(currentIndexRef.current);
     if (ctx) trackSwipe('right', ctx);
+    playStackSound(horizontalSwipeSoundEvent('right'));
     // Lz-36: back from end-of-deck loading has no return-overlay peer — settle the revealed card.
     // Normal backtrack: gesture already animated the previous card; skip enter replay.
     navIntentRef.current = resolveNavSettleIntent({
@@ -607,7 +633,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       commitFromStatus: showDeckStatusRef.current,
     });
     onSwipeRight();
-  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeRight]);
+  }, [analyticsContextForIndex, noteSwipedHorizontal, onSwipeRight, playStackSound]);
 
   const noteBackInteractivePress = useCallback(() => {
     suppressFlipUntilRef.current = suppressUntil(Date.now());
@@ -654,6 +680,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         });
       }
     }
+    // Sound starts with the flip animation (360 ms / RM cross-fade).
+    playStackSound(flipSoundEvent(next));
     flippedSV.value = next ? 1 : 0;
     flipProgress.value = withTiming(
       next ? 1 : 0,
@@ -669,7 +697,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           },
     );
     setFlipped(next);
-  }, [flushDwell, noteTapped, reduceMotion, flippedSV, flipProgress]);
+  }, [flushDwell, noteTapped, playStackSound, reduceMotion, flippedSV, flipProgress]);
 
   const lockReturnOverlayIndexForRightCommit = useCallback(() => {
     const i = currentIndexRef.current - 1;
@@ -1029,6 +1057,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
         if (direction < 0) {
           if (showDeckStatusSV.value === 1) {
+            if (shouldEmitSwipeCancel(e.translationX)) {
+              runOnJS(playStackSound)({ name: 'swipe_cancel' });
+            }
             springHome();
             return;
           }
@@ -1053,6 +1084,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
         }
         if (direction > 0) {
           if (canSwipeRightSV.value === 0) {
+            if (shouldEmitSwipeResistance(e.translationX, false)) {
+              runOnJS(playStackSound)({ name: 'swipe_resistance' });
+            }
             springHome();
             return;
           }
@@ -1092,6 +1126,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             if (finished) runOnJS(commitSwipeRight)();
           });
           return;
+        }
+        if (shouldEmitSwipeCancel(e.translationX)) {
+          runOnJS(playStackSound)({ name: 'swipe_cancel' });
         }
         springHome();
       },
@@ -1179,6 +1216,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           origin !== 0 ? cardSwipeTranslationAfterHandoff(e.translationY, origin) : e.translationY;
         const direction = swipeCommitDirection(ty, e.velocityY, h);
         if (direction === 0 || showDeckStatusSV.value === 1) {
+          if (shouldEmitSwipeCancel(ty)) {
+            runOnJS(playStackSound)({ name: 'swipe_cancel' });
+          }
           springHome();
           return;
         }

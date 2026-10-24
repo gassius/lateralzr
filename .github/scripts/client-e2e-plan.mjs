@@ -19,6 +19,12 @@ export const SMOKE_GREP = 'card renders|short label|grade 3';
 
 /** @typedef {{ spec: string, match: RegExp }} ScreenRule */
 
+/**
+ * `apps/client/assets/audio/**` is intentionally absent from SCREEN_RULES.
+ * Audio-only PRs still set clientChanged, but map to no screen → fixed smoke
+ * subset (not a widened screenshot plan). Sound 3 asset drops stay lean.
+ */
+
 /** @type {ScreenRule[]} */
 const SCREEN_RULES = [
   {

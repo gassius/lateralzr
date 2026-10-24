@@ -62,6 +62,21 @@ describe('planClientE2e', () => {
     assert.equal(plan.grepInvert, EN_GREP_INVERT);
   });
 
+  it('keeps Sound 3 audio-only changes on the smoke subset (no screen widen)', () => {
+    const plan = planClientE2e({
+      eventName: 'pull_request',
+      clientChanged: true,
+      changedFiles: [
+        'apps/client/assets/audio/manifest.json',
+        'apps/client/assets/audio/music/intro-loop.m4a',
+        'apps/client/lib/soundAssets.ts',
+      ],
+    });
+    assert.equal(plan.mode, 'subset');
+    assert.deepEqual(plan.specs, SMOKE_SPECS);
+    assert.equal(plan.grep, SMOKE_GREP);
+  });
+
   it('does not run Spanish-only specs in the PR subset', () => {
     const plan = planClientE2e({
       eventName: 'pull_request',

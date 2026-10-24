@@ -63,6 +63,19 @@ import {
 import { isClientTestOrDevBuild } from '@/lib/e2eFlags';
 import { isSoundAvailable, setSoundPreferences, soundEvent } from '@/lib/sound';
 import {
+  cardArrivedSoundEvent,
+  complexityChangedIfChanged,
+  emitOtherSfx,
+  errorSoftSoundEvent,
+  isRandomLaterality,
+  lateralityStepIfChanged,
+  noMatchSoundEvent,
+  reshuffleLandedSoundEvent,
+  reshuffleStartedSoundEvent,
+  sheetCloseSoundEvent,
+  sheetOpenSoundEvent,
+} from '@/lib/otherSfx';
+import {
   DEFAULT_SOUND_PREFERENCES,
   loadStoredSound,
   persistSound,
@@ -249,7 +262,19 @@ export default function HomeScreen() {
   const lateralityRetryGradeRef = useRef<LateralityGrade | null>(null);
   const lateralitySnapshotRef = useRef<LateralityRestoreSnapshot | null>(null);
   const lateralityFocusPendingRef = useRef(false);
+  /** Play card_arrived once after a successful load-more that cleared an error. */
+  const loadMoreErrorRecoveryRef = useRef(false);
+  const reduceMotionRef = useRef(reduceMotion);
+  reduceMotionRef.current = reduceMotion;
   const journeyTestParamsRef = useRef(readJourneyTestParams());
+
+  /** Sound 5 — inject `soundEvent`; RM from latest preference. */
+  const playOtherSfx = useCallback(
+    (event: Parameters<typeof soundEvent>[0]) => {
+      emitOtherSfx(event, soundEvent, { reduceMotion: reduceMotionRef.current });
+    },
+    [],
+  );
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
   const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
   const [showSessionComplexityMark, setShowSessionComplexityMark] = useState(false);
@@ -469,17 +494,20 @@ export default function HomeScreen() {
       currentIndexRef.current = 0;
       setConcepts(list);
       setCurrentIndex(0);
+      // First load / reload — card appears outside a reshuffle (never on swipe).
+      if (list.length > 0) playOtherSfx(cardArrivedSoundEvent());
       reportRetrySucceeded();
     } catch (e) {
       if (gen !== fetchGenRef.current) return;
       setError(e instanceof Error ? e.message : t('failedToLoadConcepts'));
+      playOtherSfx(errorSoftSoundEvent());
       reportRetryFailed();
     } finally {
       if (gen === fetchGenRef.current) {
         setLoading(false);
       }
     }
-  }, [fetchBatch, reportRetryFailed, reportRetrySucceeded]);
+  }, [fetchBatch, playOtherSfx, reportRetryFailed, reportRetrySucceeded]);
 
   useEffect(() => {
     if (!complexityHydrated || !lateralityHydrated || !localeReady) return;
@@ -499,6 +527,7 @@ export default function HomeScreen() {
 
     loadMoreInFlightRef.current = true;
     setLoadingMore(true);
+    const recoveringFromError = loadMoreErrorRecoveryRef.current;
     setLoadMoreError(false);
 
     try {
@@ -553,6 +582,7 @@ export default function HomeScreen() {
           pendingEndDeckLoadRef.current = false;
           setPendingEndDeckLoad(false);
           setNoNextIdea(true);
+          playOtherSfx(noMatchSoundEvent());
           return;
         }
         emptyRetryTimerRef.current = setTimeout(() => {
@@ -573,6 +603,10 @@ export default function HomeScreen() {
         currentIndexRef.current = applied.nextIndex;
         setCurrentIndex(applied.nextIndex);
       }
+      if (recoveringFromError) {
+        loadMoreErrorRecoveryRef.current = false;
+        playOtherSfx(cardArrivedSoundEvent());
+      }
       reportRetrySucceeded();
     } catch {
       if (stillCurrent()) {
@@ -583,7 +617,11 @@ export default function HomeScreen() {
         );
         conceptsRef.current = [...preserved.concepts];
         currentIndexRef.current = preserved.currentIndex;
-        if (!offlineRef.current) setLoadMoreError(true);
+        if (!offlineRef.current) {
+          setLoadMoreError(true);
+          loadMoreErrorRecoveryRef.current = true;
+          playOtherSfx(errorSoftSoundEvent());
+        }
         reportRetryFailed();
       }
     } finally {
@@ -592,7 +630,7 @@ export default function HomeScreen() {
         setLoadingMore(false);
       }
     }
-  }, [fetchBatch, reportRetryFailed, reportRetrySucceeded]);
+  }, [fetchBatch, playOtherSfx, reportRetryFailed, reportRetrySucceeded]);
 
   useEffect(() => {
     loadMoreConceptsRef.current = loadMoreConcepts;
@@ -600,6 +638,8 @@ export default function HomeScreen() {
 
   const retryLoadMore = useCallback(() => {
     setLoadMoreError(false);
+    // M2: clear stale recovery when dismissing the error face; re-mark for this retry.
+    loadMoreErrorRecoveryRef.current = true;
     resetEmptyRetryCycle('manualRetry');
     void loadMoreConcepts();
   }, [loadMoreConcepts]);
@@ -746,10 +786,14 @@ export default function HomeScreen() {
     fetchGenRef.current += 1;
     const stillCurrent = () => gen === lateralitySwapGenRef.current;
     const token = ++lateralitySwapTokenRef.current;
+    const random = isRandomLaterality(lateralityRef.current);
     setLateralitySwap({ token, phase: 'gather' });
+    // Gather rings once — do not re-trigger on shuffle / long loads (director).
+    playOtherSfx(reshuffleStartedSoundEvent(random));
     setLateralityStatusReady(false);
     setLateralityFetchFailed(false);
     setLoadMoreError(false);
+    loadMoreErrorRecoveryRef.current = false;
     // Lz-38: Laterality change resets the empty-retry counter.
     resetEmptyRetryCycle('laterality');
 
@@ -845,6 +889,7 @@ export default function HomeScreen() {
         await settleCue('reverse');
         if (!stillCurrent()) return;
         setNoNextIdea(true);
+        playOtherSfx(noMatchSoundEvent());
         endSwap();
         return;
       }
@@ -859,6 +904,8 @@ export default function HomeScreen() {
       lateralitySnapshotRef.current = null;
       lateralityRetryGradeRef.current = null;
       lateralityFocusPendingRef.current = true;
+      // Land SFX for Sound 6 discovery coordination (card_arrived is outside reshuffle only).
+      playOtherSfx(reshuffleLandedSoundEvent(random));
       await settleCue('deal');
       if (!stillCurrent()) return;
       endSwap();
@@ -879,17 +926,21 @@ export default function HomeScreen() {
       await settleCue('reverse');
       if (!stillCurrent()) return;
       setLateralityFetchFailed(true);
+      playOtherSfx(errorSoftSoundEvent());
       endSwap();
     } finally {
       clearTimeout(statusTimer);
       clearTimeout(gatherTimer);
     }
-  }, [fetchBatch, reduceMotion]);
+  }, [fetchBatch, playOtherSfx, reduceMotion]);
 
   const onSelectLaterality = useCallback((grade: LateralityGrade) => {
     if (lateralitySwapActiveRef.current || lateralitySwap != null) return;
+    const previous = lateralityRef.current;
     const next = clampLaterality(grade);
-    if (next === lateralityRef.current) return;
+    if (next === previous) return;
+    const stepEvt = lateralityStepIfChanged(previous, next);
+    if (stepEvt) playOtherSfx(stepEvt);
     lateralitySnapshotRef.current = snapshotLateralityDeck(
       conceptsRef.current,
       currentIndexRef.current,
@@ -909,7 +960,7 @@ export default function HomeScreen() {
     }
     lateralitySwapActiveRef.current = true;
     void prefetchLateralityTree();
-  }, [lateralitySwap, prefetchLateralityTree]);
+  }, [lateralitySwap, playOtherSfx, prefetchLateralityTree]);
 
   const onDeckStatusRetry = useCallback(() => {
     const retryGrade = lateralityRetryGradeRef.current;
@@ -925,7 +976,8 @@ export default function HomeScreen() {
   const openLateralitySheet = useCallback(() => {
     if (lateralitySwap != null) return;
     setLateralitySheetOpen(true);
-  }, [lateralitySwap]);
+    playOtherSfx(sheetOpenSoundEvent());
+  }, [lateralitySwap, playOtherSfx]);
 
   /** Lz-38: Adjust opens the Laterality sheet and resets the empty-retry cycle. */
   const onAdjustNoNextIdea = useCallback(() => {
@@ -936,17 +988,18 @@ export default function HomeScreen() {
 
   const dismissLateralitySheet = useCallback(() => {
     setLateralitySheetOpen(false);
-  }, []);
+    playOtherSfx(sheetCloseSoundEvent());
+  }, [playOtherSfx]);
 
   const openAppMenu = useCallback(() => {
     setAppMenuOpen(true);
-    soundEvent({ name: 'sheet_open' });
-  }, []);
+    playOtherSfx(sheetOpenSoundEvent());
+  }, [playOtherSfx]);
 
   const dismissAppMenu = useCallback(() => {
     setAppMenuOpen(false);
-    soundEvent({ name: 'sheet_close' });
-  }, []);
+    playOtherSfx(sheetCloseSoundEvent());
+  }, [playOtherSfx]);
 
   const onMotionPreferenceChange = useCallback((pref: MotionPreference) => {
     setMotionPreference(pref);
@@ -1056,17 +1109,25 @@ export default function HomeScreen() {
         grade,
       );
       // Menu picker never advances the deck — only complexity may change.
+      // Vertical swipe already emits complexity_changed in ConceptCardStack — do not
+      // double-emit from onSwipeForwardVertical.
       if (result.complexityChanged) {
+        const evt = complexityChangedIfChanged(
+          complexityRef.current,
+          result.complexity,
+        );
         complexityRef.current = result.complexity;
         setComplexity(result.complexity);
+        if (evt) playOtherSfx(evt);
         // Lz-38: Complexity change resets the empty-retry counter.
         resetEmptyRetryCycle('complexity');
         setLoadMoreError(false);
+        loadMoreErrorRecoveryRef.current = false;
         void persistComplexity(result.complexity);
         void prefetchComplexityTree(result.complexity);
       }
     },
-    [lateralitySwap, prefetchComplexityTree],
+    [lateralitySwap, playOtherSfx, prefetchComplexityTree],
   );
 
   const isLastCard = concepts.length > 0 && currentIndex === concepts.length - 1;

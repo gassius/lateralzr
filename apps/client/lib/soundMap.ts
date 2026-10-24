@@ -1,16 +1,22 @@
 /**
- * Event → asset table (Sound 1).
+ * Event → asset table (Sound 1 + Sound 3).
  *
- * Variants are placeholders until Sound 3 ships audio files. Empty `variants`
- * makes `soundEvent` a safe no-op for that event. Swapping a file later is a
- * one-line change here (asset module id from `require(...)`).
+ * Variants come from {@link SOUND_VARIANT_GROUPS} / `require` module ids in
+ * `lib/soundAssets.ts` (web: `soundAssets.web.ts`). Empty lists stay a no-op.
  *
  * Pitch shift: skipped (audio director 2026-10-24).
+ * Tone layers: internal QA A/B flag only (not a user setting) — default OFF.
  */
 
+import {
+  resolveVariantModules,
+  SOUND_ASSETS,
+  SOUND_VARIANT_GROUPS,
+  type SoundAssetName,
+} from '@/lib/soundAssets';
 import type { SoundBus, SoundEventName } from '@/lib/soundTypes';
 
-/** Asset module id (`require`) or null placeholder until Sound 3. */
+/** Asset module id (`require`) or null placeholder. */
 export type SoundAssetRef = number | null;
 
 export type SoundMapEntry = {
@@ -22,6 +28,90 @@ export type SoundMapEntry = {
   /** Max concurrent voices for this event (anti-stacking). */
   maxVoices: number;
 };
+
+/**
+ * Internal QA A/B: optional sine glide under swipe air (~-10 dB).
+ * Off by default (audio director 2026-10-24). Flip to `true` for A/B listens.
+ * Not a user setting — do not wire to Sound 2 prefs.
+ */
+export const ENABLE_SWIPE_TONE_LAYERS = false;
+
+/** Tone layer under swipe air when {@link ENABLE_SWIPE_TONE_LAYERS} is on. */
+export const SWIPE_TONE_LAYER_GAIN_DB = -10;
+
+/** Motion-tied SFX under reduced motion (director: ~3 dB lower; no separate files). */
+export const REDUCED_MOTION_SFX_GAIN_DB = -3;
+
+/**
+ * Under reduced motion, big-movement SFX also get a shortened play + fade-out
+ * (no separate files — volume ramp in the engine).
+ */
+export const REDUCED_MOTION_SFX_PLAY_RATIO = 0.45;
+export const REDUCED_MOTION_SFX_FADE_MS = 60;
+
+/** Events that follow card / swipe motion (RM gain applies). */
+export const MOTION_TIED_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
+  'card_flip',
+  'card_flip_back',
+  'swipe_next',
+  'swipe_back',
+  'swipe_cancel',
+  'swipe_resistance',
+  'complexity_changed',
+  'laterality_step',
+  'card_arrived',
+]);
+
+/**
+ * Big-movement sweeps (reshuffle / sheet) — RM gain + shortened fade (Sound 5).
+ * Overlaps motion-tied for gain; fade shortening is gated on this set only.
+ */
+export const BIG_MOVEMENT_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
+  'reshuffle_started',
+  'reshuffle_landed',
+  'sheet_open',
+  'sheet_close',
+]);
+
+/** Linear gain from dB. */
+export function gainFromDb(db: number): number {
+  return Math.pow(10, db / 20);
+}
+
+/** Play volume for an event (asset gainDb + optional RM attenuation). */
+export function resolveEventGain(
+  assetGainDb: number,
+  eventName: SoundEventName,
+  reduceMotion: boolean,
+): number {
+  let db = assetGainDb;
+  if (
+    reduceMotion &&
+    (MOTION_TIED_SOUND_EVENTS.has(eventName) ||
+      BIG_MOVEMENT_SOUND_EVENTS.has(eventName))
+  ) {
+    db += REDUCED_MOTION_SFX_GAIN_DB;
+  }
+  return gainFromDb(db);
+}
+
+/** Whether RM should shorten the play + fade-out for this event. */
+export function shouldShortenReducedMotionFade(eventName: SoundEventName): boolean {
+  return BIG_MOVEMENT_SOUND_EVENTS.has(eventName);
+}
+
+/** Tone asset under swipe_next / swipe_back when the QA flag is on. */
+export function swipeToneAssetName(
+  swipe: 'swipe_next' | 'swipe_back',
+): SoundAssetName {
+  return swipe === 'swipe_next' ? 'sfx-swipe-tone-up' : 'sfx-swipe-tone-down';
+}
+
+export function swipeToneModule(
+  swipe: 'swipe_next' | 'swipe_back',
+): SoundAssetRef {
+  return SOUND_ASSETS[swipeToneAssetName(swipe)].module;
+}
 
 const SFX = (
   minIntervalMs: number,
@@ -46,27 +136,71 @@ const MUSIC = (
 });
 
 /**
- * Central mapping. All variant lists are empty placeholders (Sound 3).
- * Intervals/voice caps are conservative defaults for fast swipe UX.
+ * Central mapping. Variant lists resolve through Sound 3 asset groups so
+ * adding/replacing a file is a one-line group change (no call-site edits).
  */
 export const SOUND_MAP: Readonly<Record<SoundEventName, SoundMapEntry>> = {
-  card_flip: SFX(50, 2),
-  card_flip_back: SFX(50, 2),
-  swipe_next: SFX(40, 2),
-  swipe_back: SFX(40, 2),
-  swipe_cancel: SFX(60, 1),
-  swipe_resistance: SFX(120, 1),
-  complexity_changed: SFX(80, 1),
-  laterality_step: SFX(80, 1),
-  reshuffle_started: SFX(100, 1),
-  reshuffle_landed: SFX(100, 1),
-  card_arrived: SFX(40, 2),
-  sheet_open: SFX(80, 1),
-  sheet_close: SFX(80, 1),
-  error_soft: SFX(150, 1),
-  no_match: SFX(150, 1),
-  intro_started: MUSIC(0, 1),
-  intro_ready: MUSIC(0, 1),
+  card_flip: SFX(50, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.card_flip)),
+  card_flip_back: SFX(
+    50,
+    2,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.card_flip_back),
+  ),
+  swipe_next: SFX(40, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_next)),
+  swipe_back: SFX(40, 2, resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_back)),
+  swipe_cancel: SFX(
+    60,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_cancel),
+  ),
+  swipe_resistance: SFX(
+    120,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.swipe_resistance),
+  ),
+  complexity_changed: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.complexity_changed),
+  ),
+  laterality_step: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.laterality_step),
+  ),
+  reshuffle_started: SFX(
+    100,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.reshuffle_started),
+  ),
+  reshuffle_landed: SFX(
+    100,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.reshuffle_landed),
+  ),
+  card_arrived: SFX(
+    40,
+    2,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.card_arrived),
+  ),
+  sheet_open: SFX(80, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.sheet_open)),
+  sheet_close: SFX(
+    80,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.sheet_close),
+  ),
+  error_soft: SFX(150, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.error_soft)),
+  no_match: SFX(150, 1, resolveVariantModules(SOUND_VARIANT_GROUPS.no_match)),
+  intro_started: MUSIC(
+    0,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.intro_started),
+  ),
+  intro_ready: MUSIC(
+    0,
+    1,
+    resolveVariantModules(SOUND_VARIANT_GROUPS.intro_ready),
+  ),
 };
 
 export function getSoundMapEntry(name: SoundEventName): SoundMapEntry {

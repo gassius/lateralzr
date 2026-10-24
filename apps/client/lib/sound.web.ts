@@ -6,21 +6,54 @@
  * honest unavailability and safe no-ops.
  */
 
-import type { SoundEvent, SoundPreferences } from '@/lib/soundTypes';
+import type { SoundEvent, SoundEventOptions, SoundPreferences } from '@/lib/soundTypes';
 
-export type { SoundEvent, SoundEventName, SoundPreferences, SoundBus } from '@/lib/soundTypes';
+export type {
+  SoundEvent,
+  SoundEventName,
+  SoundEventOptions,
+  SoundPreferences,
+  SoundBus,
+} from '@/lib/soundTypes';
 export {
   DEFAULT_SOUND_PREFERENCES,
   SOUND_PREFERENCES_STORAGE_KEY,
 } from '@/lib/soundTypes';
-export { SOUND_MAP, getSoundMapEntry, playableVariants } from '@/lib/soundMap';
+export {
+  SOUND_MAP,
+  getSoundMapEntry,
+  playableVariants,
+  ENABLE_SWIPE_TONE_LAYERS,
+  SWIPE_TONE_LAYER_GAIN_DB,
+  REDUCED_MOTION_SFX_GAIN_DB,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
+  REDUCED_MOTION_SFX_FADE_MS,
+  MOTION_TIED_SOUND_EVENTS,
+  BIG_MOVEMENT_SOUND_EVENTS,
+  gainFromDb,
+  resolveEventGain,
+  shouldShortenReducedMotionFade,
+} from '@/lib/soundMap';
 export {
   EFFECTS_POOL_SIZE,
   pickVariantIndex,
   isBusEnabled,
   createSoundController,
   createEffectsPool,
+  resolveLadderSource,
+  resolveReshuffleLandSource,
+  scheduleReducedMotionFade,
 } from '@/lib/soundEngine';
+export {
+  SOUND_ASSETS,
+  SOUND_VARIANT_GROUPS,
+  getSoundAsset,
+  getSoundAssetDurationMs,
+  getSoundAssetDurationMsForModule,
+  resolveVariantModules,
+  type SoundAssetName,
+  type SoundAssetMeta,
+} from '@/lib/soundAssets';
 
 let prefs: SoundPreferences = {
   sound: true,
@@ -29,7 +62,7 @@ let prefs: SoundPreferences = {
 };
 
 /** Announce UI/game events. Always a no-op on web until Sound 8. */
-export function soundEvent(_event: SoundEvent): void {
+export function soundEvent(_event: SoundEvent, _options?: SoundEventOptions): void {
   // no-op
 }
 
@@ -48,6 +81,15 @@ export function setSoundPreferences(next: SoundPreferences): void {
  */
 export function isSoundAvailable(): boolean {
   return false;
+}
+
+/** Sound 7 announcement hooks (web no-op; real suppress on native Sound 7). */
+export function beginSoundAnnouncement(): void {
+  // no-op
+}
+
+export function endSoundAnnouncement(): void {
+  // no-op
 }
 
 /** Test helper — not part of the public Sound 1↔2 API. */

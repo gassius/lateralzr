@@ -3,11 +3,25 @@
  * Native `lib/sound.ts` wires expo-audio; tests inject mock players.
  *
  * Pitch shift intentionally omitted (audio director 2026-10-24).
+ * Tone layers + reduced-motion gain: Sound 4 (see `lib/soundMap.ts`).
+ * Big-movement RM fade shorten + Random wide land: Sound 5.
  */
 
 import {
+  getSoundAssetDurationMsForModule,
+  SOUND_ASSETS,
+  type SoundAssetName,
+} from '@/lib/soundAssets';
+import {
+  ENABLE_SWIPE_TONE_LAYERS,
   getSoundMapEntry,
   playableVariants,
+  REDUCED_MOTION_SFX_FADE_MS,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
+  resolveEventGain,
+  shouldShortenReducedMotionFade,
+  swipeToneModule,
+  SWIPE_TONE_LAYER_GAIN_DB,
   type SoundAssetRef,
   type SoundMapEntry,
 } from '@/lib/soundMap';
@@ -15,6 +29,7 @@ import {
   DEFAULT_SOUND_PREFERENCES,
   type SoundEvent,
   type SoundEventName,
+  type SoundEventOptions,
   type SoundPreferences,
 } from '@/lib/soundTypes';
 
@@ -50,7 +65,7 @@ export type SoundEngineOptions = {
 };
 
 export type SoundController = {
-  soundEvent: (event: SoundEvent) => void;
+  soundEvent: (event: SoundEvent, options?: SoundEventOptions) => void;
   setSoundPreferences: (prefs: SoundPreferences) => void;
   isSoundAvailable: () => boolean;
   getPreferences: () => SoundPreferences;
@@ -59,6 +74,99 @@ export type SoundController = {
   /** Test: release all players. */
   reset: () => void;
 };
+
+function clampLadderLevel(value: number): number {
+  return Math.min(5, Math.max(1, Math.round(value)));
+}
+
+/** Pick complexity / laterality ladder module by event payload level/step. */
+export function resolveLadderSource(
+  event: SoundEvent,
+): SoundAssetRef | null {
+  if (event.name === 'complexity_changed') {
+    const name = `sfx-complexity-${clampLadderLevel(event.level)}` as SoundAssetName;
+    return SOUND_ASSETS[name]?.module ?? null;
+  }
+  if (event.name === 'laterality_step') {
+    const name = `sfx-laterality-snap-${clampLadderLevel(event.step)}` as SoundAssetName;
+    return SOUND_ASSETS[name]?.module ?? null;
+  }
+  return null;
+}
+
+/**
+ * Random entry (laterality 5) → wide land; otherwise leave null so a/b variants pick.
+ */
+export function resolveReshuffleLandSource(
+  event: SoundEvent,
+): SoundAssetRef | null {
+  if (event.name !== 'reshuffle_landed') return null;
+  if (!event.random) return null;
+  return SOUND_ASSETS['sfx-reshuffle-land-wide']?.module ?? null;
+}
+
+/**
+ * Under reduced motion, shorten big-movement SFX: play a fraction, then fade out.
+ * Returns a cancel handle (clearTimeout) for tests / reset.
+ * Calls `onComplete` when the fade finishes naturally (not on cancel).
+ */
+export function scheduleReducedMotionFade(
+  player: SoundPlayer,
+  startVolume: number,
+  durationMs: number,
+  opts?: {
+    playRatio?: number;
+    fadeMs?: number;
+    setTimeoutFn?: typeof setTimeout;
+    clearTimeoutFn?: typeof clearTimeout;
+    onComplete?: () => void;
+  },
+): () => void {
+  const playRatio = opts?.playRatio ?? REDUCED_MOTION_SFX_PLAY_RATIO;
+  const fadeMs = opts?.fadeMs ?? REDUCED_MOTION_SFX_FADE_MS;
+  const setTimeoutFn = opts?.setTimeoutFn ?? setTimeout;
+  const clearTimeoutFn = opts?.clearTimeoutFn ?? clearTimeout;
+  const onComplete = opts?.onComplete;
+
+  const playMs = Math.max(40, Math.floor(durationMs * playRatio));
+  const steps = Math.max(2, Math.floor(fadeMs / 20));
+  const stepMs = Math.max(10, Math.floor(fadeMs / steps));
+
+  let step = 0;
+  let finished = false;
+  let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  const playTimer = setTimeoutFn(() => {
+    const tick = () => {
+      step += 1;
+      const t = Math.min(1, step / steps);
+      try {
+        player.volume = startVolume * (1 - t);
+      } catch {
+        // ignore
+      }
+      if (t >= 1) {
+        try {
+          player.pause();
+        } catch {
+          // ignore
+        }
+        fadeTimer = null;
+        if (!finished) {
+          finished = true;
+          onComplete?.();
+        }
+        return;
+      }
+      fadeTimer = setTimeoutFn(tick, stepMs);
+    };
+    tick();
+  }, playMs);
+
+  return () => {
+    clearTimeoutFn(playTimer);
+    if (fadeTimer != null) clearTimeoutFn(fadeTimer);
+  };
+}
 
 type PoolSlot = {
   player: SoundPlayer;
@@ -239,44 +347,38 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     }
   }
 
-  function soundEvent(event: SoundEvent): void {
-    if (!available) return;
-    if (!prefs.sound) return;
+  /** Active RM fade cancels keyed by pooled player (drop on finish / before reuse). */
+  const rmFadeByPlayer = new Map<SoundPlayer, () => void>();
 
-    const entry = resolveEntry(event.name);
-    if (!isBusEnabled(prefs, entry.bus)) return;
-
-    const variants = playableVariants(entry);
-    if (variants.length === 0) return;
-
-    const t = now();
-    const rt = runtimeFor(event.name);
-
-    if (entry.minIntervalMs > 0 && t - rt.lastPlayedAt < entry.minIntervalMs) {
-      return;
+  function cancelRmFade(player: SoundPlayer): void {
+    const cancel = rmFadeByPlayer.get(player);
+    if (!cancel) return;
+    try {
+      cancel();
+    } catch {
+      // ignore
     }
+    rmFadeByPlayer.delete(player);
+  }
 
-    const playingVoices = pool.countVoices(event.name);
-    if (entry.maxVoices > 0 && playingVoices >= entry.maxVoices) {
-      return;
-    }
-
-    const variantIndex = pickVariantIndex(variants.length, rt.lastVariantIndex, random);
-    if (variantIndex == null) return;
-
-    const source = variants[variantIndex];
-    if (source == null) return;
-
-    void ensureSession();
-
+  function playSource(
+    source: SoundAssetRef,
+    eventName: SoundEventName,
+    volume: number,
+    reduceMotion: boolean,
+  ): boolean {
+    if (source == null) return false;
     let player: SoundPlayer;
     try {
-      player = pool.acquire(source, event.name);
+      player = pool.acquire(source, eventName);
     } catch {
-      return;
+      return false;
     }
 
-    player.volume = 1;
+    // Pool reuse: stop any in-flight RM fade on this player before replacing source.
+    cancelRmFade(player);
+
+    player.volume = volume;
     // No pitch shift (director decision). Keep rate at unity if exposed later.
 
     const playSafe = (): void => {
@@ -284,6 +386,19 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         player.play();
       } catch {
         // ignore
+      }
+      if (
+        reduceMotion &&
+        shouldShortenReducedMotionFade(eventName) &&
+        typeof source === 'number'
+      ) {
+        const durationMs = getSoundAssetDurationMsForModule(source) ?? 400;
+        const cancel = scheduleReducedMotionFade(player, volume, durationMs, {
+          onComplete: () => {
+            rmFadeByPlayer.delete(player);
+          },
+        });
+        rmFadeByPlayer.set(player, cancel);
       }
     };
 
@@ -298,9 +413,74 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     } catch {
       playSafe();
     }
+    return true;
+  }
+
+  function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
+    if (!available) return;
+    if (!prefs.sound) return;
+
+    const entry = resolveEntry(event.name);
+    if (!isBusEnabled(prefs, entry.bus)) return;
+
+    const reduceMotion = Boolean(options?.reduceMotion);
+    const ladderSource = resolveLadderSource(event);
+    const wideLand = resolveReshuffleLandSource(event);
+
+    let source: SoundAssetRef | null = null;
+    let variantIndex: number | null = null;
+
+    if (ladderSource != null) {
+      source = ladderSource;
+    } else if (wideLand != null) {
+      source = wideLand;
+    } else {
+      const variants = playableVariants(entry);
+      if (variants.length === 0) return;
+      const rtPreview = runtimeFor(event.name);
+      variantIndex = pickVariantIndex(variants.length, rtPreview.lastVariantIndex, random);
+      if (variantIndex == null) return;
+      source = variants[variantIndex] ?? null;
+    }
+
+    if (source == null) return;
+
+    const t = now();
+    const rt = runtimeFor(event.name);
+
+    if (entry.minIntervalMs > 0 && t - rt.lastPlayedAt < entry.minIntervalMs) {
+      return;
+    }
+
+    const playingVoices = pool.countVoices(event.name);
+    if (entry.maxVoices > 0 && playingVoices >= entry.maxVoices) {
+      return;
+    }
+
+    void ensureSession();
+
+    const assetGainDb = 0; // per-file gain lives in authored peaks; map gainDb reserved for music mix
+    const volume = resolveEventGain(assetGainDb, event.name, reduceMotion);
+    if (!playSource(source, event.name, volume, reduceMotion)) return;
 
     rt.lastPlayedAt = t;
-    rt.lastVariantIndex = variantIndex;
+    if (variantIndex != null) {
+      rt.lastVariantIndex = variantIndex;
+    }
+
+    // Optional tone layer under swipe air (QA flag; default off).
+    if (
+      ENABLE_SWIPE_TONE_LAYERS &&
+      (event.name === 'swipe_next' || event.name === 'swipe_back')
+    ) {
+      const tone = swipeToneModule(event.name);
+      const toneVolume = resolveEventGain(
+        SWIPE_TONE_LAYER_GAIN_DB,
+        event.name,
+        reduceMotion,
+      );
+      playSource(tone, event.name, toneVolume, reduceMotion);
+    }
   }
 
   function setSoundPreferences(next: SoundPreferences): void {
@@ -324,6 +504,9 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   }
 
   function reset(): void {
+    for (const player of [...rmFadeByPlayer.keys()]) {
+      cancelRmFade(player);
+    }
     pool.clear();
     eventRuntime.clear();
     prefs = { ...DEFAULT_SOUND_PREFERENCES };

@@ -43,3 +43,13 @@ export type SoundEvent =
 export type SoundEventName = SoundEvent['name'];
 
 export type SoundBus = 'effects' | 'music';
+
+/** Optional play modifiers (Sound 4+). Not persisted. */
+export type SoundEventOptions = {
+  /**
+   * Motion-tied / big-movement SFX play ~3 dB quieter under reduced motion
+   * (director). Big-movement also shortens play + fade-out in the engine.
+   * No separate files.
+   */
+  reduceMotion?: boolean;
+};

@@ -10,21 +10,54 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
-import type { SoundEvent, SoundPreferences } from '@/lib/soundTypes';
+import type { SoundEvent, SoundEventOptions, SoundPreferences } from '@/lib/soundTypes';
 
-export type { SoundEvent, SoundEventName, SoundPreferences, SoundBus } from '@/lib/soundTypes';
+export type {
+  SoundEvent,
+  SoundEventName,
+  SoundEventOptions,
+  SoundPreferences,
+  SoundBus,
+} from '@/lib/soundTypes';
 export {
   DEFAULT_SOUND_PREFERENCES,
   SOUND_PREFERENCES_STORAGE_KEY,
 } from '@/lib/soundTypes';
-export { SOUND_MAP, getSoundMapEntry, playableVariants } from '@/lib/soundMap';
+export {
+  SOUND_MAP,
+  getSoundMapEntry,
+  playableVariants,
+  ENABLE_SWIPE_TONE_LAYERS,
+  SWIPE_TONE_LAYER_GAIN_DB,
+  REDUCED_MOTION_SFX_GAIN_DB,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
+  REDUCED_MOTION_SFX_FADE_MS,
+  MOTION_TIED_SOUND_EVENTS,
+  BIG_MOVEMENT_SOUND_EVENTS,
+  gainFromDb,
+  resolveEventGain,
+  shouldShortenReducedMotionFade,
+} from '@/lib/soundMap';
 export {
   EFFECTS_POOL_SIZE,
   pickVariantIndex,
   isBusEnabled,
   createSoundController,
   createEffectsPool,
+  resolveLadderSource,
+  resolveReshuffleLandSource,
+  scheduleReducedMotionFade,
 } from '@/lib/soundEngine';
+export {
+  SOUND_ASSETS,
+  SOUND_VARIANT_GROUPS,
+  getSoundAsset,
+  getSoundAssetDurationMs,
+  getSoundAssetDurationMsForModule,
+  resolveVariantModules,
+  type SoundAssetName,
+  type SoundAssetMeta,
+} from '@/lib/soundAssets';
 
 function wrapPlayer(player: AudioPlayer): SoundPlayer {
   return {
@@ -81,8 +114,8 @@ const controller = createSoundController({
 });
 
 /** Announce UI/game events. Safe no-op if disabled or missing assets. */
-export function soundEvent(event: SoundEvent): void {
-  controller.soundEvent(event);
+export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
+  controller.soundEvent(event, options);
 }
 
 /** Push persisted prefs into the module (buses on/off). Immediate; music fades, not cut. */
@@ -93,4 +126,17 @@ export function setSoundPreferences(prefs: SoundPreferences): void {
 /** True on native when expo-audio is linked (dev / production builds). */
 export function isSoundAvailable(): boolean {
   return controller.isSoundAvailable();
+}
+
+/**
+ * Sound 7 announcement window — suppress reshuffle SFX while AT speaks.
+ * Real suppress lands with Sound 7's system binder; no-op until that merges.
+ */
+export function beginSoundAnnouncement(): void {
+  // no-op on Sound 4/5 stack; Sound 7 replaces with announcementActive flag
+}
+
+/** End the Sound 7 announcement suppress window (no-op until Sound 7 merges). */
+export function endSoundAnnouncement(): void {
+  // no-op on Sound 4/5 stack
 }

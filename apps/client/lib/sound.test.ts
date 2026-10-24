@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { SOUND_ASSETS } from '@/lib/soundAssets';
 import { getSoundMapEntry, playableVariants, SOUND_MAP, type SoundMapEntry } from '@/lib/soundMap';
 import {
   createEffectsPool,
@@ -8,6 +9,8 @@ import {
   EFFECTS_POOL_SIZE,
   isBusEnabled,
   pickVariantIndex,
+  resolveLadderSource,
+  resolveReshuffleLandSource,
   type SoundPlayer,
 } from '@/lib/soundEngine';
 import {
@@ -86,6 +89,16 @@ test('SOUND_MAP covers every SoundEvent name', () => {
     assert.ok(Array.isArray(SOUND_MAP[name].variants));
   }
   assert.equal(Object.keys(SOUND_MAP).length, names.length);
+});
+
+test('every Sound 1 map event has at least one playable asset (Sound 3)', () => {
+  for (const name of Object.keys(SOUND_MAP) as SoundEventName[]) {
+    const playable = playableVariants(SOUND_MAP[name]);
+    assert.ok(
+      playable.length >= 1,
+      `Sound 3: expected ≥1 asset for event ${name}`,
+    );
+  }
 });
 
 test('playableVariants drops null placeholders', () => {
@@ -247,17 +260,17 @@ test('disabled master / effects bus makes no player calls', () => {
   ctrl.reset();
 });
 
-test('missing assets are a no-op (placeholder map)', () => {
+test('empty variant list is a no-op (missing assets)', () => {
   let createCount = 0;
   const ctrl = createSoundController({
     createPlayer: () => {
       createCount += 1;
       return mockPlayer();
     },
+    resolveEntry: entryWithVariants('card_flip', []),
   });
   ctrl.soundEvent({ name: 'card_flip' });
   assert.equal(createCount, 0);
-  assert.equal(playableVariants(SOUND_MAP.card_flip).length, 0);
 });
 
 test('isBusEnabled respects master and per-bus flags', () => {
@@ -305,4 +318,80 @@ test('web stub API is safe no-op and unavailable', async () => {
   assert.doesNotThrow(() =>
     web.setSoundPreferences({ sound: false, music: false, effects: false }),
   );
+});
+
+test('complexity_changed picks the ladder asset for the event level', () => {
+  assert.equal(
+    resolveLadderSource({ name: 'complexity_changed', level: 3 }),
+    SOUND_ASSETS['sfx-complexity-3'].module,
+  );
+  assert.equal(
+    resolveLadderSource({ name: 'complexity_changed', level: 1 }),
+    SOUND_ASSETS['sfx-complexity-1'].module,
+  );
+});
+
+test('laterality_step picks the D-Dorian octave-6 ladder asset', () => {
+  assert.equal(
+    resolveLadderSource({ name: 'laterality_step', step: 5 }),
+    SOUND_ASSETS['sfx-laterality-snap-5'].module,
+  );
+  assert.equal(
+    resolveLadderSource({ name: 'laterality_step', step: 1 }),
+    SOUND_ASSETS['sfx-laterality-snap-1'].module,
+  );
+});
+
+test('reshuffle_landed random picks wide land; otherwise a/b variants', () => {
+  assert.equal(
+    resolveReshuffleLandSource({ name: 'reshuffle_landed', random: true }),
+    SOUND_ASSETS['sfx-reshuffle-land-wide'].module,
+  );
+  assert.equal(
+    resolveReshuffleLandSource({ name: 'reshuffle_landed', random: false }),
+    null,
+  );
+
+  const sources: unknown[] = [];
+  let t = 0;
+  const ctrl = createSoundController({
+    createPlayer: (source) => {
+      sources.push(source);
+      return mockPlayer();
+    },
+    now: () => {
+      t += 200;
+      return t;
+    },
+    random: () => 0,
+  });
+  ctrl.soundEvent({ name: 'reshuffle_landed', random: true });
+  assert.equal(sources[0], SOUND_ASSETS['sfx-reshuffle-land-wide'].module);
+  ctrl.reset();
+});
+
+test('reduced motion lowers motion-tied SFX volume by ~3 dB', () => {
+  let t = 0;
+  const players: ReturnType<typeof mockPlayer>[] = [];
+  const ctrl = createSoundController({
+    createPlayer: () => {
+      const p = mockPlayer();
+      players.push(p);
+      return p;
+    },
+    now: () => {
+      t += 100;
+      return t;
+    },
+    resolveEntry: entryWithVariants('swipe_next', [42], { minIntervalMs: 0, maxVoices: 4 }),
+  });
+
+  ctrl.soundEvent({ name: 'swipe_next' });
+  assert.equal(players[0]!.volume, 1);
+  players[0]!.playing = false;
+
+  ctrl.soundEvent({ name: 'swipe_next' }, { reduceMotion: true });
+  const expected = Math.pow(10, -3 / 20);
+  assert.ok(Math.abs(players[0]!.volume - expected) < 1e-9);
+  ctrl.reset();
 });
