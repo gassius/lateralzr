@@ -10,6 +10,7 @@ import {
   isBusEnabled,
   pickVariantIndex,
   resolveLadderSource,
+  resolveReshuffleLandSource,
   type SoundPlayer,
 } from '@/lib/soundEngine';
 import {
@@ -328,6 +329,45 @@ test('complexity_changed picks the ladder asset for the event level', () => {
     resolveLadderSource({ name: 'complexity_changed', level: 1 }),
     SOUND_ASSETS['sfx-complexity-1'].module,
   );
+});
+
+test('laterality_step picks the D-Dorian octave-6 ladder asset', () => {
+  assert.equal(
+    resolveLadderSource({ name: 'laterality_step', step: 5 }),
+    SOUND_ASSETS['sfx-laterality-snap-5'].module,
+  );
+  assert.equal(
+    resolveLadderSource({ name: 'laterality_step', step: 1 }),
+    SOUND_ASSETS['sfx-laterality-snap-1'].module,
+  );
+});
+
+test('reshuffle_landed random picks wide land; otherwise a/b variants', () => {
+  assert.equal(
+    resolveReshuffleLandSource({ name: 'reshuffle_landed', random: true }),
+    SOUND_ASSETS['sfx-reshuffle-land-wide'].module,
+  );
+  assert.equal(
+    resolveReshuffleLandSource({ name: 'reshuffle_landed', random: false }),
+    null,
+  );
+
+  const sources: unknown[] = [];
+  let t = 0;
+  const ctrl = createSoundController({
+    createPlayer: (source) => {
+      sources.push(source);
+      return mockPlayer();
+    },
+    now: () => {
+      t += 200;
+      return t;
+    },
+    random: () => 0,
+  });
+  ctrl.soundEvent({ name: 'reshuffle_landed', random: true });
+  assert.equal(sources[0], SOUND_ASSETS['sfx-reshuffle-land-wide'].module);
+  ctrl.reset();
 });
 
 test('reduced motion lowers motion-tied SFX volume by ~3 dB', () => {

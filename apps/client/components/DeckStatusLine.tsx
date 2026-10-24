@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { STATUS_SLOT_MIN_WIDTH } from '@/lib/lateralityChrome';
+import { beginSoundAnnouncement, endSoundAnnouncement } from '@/lib/sound';
+import { runAccessibilityAnnounce } from '@/lib/soundAnnounce';
 import { color, layout } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
 
@@ -61,7 +63,14 @@ export function DeckStatusLine({
     }
     if (announcedStatusRef.current === announceKey) return;
     announcedStatusRef.current = announceKey;
-    AccessibilityInfo.announceForAccessibility?.(announceKey);
+    // Suppress reshuffle SFX while VoiceOver/TalkBack speaks status copy (Sound 7 hooks).
+    return runAccessibilityAnnounce(announceKey, {
+      announce: (msg) => {
+        AccessibilityInfo.announceForAccessibility?.(msg);
+      },
+      begin: beginSoundAnnouncement,
+      end: endSoundAnnouncement,
+    });
   }, [announceKey, offline]);
 
   useEffect(() => {
@@ -71,8 +80,15 @@ export function DeckStatusLine({
     }
     if (announcedOfflineRef.current) return;
     announcedOfflineRef.current = true;
-    AccessibilityInfo.announceForAccessibility?.(offlineLabel);
+    const dispose = runAccessibilityAnnounce(offlineLabel, {
+      announce: (msg) => {
+        AccessibilityInfo.announceForAccessibility?.(msg);
+      },
+      begin: beginSoundAnnouncement,
+      end: endSoundAnnouncement,
+    });
     onOfflineAnnounced?.();
+    return dispose;
   }, [offline, shouldAnnounceOffline, offlineLabel, onOfflineAnnounced]);
 
   const actionHitSlop = Math.max(0, Math.floor((ACTION_HIT - 20) / 2));

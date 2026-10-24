@@ -47,8 +47,9 @@ export type SoundBus = 'effects' | 'music';
 /** Optional play modifiers (Sound 4+). Not persisted. */
 export type SoundEventOptions = {
   /**
-   * Motion-tied SFX play ~3 dB quieter under reduced motion (director).
-   * No separate files — volume only; baked fades stay as authored.
+   * Motion-tied / big-movement SFX play ~3 dB quieter under reduced motion
+   * (director). Big-movement also shortens play + fade-out in the engine.
+   * No separate files.
    */
   reduceMotion?: boolean;
 };

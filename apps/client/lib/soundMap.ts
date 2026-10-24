@@ -42,6 +42,13 @@ export const SWIPE_TONE_LAYER_GAIN_DB = -10;
 /** Motion-tied SFX under reduced motion (director: ~3 dB lower; no separate files). */
 export const REDUCED_MOTION_SFX_GAIN_DB = -3;
 
+/**
+ * Under reduced motion, big-movement SFX also get a shortened play + fade-out
+ * (no separate files — volume ramp in the engine).
+ */
+export const REDUCED_MOTION_SFX_PLAY_RATIO = 0.45;
+export const REDUCED_MOTION_SFX_FADE_MS = 60;
+
 /** Events that follow card / swipe motion (RM gain applies). */
 export const MOTION_TIED_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
   'card_flip',
@@ -51,6 +58,19 @@ export const MOTION_TIED_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
   'swipe_cancel',
   'swipe_resistance',
   'complexity_changed',
+  'laterality_step',
+  'card_arrived',
+]);
+
+/**
+ * Big-movement sweeps (reshuffle / sheet) — RM gain + shortened fade (Sound 5).
+ * Overlaps motion-tied for gain; fade shortening is gated on this set only.
+ */
+export const BIG_MOVEMENT_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
+  'reshuffle_started',
+  'reshuffle_landed',
+  'sheet_open',
+  'sheet_close',
 ]);
 
 /** Linear gain from dB. */
@@ -65,10 +85,19 @@ export function resolveEventGain(
   reduceMotion: boolean,
 ): number {
   let db = assetGainDb;
-  if (reduceMotion && MOTION_TIED_SOUND_EVENTS.has(eventName)) {
+  if (
+    reduceMotion &&
+    (MOTION_TIED_SOUND_EVENTS.has(eventName) ||
+      BIG_MOVEMENT_SOUND_EVENTS.has(eventName))
+  ) {
     db += REDUCED_MOTION_SFX_GAIN_DB;
   }
   return gainFromDb(db);
+}
+
+/** Whether RM should shorten the play + fade-out for this event. */
+export function shouldShortenReducedMotionFade(eventName: SoundEventName): boolean {
+  return BIG_MOVEMENT_SOUND_EVENTS.has(eventName);
 }
 
 /** Tone asset under swipe_next / swipe_back when the QA flag is on. */

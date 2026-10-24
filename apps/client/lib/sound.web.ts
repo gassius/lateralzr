@@ -26,9 +26,13 @@ export {
   ENABLE_SWIPE_TONE_LAYERS,
   SWIPE_TONE_LAYER_GAIN_DB,
   REDUCED_MOTION_SFX_GAIN_DB,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
+  REDUCED_MOTION_SFX_FADE_MS,
   MOTION_TIED_SOUND_EVENTS,
+  BIG_MOVEMENT_SOUND_EVENTS,
   gainFromDb,
   resolveEventGain,
+  shouldShortenReducedMotionFade,
 } from '@/lib/soundMap';
 export {
   EFFECTS_POOL_SIZE,
@@ -36,12 +40,16 @@ export {
   isBusEnabled,
   createSoundController,
   createEffectsPool,
+  resolveLadderSource,
+  resolveReshuffleLandSource,
+  scheduleReducedMotionFade,
 } from '@/lib/soundEngine';
 export {
   SOUND_ASSETS,
   SOUND_VARIANT_GROUPS,
   getSoundAsset,
   getSoundAssetDurationMs,
+  getSoundAssetDurationMsForModule,
   resolveVariantModules,
   type SoundAssetName,
   type SoundAssetMeta,
@@ -73,6 +81,15 @@ export function setSoundPreferences(next: SoundPreferences): void {
  */
 export function isSoundAvailable(): boolean {
   return false;
+}
+
+/** Sound 7 announcement hooks (web no-op; real suppress on native Sound 7). */
+export function beginSoundAnnouncement(): void {
+  // no-op
+}
+
+export function endSoundAnnouncement(): void {
+  // no-op
 }
 
 /** Test helper — not part of the public Sound 1↔2 API. */

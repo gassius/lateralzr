@@ -30,9 +30,13 @@ export {
   ENABLE_SWIPE_TONE_LAYERS,
   SWIPE_TONE_LAYER_GAIN_DB,
   REDUCED_MOTION_SFX_GAIN_DB,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
+  REDUCED_MOTION_SFX_FADE_MS,
   MOTION_TIED_SOUND_EVENTS,
+  BIG_MOVEMENT_SOUND_EVENTS,
   gainFromDb,
   resolveEventGain,
+  shouldShortenReducedMotionFade,
 } from '@/lib/soundMap';
 export {
   EFFECTS_POOL_SIZE,
@@ -40,12 +44,16 @@ export {
   isBusEnabled,
   createSoundController,
   createEffectsPool,
+  resolveLadderSource,
+  resolveReshuffleLandSource,
+  scheduleReducedMotionFade,
 } from '@/lib/soundEngine';
 export {
   SOUND_ASSETS,
   SOUND_VARIANT_GROUPS,
   getSoundAsset,
   getSoundAssetDurationMs,
+  getSoundAssetDurationMsForModule,
   resolveVariantModules,
   type SoundAssetName,
   type SoundAssetMeta,
@@ -118,4 +126,17 @@ export function setSoundPreferences(prefs: SoundPreferences): void {
 /** True on native when expo-audio is linked (dev / production builds). */
 export function isSoundAvailable(): boolean {
   return controller.isSoundAvailable();
+}
+
+/**
+ * Sound 7 announcement window — suppress reshuffle SFX while AT speaks.
+ * Real suppress lands with Sound 7's system binder; no-op until that merges.
+ */
+export function beginSoundAnnouncement(): void {
+  // no-op on Sound 4/5 stack; Sound 7 replaces with announcementActive flag
+}
+
+/** End the Sound 7 announcement suppress window (no-op until Sound 7 merges). */
+export function endSoundAnnouncement(): void {
+  // no-op on Sound 4/5 stack
 }

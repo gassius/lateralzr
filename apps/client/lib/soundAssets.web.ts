@@ -379,6 +379,7 @@ export const SOUND_ASSETS = {
     loop: false,
     gainDb: 0,
   },
+  // Complexity ladder: 5-step D Dorian (D E F A B) at octave 5; level 1 = lowest.
   'sfx-complexity-1': {
     module: require('../assets/audio/sfx/complexity-1.web.m4a') as number,
     durationMs: 600,
@@ -414,6 +415,7 @@ export const SOUND_ASSETS = {
     gainDb: 0,
     level: 5,
   },
+  // Laterality ladder: same D Dorian degrees at octave 6; level 1 = lowest.
   'sfx-laterality-snap-1': {
     module: require('../assets/audio/sfx/laterality-snap-1.web.m4a') as number,
     durationMs: 300,
@@ -528,7 +530,9 @@ export const SOUND_VARIANT_GROUPS = {
   complexity_changed: ['sfx-complexity-1', 'sfx-complexity-2', 'sfx-complexity-3', 'sfx-complexity-4', 'sfx-complexity-5'] as const satisfies readonly SoundAssetName[],
   laterality_step: ['sfx-laterality-snap-1', 'sfx-laterality-snap-2', 'sfx-laterality-snap-3', 'sfx-laterality-snap-4', 'sfx-laterality-snap-5'] as const satisfies readonly SoundAssetName[],
   reshuffle_started: ['sfx-reshuffle-gather'] as const satisfies readonly SoundAssetName[],
-  reshuffle_landed: ['sfx-reshuffle-land-a', 'sfx-reshuffle-land-b', 'sfx-reshuffle-land-wide'] as const satisfies readonly SoundAssetName[],
+  /** a/b for normal land; wide is picked only when `reshuffle_landed.random` (Random entry). */
+  reshuffle_landed: ['sfx-reshuffle-land-a', 'sfx-reshuffle-land-b'] as const satisfies readonly SoundAssetName[],
+  reshuffle_landed_wide: ['sfx-reshuffle-land-wide'] as const satisfies readonly SoundAssetName[],
   card_arrived: ['sfx-card-arrive-a', 'sfx-card-arrive-b'] as const satisfies readonly SoundAssetName[],
   sheet_open: ['sfx-sheet-open'] as const satisfies readonly SoundAssetName[],
   sheet_close: ['sfx-sheet-close'] as const satisfies readonly SoundAssetName[],
@@ -551,6 +555,16 @@ export function getSoundAsset(name: SoundAssetName): SoundAssetMeta {
 /** Duration for Sound 8 AAC loop padding (`loopEnd = durationMs / 1000`). */
 export function getSoundAssetDurationMs(name: SoundAssetName): number {
   return SOUND_ASSETS[name].durationMs;
+}
+
+/** Resolve authored duration from a `require` module id (Sound 5 RM fade). */
+export function getSoundAssetDurationMsForModule(moduleId: number): number | null {
+  for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
+    if (SOUND_ASSETS[name].module === moduleId) {
+      return SOUND_ASSETS[name].durationMs;
+    }
+  }
+  return null;
 }
 
 export function resolveVariantModules(

@@ -4,14 +4,22 @@
  *
  * Pitch shift intentionally omitted (audio director 2026-10-24).
  * Tone layers + reduced-motion gain: Sound 4 (see `lib/soundMap.ts`).
+ * Big-movement RM fade shorten + Random wide land: Sound 5.
  */
 
-import { SOUND_ASSETS, type SoundAssetName } from '@/lib/soundAssets';
+import {
+  getSoundAssetDurationMsForModule,
+  SOUND_ASSETS,
+  type SoundAssetName,
+} from '@/lib/soundAssets';
 import {
   ENABLE_SWIPE_TONE_LAYERS,
   getSoundMapEntry,
   playableVariants,
+  REDUCED_MOTION_SFX_FADE_MS,
+  REDUCED_MOTION_SFX_PLAY_RATIO,
   resolveEventGain,
+  shouldShortenReducedMotionFade,
   swipeToneModule,
   SWIPE_TONE_LAYER_GAIN_DB,
   type SoundAssetRef,
@@ -84,6 +92,72 @@ export function resolveLadderSource(
     return SOUND_ASSETS[name]?.module ?? null;
   }
   return null;
+}
+
+/**
+ * Random entry (laterality 5) → wide land; otherwise leave null so a/b variants pick.
+ */
+export function resolveReshuffleLandSource(
+  event: SoundEvent,
+): SoundAssetRef | null {
+  if (event.name !== 'reshuffle_landed') return null;
+  if (!event.random) return null;
+  return SOUND_ASSETS['sfx-reshuffle-land-wide']?.module ?? null;
+}
+
+/**
+ * Under reduced motion, shorten big-movement SFX: play a fraction, then fade out.
+ * Returns a cancel handle (clearTimeout) for tests / reset.
+ */
+export function scheduleReducedMotionFade(
+  player: SoundPlayer,
+  startVolume: number,
+  durationMs: number,
+  opts?: {
+    playRatio?: number;
+    fadeMs?: number;
+    setTimeoutFn?: typeof setTimeout;
+    clearTimeoutFn?: typeof clearTimeout;
+  },
+): () => void {
+  const playRatio = opts?.playRatio ?? REDUCED_MOTION_SFX_PLAY_RATIO;
+  const fadeMs = opts?.fadeMs ?? REDUCED_MOTION_SFX_FADE_MS;
+  const setTimeoutFn = opts?.setTimeoutFn ?? setTimeout;
+  const clearTimeoutFn = opts?.clearTimeoutFn ?? clearTimeout;
+
+  const playMs = Math.max(40, Math.floor(durationMs * playRatio));
+  const steps = Math.max(2, Math.floor(fadeMs / 20));
+  const stepMs = Math.max(10, Math.floor(fadeMs / steps));
+
+  let step = 0;
+  let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+  const playTimer = setTimeoutFn(() => {
+    const tick = () => {
+      step += 1;
+      const t = Math.min(1, step / steps);
+      try {
+        player.volume = startVolume * (1 - t);
+      } catch {
+        // ignore
+      }
+      if (t >= 1) {
+        try {
+          player.pause();
+        } catch {
+          // ignore
+        }
+        fadeTimer = null;
+        return;
+      }
+      fadeTimer = setTimeoutFn(tick, stepMs);
+    };
+    tick();
+  }, playMs);
+
+  return () => {
+    clearTimeoutFn(playTimer);
+    if (fadeTimer != null) clearTimeoutFn(fadeTimer);
+  };
 }
 
 type PoolSlot = {
@@ -265,10 +339,13 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     }
   }
 
+  const rmFadeCancels: Array<() => void> = [];
+
   function playSource(
     source: SoundAssetRef,
     eventName: SoundEventName,
     volume: number,
+    reduceMotion: boolean,
   ): boolean {
     if (source == null) return false;
     let player: SoundPlayer;
@@ -286,6 +363,14 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         player.play();
       } catch {
         // ignore
+      }
+      if (
+        reduceMotion &&
+        shouldShortenReducedMotionFade(eventName) &&
+        typeof source === 'number'
+      ) {
+        const durationMs = getSoundAssetDurationMsForModule(source) ?? 400;
+        rmFadeCancels.push(scheduleReducedMotionFade(player, volume, durationMs));
       }
     };
 
@@ -312,12 +397,15 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
 
     const reduceMotion = Boolean(options?.reduceMotion);
     const ladderSource = resolveLadderSource(event);
+    const wideLand = resolveReshuffleLandSource(event);
 
     let source: SoundAssetRef | null = null;
     let variantIndex: number | null = null;
 
     if (ladderSource != null) {
       source = ladderSource;
+    } else if (wideLand != null) {
+      source = wideLand;
     } else {
       const variants = playableVariants(entry);
       if (variants.length === 0) return;
@@ -345,7 +433,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
 
     const assetGainDb = 0; // per-file gain lives in authored peaks; map gainDb reserved for music mix
     const volume = resolveEventGain(assetGainDb, event.name, reduceMotion);
-    if (!playSource(source, event.name, volume)) return;
+    if (!playSource(source, event.name, volume, reduceMotion)) return;
 
     rt.lastPlayedAt = t;
     if (variantIndex != null) {
@@ -363,7 +451,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         event.name,
         reduceMotion,
       );
-      playSource(tone, event.name, toneVolume);
+      playSource(tone, event.name, toneVolume, reduceMotion);
     }
   }
 
@@ -388,6 +476,13 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   }
 
   function reset(): void {
+    for (const cancel of rmFadeCancels.splice(0)) {
+      try {
+        cancel();
+      } catch {
+        // ignore
+      }
+    }
     pool.clear();
     eventRuntime.clear();
     prefs = { ...DEFAULT_SOUND_PREFERENCES };

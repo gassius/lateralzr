@@ -600,15 +600,17 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   const commitSwipeVertical = useCallback(
     (direction: 'up' | 'down') => {
       noteSwipedVertical();
+      const complexityBefore = complexityRef.current;
       const complexityAfter = clampComplexity(
-        complexityRef.current + (direction === 'up' ? 1 : -1),
+        complexityBefore + (direction === 'up' ? 1 : -1),
       );
       const ctx = analyticsContextForIndex(currentIndexRef.current);
       if (ctx) {
         trackSwipe(direction, { ...ctx, complexity_after: complexityAfter });
       }
-      // Complexity note only — no swipe air (director). Sound 5 fleshes the ladder.
-      playStackSound(verticalSwipeSoundEvent(complexityAfter));
+      // Complexity note only when the level changes — no air sweep (director).
+      const complexitySound = verticalSwipeSoundEvent(complexityBefore, complexityAfter);
+      if (complexitySound) playStackSound(complexitySound);
       navIntentRef.current = 'forward';
       onSwipeForwardVertical(direction);
     },

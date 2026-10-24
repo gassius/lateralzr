@@ -23,10 +23,17 @@ export function horizontalSwipeSoundEvent(side: 'left' | 'right'): SoundEvent {
 }
 
 /**
- * Vertical commit → complexity note only (no air sweep). Sound 5 fleshes the ladder.
+ * Vertical commit → complexity note only (no air sweep).
+ * Returns null when the level did not change (boundary swipe) — avoid double/noop emit.
  */
-export function verticalSwipeSoundEvent(complexityAfter: number): SoundEvent {
-  return { name: 'complexity_changed', level: clampComplexityLevel(complexityAfter) };
+export function verticalSwipeSoundEvent(
+  complexityBefore: number,
+  complexityAfter: number,
+): SoundEvent | null {
+  const before = clampComplexityLevel(complexityBefore);
+  const after = clampComplexityLevel(complexityAfter);
+  if (before === after) return null;
+  return { name: 'complexity_changed', level: after };
 }
 
 /** Flip to back → `card_flip`; flip to front → `card_flip_back`. */

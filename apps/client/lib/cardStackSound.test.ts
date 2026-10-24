@@ -45,19 +45,18 @@ describe('horizontal / vertical / flip mapping', () => {
     assert.deepEqual(horizontalSwipeSoundEvent('right'), { name: 'swipe_back' });
   });
 
-  it('maps vertical commit to complexity_changed only (no air sweep)', () => {
-    assert.deepEqual(verticalSwipeSoundEvent(3), {
+  it('maps vertical commit to complexity_changed only when level changes', () => {
+    assert.deepEqual(verticalSwipeSoundEvent(2, 3), {
       name: 'complexity_changed',
       level: 3,
     });
-    assert.deepEqual(verticalSwipeSoundEvent(0), {
+    assert.deepEqual(verticalSwipeSoundEvent(2, 0), {
       name: 'complexity_changed',
       level: 1,
     });
-    assert.deepEqual(verticalSwipeSoundEvent(9), {
-      name: 'complexity_changed',
-      level: 5,
-    });
+    assert.equal(verticalSwipeSoundEvent(1, 1), null);
+    assert.equal(verticalSwipeSoundEvent(1, 0), null);
+    assert.equal(verticalSwipeSoundEvent(5, 9), null);
   });
 
   it('maps flip to back / front', () => {
@@ -91,7 +90,9 @@ describe('emitCardStackSound (mocked lib/sound)', () => {
     const { play, calls } = mockPlay();
     emitCardStackSound(horizontalSwipeSoundEvent('left'), play, { reduceMotion: true });
     emitCardStackSound(horizontalSwipeSoundEvent('right'), play);
-    emitCardStackSound(verticalSwipeSoundEvent(4), play, { reduceMotion: false });
+    const complexityEvt = verticalSwipeSoundEvent(3, 4);
+    assert.ok(complexityEvt);
+    emitCardStackSound(complexityEvt, play, { reduceMotion: false });
     emitCardStackSound(flipSoundEvent(true), play);
     emitCardStackSound(flipSoundEvent(false), play);
     emitCardStackSound({ name: 'swipe_cancel' }, play);
@@ -146,7 +147,11 @@ describe('ConceptCardStack wiring (gesture / keyboard / a11y share commit*)', ()
   it('emits from commitSwipe* next to analytics (covers gesture + keyboard + a11y)', () => {
     assert.match(stackSrc, /playStackSound\(horizontalSwipeSoundEvent\('left'\)\)/);
     assert.match(stackSrc, /playStackSound\(horizontalSwipeSoundEvent\('right'\)\)/);
-    assert.match(stackSrc, /playStackSound\(verticalSwipeSoundEvent\(complexityAfter\)\)/);
+    assert.match(
+      stackSrc,
+      /verticalSwipeSoundEvent\(complexityBefore,\s*complexityAfter\)/,
+    );
+    assert.match(stackSrc, /if \(complexitySound\) playStackSound\(complexitySound\)/);
     assert.match(stackSrc, /trackSwipe\('left'/);
     assert.match(stackSrc, /playStackSound\(flipSoundEvent\(next\)\)/);
   });
