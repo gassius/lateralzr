@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { SOUND_ASSETS } from '@/lib/soundAssets';
 import { getSoundMapEntry, playableVariants, SOUND_MAP, type SoundMapEntry } from '@/lib/soundMap';
 import {
   createEffectsPool,
@@ -8,6 +9,7 @@ import {
   EFFECTS_POOL_SIZE,
   isBusEnabled,
   pickVariantIndex,
+  resolveLadderSource,
   type SoundPlayer,
 } from '@/lib/soundEngine';
 import {
@@ -315,4 +317,41 @@ test('web stub API is safe no-op and unavailable', async () => {
   assert.doesNotThrow(() =>
     web.setSoundPreferences({ sound: false, music: false, effects: false }),
   );
+});
+
+test('complexity_changed picks the ladder asset for the event level', () => {
+  assert.equal(
+    resolveLadderSource({ name: 'complexity_changed', level: 3 }),
+    SOUND_ASSETS['sfx-complexity-3'].module,
+  );
+  assert.equal(
+    resolveLadderSource({ name: 'complexity_changed', level: 1 }),
+    SOUND_ASSETS['sfx-complexity-1'].module,
+  );
+});
+
+test('reduced motion lowers motion-tied SFX volume by ~3 dB', () => {
+  let t = 0;
+  const players: ReturnType<typeof mockPlayer>[] = [];
+  const ctrl = createSoundController({
+    createPlayer: () => {
+      const p = mockPlayer();
+      players.push(p);
+      return p;
+    },
+    now: () => {
+      t += 100;
+      return t;
+    },
+    resolveEntry: entryWithVariants('swipe_next', [42], { minIntervalMs: 0, maxVoices: 4 }),
+  });
+
+  ctrl.soundEvent({ name: 'swipe_next' });
+  assert.equal(players[0]!.volume, 1);
+  players[0]!.playing = false;
+
+  ctrl.soundEvent({ name: 'swipe_next' }, { reduceMotion: true });
+  const expected = Math.pow(10, -3 / 20);
+  assert.ok(Math.abs(players[0]!.volume - expected) < 1e-9);
+  ctrl.reset();
 });

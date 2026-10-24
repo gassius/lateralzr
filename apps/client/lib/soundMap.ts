@@ -5,11 +5,14 @@
  * `lib/soundAssets.ts` (web: `soundAssets.web.ts`). Empty lists stay a no-op.
  *
  * Pitch shift: skipped (audio director 2026-10-24).
+ * Tone layers: internal QA A/B flag only (not a user setting) — default OFF.
  */
 
 import {
   resolveVariantModules,
+  SOUND_ASSETS,
   SOUND_VARIANT_GROUPS,
+  type SoundAssetName,
 } from '@/lib/soundAssets';
 import type { SoundBus, SoundEventName } from '@/lib/soundTypes';
 
@@ -25,6 +28,61 @@ export type SoundMapEntry = {
   /** Max concurrent voices for this event (anti-stacking). */
   maxVoices: number;
 };
+
+/**
+ * Internal QA A/B: optional sine glide under swipe air (~-10 dB).
+ * Off by default (audio director 2026-10-24). Flip to `true` for A/B listens.
+ * Not a user setting — do not wire to Sound 2 prefs.
+ */
+export const ENABLE_SWIPE_TONE_LAYERS = false;
+
+/** Tone layer under swipe air when {@link ENABLE_SWIPE_TONE_LAYERS} is on. */
+export const SWIPE_TONE_LAYER_GAIN_DB = -10;
+
+/** Motion-tied SFX under reduced motion (director: ~3 dB lower; no separate files). */
+export const REDUCED_MOTION_SFX_GAIN_DB = -3;
+
+/** Events that follow card / swipe motion (RM gain applies). */
+export const MOTION_TIED_SOUND_EVENTS: ReadonlySet<SoundEventName> = new Set([
+  'card_flip',
+  'card_flip_back',
+  'swipe_next',
+  'swipe_back',
+  'swipe_cancel',
+  'swipe_resistance',
+  'complexity_changed',
+]);
+
+/** Linear gain from dB. */
+export function gainFromDb(db: number): number {
+  return Math.pow(10, db / 20);
+}
+
+/** Play volume for an event (asset gainDb + optional RM attenuation). */
+export function resolveEventGain(
+  assetGainDb: number,
+  eventName: SoundEventName,
+  reduceMotion: boolean,
+): number {
+  let db = assetGainDb;
+  if (reduceMotion && MOTION_TIED_SOUND_EVENTS.has(eventName)) {
+    db += REDUCED_MOTION_SFX_GAIN_DB;
+  }
+  return gainFromDb(db);
+}
+
+/** Tone asset under swipe_next / swipe_back when the QA flag is on. */
+export function swipeToneAssetName(
+  swipe: 'swipe_next' | 'swipe_back',
+): SoundAssetName {
+  return swipe === 'swipe_next' ? 'sfx-swipe-tone-up' : 'sfx-swipe-tone-down';
+}
+
+export function swipeToneModule(
+  swipe: 'swipe_next' | 'swipe_back',
+): SoundAssetRef {
+  return SOUND_ASSETS[swipeToneAssetName(swipe)].module;
+}
 
 const SFX = (
   minIntervalMs: number,

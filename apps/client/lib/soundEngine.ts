@@ -3,11 +3,17 @@
  * Native `lib/sound.ts` wires expo-audio; tests inject mock players.
  *
  * Pitch shift intentionally omitted (audio director 2026-10-24).
+ * Tone layers + reduced-motion gain: Sound 4 (see `lib/soundMap.ts`).
  */
 
+import { SOUND_ASSETS, type SoundAssetName } from '@/lib/soundAssets';
 import {
+  ENABLE_SWIPE_TONE_LAYERS,
   getSoundMapEntry,
   playableVariants,
+  resolveEventGain,
+  swipeToneModule,
+  SWIPE_TONE_LAYER_GAIN_DB,
   type SoundAssetRef,
   type SoundMapEntry,
 } from '@/lib/soundMap';
@@ -15,6 +21,7 @@ import {
   DEFAULT_SOUND_PREFERENCES,
   type SoundEvent,
   type SoundEventName,
+  type SoundEventOptions,
   type SoundPreferences,
 } from '@/lib/soundTypes';
 
@@ -50,7 +57,7 @@ export type SoundEngineOptions = {
 };
 
 export type SoundController = {
-  soundEvent: (event: SoundEvent) => void;
+  soundEvent: (event: SoundEvent, options?: SoundEventOptions) => void;
   setSoundPreferences: (prefs: SoundPreferences) => void;
   isSoundAvailable: () => boolean;
   getPreferences: () => SoundPreferences;
@@ -59,6 +66,25 @@ export type SoundController = {
   /** Test: release all players. */
   reset: () => void;
 };
+
+function clampLadderLevel(value: number): number {
+  return Math.min(5, Math.max(1, Math.round(value)));
+}
+
+/** Pick complexity / laterality ladder module by event payload level/step. */
+export function resolveLadderSource(
+  event: SoundEvent,
+): SoundAssetRef | null {
+  if (event.name === 'complexity_changed') {
+    const name = `sfx-complexity-${clampLadderLevel(event.level)}` as SoundAssetName;
+    return SOUND_ASSETS[name]?.module ?? null;
+  }
+  if (event.name === 'laterality_step') {
+    const name = `sfx-laterality-snap-${clampLadderLevel(event.step)}` as SoundAssetName;
+    return SOUND_ASSETS[name]?.module ?? null;
+  }
+  return null;
+}
 
 type PoolSlot = {
   player: SoundPlayer;
@@ -239,44 +265,20 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     }
   }
 
-  function soundEvent(event: SoundEvent): void {
-    if (!available) return;
-    if (!prefs.sound) return;
-
-    const entry = resolveEntry(event.name);
-    if (!isBusEnabled(prefs, entry.bus)) return;
-
-    const variants = playableVariants(entry);
-    if (variants.length === 0) return;
-
-    const t = now();
-    const rt = runtimeFor(event.name);
-
-    if (entry.minIntervalMs > 0 && t - rt.lastPlayedAt < entry.minIntervalMs) {
-      return;
-    }
-
-    const playingVoices = pool.countVoices(event.name);
-    if (entry.maxVoices > 0 && playingVoices >= entry.maxVoices) {
-      return;
-    }
-
-    const variantIndex = pickVariantIndex(variants.length, rt.lastVariantIndex, random);
-    if (variantIndex == null) return;
-
-    const source = variants[variantIndex];
-    if (source == null) return;
-
-    void ensureSession();
-
+  function playSource(
+    source: SoundAssetRef,
+    eventName: SoundEventName,
+    volume: number,
+  ): boolean {
+    if (source == null) return false;
     let player: SoundPlayer;
     try {
-      player = pool.acquire(source, event.name);
+      player = pool.acquire(source, eventName);
     } catch {
-      return;
+      return false;
     }
 
-    player.volume = 1;
+    player.volume = volume;
     // No pitch shift (director decision). Keep rate at unity if exposed later.
 
     const playSafe = (): void => {
@@ -298,9 +300,71 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     } catch {
       playSafe();
     }
+    return true;
+  }
+
+  function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
+    if (!available) return;
+    if (!prefs.sound) return;
+
+    const entry = resolveEntry(event.name);
+    if (!isBusEnabled(prefs, entry.bus)) return;
+
+    const reduceMotion = Boolean(options?.reduceMotion);
+    const ladderSource = resolveLadderSource(event);
+
+    let source: SoundAssetRef | null = null;
+    let variantIndex: number | null = null;
+
+    if (ladderSource != null) {
+      source = ladderSource;
+    } else {
+      const variants = playableVariants(entry);
+      if (variants.length === 0) return;
+      const rtPreview = runtimeFor(event.name);
+      variantIndex = pickVariantIndex(variants.length, rtPreview.lastVariantIndex, random);
+      if (variantIndex == null) return;
+      source = variants[variantIndex] ?? null;
+    }
+
+    if (source == null) return;
+
+    const t = now();
+    const rt = runtimeFor(event.name);
+
+    if (entry.minIntervalMs > 0 && t - rt.lastPlayedAt < entry.minIntervalMs) {
+      return;
+    }
+
+    const playingVoices = pool.countVoices(event.name);
+    if (entry.maxVoices > 0 && playingVoices >= entry.maxVoices) {
+      return;
+    }
+
+    void ensureSession();
+
+    const assetGainDb = 0; // per-file gain lives in authored peaks; map gainDb reserved for music mix
+    const volume = resolveEventGain(assetGainDb, event.name, reduceMotion);
+    if (!playSource(source, event.name, volume)) return;
 
     rt.lastPlayedAt = t;
-    rt.lastVariantIndex = variantIndex;
+    if (variantIndex != null) {
+      rt.lastVariantIndex = variantIndex;
+    }
+
+    // Optional tone layer under swipe air (QA flag; default off).
+    if (
+      ENABLE_SWIPE_TONE_LAYERS &&
+      (event.name === 'swipe_next' || event.name === 'swipe_back')
+    ) {
+      const tone = swipeToneModule(event.name);
+      const toneVolume = resolveEventGain(
+        SWIPE_TONE_LAYER_GAIN_DB,
+        event.name,
+        reduceMotion,
+      );
+      playSource(tone, event.name, toneVolume);
+    }
   }
 
   function setSoundPreferences(next: SoundPreferences): void {

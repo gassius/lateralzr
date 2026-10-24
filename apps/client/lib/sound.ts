@@ -10,14 +10,30 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
-import type { SoundEvent, SoundPreferences } from '@/lib/soundTypes';
+import type { SoundEvent, SoundEventOptions, SoundPreferences } from '@/lib/soundTypes';
 
-export type { SoundEvent, SoundEventName, SoundPreferences, SoundBus } from '@/lib/soundTypes';
+export type {
+  SoundEvent,
+  SoundEventName,
+  SoundEventOptions,
+  SoundPreferences,
+  SoundBus,
+} from '@/lib/soundTypes';
 export {
   DEFAULT_SOUND_PREFERENCES,
   SOUND_PREFERENCES_STORAGE_KEY,
 } from '@/lib/soundTypes';
-export { SOUND_MAP, getSoundMapEntry, playableVariants } from '@/lib/soundMap';
+export {
+  SOUND_MAP,
+  getSoundMapEntry,
+  playableVariants,
+  ENABLE_SWIPE_TONE_LAYERS,
+  SWIPE_TONE_LAYER_GAIN_DB,
+  REDUCED_MOTION_SFX_GAIN_DB,
+  MOTION_TIED_SOUND_EVENTS,
+  gainFromDb,
+  resolveEventGain,
+} from '@/lib/soundMap';
 export {
   EFFECTS_POOL_SIZE,
   pickVariantIndex,
@@ -90,8 +106,8 @@ const controller = createSoundController({
 });
 
 /** Announce UI/game events. Safe no-op if disabled or missing assets. */
-export function soundEvent(event: SoundEvent): void {
-  controller.soundEvent(event);
+export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
+  controller.soundEvent(event, options);
 }
 
 /** Push persisted prefs into the module (buses on/off). Immediate; music fades, not cut. */
