@@ -805,6 +805,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   }
 
   function pause(): void {
+    if (paused) return;
     paused = true;
     pausedAt = now();
     // B3: clear loop / drop-in / texture / discovery / fade / one-shot end timers.
@@ -834,9 +835,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     // Shift loop anchors by paused wall time so elapsed ignores the pause
     // (otherwise a long pause makes the next crossfade fire immediately).
     const pauseMs = pausedAt != null ? Math.max(0, now() - pausedAt) : 0;
+    if (!enabled || !canStart()) return;
+    // Clear after the guard so an early return keeps pausedAt for a later resume.
     pausedAt = null;
     paused = false;
-    if (!enabled || !canStart()) return;
 
     // Pause may interrupt a dual-copy crossfade with two live slots of the same
     // kind+asset (A not yet marked stopping, B already playing). Keep one;

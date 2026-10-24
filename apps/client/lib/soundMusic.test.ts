@@ -471,6 +471,40 @@ test('B3: pause clears timers; no creates while paused; resume re-arms', () => {
   engine.reset();
 });
 
+test('second pause is a no-op (does not overwrite pausedAt)', () => {
+  const clock = createFakeClock();
+  const loopMs = 10_000;
+  const fadeMs = 4_000;
+  const leadMs = loopMs - fadeMs;
+  const { engine, players } = createEngine(clock, {
+    getDurationMs: () => loopMs,
+    fadeMs,
+    random: () => 0,
+  });
+
+  engine.setProgressInputs(1, 1);
+  engine.handleEvent({ name: 'intro_ready' });
+  clock.advance(100);
+  const n = players.length;
+
+  engine.pause();
+  clock.advance(2000);
+  engine.pause(); // must not reset pausedAt
+  clock.advance(2000);
+
+  engine.resume({ fadeIn: false });
+  // Played 100ms before pause; total pause 4000ms must not count toward elapsed.
+  const remaining = leadMs - 100;
+  clock.advance(1);
+  assert.equal(players.length, n);
+  clock.advance(remaining - 2);
+  assert.equal(players.length, n);
+  clock.advance(1);
+  assert.equal(players.length, n + 1, 'anchor uses first pause time, not second');
+
+  engine.reset();
+});
+
 test('pause longer than lead does not crossfade immediately on resume', () => {
   const clock = createFakeClock();
   const loopMs = 10_000;
