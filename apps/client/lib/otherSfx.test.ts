@@ -166,9 +166,8 @@ describe('reshuffle land + reduced-motion engine helpers', () => {
 });
 
 describe('index / stack / status wiring', () => {
-  it('emits laterality_step, reshuffle gather once, land, sheet, error, no_match; card_arrived outside reshuffle', () => {
-    assert.match(indexSrc, /lateralityStepIfChanged/);
-    assert.match(indexSrc, /reshuffleStartedSoundEvent\(random\)/);
+  it('emits laterality mix / land / sheet / error / no_match; card_arrived outside reshuffle', () => {
+    assert.match(indexSrc, /scheduleLateralityRowMix/);
     assert.match(indexSrc, /reshuffleLandedSoundEvent\(random\)/);
     assert.match(indexSrc, /cardArrivedSoundEvent\(\)/);
     assert.match(indexSrc, /sheetOpenSoundEvent\(\)/);
@@ -176,10 +175,14 @@ describe('index / stack / status wiring', () => {
     assert.match(indexSrc, /errorSoftSoundEvent\(\)/);
     assert.match(indexSrc, /noMatchSoundEvent\(\)/);
     assert.match(indexSrc, /complexityChangedIfChanged/);
-    // Gather once at start — not inside the shuffle timer.
+    // Sound 9: gather SFX comes from laterality-row mix, not prefetch start.
     assert.match(
       indexSrc,
-      /setLateralitySwap\(\{ token, phase: 'gather' \}\);\s*\/\/ Gather rings once[\s\S]*?playOtherSfx\(reshuffleStartedSoundEvent\(random\)\)/,
+      /setLateralitySwap\(\{ token, phase: 'gather' \}\);\s*\/\/ Sound 9: gather SFX/,
+    );
+    assert.doesNotMatch(
+      indexSrc,
+      /setLateralitySwap\(\{ token, phase: 'gather' \}\)[\s\S]{0,200}reshuffleStartedSoundEvent/,
     );
     assert.doesNotMatch(
       indexSrc,

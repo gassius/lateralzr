@@ -52,4 +52,9 @@ export type SoundEventOptions = {
    * No separate files.
    */
   reduceMotion?: boolean;
+  /**
+   * Extra dB applied on top of the asset `gainDb` for this play only
+   * (Sound 9 laterality-row `sheet_close` at −3 dB).
+   */
+  gainDbOffset?: number;
 };

@@ -25,6 +25,7 @@ const manifest = JSON.parse(
       nativePath?: string | null;
       durationMs: number | null;
       loop: boolean;
+      gainDb?: number;
       placeholder?: boolean;
       level?: number;
     }
@@ -54,7 +55,7 @@ function requirePathsFromSource(source: string): Map<string, string> {
   return out;
 }
 
-test('every require-map asset has matching manifest durationMs and path', () => {
+test('every require-map asset has matching manifest durationMs, path, and gainDb', () => {
   for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
     const meta = getSoundAsset(name);
     const entry = manifest.assets[name];
@@ -63,6 +64,7 @@ test('every require-map asset has matching manifest durationMs and path', () => 
     assert.ok((entry.path as string).length > 0);
     assert.equal(meta.durationMs, entry.durationMs);
     assert.equal(meta.loop, entry.loop);
+    assert.equal(meta.gainDb, entry.gainDb ?? 0);
     assert.equal(getSoundAssetDurationMs(name), entry.durationMs);
     assert.equal(typeof meta.module, 'number');
   }

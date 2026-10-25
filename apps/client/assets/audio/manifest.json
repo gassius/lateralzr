@@ -7,28 +7,28 @@
       "nativePath": "music/bed-calm-a.m4a",
       "durationMs": 45000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -2
     },
     "music-bed-bright-b": {
       "path": "music/bed-bright-b.web.m4a",
       "nativePath": "music/bed-bright-b.m4a",
       "durationMs": 45000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -2
     },
     "music-texture-shimmer-a": {
       "path": "music/texture-shimmer-a.web.m4a",
       "nativePath": "music/texture-shimmer-a.m4a",
       "durationMs": 23000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -6
     },
     "music-texture-subswell-b": {
       "path": "music/texture-subswell-b.web.m4a",
       "nativePath": "music/texture-subswell-b.m4a",
       "durationMs": 29000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -6
     },
     "music-texture-tonedrift-c": {
       "path": "music/texture-tonedrift-c.web.m4a",
@@ -36,231 +36,231 @@
       "durationMs": 37000,
       "loop": true,
       "placeholder": true,
-      "gainDb": 0
+      "gainDb": -6
     },
     "music-texture-air-d": {
       "path": "music/texture-air-d.web.m4a",
       "nativePath": "music/texture-air-d.m4a",
       "durationMs": 41000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -6
     },
     "music-intro-loop": {
       "path": "music/intro-loop.web.m4a",
       "nativePath": "music/intro-loop.m4a",
       "durationMs": 6000,
       "loop": true,
-      "gainDb": 0
+      "gainDb": -2
     },
     "music-intro-arrival-a": {
       "path": "music/intro-arrival-a.web.m4a",
       "nativePath": "music/intro-arrival-a.m4a",
       "durationMs": 1500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -1
     },
     "music-intro-arrival-b": {
       "path": "music/intro-arrival-b.web.m4a",
       "nativePath": "music/intro-arrival-b.m4a",
       "durationMs": 1500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -1
     },
     "music-dropin-01": {
       "path": "music/dropin-01.web.m4a",
       "nativePath": "music/dropin-01.m4a",
       "durationMs": 4300,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-02": {
       "path": "music/dropin-02.web.m4a",
       "nativePath": "music/dropin-02.m4a",
       "durationMs": 4600,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-03": {
       "path": "music/dropin-03.web.m4a",
       "nativePath": "music/dropin-03.m4a",
       "durationMs": 4700,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-04": {
       "path": "music/dropin-04.web.m4a",
       "nativePath": "music/dropin-04.m4a",
       "durationMs": 5700,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-05": {
       "path": "music/dropin-05.web.m4a",
       "nativePath": "music/dropin-05.m4a",
       "durationMs": 7200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-06": {
       "path": "music/dropin-06.web.m4a",
       "nativePath": "music/dropin-06.m4a",
       "durationMs": 4400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-07": {
       "path": "music/dropin-07.web.m4a",
       "nativePath": "music/dropin-07.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-08": {
       "path": "music/dropin-08.web.m4a",
       "nativePath": "music/dropin-08.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-09": {
       "path": "music/dropin-09.web.m4a",
       "nativePath": "music/dropin-09.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-10": {
       "path": "music/dropin-10.web.m4a",
       "nativePath": "music/dropin-10.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-11": {
       "path": "music/dropin-11.web.m4a",
       "nativePath": "music/dropin-11.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-12": {
       "path": "music/dropin-12.web.m4a",
       "nativePath": "music/dropin-12.m4a",
       "durationMs": 5400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-13": {
       "path": "music/dropin-13.web.m4a",
       "nativePath": "music/dropin-13.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-14": {
       "path": "music/dropin-14.web.m4a",
       "nativePath": "music/dropin-14.m4a",
       "durationMs": 4200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-15": {
       "path": "music/dropin-15.web.m4a",
       "nativePath": "music/dropin-15.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-16": {
       "path": "music/dropin-16.web.m4a",
       "nativePath": "music/dropin-16.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-17": {
       "path": "music/dropin-17.web.m4a",
       "nativePath": "music/dropin-17.m4a",
       "durationMs": 4500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-18": {
       "path": "music/dropin-18.web.m4a",
       "nativePath": "music/dropin-18.m4a",
       "durationMs": 4400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-19": {
       "path": "music/dropin-19.web.m4a",
       "nativePath": "music/dropin-19.m4a",
       "durationMs": 4000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-20": {
       "path": "music/dropin-20.web.m4a",
       "nativePath": "music/dropin-20.m4a",
       "durationMs": 4100,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-21": {
       "path": "music/dropin-21.web.m4a",
       "nativePath": "music/dropin-21.m4a",
       "durationMs": 6900,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-22": {
       "path": "music/dropin-22.web.m4a",
       "nativePath": "music/dropin-22.m4a",
       "durationMs": 4500,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-23": {
       "path": "music/dropin-23.web.m4a",
       "nativePath": "music/dropin-23.m4a",
       "durationMs": 5000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "music-dropin-24": {
       "path": "music/dropin-24.web.m4a",
       "nativePath": "music/dropin-24.m4a",
       "durationMs": 4200,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -5
     },
     "sfx-swipe-next-a": {
       "path": "sfx/swipe-next-a.web.m4a",
       "nativePath": "sfx/swipe-next-a.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-next-b": {
       "path": "sfx/swipe-next-b.web.m4a",
       "nativePath": "sfx/swipe-next-b.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-next-c": {
       "path": "sfx/swipe-next-c.web.m4a",
       "nativePath": "sfx/swipe-next-c.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-back-a": {
       "path": "sfx/swipe-back-a.web.m4a",
       "nativePath": "sfx/swipe-back-a.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-tone-up": {
       "path": "sfx/swipe-tone-up.web.m4a",
@@ -268,7 +268,7 @@
       "durationMs": 450,
       "loop": false,
       "defaultEnabled": false,
-      "gainDb": 0
+      "gainDb": -12
     },
     "sfx-swipe-tone-down": {
       "path": "sfx/swipe-tone-down.web.m4a",
@@ -276,63 +276,63 @@
       "durationMs": 450,
       "loop": false,
       "defaultEnabled": false,
-      "gainDb": 0
+      "gainDb": -12
     },
     "sfx-card-flip-a": {
       "path": "sfx/card-flip-a.web.m4a",
       "nativePath": "sfx/card-flip-a.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-card-flip-c": {
       "path": "sfx/card-flip-c.web.m4a",
       "nativePath": "sfx/card-flip-c.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-card-flip-back-a": {
       "path": "sfx/card-flip-back-a.web.m4a",
       "nativePath": "sfx/card-flip-back-a.m4a",
       "durationMs": 460,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-card-flip-back-c": {
       "path": "sfx/card-flip-back-c.web.m4a",
       "nativePath": "sfx/card-flip-back-c.m4a",
       "durationMs": 480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-cancel-a": {
       "path": "sfx/swipe-cancel-a.web.m4a",
       "nativePath": "sfx/swipe-cancel-a.m4a",
       "durationMs": 250,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-cancel-b": {
       "path": "sfx/swipe-cancel-b.web.m4a",
       "nativePath": "sfx/swipe-cancel-b.m4a",
       "durationMs": 250,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-resistance-a": {
       "path": "sfx/swipe-resistance-a.web.m4a",
       "nativePath": "sfx/swipe-resistance-a.m4a",
       "durationMs": 220,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-swipe-resistance-b": {
       "path": "sfx/swipe-resistance-b.web.m4a",
       "nativePath": "sfx/swipe-resistance-b.m4a",
       "durationMs": 220,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-complexity-1": {
       "path": "sfx/complexity-1.web.m4a",
@@ -340,7 +340,7 @@
       "durationMs": 600,
       "loop": false,
       "level": 1,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-complexity-2": {
       "path": "sfx/complexity-2.web.m4a",
@@ -348,7 +348,7 @@
       "durationMs": 600,
       "loop": false,
       "level": 2,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-complexity-3": {
       "path": "sfx/complexity-3.web.m4a",
@@ -356,7 +356,7 @@
       "durationMs": 600,
       "loop": false,
       "level": 3,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-complexity-4": {
       "path": "sfx/complexity-4.web.m4a",
@@ -364,7 +364,7 @@
       "durationMs": 600,
       "loop": false,
       "level": 4,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-complexity-5": {
       "path": "sfx/complexity-5.web.m4a",
@@ -372,7 +372,7 @@
       "durationMs": 600,
       "loop": false,
       "level": 5,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-laterality-snap-1": {
       "path": "sfx/laterality-snap-1.web.m4a",
@@ -419,77 +419,77 @@
       "nativePath": "sfx/reshuffle-gather.m4a",
       "durationMs": 1118,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -4
     },
     "sfx-reshuffle-land-a": {
       "path": "sfx/reshuffle-land-a.web.m4a",
       "nativePath": "sfx/reshuffle-land-a.m4a",
       "durationMs": 1480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-reshuffle-land-b": {
       "path": "sfx/reshuffle-land-b.web.m4a",
       "nativePath": "sfx/reshuffle-land-b.m4a",
       "durationMs": 1480,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-reshuffle-land-wide": {
       "path": "sfx/reshuffle-land-wide.web.m4a",
       "nativePath": "sfx/reshuffle-land-wide.m4a",
       "durationMs": 2000,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-card-arrive-a": {
       "path": "sfx/card-arrive-a.web.m4a",
       "nativePath": "sfx/card-arrive-a.m4a",
       "durationMs": 400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -4
     },
     "sfx-card-arrive-b": {
       "path": "sfx/card-arrive-b.web.m4a",
       "nativePath": "sfx/card-arrive-b.m4a",
       "durationMs": 400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -4
     },
     "sfx-sheet-open": {
       "path": "sfx/sheet-open.web.m4a",
       "nativePath": "sfx/sheet-open.m4a",
       "durationMs": 400,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-sheet-close": {
       "path": "sfx/sheet-close.web.m4a",
       "nativePath": "sfx/sheet-close.m4a",
       "durationMs": 389,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-error-soft-a": {
       "path": "sfx/error-soft-a.web.m4a",
       "nativePath": "sfx/error-soft-a.m4a",
       "durationMs": 900,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-error-soft-b": {
       "path": "sfx/error-soft-b.web.m4a",
       "nativePath": "sfx/error-soft-b.m4a",
       "durationMs": 900,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     },
     "sfx-no-match-soft": {
       "path": "sfx/no-match-soft.web.m4a",
       "nativePath": "sfx/no-match-soft.m4a",
       "durationMs": 900,
       "loop": false,
-      "gainDb": 0
+      "gainDb": -2
     }
   }
 }

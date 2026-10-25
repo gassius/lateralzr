@@ -80,10 +80,11 @@ Durations measured with ffprobe on the native file. Loudness measured on the nat
 | `sfx/no-match-soft.m4a` (+ `.web.m4a`) | sfx | 0.900 | no | peak -16.0 dBFS, -27.3 LUFS | "No next idea at this setting" | - | derived from error-soft draft1 |
 
 ## Mix levels
-- Music bus: every music file is normalized to -26 LUFS integrated, true peak at or below -2 dBTP (measured -9.6 to -17.3 dBTP). Beds, textures, intro, arrival tones and drop-ins all sit at -26 LUFS; balance between layers is done in the app with `gainDb` (0 by default in the manifest).
+- Music bus: every music file is normalized to -26 LUFS integrated, true peak at or below -2 dBTP (measured -9.6 to -17.3 dBTP). Beds, textures, intro, arrival tones and drop-ins all sit at -26 LUFS; balance between layers is done in the app with `gainDb` (see Sound 9 table in [sound-9-mix.md](./sound-9-mix.md)).
 - Effects: peak about -12 dBFS. Planned exceptions, kept as delivered and not re-normalized: swipe-cancel -18, swipe-resistance -21 (derived), card-flip-back -13 (derived), no-match-soft -16 (derived). Swipe-back, sheet-close and the complexity and laterality ladders are derived and keep their own level (about -12 dBFS).
-- Tone layers (`swipe-tone-up` / `-down`) are synthesized sine glides delivered at their own level (peak about -7 dBFS); the app plays them about -10 dB under the air sweep.
+- Tone layers (`swipe-tone-up` / `-down`) are synthesized sine glides delivered at their own level (peak about -7 dBFS); manifest `gainDb` −10 plays them under the air sweep.
 - Normalization in this package: only `swipe-next-b` and `-c` (proof air drafts 1 and 2, which had no processed copy) were trimmed to 0.48 s with 5 ms / 50 ms fades, mixed to mono and set to peak -12 dBFS, matching `swipe-next-a`. Every other source was already at its target and was only encoded.
+- Sound 9 applies each manifest `gainDb` on native and web; mix policy (stagger, max 2 FX, retrigger, music duck) lives in `apps/client/lib/soundMap.ts` / `soundEngine.ts`.
 
 ## Loops
 Loops (`bed-*`, `texture-*`, `intro-loop`) are encoded without padding. The m4a files carry an edit list, so the container duration is sample-exact (for example `intro-loop` = 264,600 samples = 6.000 s) and the AAC encoder delay is hidden at the start (checked: zero lag against the source). The last AAC frame is padded to a 1024-sample boundary (12 to 616 extra samples; 14 ms on `intro-loop`). Players that honour the edit list (AVFoundation, ExoPlayer) loop cleanly. On the web, or with a decoder that ignores it, loop with Web Audio `AudioBufferSourceNode` and set `loopEnd = durationMs / 1000` from the manifest to avoid a short gap.
