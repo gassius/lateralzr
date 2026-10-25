@@ -46,7 +46,13 @@ export type SoundPlaybackGates = {
 export type SoundMusicLifecycleHooks = {
   pause: () => void;
   resume: (opts: { fadeIn: boolean }) => void;
+  /** System duck (screen reader / interruption) — separate from effects. */
   duck: (volume: number) => void;
+  /**
+   * Sound 9: effects-bus music duck (−3 dB while FX play). Must not overwrite
+   * {@link duck}; combine as a second multiplier in the music engine.
+   */
+  duckEffects: (volume: number, opts?: { fadeMs?: number }) => void;
   pauseDropIns: () => void;
   resumeDropIns: () => void;
   stop: () => void;
@@ -58,6 +64,7 @@ export const NOOP_MUSIC_HOOKS: SoundMusicLifecycleHooks = {
   pause: () => {},
   resume: () => {},
   duck: () => {},
+  duckEffects: () => {},
   pauseDropIns: () => {},
   resumeDropIns: () => {},
   stop: () => {},

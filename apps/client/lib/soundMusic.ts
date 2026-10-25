@@ -110,6 +110,8 @@ export type MusicEngine = {
   pause: () => void;
   resume: (opts: { fadeIn: boolean }) => void;
   duck: (volume: number) => void;
+  /** Sound 9: separate effects-bus duck (combine with {@link duck}). */
+  duckEffects: (volume: number, opts?: { fadeMs?: number }) => void;
   stop: () => void;
   restartBed: (opts: { fadeIn: boolean }) => void;
   pauseDropIns: () => void;
@@ -242,6 +244,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   let phase: MusicPhase = 'idle';
   let paused = false;
   let duckGain = 1;
+  /** Sound 9: independent of {@link duckGain} (screen reader / interruption). */
+  let effectsDuckGain = 1;
   let discoveryDuck = 1;
   let dropInsPaused = false;
   let lastGestureAt = 0;
@@ -279,7 +283,10 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   }
 
   function effectiveVolume(target: number): number {
-    return Math.max(0, Math.min(1, target * duckGain * discoveryDuck));
+    return Math.max(
+      0,
+      Math.min(1, target * duckGain * effectsDuckGain * discoveryDuck),
+    );
   }
 
   function recordFade(
@@ -911,6 +918,18 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
   }
 
+  function duckEffects(volume: number, opts?: { fadeMs?: number }): void {
+    effectsDuckGain = Math.max(0, Math.min(1, volume));
+    const duckFade =
+      opts?.fadeMs != null
+        ? Math.max(0, opts.fadeMs)
+        : Math.min(fadeMs, MUSIC_FADE_MIN_MS);
+    for (const slot of slots.values()) {
+      if (slot.stopping) continue;
+      fadeSlot(slot, slot.targetVolume, duckFade);
+    }
+  }
+
   function stop(): void {
     phase = 'stopped';
     clearAllTimers();
@@ -983,6 +1002,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     paused = false;
     pausedAt = null;
     duckGain = 1;
+    effectsDuckGain = 1;
     discoveryDuck = 1;
     dropInsPaused = false;
     lastGestureAt = 0;
@@ -1000,6 +1020,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     pause,
     resume,
     duck,
+    duckEffects,
     stop,
     restartBed,
     pauseDropIns,

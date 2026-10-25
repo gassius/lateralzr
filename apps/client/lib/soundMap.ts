@@ -45,10 +45,10 @@ export const MEANING_CARRYING_EFFECTS: ReadonlySet<SoundEventName> = new Set([
 ]);
 
 /**
- * Director starting gainDb (Sound 9). Manifest / SOUND_ASSETS stay in sync;
- * retune by editing the manifest only, then mirror into SOUND_ASSETS.
+ * Director ear targets relative to swipe / bed = 0 (kickoff 2026-10-24).
+ * Not played as-is — see {@link GAIN_DB_PLATFORM_OFFSET}.
  */
-export const DIRECTOR_GAIN_DB: Readonly<Record<SoundAssetName, number>> = {
+export const DIRECTOR_RELATIVE_GAIN_DB: Readonly<Record<SoundAssetName, number>> = {
   'music-bed-calm-a': 0,
   'music-bed-bright-b': 0,
   'music-texture-shimmer-a': -4,
@@ -119,8 +119,23 @@ export const DIRECTOR_GAIN_DB: Readonly<Record<SoundAssetName, number>> = {
   'sfx-no-match-soft': 0,
 };
 
+/**
+ * Shift relative table so the loudest asset is 0 dB.
+ * Linear volume stays ≤ 1 on web and music (native was uncapped before).
+ */
+export const GAIN_DB_PLATFORM_OFFSET = -2;
+
+/** Applied gainDb (relative + offset). Manifest / SOUND_ASSETS stay in sync. */
+export const DIRECTOR_GAIN_DB: Readonly<Record<SoundAssetName, number>> = Object.fromEntries(
+  (Object.keys(DIRECTOR_RELATIVE_GAIN_DB) as SoundAssetName[]).map((name) => [
+    name,
+    DIRECTOR_RELATIVE_GAIN_DB[name] + GAIN_DB_PLATFORM_OFFSET,
+  ]),
+) as Readonly<Record<SoundAssetName, number>>;
+
+/** Applied platform gainDb for an asset (≤ 0). */
 export function getDirectorGainDb(name: SoundAssetName): number {
-  return DIRECTOR_GAIN_DB[name] ?? 0;
+  return DIRECTOR_GAIN_DB[name] ?? GAIN_DB_PLATFORM_OFFSET;
 }
 
 /** Look up authored `gainDb` for a `require` module id (native + web). */
@@ -198,7 +213,7 @@ export function gainFromDb(db: number): number {
   return Math.pow(10, db / 20);
 }
 
-/** Play volume for an event (asset gainDb + optional RM attenuation). */
+/** Play volume for an event (asset gainDb + optional RM attenuation). Clamped to [0, 1]. */
 export function resolveEventGain(
   assetGainDb: number,
   eventName: SoundEventName,
@@ -212,7 +227,7 @@ export function resolveEventGain(
   ) {
     db += REDUCED_MOTION_SFX_GAIN_DB;
   }
-  return gainFromDb(db);
+  return Math.max(0, Math.min(1, gainFromDb(db)));
 }
 
 /** Whether RM should shorten the play + fade-out for this event. */

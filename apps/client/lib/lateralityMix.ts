@@ -52,13 +52,31 @@ export type LateralityRowMixHandle = {
   scheduled: boolean;
 };
 
+/** Active stagger cancel — cleared on stop / background / reset / unmount. */
+let activeCancel: (() => void) | null = null;
+
+/** Cancel any in-flight laterality-row stagger timers. */
+export function cancelActiveLateralityRowMix(): void {
+  if (!activeCancel) return;
+  const cancel = activeCancel;
+  activeCancel = null;
+  try {
+    cancel();
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Schedule the three laterality-row sounds. Caller must not also fire
  * immediate `laterality_step` / `reshuffle_started` / dismiss `sheet_close`.
+ * Replaces any previous active stagger.
  */
 export function scheduleLateralityRowMix(
   options: LateralityRowMixOptions,
 ): LateralityRowMixHandle {
+  cancelActiveLateralityRowMix();
+
   const setTimeoutFn = options.setTimeoutFn ?? setTimeout;
   const clearTimeoutFn = options.clearTimeoutFn ?? clearTimeout;
   const sheetDur = options.sheetCloseDurationMs ?? 389;
@@ -101,12 +119,16 @@ export function scheduleLateralityRowMix(
     }, gatherAt),
   );
 
+  const cancel = (): void => {
+    for (const id of timers) clearTimeoutFn(id);
+    timers.length = 0;
+    if (activeCancel === cancel) activeCancel = null;
+  };
+  activeCancel = cancel;
+
   return {
     scheduled: true,
     gatherAtMs: gatherAt,
-    cancel: () => {
-      for (const id of timers) clearTimeoutFn(id);
-      timers.length = 0;
-    },
+    cancel,
   };
 }

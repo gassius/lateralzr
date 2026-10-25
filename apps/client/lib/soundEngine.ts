@@ -14,6 +14,7 @@ import {
   SOUND_ASSETS,
   type SoundAssetName,
 } from '@/lib/soundAssets';
+import { cancelActiveLateralityRowMix } from '@/lib/lateralityMix';
 import {
   EFFECT_CUT_FADE_MS,
   EFFECT_MUSIC_DUCK_ATTACK_MS,
@@ -541,28 +542,28 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     musicDuckedForEffects = active;
     try {
       if (active) {
-        musicHooks.duck(gainFromDb(EFFECT_MUSIC_DUCK_DB));
+        musicHooks.duckEffects(gainFromDb(EFFECT_MUSIC_DUCK_DB), {
+          fadeMs: EFFECT_MUSIC_DUCK_ATTACK_MS,
+        });
       } else {
-        musicHooks.duck(1);
+        musicHooks.duckEffects(1, { fadeMs: EFFECT_MUSIC_DUCK_RELEASE_MS });
       }
     } catch {
       // ignore
     }
-    void EFFECT_MUSIC_DUCK_ATTACK_MS;
-    void EFFECT_MUSIC_DUCK_RELEASE_MS;
   }
 
   function noteEffectStarted(durationMs: number): void {
     activeEffectGenerations += 1;
     applyEffectsMusicDuck(true);
     const gen = activeEffectGenerations;
+    // Release after the effect duration; fade uses EFFECT_MUSIC_DUCK_RELEASE_MS.
     const id = setTimeout(() => {
       effectEndTimers.delete(id);
-      // Release only when this was the last scheduled end and nothing newer started.
       if (gen === activeEffectGenerations) {
         applyEffectsMusicDuck(false);
       }
-    }, Math.max(durationMs, EFFECT_MUSIC_DUCK_RELEASE_MS));
+    }, Math.max(40, durationMs));
     effectEndTimers.add(id);
   }
 
@@ -582,6 +583,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   }
 
   function stopAllSound(): void {
+    cancelActiveLateralityRowMix();
     for (const player of [...rmFadeByPlayer.keys()]) {
       cancelRmFade(player);
     }
@@ -806,6 +808,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
 
     if (prev.appActive && !systemFlags.appActive) {
       // Background: clear effects immediately; music hooks stop via lifecycle.
+      cancelActiveLateralityRowMix();
       for (const player of [...rmFadeByPlayer.keys()]) {
         cancelRmFade(player);
       }
@@ -864,6 +867,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
   }
 
   function reset(): void {
+    cancelActiveLateralityRowMix();
     for (const player of [...rmFadeByPlayer.keys()]) {
       cancelRmFade(player);
     }

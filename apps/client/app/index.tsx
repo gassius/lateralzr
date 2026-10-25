@@ -69,7 +69,10 @@ import {
   setSoundReducedMotion,
   soundEvent,
 } from '@/lib/sound';
-import { scheduleLateralityRowMix } from '@/lib/lateralityMix';
+import {
+  cancelActiveLateralityRowMix,
+  scheduleLateralityRowMix,
+} from '@/lib/lateralityMix';
 import {
   cardArrivedSoundEvent,
   complexityChangedIfChanged,
@@ -292,6 +295,15 @@ export default function HomeScreen() {
     },
     [],
   );
+
+  // Sound 9 B2: cancel laterality stagger on unmount (stop/background/reset via engine).
+  useEffect(() => {
+    return () => {
+      lateralityMixCancelRef.current?.();
+      lateralityMixCancelRef.current = null;
+      cancelActiveLateralityRowMix();
+    };
+  }, []);
   /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
   const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
   const [showSessionComplexityMark, setShowSessionComplexityMark] = useState(false);

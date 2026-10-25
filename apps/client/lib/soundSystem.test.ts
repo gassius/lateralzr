@@ -52,6 +52,7 @@ function recordingHooks(): SoundMusicLifecycleHooks & {
     pause: () => log.push('pause'),
     resume: (opts) => log.push(`resume:${opts.fadeIn ? 'fade' : 'hard'}`),
     duck: (v) => log.push(`duck:${v}`),
+    duckEffects: (v) => log.push(`duckEffects:${v}`),
     pauseDropIns: () => log.push('pauseDropIns'),
     resumeDropIns: () => log.push('resumeDropIns'),
     stop: () => log.push('stop'),
@@ -313,6 +314,7 @@ test('noop music hooks are safe defaults', () => {
     NOOP_MUSIC_HOOKS.pause();
     NOOP_MUSIC_HOOKS.resume({ fadeIn: true });
     NOOP_MUSIC_HOOKS.duck(0.1);
+    NOOP_MUSIC_HOOKS.duckEffects(0.7, { fadeMs: 50 });
     NOOP_MUSIC_HOOKS.stop();
     NOOP_MUSIC_HOOKS.restartBed({ fadeIn: true });
   });

@@ -15,11 +15,13 @@ import {
 } from '@/lib/audioManifest';
 import {
   DIRECTOR_GAIN_DB,
+  DIRECTOR_RELATIVE_GAIN_DB,
   EFFECT_CUT_FADE_MS,
   EFFECT_MUSIC_DUCK_DB,
   EFFECT_MUSIC_DUCK_ATTACK_MS,
   EFFECT_MUSIC_DUCK_RELEASE_MS,
   EFFECT_RETRIGGER_IGNORE_MS,
+  GAIN_DB_PLATFORM_OFFSET,
   LATERALITY_GATHER_DELAY_MS,
   LATERALITY_SHEET_CLOSE_ATTENUATION_DB,
   LATERALITY_SHEET_CLOSE_DELAY_MS,
@@ -33,10 +35,18 @@ import {
   createSoundController,
   type SoundPlayer,
 } from '@/lib/soundEngine';
-import { scheduleLateralityRowMix } from '@/lib/lateralityMix';
+import {
+  cancelActiveLateralityRowMix,
+  scheduleLateralityRowMix,
+} from '@/lib/lateralityMix';
 import { SOUND_ASSETS, type SoundAssetName } from '@/lib/soundAssets';
 import type { SoundEvent, SoundEventName } from '@/lib/soundTypes';
-import { DEFAULT_SOUND_PREFERENCES } from '@/lib/soundTypes';
+import {
+  createSoundMusicEngine,
+  MUSIC_FADE_MS,
+  type MusicPlayer,
+} from '@/lib/soundMusic';
+import { SCREEN_READER_MUSIC_VOLUME } from '@/lib/soundPolicy';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -79,29 +89,25 @@ afterEach(() => {
   // Controllers are reset in each test.
 });
 
-test('director gain table matches kickoff starting levels', () => {
-  assert.equal(getDirectorGainDb('sfx-swipe-next-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-card-flip-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-swipe-cancel-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-swipe-resistance-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-sheet-close'), 0);
-  assert.equal(getDirectorGainDb('sfx-error-soft-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-no-match-soft'), 0);
-  assert.equal(getDirectorGainDb('sfx-complexity-3'), 0);
-  assert.equal(getDirectorGainDb('sfx-laterality-snap-1'), 2);
-  assert.equal(getDirectorGainDb('sfx-swipe-tone-up'), -10);
-  assert.equal(getDirectorGainDb('sfx-reshuffle-gather'), -2);
-  assert.equal(getDirectorGainDb('sfx-reshuffle-land-a'), 0);
-  assert.equal(getDirectorGainDb('sfx-card-arrive-a'), -2);
-  assert.equal(getDirectorGainDb('music-bed-calm-a'), 0);
-  assert.equal(getDirectorGainDb('music-texture-shimmer-a'), -4);
-  assert.equal(getDirectorGainDb('music-dropin-01'), -3);
-  assert.equal(getDirectorGainDb('music-intro-loop'), 0);
-  assert.equal(getDirectorGainDb('music-intro-arrival-a'), 1);
-  assert.equal(DIRECTOR_GAIN_DB['sfx-laterality-snap-5'], 2);
+test('director relative intent matches kickoff; applied table is platform-shifted ≤ 0', () => {
+  assert.equal(DIRECTOR_RELATIVE_GAIN_DB['sfx-laterality-snap-1'], 2);
+  assert.equal(DIRECTOR_RELATIVE_GAIN_DB['music-intro-arrival-a'], 1);
+  assert.equal(DIRECTOR_RELATIVE_GAIN_DB['sfx-swipe-next-a'], 0);
+  assert.equal(DIRECTOR_RELATIVE_GAIN_DB['sfx-swipe-tone-up'], -10);
+  assert.equal(GAIN_DB_PLATFORM_OFFSET, -2);
+  // Applied = relative + offset (loudest laterality → 0).
+  assert.equal(getDirectorGainDb('sfx-laterality-snap-1'), 0);
+  assert.equal(getDirectorGainDb('sfx-swipe-next-a'), -2);
+  assert.equal(getDirectorGainDb('music-intro-arrival-a'), -1);
+  assert.equal(getDirectorGainDb('sfx-swipe-tone-up'), -12);
+  assert.equal(getDirectorGainDb('sfx-reshuffle-gather'), -4);
+  assert.equal(DIRECTOR_GAIN_DB['sfx-laterality-snap-5'], 0);
+  for (const name of Object.keys(DIRECTOR_GAIN_DB) as SoundAssetName[]) {
+    assert.ok(DIRECTOR_GAIN_DB[name] <= 0, `${name} applied gainDb must be ≤ 0`);
+  }
 });
 
-test('manifest and SOUND_ASSETS gainDb match director table for every asset', () => {
+test('manifest and SOUND_ASSETS gainDb match applied director table for every asset', () => {
   for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
     const expected = getDirectorGainDb(name);
     assert.equal(
@@ -116,18 +122,19 @@ test('manifest and SOUND_ASSETS gainDb match director table for every asset', ()
   assert.equal(Object.keys(AUDIO_MANIFEST.assets).length, 68);
 });
 
-test('resolveEventGain applies asset gainDb (laterality +2 → louder than unity)', () => {
-  const unity = resolveEventGain(0, 'laterality_step', false);
-  const boosted = resolveEventGain(2, 'laterality_step', false);
-  assert.ok(Math.abs(unity - 1) < 1e-9);
-  assert.ok(Math.abs(boosted - gainFromDb(2)) < 1e-9);
-  assert.ok(boosted > unity);
+test('resolveEventGain clamps to ≤ 1 and preserves laterality > swipe relative', () => {
+  const laterality = resolveEventGain(0, 'laterality_step', false);
+  const swipe = resolveEventGain(-2, 'swipe_next', false);
+  assert.ok(Math.abs(laterality - 1) < 1e-9);
+  assert.ok(laterality > swipe);
+  // Positive dB must not exceed unity on any platform.
+  assert.equal(resolveEventGain(6, 'laterality_step', false), 1);
 });
 
 test('engine play volume uses module gainDb (not hardcoded 0)', () => {
   const players: ReturnType<typeof mockPlayer>[] = [];
-  // Use laterality snap module (+2 dB in table).
-  const moduleId = SOUND_ASSETS['sfx-laterality-snap-3'].module;
+  // Gather applied −4 dB.
+  const moduleId = SOUND_ASSETS['sfx-reshuffle-gather'].module;
   const ctrl = createSoundController({
     createPlayer: () => {
       const p = mockPlayer();
@@ -145,9 +152,9 @@ test('engine play volume uses module gainDb (not hardcoded 0)', () => {
     }),
   });
 
-  ctrl.soundEvent({ name: 'laterality_step', step: 3 });
+  ctrl.soundEvent({ name: 'reshuffle_started', random: false });
   assert.equal(players.length, 1);
-  const expected = gainFromDb(2);
+  const expected = gainFromDb(-4);
   assert.ok(
     Math.abs(players[0]!.volume - expected) < 1e-6,
     `expected ~${expected}, got ${players[0]!.volume}`,
@@ -298,9 +305,10 @@ test('max 2 never cuts laterality_step or error_soft', () => {
   ctrl.reset();
 });
 
-test('effects duck music by -3 dB while playing', () => {
+test('effects duck uses duckEffects hook (not system duck)', () => {
   let t = 1000;
-  const duckLog: { at: number; v: number }[] = [];
+  const duckLog: number[] = [];
+  const effectsDuckLog: { v: number; fadeMs?: number }[] = [];
   const moduleId = SOUND_ASSETS['sfx-card-flip-a'].module;
   const ctrl = createSoundController({
     createPlayer: () => mockPlayer(),
@@ -315,14 +323,121 @@ test('effects duck music by -3 dB while playing', () => {
     }),
   });
   ctrl.registerMusicHooks({
-    duck: (v) => duckLog.push({ at: t, v }),
+    duck: (v) => duckLog.push(v),
+    duckEffects: (v, opts) => effectsDuckLog.push({ v, fadeMs: opts?.fadeMs }),
   });
 
   ctrl.soundEvent({ name: 'card_flip' });
-  assert.ok(duckLog.length >= 1);
-  const ducked = duckLog.find((d) => Math.abs(d.v - gainFromDb(EFFECT_MUSIC_DUCK_DB)) < 1e-6);
-  assert.ok(ducked, `expected duck ${gainFromDb(EFFECT_MUSIC_DUCK_DB)}, got ${JSON.stringify(duckLog)}`);
+  assert.equal(duckLog.length, 0, 'effects must not call system duck()');
+  assert.ok(effectsDuckLog.length >= 1);
+  const ducked = effectsDuckLog.find(
+    (d) => Math.abs(d.v - gainFromDb(EFFECT_MUSIC_DUCK_DB)) < 1e-6,
+  );
+  assert.ok(ducked, `expected effectsDuck ${gainFromDb(EFFECT_MUSIC_DUCK_DB)}`);
+  assert.equal(ducked!.fadeMs, EFFECT_MUSIC_DUCK_ATTACK_MS);
   ctrl.reset();
+});
+
+test('B1: screen-reader duck survives an effect (music stays ≤ 0.08)', () => {
+  let now = 0;
+  const pending = new Map<number, { at: number; fn: () => void }>();
+  let nextId = 1;
+  const setTimeoutFn = ((fn: () => void, ms?: number) => {
+    const id = nextId++;
+    pending.set(id, { at: now + (ms ?? 0), fn });
+    return id as unknown as ReturnType<typeof setTimeout>;
+  }) as typeof setTimeout;
+  const clearTimeoutFn = ((id: ReturnType<typeof setTimeout>) => {
+    pending.delete(id as unknown as number);
+  }) as typeof clearTimeout;
+  const advance = (ms: number) => {
+    const target = now + ms;
+    while (true) {
+      const due = [...pending.entries()]
+        .filter(([, item]) => item.at <= target)
+        .sort((a, b) => a[1].at - b[1].at);
+      if (due.length === 0) {
+        now = target;
+        break;
+      }
+      const [id, item] = due[0]!;
+      now = item.at;
+      pending.delete(id);
+      item.fn();
+    }
+  };
+
+  const players: (MusicPlayer & { volume: number })[] = [];
+  const music = createSoundMusicEngine({
+    createPlayer: () => {
+      const p: MusicPlayer = {
+        volume: 0,
+        playing: false,
+        loop: false,
+        play() {
+          p.playing = true;
+        },
+        pause() {
+          p.playing = false;
+        },
+        replace() {},
+        seekTo() {},
+        release() {},
+      };
+      players.push(p);
+      return p;
+    },
+    resolveModule: (name) => SOUND_ASSETS[name].module,
+    now: () => now,
+    setTimeout: setTimeoutFn,
+    clearTimeout: clearTimeoutFn,
+    fadeMs: MUSIC_FADE_MS,
+  });
+
+  music.handleEvent({ name: 'intro_ready' });
+  music.restartBed({ fadeIn: false });
+  advance(0);
+  music.duck(SCREEN_READER_MUSIC_VOLUME);
+  advance(MUSIC_FADE_MS);
+  const bed = players.find((p) => p.playing);
+  assert.ok(bed);
+  assert.ok(bed!.volume <= SCREEN_READER_MUSIC_VOLUME + 1e-6);
+
+  // Wire controller effects → music.duckEffects (the B1 surface).
+  const moduleId = SOUND_ASSETS['sfx-card-flip-a'].module;
+  const ctrl = createSoundController({
+    createPlayer: () => mockPlayer(),
+    now: () => now,
+    random: () => 0,
+    available: true,
+    resolveEntry: () => ({
+      bus: 'effects',
+      variants: [moduleId],
+      minIntervalMs: 0,
+      maxVoices: 4,
+    }),
+  });
+  ctrl.registerMusicHooks({
+    duck: (v) => music.duck(v),
+    duckEffects: (v, opts) => music.duckEffects(v, opts),
+  });
+
+  ctrl.soundEvent({ name: 'card_flip' });
+  advance(EFFECT_MUSIC_DUCK_ATTACK_MS + 20);
+  assert.ok(
+    bed!.volume <= SCREEN_READER_MUSIC_VOLUME + 1e-6,
+    `music rose above SR duck: ${bed!.volume}`,
+  );
+
+  // After effect release, SR duck must still hold.
+  advance(2000);
+  assert.ok(
+    bed!.volume <= SCREEN_READER_MUSIC_VOLUME + 1e-6,
+    `after effect release music=${bed!.volume}`,
+  );
+
+  ctrl.reset();
+  music.reset();
 });
 
 test('laterality row mix staggers step → sheet_close −3 dB → gather', () => {
@@ -366,11 +481,123 @@ test('laterality row mix staggers step → sheet_close −3 dB → gather', () =
   handle.cancel();
 });
 
-test('docs/audio records Sound 9 findings and final gain table', () => {
+test('B2: laterality mix timers cancel on stop / background / reset / cancelActive', () => {
+  const calls: SoundEvent['name'][] = [];
+  const timers = new Map<number, { fn: () => void; ms: number }>();
+  let nextId = 1;
+  let cleared = 0;
+
+  scheduleLateralityRowMix({
+    step: 3,
+    previousStep: 1,
+    random: false,
+    play: (event) => {
+      calls.push(event.name);
+    },
+    setTimeoutFn: ((fn: () => void, ms: number) => {
+      const id = nextId++;
+      timers.set(id, { fn, ms });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimeoutFn: ((id: ReturnType<typeof setTimeout>) => {
+      cleared += 1;
+      timers.delete(id as unknown as number);
+    }) as typeof clearTimeout,
+  });
+  assert.equal(calls[0], 'laterality_step');
+  assert.equal(timers.size, 2);
+
+  cancelActiveLateralityRowMix();
+  assert.equal(timers.size, 0);
+  assert.ok(cleared >= 2);
+
+  // Engine stop / background / reset must also cancel an active mix.
+  scheduleLateralityRowMix({
+    step: 4,
+    previousStep: 3,
+    random: false,
+    play: () => {},
+    setTimeoutFn: ((fn: () => void, ms: number) => {
+      const id = nextId++;
+      timers.set(id, { fn, ms });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimeoutFn: ((id: ReturnType<typeof setTimeout>) => {
+      timers.delete(id as unknown as number);
+    }) as typeof clearTimeout,
+  });
+  assert.equal(timers.size, 2);
+
+  const ctrl = createSoundController({
+    createPlayer: () => mockPlayer(),
+    available: true,
+    resolveEntry: () => ({
+      bus: 'effects',
+      variants: [SOUND_ASSETS['sfx-card-flip-a'].module],
+      minIntervalMs: 0,
+      maxVoices: 4,
+    }),
+  });
+  ctrl.stopAllSound();
+  assert.equal(timers.size, 0, 'stopAllSound cancels laterality mix');
+
+  scheduleLateralityRowMix({
+    step: 5,
+    previousStep: 4,
+    random: true,
+    play: () => {},
+    setTimeoutFn: ((fn: () => void, ms: number) => {
+      const id = nextId++;
+      timers.set(id, { fn, ms });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimeoutFn: ((id: ReturnType<typeof setTimeout>) => {
+      timers.delete(id as unknown as number);
+    }) as typeof clearTimeout,
+  });
+  ctrl.applySystemFlags({
+    appActive: false,
+    interrupted: false,
+    screenReaderEnabled: false,
+    otherAudioPlaying: false,
+    announcementActive: false,
+  });
+  assert.equal(timers.size, 0, 'background cancels laterality mix');
+
+  scheduleLateralityRowMix({
+    step: 2,
+    previousStep: 1,
+    random: false,
+    play: () => {},
+    setTimeoutFn: ((fn: () => void, ms: number) => {
+      const id = nextId++;
+      timers.set(id, { fn, ms });
+      return id as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout,
+    clearTimeoutFn: ((id: ReturnType<typeof setTimeout>) => {
+      timers.delete(id as unknown as number);
+    }) as typeof clearTimeout,
+  });
+  ctrl.reset();
+  assert.equal(timers.size, 0, 'reset cancels laterality mix');
+});
+
+test('index cancels laterality mix on unmount', () => {
+  const indexSrc = readFileSync(join(here, '../app/index.tsx'), 'utf8');
+  assert.match(indexSrc, /cancelActiveLateralityRowMix/);
+  assert.match(
+    indexSrc,
+    /useEffect\(\(\)\s*=>\s*\{\s*return\s*\(\)\s*=>\s*\{[\s\S]*?cancelActiveLateralityRowMix/,
+  );
+});
+
+test('docs/audio records Sound 9 findings, platform shift, and final gain table', () => {
   const findings = readFileSync(join(here, '../../../docs/audio/sound-9-mix.md'), 'utf8');
   assert.match(findings, /Sound 9/);
   assert.match(findings, /gainDb/);
   assert.match(findings, /laterality/);
   assert.match(findings, /\+2/);
   assert.match(findings, /-10/);
+  assert.match(findings, /platform|normali[sz]e|shift/i);
+  assert.match(findings, /≤\s*0|<=\s*0|at most 0/i);
 });

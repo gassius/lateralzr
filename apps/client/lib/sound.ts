@@ -192,6 +192,7 @@ controller.registerMusicHooks({
   pause: () => musicEngine.pause(),
   resume: (opts) => musicEngine.resume(opts),
   duck: (volume) => musicEngine.duck(volume),
+  duckEffects: (volume, opts) => musicEngine.duckEffects(volume, opts),
   stop: () => musicEngine.stop(),
   restartBed: (opts) => musicEngine.restartBed(opts),
   pauseDropIns: () => musicEngine.pauseDropIns(),
