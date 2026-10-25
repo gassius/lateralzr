@@ -471,11 +471,21 @@ test('reduced motion lowers motion-tied SFX volume by ~3 dB', () => {
 
 function fakeAudioContext(options?: {
   decode?: (ab: ArrayBuffer) => Promise<AudioBuffer>;
+  /** Start suspended; resume() stays pending until resolveResume(). */
+  suspendedUntilResume?: boolean;
 }): {
   ctx: AudioContext;
   startCount: () => number;
+  resolveResume: () => void;
 } {
   let starts = 0;
+  let resolveResume!: () => void;
+  const resumeGate = options?.suspendedUntilResume
+    ? new Promise<void>((resolve) => {
+        resolveResume = resolve;
+      })
+    : Promise.resolve();
+
   const fakeBuffer = {
     duration: 1,
     length: 8,
@@ -484,9 +494,22 @@ function fakeAudioContext(options?: {
   } as AudioBuffer;
 
   const ctx = {
-    state: 'running' as AudioContextState,
+    state: (options?.suspendedUntilResume
+      ? 'suspended'
+      : 'running') as AudioContextState,
+    sampleRate: 44100,
     destination: {} as AudioDestinationNode,
-    resume: async () => {},
+    resume: async () => {
+      await resumeGate;
+      ctx.state = 'running';
+    },
+    createBuffer: (_channels: number, length: number, sampleRate: number) =>
+      ({
+        duration: length / sampleRate,
+        length,
+        numberOfChannels: 1,
+        sampleRate,
+      }) as AudioBuffer,
     createGain: () => ({
       gain: { value: 1 },
       connect() {},
@@ -513,8 +536,44 @@ function fakeAudioContext(options?: {
   return {
     ctx: ctx as unknown as AudioContext,
     startCount: () => starts,
+    resolveResume: () => {
+      resolveResume?.();
+    },
   };
 }
+
+test('web play waits for AudioContext resume before start (mobile unlock)', async () => {
+  const web = await import('@/lib/sound.web.ts');
+  web.__clearWebBufferCacheForTests();
+
+  const uri = '/assets/audio/resume-gate.web.m4a';
+  const { ctx, startCount, resolveResume } = fakeAudioContext({
+    suspendedUntilResume: true,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }) as Response) as typeof fetch;
+
+  try {
+    await web.__decodeUriForTests(ctx, uri);
+    const player = web.__createWebAudioPlayerForTests(ctx, uri);
+    player.play();
+    // Old bug: start() while suspended → silent on mobile Safari/Chrome.
+    assert.equal(startCount(), 0, 'must not start while AudioContext is suspended');
+
+    resolveResume();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(startCount(), 1, 'start after resume resolves');
+  } finally {
+    globalThis.fetch = originalFetch;
+    web.__clearWebBufferCacheForTests();
+  }
+});
 
 test('web play after preload starts once shared buffer resolves', async () => {
   const web = await import('@/lib/sound.web.ts');

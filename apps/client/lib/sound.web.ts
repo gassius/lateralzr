@@ -2,8 +2,10 @@
  * Web sound module (Sound 8) — same public API as native `lib/sound.ts`.
  *
  * Thin Web Audio implementation (no native-only / expo-audio imports). Autoplay:
- * silent until the first `pointerdown` / `keydown`. Effects may play after
- * unlock; music waits until {@link notifySoundFirstCardReady}.
+ * silent until the first `pointerdown` / `touchstart` / `keydown`. Effects may
+ * play after unlock; music waits until {@link notifySoundFirstCardReady}.
+ * Mobile: await AudioContext.resume() before any `start()`, and prime a silent
+ * buffer during the unlock gesture (resume alone leaves later starts muted).
  *
  * Assets: Sound 3 `lib/soundAssets.web.ts` (`.web.m4a` requires) +
  * `assets/audio/manifest.json` `durationMs`. Looping sets
@@ -285,23 +287,31 @@ function createWebAudioPlayer(
 
   function startFromBuffer(buf: AudioBuffer): void {
     stopNode();
-    try {
+    const token = playToken;
+    const run = (): void => {
+      // Mobile Safari/Chrome: sources started while suspended stay silent after
+      // resume. Wait until running, and drop the start if pause/replace won.
+      if (token !== playToken || !wantsPlay) return;
       if (ctx.state === 'suspended') {
-        void ctx.resume().catch(() => {});
+        void ctx.resume().then(run).catch(() => {});
+        return;
       }
-      const next = ctx.createBufferSource();
-      next.buffer = buf;
-      applyLoop(next);
-      next.connect(gain);
-      next.onended = () => {
+      try {
+        const next = ctx.createBufferSource();
+        next.buffer = buf;
+        applyLoop(next);
+        next.connect(gain);
+        next.onended = () => {
+          playing = false;
+        };
+        next.start(0);
+        node = next;
+        playing = true;
+      } catch {
         playing = false;
-      };
-      next.start(0);
-      node = next;
-      playing = true;
-    } catch {
-      playing = false;
-    }
+      }
+    };
+    run();
   }
 
   function bindResolvedBuffer(nextUri: string | null): void {
@@ -492,15 +502,50 @@ function flushPendingMusic(): void {
   }
 }
 
+/**
+ * Prime Web Audio during a user gesture. resume() alone is not enough on
+ * mobile Safari/Chrome — a real buffer start in the same turn unlocks output.
+ */
+function primeUnlockBuffer(ctx: AudioContext): void {
+  try {
+    const sampleRate = ctx.sampleRate > 0 ? ctx.sampleRate : 22050;
+    const buf = ctx.createBuffer(1, 1, sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {
+    // ignore — unlock still marks the JS gate; play path re-resumes
+  }
+}
+
 function unlockAudio(): void {
-  if (unlocked) return;
+  const firstUnlock = !unlocked;
   unlocked = true;
   const ctx = getOrCreateContext();
-  if (ctx && ctx.state === 'suspended') {
-    void ctx.resume().catch(() => {});
+  if (!ctx) {
+    if (firstUnlock) {
+      preloadEffects();
+      flushPendingMusic();
+    }
+    return;
   }
-  preloadEffects();
-  flushPendingMusic();
+
+  // Prime in the gesture turn (even while suspended) — required on iOS/Chrome.
+  primeUnlockBuffer(ctx);
+  // Warm decode cache immediately; decode works while suspended.
+  if (firstUnlock) preloadEffects();
+
+  const flush = (): void => {
+    flushPendingMusic();
+  };
+
+  if (ctx.state === 'suspended') {
+    // Music/effect starts wait for running — do not flush while suspended.
+    void ctx.resume().then(flush).catch(flush);
+    return;
+  }
+  flush();
 }
 
 function attachUnlockListeners(): void {
@@ -510,19 +555,30 @@ function attachUnlockListeners(): void {
   }
   unlockListenersAttached = true;
 
-  const onGesture = (): void => {
-    unlockAudio();
+  const remove = (): void => {
     try {
       window.removeEventListener('pointerdown', onGesture, true);
+      window.removeEventListener('touchstart', onGesture, true);
       window.removeEventListener('keydown', onGesture, true);
     } catch {
       // ignore
     }
+    unlockListenersAttached = false;
+  };
+
+  const onGesture = (): void => {
+    unlockAudio();
+    // Keep listening until the context is actually running — first resume can
+    // fail or still be pending when the gesture ends on mobile browsers.
+    if (sharedCtx?.state === 'running') {
+      remove();
+    }
   };
 
   try {
-    window.addEventListener('pointerdown', onGesture, { capture: true, once: true });
-    window.addEventListener('keydown', onGesture, { capture: true, once: true });
+    window.addEventListener('pointerdown', onGesture, { capture: true });
+    window.addEventListener('touchstart', onGesture, { capture: true });
+    window.addEventListener('keydown', onGesture, { capture: true });
   } catch {
     unlockListenersAttached = false;
   }
