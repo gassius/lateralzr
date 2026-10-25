@@ -138,8 +138,8 @@ export function getDirectorGainDb(name: SoundAssetName): number {
   return DIRECTOR_GAIN_DB[name] ?? GAIN_DB_PLATFORM_OFFSET;
 }
 
-/** Look up authored `gainDb` for a `require` module id (native + web). */
-export function getSoundAssetGainDbForModule(moduleId: number): number {
+/** Look up authored `gainDb` for a `require` module id or web URI string. */
+export function getSoundAssetGainDbForModule(moduleId: number | string): number {
   for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
     if (SOUND_ASSETS[name].module === moduleId) {
       return SOUND_ASSETS[name].gainDb;
@@ -148,8 +148,19 @@ export function getSoundAssetGainDbForModule(moduleId: number): number {
   return 0;
 }
 
-/** Asset module id (`require`) or null placeholder. */
-export type SoundAssetRef = number | null;
+/**
+ * Asset ref from `require(...)`.
+ * Native Metro: numeric registry id. Expo web export: string URL
+ * (`m.exports="/assets/...m4a"`). Null = missing placeholder.
+ */
+export type SoundAssetRef = number | string | null;
+
+/** True when the ref can be fetched/decoded (not a null placeholder). */
+export function isPlayableSoundAssetRef(
+  v: SoundAssetRef,
+): v is number | string {
+  return typeof v === 'number' || (typeof v === 'string' && v.length > 0);
+}
 
 export type SoundMapEntry = {
   bus: SoundBus;
@@ -342,7 +353,11 @@ export function getSoundMapEntry(name: SoundEventName): SoundMapEntry {
   return SOUND_MAP[name];
 }
 
-/** Resolved playable assets only (drops null / missing placeholders). */
-export function playableVariants(entry: SoundMapEntry): SoundAssetRef[] {
-  return entry.variants.filter((v): v is number => typeof v === 'number');
+/**
+ * Resolved playable assets only (drops null placeholders).
+ * Must keep web string URIs — filtering `typeof === 'number'` alone silences
+ * every non-ladder event on Expo web (complexity/laterality use ladder bypass).
+ */
+export function playableVariants(entry: SoundMapEntry): Array<number | string> {
+  return entry.variants.filter(isPlayableSoundAssetRef);
 }

@@ -165,7 +165,8 @@ function metaForSource(source: SoundAssetRef | string): {
   loop: boolean;
 } {
   if (source == null) return { durationMs: null, loop: false };
-  if (typeof source === 'number') {
+  // Native: numeric registry id. Web: require() exports the URL string itself.
+  if (typeof source === 'number' || typeof source === 'string') {
     const durationMs = getSoundAssetDurationMsForModule(source);
     for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
       if (SOUND_ASSETS[name].module === source) {
@@ -174,7 +175,6 @@ function metaForSource(source: SoundAssetRef | string): {
     }
     return { durationMs, loop: false };
   }
-  // Runtime string URL — look up by matching resolved uri is expensive; no loop.
   return { durationMs: null, loop: false };
 }
 
@@ -475,10 +475,15 @@ let unlockListenersAttached = false;
 let effectsPreloadStarted = false;
 let musicPreloadStarted = false;
 
-function preloadModule(moduleId: number): void {
+function preloadModule(moduleId: number | string): void {
   const uri = resolvePlayableUri(moduleId);
   const ctx = getOrCreateContext();
   if (!ctx) return;
+  // Web string exports need no Asset.fromModule — URI is already fetchable.
+  if (typeof moduleId === 'string') {
+    warmBufferCache(ctx, moduleId);
+    return;
+  }
   const asset = assetFromModule(moduleId);
   if (asset) {
     void asset
@@ -495,13 +500,13 @@ function preloadModule(moduleId: number): void {
   if (uri) warmBufferCache(ctx, uri);
 }
 
-function collectBusModules(bus: 'effects' | 'music'): number[] {
-  const out: number[] = [];
+function collectBusModules(bus: 'effects' | 'music'): Array<number | string> {
+  const out: Array<number | string> = [];
   for (const eventName of Object.keys(SOUND_MAP) as SoundEventName[]) {
     const entry = getSoundMapEntry(eventName);
     if (entry.bus !== bus) continue;
     for (const variant of playableVariants(entry)) {
-      if (typeof variant === 'number') out.push(variant);
+      out.push(variant);
     }
   }
   return out;

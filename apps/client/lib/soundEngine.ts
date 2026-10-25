@@ -657,7 +657,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         // ignore
       }
       const durationMs =
-        typeof source === 'number'
+        source != null
           ? (getSoundAssetDurationMsForModule(source) ?? 400)
           : 400;
       if (resolveEntry(eventName).bus === 'effects') {
@@ -666,7 +666,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       if (
         reduceMotion &&
         shouldShortenReducedMotionFade(eventName) &&
-        typeof source === 'number'
+        source != null
       ) {
         const cancel = scheduleReducedMotionFade(player, volume, durationMs, {
           onComplete: () => {
@@ -746,7 +746,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     void ensureSession();
 
     const assetGainDb =
-      typeof source === 'number' ? getSoundAssetGainDbForModule(source) : 0;
+      source != null ? getSoundAssetGainDbForModule(source) : 0;
     const offsetDb = options?.gainDbOffset ?? 0;
     const busScale =
       entry.bus === 'music' ? currentGates.musicVolume : currentGates.effectsVolume;
@@ -767,7 +767,7 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     ) {
       const tone = swipeToneModule(event.name);
       const toneGainDb =
-        typeof tone === 'number' ? getSoundAssetGainDbForModule(tone) : 0;
+        tone != null ? getSoundAssetGainDbForModule(tone) : 0;
       const toneVolume =
         resolveEventGain(toneGainDb, event.name, reduceMotion) * busScale;
       playSource(tone, event.name, toneVolume, reduceMotion);

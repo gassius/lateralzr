@@ -113,6 +113,44 @@ test('playableVariants drops null placeholders', () => {
   );
 });
 
+test('playableVariants keeps Expo web string URI modules (Carlos mobile silence)', () => {
+  // Expo web export: require('.m4a') → string URL, not a Metro numeric id.
+  // Old filter `typeof === 'number'` dropped every non-ladder event (swipe/flip/
+  // music) while complexity/laterality still played via resolveLadderSource.
+  const webUri = '/assets/assets/audio/sfx/swipe-next-a.web.m4a';
+  assert.deepEqual(
+    playableVariants({
+      bus: 'effects',
+      variants: [null, webUri, '/assets/sfx/swipe-next-b.web.m4a'],
+      minIntervalMs: 0,
+      maxVoices: 2,
+    }),
+    [webUri, '/assets/sfx/swipe-next-b.web.m4a'],
+  );
+});
+
+test('engine plays swipe_next when variants are web string URIs', () => {
+  const webUri = '/assets/assets/audio/sfx/swipe-next-a.web.m4a';
+  const played: unknown[] = [];
+  const ctrl = createSoundController({
+    createPlayer: (source) => {
+      played.push(source);
+      return mockPlayer();
+    },
+    resolveEntry: () => ({
+      bus: 'effects',
+      variants: [webUri],
+      minIntervalMs: 0,
+      maxVoices: 2,
+    }),
+  });
+  ctrl.soundEvent({ name: 'swipe_next' });
+  assert.deepEqual(played, [webUri], 'swipe_next must play web string module');
+  ctrl.soundEvent({ name: 'card_flip' });
+  assert.equal(played.length, 2, 'card_flip must also play with string variants');
+  ctrl.reset();
+});
+
 test('pickVariantIndex never returns the same index twice when count > 1', () => {
   const sequence: number[] = [];
   let last: number | null = null;
