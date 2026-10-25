@@ -473,13 +473,23 @@ function fakeAudioContext(options?: {
   decode?: (ab: ArrayBuffer) => Promise<AudioBuffer>;
   /** Start suspended; resume() stays pending until resolveResume(). */
   suspendedUntilResume?: boolean;
+  /**
+   * Initial state. iOS uses `interrupted` after call/Siri/background —
+   * must not start until `running` (B1).
+   */
+  initialState?: AudioContextState | 'interrupted';
+  /** resume() rejects once (M1 — must retry via statechange). */
+  resumeRejects?: boolean;
 }): {
   ctx: AudioContext;
   startCount: () => number;
   resolveResume: () => void;
+  /** Move state and fire statechange (iOS interrupted → running). */
+  setState: (state: AudioContextState | 'interrupted') => void;
 } {
   let starts = 0;
   let resolveResume!: () => void;
+  const stateListeners = new Set<() => void>();
   const resumeGate = options?.suspendedUntilResume
     ? new Promise<void>((resolve) => {
         resolveResume = resolve;
@@ -493,15 +503,30 @@ function fakeAudioContext(options?: {
     sampleRate: 44100,
   } as AudioBuffer;
 
-  const ctx = {
-    state: (options?.suspendedUntilResume
+  const initial: AudioContextState | 'interrupted' = options?.initialState
+    ? options.initialState
+    : options?.suspendedUntilResume
       ? 'suspended'
-      : 'running') as AudioContextState,
+      : 'running';
+
+  const ctx = {
+    state: initial as AudioContextState,
     sampleRate: 44100,
     destination: {} as AudioDestinationNode,
     resume: async () => {
+      if (options?.resumeRejects) {
+        await resumeGate;
+        throw new Error('resume rejected');
+      }
       await resumeGate;
       ctx.state = 'running';
+      for (const listener of [...stateListeners]) listener();
+    },
+    addEventListener: (type: string, listener: () => void) => {
+      if (type === 'statechange') stateListeners.add(listener);
+    },
+    removeEventListener: (type: string, listener: () => void) => {
+      if (type === 'statechange') stateListeners.delete(listener);
     },
     createBuffer: (_channels: number, length: number, sampleRate: number) =>
       ({
@@ -539,6 +564,10 @@ function fakeAudioContext(options?: {
     resolveResume: () => {
       resolveResume?.();
     },
+    setState: (state) => {
+      ctx.state = state as AudioContextState;
+      for (const listener of [...stateListeners]) listener();
+    },
   };
 }
 
@@ -569,6 +598,85 @@ test('web play waits for AudioContext resume before start (mobile unlock)', asyn
     await Promise.resolve();
     await Promise.resolve();
     assert.equal(startCount(), 1, 'start after resume resolves');
+  } finally {
+    globalThis.fetch = originalFetch;
+    web.__clearWebBufferCacheForTests();
+  }
+});
+
+test('web play waits when AudioContext is interrupted (iOS B1)', async () => {
+  // Fails on 8f586b3: that head only gated on state === 'suspended', so
+  // interrupted would call start() immediately and stay silent on device.
+  const web = await import('@/lib/sound.web.ts');
+  web.__clearWebBufferCacheForTests();
+
+  const uri = '/assets/audio/interrupted-gate.web.m4a';
+  const { ctx, startCount, setState } = fakeAudioContext({
+    initialState: 'interrupted',
+    resumeRejects: true,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }) as Response) as typeof fetch;
+
+  try {
+    await web.__decodeUriForTests(ctx, uri);
+    const player = web.__createWebAudioPlayerForTests(ctx, uri);
+    player.play();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(
+      startCount(),
+      0,
+      'must not start while AudioContext is interrupted',
+    );
+
+    setState('running');
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(startCount(), 1, 'start after statechange → running');
+  } finally {
+    globalThis.fetch = originalFetch;
+    web.__clearWebBufferCacheForTests();
+  }
+});
+
+test('web play retries start via statechange when resume rejects (M1)', async () => {
+  const web = await import('@/lib/sound.web.ts');
+  web.__clearWebBufferCacheForTests();
+
+  const uri = '/assets/audio/resume-reject.web.m4a';
+  const { ctx, startCount, resolveResume, setState } = fakeAudioContext({
+    suspendedUntilResume: true,
+    resumeRejects: true,
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      arrayBuffer: async () => new ArrayBuffer(8),
+    }) as Response) as typeof fetch;
+
+  try {
+    await web.__decodeUriForTests(ctx, uri);
+    const player = web.__createWebAudioPlayerForTests(ctx, uri);
+    player.play();
+    assert.equal(startCount(), 0);
+
+    resolveResume();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(startCount(), 0, 'resume reject must not drop without retry path');
+
+    setState('running');
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(startCount(), 1, 'statechange → running retries start');
   } finally {
     globalThis.fetch = originalFetch;
     web.__clearWebBufferCacheForTests();

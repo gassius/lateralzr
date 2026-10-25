@@ -288,14 +288,48 @@ function createWebAudioPlayer(
   function startFromBuffer(buf: AudioBuffer): void {
     stopNode();
     const token = playToken;
+    let awaitingRunning = false;
+    let startedForToken = false;
+
+    const detachStateListener = (): void => {
+      try {
+        ctx.removeEventListener('statechange', onStateChange);
+      } catch {
+        // ignore
+      }
+      awaitingRunning = false;
+    };
+
+    const onStateChange = (): void => {
+      if (ctx.state === 'running') run();
+    };
+
     const run = (): void => {
-      // Mobile Safari/Chrome: sources started while suspended stay silent after
-      // resume. Wait until running, and drop the start if pause/replace won.
-      if (token !== playToken || !wantsPlay) return;
-      if (ctx.state === 'suspended') {
-        void ctx.resume().then(run).catch(() => {});
+      // Mobile: sources started while not running stay silent. iOS also uses
+      // `interrupted` (call/Siri/background) — gate on !== running, not only
+      // suspended. If resume() rejects, statechange → running retries.
+      if (token !== playToken || !wantsPlay) {
+        detachStateListener();
         return;
       }
+      if (ctx.state !== 'running') {
+        if (!awaitingRunning) {
+          awaitingRunning = true;
+          try {
+            ctx.addEventListener('statechange', onStateChange);
+          } catch {
+            // ignore
+          }
+          void ctx.resume().then(run).catch(() => {
+            // Keep statechange listener — unlock / OS may still reach running.
+          });
+        }
+        return;
+      }
+      detachStateListener();
+      // resume().then and statechange can both fire — start once per play.
+      if (startedForToken) return;
+      startedForToken = true;
       try {
         const next = ctx.createBufferSource();
         next.buffer = buf;
@@ -519,6 +553,9 @@ function primeUnlockBuffer(ctx: AudioContext): void {
   }
 }
 
+/** Cleared once the shared context reaches `running` (M2). */
+let detachUnlockListeners: (() => void) | null = null;
+
 function unlockAudio(): void {
   const firstUnlock = !unlocked;
   unlocked = true;
@@ -531,18 +568,38 @@ function unlockAudio(): void {
     return;
   }
 
-  // Prime in the gesture turn (even while suspended) — required on iOS/Chrome.
+  // Prime in the gesture turn (even while not running) — required on iOS/Chrome.
   primeUnlockBuffer(ctx);
-  // Warm decode cache immediately; decode works while suspended.
+  // Warm decode cache immediately; decode works while suspended/interrupted.
   if (firstUnlock) preloadEffects();
 
   const flush = (): void => {
     flushPendingMusic();
+    // M2: drop gesture listeners from the flush once output is unlocked.
+    if (ctx.state === 'running') {
+      detachUnlockListeners?.();
+    }
   };
 
-  if (ctx.state === 'suspended') {
-    // Music/effect starts wait for running — do not flush while suspended.
-    void ctx.resume().then(flush).catch(flush);
+  if (ctx.state !== 'running') {
+    // Music/effect starts wait for running — do not flush while interrupted/suspended.
+    const onStateChange = (): void => {
+      if (ctx.state !== 'running') return;
+      try {
+        ctx.removeEventListener('statechange', onStateChange);
+      } catch {
+        // ignore
+      }
+      flush();
+    };
+    try {
+      ctx.addEventListener('statechange', onStateChange);
+    } catch {
+      // ignore
+    }
+    void ctx.resume().then(flush).catch(() => {
+      // resume rejected — statechange may still deliver running later
+    });
     return;
   }
   flush();
@@ -564,15 +621,12 @@ function attachUnlockListeners(): void {
       // ignore
     }
     unlockListenersAttached = false;
+    detachUnlockListeners = null;
   };
+  detachUnlockListeners = remove;
 
   const onGesture = (): void => {
     unlockAudio();
-    // Keep listening until the context is actually running — first resume can
-    // fail or still be pending when the gesture ends on mobile browsers.
-    if (sharedCtx?.state === 'running') {
-      remove();
-    }
   };
 
   try {
@@ -581,6 +635,7 @@ function attachUnlockListeners(): void {
     window.addEventListener('keydown', onGesture, { capture: true });
   } catch {
     unlockListenersAttached = false;
+    detachUnlockListeners = null;
   }
 }
 
@@ -769,12 +824,14 @@ export function __disposeSoundSystemForTests(): void {
 
 /** Test helper — reset unlock / defer / pool / decode-cache state. */
 export function __resetWebSoundForTests(): void {
+  detachUnlockListeners?.();
   unlocked = false;
   musicAllowed = false;
   pendingMusicByName.clear();
   effectsPreloadStarted = false;
   musicPreloadStarted = false;
   unlockListenersAttached = false;
+  detachUnlockListeners = null;
   bufferPromises.clear();
   resolvedBuffers.clear();
   controller.reset();
