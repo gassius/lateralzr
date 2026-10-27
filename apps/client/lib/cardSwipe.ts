@@ -181,9 +181,18 @@ export function swipeShouldSlideOutOnCommit(reduceMotion: boolean): boolean {
   return !reduceMotion;
 }
 
-export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
+/**
+ * Deck swipe is translate (+ wrap scale) on **every** platform — no
+ * perspective / rotate*. Web preview must mimic native; do not reintroduce
+ * a heavier iOS/web-only 3D path. `reduceMotion` is accepted for call-site
+ * symmetry with other motion helpers (RM also skips tilt tokens elsewhere).
+ */
+export function shouldUseCardSwipe3d(
+  _reduceMotion: boolean = false,
+  liteTransforms: boolean = true,
+): boolean {
   'worklet';
-  return !reduceMotion;
+  return !liteTransforms;
 }
 
 /**
@@ -347,6 +356,32 @@ export function deckBehindLockIndexForRightDrag(currentIndex: number): number | 
 }
 
 /**
+ * Hysteresis for behind-index lock during horizontal drag.
+ * Matches pan activation (`PAN_ACTIVE_OFFSET` / 18 px): lock Previous only once
+ * travel is clearly right; unlock for Next only once clearly left. Dead-zone
+ * holds avoid remount thrash near tx ≈ 0 (right↔left wobble).
+ */
+export const DECK_BEHIND_LOCK_CROSS_PX = 18;
+
+export type DeckBehindLockDragAction = 'lock-prev' | 'unlock' | 'hold';
+
+export function deckBehindLockDragAction(
+  tx: number,
+  canGoBack: boolean,
+  lockedPrev: boolean,
+  crossPx: number = DECK_BEHIND_LOCK_CROSS_PX,
+): DeckBehindLockDragAction {
+  'worklet';
+  if (tx >= crossPx && canGoBack) {
+    return lockedPrev ? 'hold' : 'lock-prev';
+  }
+  if (tx <= -crossPx) {
+    return lockedPrev ? 'unlock' : 'hold';
+  }
+  return 'hold';
+}
+
+/**
  * Which card the underlay mounts. A right-drag / Previous lock uses
  * `currentIndex-1`; otherwise the next card (past-end renders LoadingCard).
  */
@@ -444,9 +479,16 @@ export type CardSwipeShadowStyle = {
  * Card lift shadow with full §23 tokens (color / opacity / radius / elevation).
  * Incomplete offset+elevation-only shadows render as a hard black bar on RN-web.
  */
-export function cardSwipeLiftShadowStyle(liftPx: number): CardSwipeShadowStyle {
+/**
+ * Rest §23 card shadow. `liftPx` is ignored — elevation is never interpolated
+ * per drag frame (Android jank; same path on iOS + web preview).
+ */
+export function cardSwipeLiftShadowStyle(
+  _liftPx: number = 0,
+  freezeElevation: boolean = true,
+): CardSwipeShadowStyle {
   'worklet';
-  const lift = Math.max(0, liftPx);
+  const lift = freezeElevation ? 0 : Math.max(0, _liftPx);
   return {
     shadowColor: shadow.card.color,
     shadowOffset: {
@@ -661,9 +703,10 @@ export function cardSwipeFrontTransform(
   exitProgress: number = 0,
   releaseTiltZDeg: number = 0,
   exitSign: number = 0,
+  liteTransforms: boolean = true,
 ): CardSwipeTransform {
   'worklet';
-  if (!shouldUseCardSwipe3d(reduceMotion)) {
+  if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {
     return [{ translateX }, { translateY }];
   }
   const horizontal = Math.abs(translateX) >= Math.abs(translateY);
@@ -690,9 +733,10 @@ export function cardSwipeReturnOverlayTransform(
   height: number,
   progress: number,
   reduceMotion: boolean,
+  liteTransforms: boolean = true,
 ): CardSwipeTransform {
   'worklet';
-  if (!shouldUseCardSwipe3d(reduceMotion)) {
+  if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {
     return [{ translateX }];
   }
   const tiltZ = cardReturnOverlayTiltZDeg(progress, reduceMotion);

@@ -51,7 +51,8 @@ Lateralzr is a mobile app. It is built with Expo so one simple codebase serves i
 - **Concept graph queue workers**: concept generation can spend more than 60 seconds in the LLM plus URL enrichment path. When processing these jobs manually, use `./sail artisan queue:work --queue=default --timeout=300`.
 
 ### Expo client
-- **Stack**: Expo SDK 57, React Native, TypeScript, Expo Router. Lives in **`apps/client`**. The client is a mobile app (iOS / Android); the web build is preview-only. It fetches concepts from the API and displays them as flip/swipe cards. Design, QA, and E2E target **390×844**.
+- **Native product**: Lateralzr is a **native mobile app (Android and iOS)**. There is **no standalone web release**. The Expo web export is **preview only** and must **mimic native behaviour** — never diverge. Do not keep web-specific variants (motion, transforms, features) unless needed to imitate Android/iOS in the preview.
+- **Stack**: Expo SDK 57, React Native, TypeScript, Expo Router. Lives in **`apps/client`**. It fetches concepts from the API and displays them as flip/swipe cards. Design, QA, and E2E target **390×844**.
 - **Agent context**: Cursor/Codex read [`apps/client/AGENTS.md`](../apps/client/AGENTS.md). Claude Code imports it via `apps/client/CLAUDE.md` and `.claude/settings.json` (Expo plugin enabled).
 - **Expo Skills**: Install once per machine with `pnpm dlx skills add expo/skills` (or Cursor Remote Rule → `https://github.com/expo/skills.git`). Skills auto-apply on Expo-related prompts — see https://docs.expo.dev/skills.md.
 - **Expo MCP**: Registered in [`.cursor/mcp.json`](../.cursor/mcp.json) as remote server `https://mcp.expo.dev/mcp` (OAuth in Cursor Settings → Tools & MCP). Local capabilities (screenshots, tap automation, DevTools) need `expo-mcp` and `pnpm start:mcp` from `apps/client` (`EXPO_UNSTABLE_MCP_SERVER=1`). Docs: https://docs.expo.dev/mcp.md · https://docs.expo.dev/agents/cursor.md.
