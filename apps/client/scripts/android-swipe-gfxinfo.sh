@@ -12,6 +12,7 @@
 #   ./apps/client/scripts/android-swipe-gfxinfo.sh baseline
 #   ./apps/client/scripts/android-swipe-gfxinfo.sh no-svg
 #   ./apps/client/scripts/android-swipe-gfxinfo.sh no-shadow
+#   ./apps/client/scripts/android-swipe-gfxinfo.sh sound-off
 #   ./apps/client/scripts/android-swipe-gfxinfo.sh all
 #
 # Env:
@@ -36,6 +37,14 @@ if [[ -n "${DEVICE_SERIAL:-}" ]]; then
   ADB=(adb -s "$DEVICE_SERIAL")
 fi
 
+PATCH_FILES=(
+  components/brand/PatternLayer.tsx
+  components/ConceptCardStack.tsx
+  lib/sound.ts
+)
+# Marker embedded in patched TS/TSX (// comments) — must match apply_* inserts.
+PATCH_TAG='ANDROID_SWIPE_GFXINFO_PATCH'
+
 mkdir -p "$OUT_DIR"
 cd "$CLIENT"
 
@@ -49,6 +58,15 @@ require_device() {
   [[ "$state" == "device" ]] || die "adb device not ready (state=$state)"
 }
 
+# B1: refuse dirty patch targets so git checkout -- cannot clobber local work.
+refuse_dirty_patch_targets() {
+  local dirty
+  dirty="$(cd "$CLIENT" && git status --porcelain -- "${PATCH_FILES[@]}")"
+  if [[ -n "$dirty" ]]; then
+    die "refuse to run: patch targets dirty (commit/stash first):"$'\n'"$dirty"
+  fi
+}
+
 detect_pkg() {
   if [[ -n "${PKG:-}" ]]; then
     printf '%s\n' "$PKG"
@@ -57,12 +75,13 @@ detect_pkg() {
   local manifest="$CLIENT/android/app/src/main/AndroidManifest.xml"
   [[ -f "$manifest" ]] || die "no AndroidManifest yet — run a build first or set PKG="
   local pkg
-  pkg="$(grep -oE 'package="[^"]+"' "$manifest" | head -1 | sed 's/package="//;s/"$//')"
+  # m1: empty package= (AGP 8+) must not trip pipefail on grep miss.
+  pkg="$(grep -oE 'package="[^"]+"' "$manifest" 2>/dev/null | head -1 | sed 's/package="//;s/"$//' || true)"
   if [[ -z "$pkg" ]]; then
     # AGP 8+ often omits package= on manifest; read namespace / applicationId
     local gradle="$CLIENT/android/app/build.gradle"
     [[ -f "$gradle" ]] || gradle="$CLIENT/android/app/build.gradle.kts"
-    pkg="$(grep -oE 'applicationId\s*[\"'\''][^\"'\'']+[\"'\'']' "$gradle" | head -1 | sed -E 's/.*[\"'\'']([^\"'\'']+)[\"'\''].*/\1/')"
+    pkg="$(grep -oE 'applicationId\s*[\"'\''][^\"'\'']+[\"'\'']' "$gradle" 2>/dev/null | head -1 | sed -E 's/.*[\"'\'']([^\"'\'']+)[\"'\''].*/\1/' || true)"
   fi
   [[ -n "$pkg" ]] || die "could not detect applicationId; export PKG=com.example..."
   printf '%s\n' "$pkg"
@@ -81,7 +100,6 @@ apk_path() {
 }
 
 # --- reversible A/B patches (same animation; strip cost) ---------------------
-PATCH_TAG="# ANDROID_SWIPE_GFXINFO_PATCH"
 
 apply_no_svg() {
   local f="$CLIENT/components/brand/PatternLayer.tsx"
@@ -113,10 +131,33 @@ path.write_text(src.replace(old, new, 1))
 PY
 }
 
+apply_sound_off() {
+  # Patch public soundEvent so swipe SFX never reach expo-audio / runBlocking.
+  local f="$CLIENT/lib/sound.ts"
+  grep -q "$PATCH_TAG" "$f" && return 0
+  python3 - "$f" <<'PY'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+src = path.read_text()
+needle = "export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {"
+if needle not in src:
+    raise SystemExit('soundEvent export not found in sound.ts')
+insert = (
+    needle
+    + "\n  // ANDROID_SWIPE_GFXINFO_PATCH sound-off: no-op all sound for gfxinfo A/B\n  return;"
+)
+path.write_text(src.replace(needle, insert, 1))
+PY
+}
+
 revert_patches() {
   cd "$CLIENT"
-  git checkout -- components/brand/PatternLayer.tsx components/ConceptCardStack.tsx 2>/dev/null || true
+  # Only restore known patch targets; fail loudly if git checkout fails.
+  git checkout -- "${PATCH_FILES[@]}"
 }
+
+# B1: always restore patches on EXIT/INT/TERM (failure or Ctrl-C).
+trap 'revert_patches' EXIT INT TERM
 
 build_release() {
   local label="$1"
@@ -220,12 +261,14 @@ PY
 run_variant() {
   local label="$1"
   log "=== VARIANT $label ==="
+  refuse_dirty_patch_targets
   revert_patches
   case "$label" in
     baseline) ;;
     no-svg) apply_no_svg ;;
     no-shadow) apply_no_shadow ;;
-    *) die "unknown variant $label (baseline|no-svg|no-shadow|all)" ;;
+    sound-off) apply_sound_off ;;
+    *) die "unknown variant $label (baseline|no-svg|no-shadow|sound-off|all)" ;;
   esac
   build_release "$label"
   local pkg
@@ -233,7 +276,7 @@ run_variant() {
   echo "pkg=$pkg" >>"$OUT_DIR/${label}.build-meta.txt"
   install_apk "$label"
   launch_app "$pkg"
-  log "Manual settle: wait until first card is visible, then press Enter"
+  log "Manual settle: wait until first card is visible (after intentional ~3s intro), then press Enter"
   if [[ -t 0 ]]; then
     read -r _
   else
@@ -242,20 +285,23 @@ run_variant() {
   fi
   swipe_bout "$pkg" "$label"
   revert_patches
+  refuse_dirty_patch_targets
 }
+
+refuse_dirty_patch_targets
 
 case "$VARIANT" in
   all)
-    for v in baseline no-svg no-shadow; do
+    for v in baseline no-svg no-shadow sound-off; do
       run_variant "$v"
     done
-    log "Compare $OUT_DIR/*.summary.txt — if no-svg wins, PatternLayer SvgXml is primary; if no-shadow wins, elevation lift is primary."
+    log "Compare $OUT_DIR/*.summary.txt — no-svg → PatternLayer; no-shadow → elevation; sound-off → expo-audio/runBlocking."
     ;;
-  baseline|no-svg|no-shadow)
+  baseline|no-svg|no-shadow|sound-off)
     run_variant "$VARIANT"
     ;;
   *)
-    die "usage: $0 baseline|no-svg|no-shadow|all"
+    die "usage: $0 baseline|no-svg|no-shadow|sound-off|all"
     ;;
 esac
 
