@@ -80,7 +80,9 @@ import {
   cardSwipeReturnOverlayTransform,
   cardSwipeTiltZDeg,
   cardSwipeTranslationAfterHandoff,
+  DECK_BEHIND_LOCK_CROSS_PX,
   deckBehindDisplayIndex,
+  deckBehindLockDragAction,
   deckBehindLockIndexForRightDrag,
   deckCommitCrossfadeProgress,
   deckFrontWrapZIndex,
@@ -167,7 +169,8 @@ type ConceptCardStackProps = {
   reshufflePhase?: LateralityReshufflePhase | null;
 };
 
-const PAN_ACTIVE_OFFSET = 18;
+/** Pan activation + behind-lock hysteresis (shared with `DECK_BEHIND_LOCK_CROSS_PX`). */
+const PAN_ACTIVE_OFFSET = DECK_BEHIND_LOCK_CROSS_PX;
 
 function conceptTintRgba(alpha: number): string {
   'worklet';
@@ -1034,11 +1037,20 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       if (showDeckStatusSV.value === 1 && tx < 0) tx = 0;
       translateX.value = tx;
       translateY.value = cardSwipeFollowY(e.translationY, reduceMotionSV.value > 0.5);
-      // Lock behind once on first rightward travel — never unlock mid-drag
-      // (unlock on spring-home / index settle). Avoids underlay remount thrash.
-      if (tx > 0 && canGoBack && behindRightLockSV.value < 0.5) {
+      // Hysteresis: lock Previous only past +cross; unlock for Next only past −cross.
+      // Dead-zone holds avoid remount thrash; right→left still reveals Next.
+      const lockAction = deckBehindLockDragAction(
+        tx,
+        canGoBack,
+        behindRightLockSV.value > 0.5,
+        PAN_ACTIVE_OFFSET,
+      );
+      if (lockAction === 'lock-prev') {
         behindRightLockSV.value = 1;
         runOnJS(lockBehindIndexForRightCommit)();
+      } else if (lockAction === 'unlock') {
+        behindRightLockSV.value = 0;
+        runOnJS(unlockBehindIndex)();
       }
     })
     .onEnd(

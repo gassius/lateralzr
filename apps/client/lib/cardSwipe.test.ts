@@ -62,7 +62,9 @@ import {
   deckFrontWrapZIndex,
   deckLayerVisibility,
   deckPreviousCovering,
+  DECK_BEHIND_LOCK_CROSS_PX,
   deckBehindDisplayIndex,
+  deckBehindLockDragAction,
   deckBehindLockIndexForRightDrag,
   deckUnderlayCommittedSideMatchesReveal,
   deckReducedMotionFadesOutgoingFront,
@@ -495,12 +497,24 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
   });
 
-  it('does not unlock behind index mid-drag (avoids underlay remount thrash)', () => {
-    assert.match(stackSrc, /Lock behind once on first rightward travel/);
-    assert.equal(
-      /onUpdate[\s\S]*?runOnJS\(unlockBehindIndex\)\(\)/.test(stackSrc),
-      false,
-    );
+  it('right-then-left drag unlocks Previous so Next underlay can show', () => {
+    // Gesture: tx 40 → -80 with hysteresis (cross = DECK_BEHIND_LOCK_CROSS_PX).
+    let lockedPrev = false;
+    assert.equal(deckBehindLockDragAction(40, true, lockedPrev), 'lock-prev');
+    lockedPrev = true;
+    // Wobble near zero must not remount.
+    assert.equal(deckBehindLockDragAction(5, true, lockedPrev), 'hold');
+    assert.equal(deckBehindLockDragAction(-5, true, lockedPrev), 'hold');
+    assert.equal(deckBehindLockDragAction(-(DECK_BEHIND_LOCK_CROSS_PX - 1), true, lockedPrev), 'hold');
+    // Clear left past threshold → unlock for Next.
+    assert.equal(deckBehindLockDragAction(-80, true, lockedPrev), 'unlock');
+    lockedPrev = false;
+    // Unlocked behind shows Next → side matches when revealing left.
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(0, -80, 0, 0), true);
+    // Staying locked to Previous would blank the underlay (the B1 regression).
+    assert.equal(deckUnderlayCommittedSideMatchesReveal(1, -80, 0, 0), false);
+    // Re-lock only after clear right again.
+    assert.equal(deckBehindLockDragAction(DECK_BEHIND_LOCK_CROSS_PX, true, lockedPrev), 'lock-prev');
   });
 
   it('does not apply React frontWrapMoving elevation on pan start', () => {

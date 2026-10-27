@@ -369,6 +369,32 @@ export function deckBehindLockIndexForRightDrag(currentIndex: number): number | 
 }
 
 /**
+ * Hysteresis for behind-index lock during horizontal drag.
+ * Matches pan activation (`PAN_ACTIVE_OFFSET` / 18 px): lock Previous only once
+ * travel is clearly right; unlock for Next only once clearly left. Dead-zone
+ * holds avoid remount thrash near tx ≈ 0 (right↔left wobble).
+ */
+export const DECK_BEHIND_LOCK_CROSS_PX = 18;
+
+export type DeckBehindLockDragAction = 'lock-prev' | 'unlock' | 'hold';
+
+export function deckBehindLockDragAction(
+  tx: number,
+  canGoBack: boolean,
+  lockedPrev: boolean,
+  crossPx: number = DECK_BEHIND_LOCK_CROSS_PX,
+): DeckBehindLockDragAction {
+  'worklet';
+  if (tx >= crossPx && canGoBack) {
+    return lockedPrev ? 'hold' : 'lock-prev';
+  }
+  if (tx <= -crossPx) {
+    return lockedPrev ? 'unlock' : 'hold';
+  }
+  return 'hold';
+}
+
+/**
  * Which card the underlay mounts. A right-drag / Previous lock uses
  * `currentIndex-1`; otherwise the next card (past-end renders LoadingCard).
  */
