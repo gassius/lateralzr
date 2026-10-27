@@ -1,8 +1,8 @@
 # Lateralzr Expo client — agent context
 
-Lateralzr is a mobile app. It is built with Expo so one simple codebase serves iOS and Android. The web build exists only as a preview that makes building faster; it is not a product target. Design, QA, and E2E target one phone viewport: **390×844**.
+Lateralzr is a **native mobile app (Android and iOS)**. There is **no standalone web release**. It is built with Expo so one codebase serves both platforms. The web export is **preview only** and must **mimic native behaviour** — never diverge. Do **not** keep web-specific variants (motion, transforms, features) unless they are needed to imitate Android or iOS in the preview. Design, QA, and E2E target one phone viewport: **390×844**.
 
-This is the **Expo / React Native** mobile client for Lateralzr (`apps/client` in the monorepo). Prefer mobile patterns, performance, and iOS/Android compatibility. The web export is a development/preview aid only — not a product target.
+This is the **Expo / React Native** mobile client for Lateralzr (`apps/client` in the monorepo). Prefer mobile patterns, performance, and iOS/Android compatibility.
 
 ## Expo has changed — do not trust your training data
 

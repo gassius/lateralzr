@@ -182,30 +182,17 @@ export function swipeShouldSlideOutOnCommit(reduceMotion: boolean): boolean {
 }
 
 /**
- * Full perspective / rotate* deck motion. Android uses lite transforms
- * (translate + scale only) — per-frame 3D + elevation was the main swipe jank.
+ * Deck swipe is translate (+ wrap scale) on **every** platform — no
+ * perspective / rotate*. Web preview must mimic native; do not reintroduce
+ * a heavier iOS/web-only 3D path. `reduceMotion` is accepted for call-site
+ * symmetry with other motion helpers (RM also skips tilt tokens elsewhere).
  */
 export function shouldUseCardSwipe3d(
-  reduceMotion: boolean,
-  liteTransforms: boolean = false,
+  _reduceMotion: boolean = false,
+  liteTransforms: boolean = true,
 ): boolean {
   'worklet';
-  return !reduceMotion && !liteTransforms;
-}
-
-/** Android: skip perspective/rotate during drag (UI-thread compositor cost). */
-export function cardSwipeLiteTransforms(platformOs: string): boolean {
-  'worklet';
-  return platformOs === 'android';
-}
-
-/**
- * Android: keep rest §23 elevation — do not interpolate elevation/shadow
- * offset every drag frame (forces shadow re-rasterization).
- */
-export function cardSwipeFreezeLiftShadow(platformOs: string): boolean {
-  'worklet';
-  return platformOs === 'android';
+  return !liteTransforms;
 }
 
 /**
@@ -492,12 +479,16 @@ export type CardSwipeShadowStyle = {
  * Card lift shadow with full §23 tokens (color / opacity / radius / elevation).
  * Incomplete offset+elevation-only shadows render as a hard black bar on RN-web.
  */
+/**
+ * Rest §23 card shadow. `liftPx` is ignored — elevation is never interpolated
+ * per drag frame (Android jank; same path on iOS + web preview).
+ */
 export function cardSwipeLiftShadowStyle(
-  liftPx: number,
-  freezeElevation: boolean = false,
+  _liftPx: number = 0,
+  freezeElevation: boolean = true,
 ): CardSwipeShadowStyle {
   'worklet';
-  const lift = freezeElevation ? 0 : Math.max(0, liftPx);
+  const lift = freezeElevation ? 0 : Math.max(0, _liftPx);
   return {
     shadowColor: shadow.card.color,
     shadowOffset: {
@@ -712,7 +703,7 @@ export function cardSwipeFrontTransform(
   exitProgress: number = 0,
   releaseTiltZDeg: number = 0,
   exitSign: number = 0,
-  liteTransforms: boolean = false,
+  liteTransforms: boolean = true,
 ): CardSwipeTransform {
   'worklet';
   if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {
@@ -742,7 +733,7 @@ export function cardSwipeReturnOverlayTransform(
   height: number,
   progress: number,
   reduceMotion: boolean,
-  liteTransforms: boolean = false,
+  liteTransforms: boolean = true,
 ): CardSwipeTransform {
   'worklet';
   if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {

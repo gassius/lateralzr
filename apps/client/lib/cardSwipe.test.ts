@@ -46,11 +46,9 @@ import {
   cardSwipeExitTiltZDeg,
   cardSwipeAndroidLiftFill,
   cardSwipeFollowY,
-  cardSwipeFreezeLiftShadow,
   cardSwipeFrontTransform,
   cardSwipeLiftShadowPx,
   cardSwipeLiftShadowStyle,
-  cardSwipeLiteTransforms,
   cardSwipePitchDeg,
   cardSwipeReturnOverlayTransform,
   cardSwipeTiltYDeg,
@@ -169,12 +167,8 @@ describe('directional tilt transforms', () => {
     assert.equal(cardSwipePitchDeg(0, CARD_H, false), 0);
     assert.equal(cardSwipeVerticalRollDeg(0, CARD_H, false), 0);
     const rest = cardSwipeFrontTransform(0, 0, CARD_W, CARD_H, false);
-    const z = rest.find((s) => 'rotateZ' in s) as { rotateZ: string } | undefined;
-    const y = rest.find((s) => 'rotateY' in s) as { rotateY: string } | undefined;
-    const x = rest.find((s) => 'rotateX' in s) as { rotateX: string } | undefined;
-    assert.equal(z?.rotateZ, '0deg');
-    assert.equal(y?.rotateY, '0deg');
-    assert.equal(x?.rotateX, '0deg');
+    assert.deepEqual(rest, [{ translateX: 0 }, { translateY: 0 }]);
+    assert.equal(cardSwipeTransformHasRotateOrPerspective(rest), false);
   });
 
   it('left swipe: 8° rotateZ at 50% width, max 12°, rotateY ≤ 3°', () => {
@@ -208,8 +202,7 @@ describe('directional tilt transforms', () => {
     assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 1, 0, 1), 0);
     assert.equal(cardSwipeTiltZDeg(0, CARD_W, false, 1, 4.8, 1), 0);
     const rightXf = cardSwipeFrontTransform(0, 0, CARD_W, CARD_H, false, 1, 0, 1);
-    const z = rightXf.find((s) => 'rotateZ' in s) as { rotateZ: string } | undefined;
-    assert.equal(z?.rotateZ, '0deg');
+    assert.deepEqual(rightXf, [{ translateX: 0 }, { translateY: 0 }]);
   });
 
   it('right overlay starts at −10° Z and −3° Y and settles to 0', () => {
@@ -226,23 +219,19 @@ describe('directional tilt transforms', () => {
     assert.equal(cardSwipeVerticalRollDeg(CARD_H, CARD_H, false), 3);
   });
 
-  it('full motion front transform uses perspective and rotate keys', () => {
-    const left = cardSwipeFrontTransform(-80, 0, CARD_W, CARD_H, false);
-    assert.equal(cardSwipeTransformHasRotateOrPerspective(left), true);
-    assert.ok(left.some((s) => 'perspective' in s && s.perspective === 1200));
-    assert.ok(left.some((s) => 'rotateZ' in s));
-    const overlay = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0.2, false);
-    assert.equal(cardSwipeTransformHasRotateOrPerspective(overlay), true);
-  });
-
-  it('Android lite transforms stay translate-only (no perspective / rotate)', () => {
+  it('deck swipe defaults to translate-only on every platform (no perspective / rotate)', () => {
+    assert.equal(shouldUseCardSwipe3d(false), false);
+    assert.equal(shouldUseCardSwipe3d(true), false);
     assert.equal(shouldUseCardSwipe3d(false, true), false);
+    // Opt-in only — product path never requests 3D (web preview mimics native).
     assert.equal(shouldUseCardSwipe3d(false, false), true);
-    const left = cardSwipeFrontTransform(-80, 0, CARD_W, CARD_H, false, 0, 0, 0, true);
+    const left = cardSwipeFrontTransform(-80, 0, CARD_W, CARD_H, false);
     assert.equal(cardSwipeTransformHasRotateOrPerspective(left), false);
     assert.deepEqual(left, [{ translateX: -80 }, { translateY: 0 }]);
-    const overlay = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0.2, false, true);
+    const overlay = cardSwipeReturnOverlayTransform(-CARD_W * 0.4, CARD_H, 0.2, false);
     assert.equal(cardSwipeTransformHasRotateOrPerspective(overlay), false);
+    const legacy3d = cardSwipeFrontTransform(-80, 0, CARD_W, CARD_H, false, 0, 0, 0, false);
+    assert.equal(cardSwipeTransformHasRotateOrPerspective(legacy3d), true);
   });
 
   it('covered card scales to 0.97 and tints to 0.22', () => {
@@ -266,21 +255,16 @@ describe('directional tilt transforms', () => {
     assert.equal(rest.shadowOpacity, 0.18);
     assert.equal(rest.shadowRadius, 12);
     assert.equal(rest.elevation, 4);
-    const lifted = cardSwipeLiftShadowStyle(6);
+    // Default freezes elevation — drag lift must not raise elevation/offset.
+    const duringDrag = cardSwipeLiftShadowStyle(6);
+    assert.equal(duringDrag.shadowOffset.height, shadow.card.offsetHeight);
+    assert.equal(duringDrag.elevation, shadow.card.elevation);
+    assert.equal(duringDrag.shadowOpacity, 0.18);
+    assert.equal(duringDrag.shadowColor, rest.shadowColor);
+    // Explicit unfreeze still available for unit coverage of the math.
+    const lifted = cardSwipeLiftShadowStyle(6, false);
     assert.equal(lifted.shadowOffset.height, 10);
     assert.equal(lifted.elevation, 10);
-    assert.equal(lifted.shadowOpacity, 0.18);
-    assert.equal(lifted.shadowColor, rest.shadowColor);
-  });
-
-  it('frozen lift shadow keeps rest elevation (Android drag path)', () => {
-    assert.equal(cardSwipeFreezeLiftShadow('android'), true);
-    assert.equal(cardSwipeFreezeLiftShadow('ios'), false);
-    assert.equal(cardSwipeLiteTransforms('android'), true);
-    assert.equal(cardSwipeLiteTransforms('web'), false);
-    const frozen = cardSwipeLiftShadowStyle(6, true);
-    assert.equal(frozen.elevation, shadow.card.elevation);
-    assert.equal(frozen.shadowOffset.height, shadow.card.offsetHeight);
   });
 
   it('Android wrap fill is only while lifted, never mid-flip / peek / deck status', () => {
@@ -486,15 +470,13 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.match(stackSrc, /deckReducedMotionFadesOutgoingFront\('right'\)/);
     assert.match(stackSrc, /borderRadius: cardRadius\(\)/);
     assert.equal(/frontWrap:\s*\{[^}]*backgroundColor: color\.front/.test(stackSrc), false);
-    assert.match(stackSrc, /cardSwipeAndroidLiftFill/);
   });
 
   it('reads peerCommitOpacity for RM underlay and return-overlay cross-fade', () => {
     assert.match(stackSrc, /deckCommitCrossfadeProgress/);
-    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(shadowLift, freezeShadow\)/);
-    assert.match(stackSrc, /cardSwipeFreezeLiftShadow\(Platform\.OS\)/);
-    assert.match(stackSrc, /cardSwipeLiteTransforms\(Platform\.OS\)/);
+    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(0\)/);
     assert.equal(stackSrc.includes('shadowOffset: { width: 0, height: 4 + lift }'), false);
+    assert.equal(/cardSwipeLiteTransforms|cardSwipeFreezeLiftShadow/.test(stackSrc), false);
   });
 
   it('right-then-left drag unlocks Previous so Next underlay can show', () => {
@@ -538,7 +520,7 @@ describe('stack / shell wiring (AD B2–B4, M3)', () => {
     assert.match(stackSrc, /deckPreviousCovering\(rawTx, rmPeerLayerSV\.value\)/);
     assert.match(stackSrc, /zIndex: deckFrontWrapZIndex\(covering, moving\)/);
     assert.match(stackSrc, /zIndex: deckReturnOverlayZIndex\(covering\)/);
-    assert.match(stackSrc, /const shadowLift = covering \|\| freezeShadow \? 0 : lift/);
+    assert.match(stackSrc, /\.\.\.cardSwipeLiftShadowStyle\(0\)/);
   });
 
   it('Previous covering overlay elevation beats Android rest card elevation', () => {
