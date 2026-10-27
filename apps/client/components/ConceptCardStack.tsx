@@ -73,8 +73,10 @@ import {
   cardSwipeFollowY,
   cardSwipeFrontTransform,
   cardSwipeAndroidLiftFill,
+  cardSwipeFreezeLiftShadow,
   cardSwipeLiftShadowPx,
   cardSwipeLiftShadowStyle,
+  cardSwipeLiteTransforms,
   cardSwipeReturnOverlayTransform,
   cardSwipeTiltZDeg,
   cardSwipeTranslationAfterHandoff,
@@ -1032,14 +1034,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       if (showDeckStatusSV.value === 1 && tx < 0) tx = 0;
       translateX.value = tx;
       translateY.value = cardSwipeFollowY(e.translationY, reduceMotionSV.value > 0.5);
-      if (tx > 0 && canGoBack) {
-        if (behindRightLockSV.value < 0.5) {
-          behindRightLockSV.value = 1;
-          runOnJS(lockBehindIndexForRightCommit)();
-        }
-      } else if (behindRightLockSV.value > 0.5) {
-        behindRightLockSV.value = 0;
-        runOnJS(unlockBehindIndex)();
+      // Lock behind once on first rightward travel — never unlock mid-drag
+      // (unlock on spring-home / index settle). Avoids underlay remount thrash.
+      if (tx > 0 && canGoBack && behindRightLockSV.value < 0.5) {
+        behindRightLockSV.value = 1;
+        runOnJS(lockBehindIndexForRightCommit)();
       }
     })
     .onEnd(
@@ -1259,6 +1258,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const w = Math.max(1, cardWidthSV.value);
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
+    const lite = cardSwipeLiteTransforms(Platform.OS);
+    const freezeShadow = cardSwipeFreezeLiftShadow(Platform.OS);
     const covering = deckPreviousCovering(rawTx, rmPeerLayerSV.value);
     const coverP = rawTx > 0 ? swipeAxisProgress(rawTx, w) : 0;
     const scale = cardCoveredScale(coverP, rm);
@@ -1268,7 +1269,8 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     );
     // Covered card (right / Previous) stays at rest z + rest elevation so the
     // incoming overlay paints on top. Left / Next still raise via moving z.
-    const shadowLift = covering ? 0 : lift;
+    // Android freezes elevation (rest §23 only) — no per-frame shadow lift.
+    const shadowLift = covering || freezeShadow ? 0 : lift;
     const moving = swipeAnimating.value || exitingSV.value > 0.5 || rawTx < 0 || ty !== 0;
     const androidFill = cardSwipeAndroidLiftFill({
       liftPx: shadowLift,
@@ -1288,10 +1290,11 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
           exitProgressSV.value,
           releaseTiltZSV.value,
           exitSignSV.value,
+          lite,
         ),
         { scale },
       ],
-      ...cardSwipeLiftShadowStyle(shadowLift),
+      ...cardSwipeLiftShadowStyle(shadowLift, freezeShadow),
       zIndex: deckFrontWrapZIndex(covering, moving),
       backgroundColor:
         Platform.OS === 'android' && androidFill ? color.front : 'transparent',
@@ -1361,6 +1364,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     const w = Math.max(1, cardWidthSV.value);
     const h = Math.max(1, cardHeightSV.value);
     const rm = reduceMotionSV.value > 0.5;
+    const lite = cardSwipeLiteTransforms(Platform.OS);
     const overlayPeer = rmPeerLayerSV.value > 0 ? peerCommitOpacity.value : 0;
     const covering = deckPreviousCovering(translateX.value, rmPeerLayerSV.value);
     const active = translateX.value > 0 || overlayPeer > 0;
@@ -1372,8 +1376,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       opacity: deckReturnOverlayOpacity(hidden, translateX.value, overlayPeer),
       visibility: deckLayerVisibility(hidden),
       zIndex: deckReturnOverlayZIndex(covering),
+      // Discrete covering elevation only (not per-frame lift). zIndex carries stacking.
       elevation: deckReturnOverlayElevation(covering),
-      transform: cardSwipeReturnOverlayTransform(tx, h, progress, rm),
+      transform: cardSwipeReturnOverlayTransform(tx, h, progress, rm, lite),
     };
   });
 
@@ -1476,7 +1481,9 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
 
           <Animated.View
             key={showDeckStatus ? `deck-loading-${currentIndex}` : 'front-card'}
-            style={[styles.frontWrap, pulseDragging ? styles.frontWrapMoving : null, frontAnimatedStyle]}
+            // Moving z/elevation come from frontAnimatedStyle only — avoid a
+            // React style elevation:40 swap on pan start (Android hitch).
+            style={[styles.frontWrap, frontAnimatedStyle]}
           >
             <View
               ref={a11ySurfaceRef}
@@ -1666,12 +1673,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 2,
     borderRadius: cardRadius(),
-    overflow: 'visible',
-  },
-  /** Raised z for left / Next only; covering Previous overrides to rest z 2. */
-  frontWrapMoving: {
-    zIndex: 40,
-    elevation: 40,
     overflow: 'visible',
   },
   a11ySurface: {

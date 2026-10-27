@@ -181,9 +181,31 @@ export function swipeShouldSlideOutOnCommit(reduceMotion: boolean): boolean {
   return !reduceMotion;
 }
 
-export function shouldUseCardSwipe3d(reduceMotion: boolean): boolean {
+/**
+ * Full perspective / rotate* deck motion. Android uses lite transforms
+ * (translate + scale only) — per-frame 3D + elevation was the main swipe jank.
+ */
+export function shouldUseCardSwipe3d(
+  reduceMotion: boolean,
+  liteTransforms: boolean = false,
+): boolean {
   'worklet';
-  return !reduceMotion;
+  return !reduceMotion && !liteTransforms;
+}
+
+/** Android: skip perspective/rotate during drag (UI-thread compositor cost). */
+export function cardSwipeLiteTransforms(platformOs: string): boolean {
+  'worklet';
+  return platformOs === 'android';
+}
+
+/**
+ * Android: keep rest §23 elevation — do not interpolate elevation/shadow
+ * offset every drag frame (forces shadow re-rasterization).
+ */
+export function cardSwipeFreezeLiftShadow(platformOs: string): boolean {
+  'worklet';
+  return platformOs === 'android';
 }
 
 /**
@@ -444,9 +466,12 @@ export type CardSwipeShadowStyle = {
  * Card lift shadow with full §23 tokens (color / opacity / radius / elevation).
  * Incomplete offset+elevation-only shadows render as a hard black bar on RN-web.
  */
-export function cardSwipeLiftShadowStyle(liftPx: number): CardSwipeShadowStyle {
+export function cardSwipeLiftShadowStyle(
+  liftPx: number,
+  freezeElevation: boolean = false,
+): CardSwipeShadowStyle {
   'worklet';
-  const lift = Math.max(0, liftPx);
+  const lift = freezeElevation ? 0 : Math.max(0, liftPx);
   return {
     shadowColor: shadow.card.color,
     shadowOffset: {
@@ -661,9 +686,10 @@ export function cardSwipeFrontTransform(
   exitProgress: number = 0,
   releaseTiltZDeg: number = 0,
   exitSign: number = 0,
+  liteTransforms: boolean = false,
 ): CardSwipeTransform {
   'worklet';
-  if (!shouldUseCardSwipe3d(reduceMotion)) {
+  if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {
     return [{ translateX }, { translateY }];
   }
   const horizontal = Math.abs(translateX) >= Math.abs(translateY);
@@ -690,9 +716,10 @@ export function cardSwipeReturnOverlayTransform(
   height: number,
   progress: number,
   reduceMotion: boolean,
+  liteTransforms: boolean = false,
 ): CardSwipeTransform {
   'worklet';
-  if (!shouldUseCardSwipe3d(reduceMotion)) {
+  if (!shouldUseCardSwipe3d(reduceMotion, liteTransforms)) {
     return [{ translateX }];
   }
   const tiltZ = cardReturnOverlayTiltZDeg(progress, reduceMotion);
