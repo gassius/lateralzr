@@ -79,8 +79,8 @@ export type SoundAssetName =
   | 'sfx-no-match-soft';
 
 export type SoundAssetMeta = {
-  /** Metro / expo-audio module id from `require(...)`. */
-  module: number;
+  /** Metro registry id (native) or exported URL string (web). */
+  module: number | string;
   /** Exact media duration (ms) — use for Sound 8 web `loopEnd`. */
   durationMs: number;
   loop: boolean;
@@ -557,8 +557,10 @@ export function getSoundAssetDurationMs(name: SoundAssetName): number {
   return SOUND_ASSETS[name].durationMs;
 }
 
-/** Resolve authored duration from a `require` module id (Sound 5 RM fade). */
-export function getSoundAssetDurationMsForModule(moduleId: number): number | null {
+/** Resolve authored duration from a `require` module id or web URI. */
+export function getSoundAssetDurationMsForModule(
+  moduleId: number | string,
+): number | null {
   for (const name of Object.keys(SOUND_ASSETS) as SoundAssetName[]) {
     if (SOUND_ASSETS[name].module === moduleId) {
       return SOUND_ASSETS[name].durationMs;
@@ -569,6 +571,6 @@ export function getSoundAssetDurationMsForModule(moduleId: number): number | nul
 
 export function resolveVariantModules(
   names: readonly SoundAssetName[],
-): number[] {
+): Array<number | string> {
   return names.map((name) => SOUND_ASSETS[name].module);
 }
