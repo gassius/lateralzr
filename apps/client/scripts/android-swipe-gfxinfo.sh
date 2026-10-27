@@ -44,6 +44,8 @@ PATCH_FILES=(
 )
 # Marker embedded in patched TS/TSX (// comments) — must match apply_* inserts.
 PATCH_TAG='ANDROID_SWIPE_GFXINFO_PATCH'
+# Set to 1 immediately before applying a patch; EXIT trap only reverts when set.
+PATCHED=0
 
 mkdir -p "$OUT_DIR"
 cd "$CLIENT"
@@ -103,6 +105,7 @@ apk_path() {
 
 apply_no_svg() {
   local f="$CLIENT/components/brand/PatternLayer.tsx"
+  PATCHED=1
   grep -q "$PATCH_TAG" "$f" && return 0
   python3 - "$f" <<'PY'
 import pathlib, sys
@@ -118,6 +121,7 @@ PY
 
 apply_no_shadow() {
   local f="$CLIENT/components/ConceptCardStack.tsx"
+  PATCHED=1
   grep -q "$PATCH_TAG" "$f" && return 0
   python3 - "$f" <<'PY'
 import pathlib, sys
@@ -134,6 +138,7 @@ PY
 apply_sound_off() {
   # Patch public soundEvent so swipe SFX never reach expo-audio / runBlocking.
   local f="$CLIENT/lib/sound.ts"
+  PATCHED=1
   grep -q "$PATCH_TAG" "$f" && return 0
   python3 - "$f" <<'PY'
 import pathlib, sys
@@ -151,13 +156,14 @@ PY
 }
 
 revert_patches() {
+  # Only checkout when we actually patched — never wipe unrelated dirty work.
+  if [[ "${PATCHED:-0}" != "1" ]]; then
+    return 0
+  fi
   cd "$CLIENT"
-  # Only restore known patch targets; fail loudly if git checkout fails.
   git checkout -- "${PATCH_FILES[@]}"
+  PATCHED=0
 }
-
-# B1: always restore patches on EXIT/INT/TERM (failure or Ctrl-C).
-trap 'revert_patches' EXIT INT TERM
 
 build_release() {
   local label="$1"
@@ -262,7 +268,6 @@ run_variant() {
   local label="$1"
   log "=== VARIANT $label ==="
   refuse_dirty_patch_targets
-  revert_patches
   case "$label" in
     baseline) ;;
     no-svg) apply_no_svg ;;
@@ -288,7 +293,13 @@ run_variant() {
   refuse_dirty_patch_targets
 }
 
+# B1: dirty check *before* installing EXIT trap so die() cannot wipe local edits.
 refuse_dirty_patch_targets
+
+# EXIT always reverts if PATCHED=1. INT/TERM just exit; EXIT does the revert (m3).
+trap 'revert_patches' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 case "$VARIANT" in
   all)
