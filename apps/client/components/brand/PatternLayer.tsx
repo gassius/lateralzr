@@ -9,6 +9,7 @@ import {
   connectorPulseAllowed,
   type ConnectorGlowLine,
 } from '@/lib/connectorPulse';
+import { DIAG_STUB_CARD_SVG } from '@/lib/diagBuildFlags';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
   buildPatternSvgXml,
@@ -62,7 +63,11 @@ function ConnectorGlowOverlay({
   const xml = useMemo(() => buildConnectorGlowOverlayXml(geometry), [geometry]);
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
-      <SvgXml xml={xml} width={width} height={height} preserveAspectRatio="xMidYMid slice" />
+      {DIAG_STUB_CARD_SVG ? (
+        <View style={{ width, height }} collapsable={false} />
+      ) : (
+        <SvgXml xml={xml} width={width} height={height} preserveAspectRatio="xMidYMid slice" />
+      )}
     </Animated.View>
   );
 }
@@ -170,12 +175,20 @@ export function PatternLayer({
           collapsable={false}
         />
       ) : null}
-      <SvgXml
-        xml={built.xml}
-        width={faceWidth}
-        height={faceHeight}
-        preserveAspectRatio="xMidYMid slice"
-      />
+      {DIAG_STUB_CARD_SVG ? (
+        <View
+          style={{ width: faceWidth, height: faceHeight }}
+          collapsable={false}
+          testID={exposeTestId ? 'card-front-pattern-svg-stub' : undefined}
+        />
+      ) : (
+        <SvgXml
+          xml={built.xml}
+          width={faceWidth}
+          height={faceHeight}
+          preserveAspectRatio="xMidYMid slice"
+        />
+      )}
       {pulse.armed && pulse.geometry ? (
         <ConnectorGlowOverlay
           geometry={pulse.geometry}
