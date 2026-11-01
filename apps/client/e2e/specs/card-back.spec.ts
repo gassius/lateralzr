@@ -10,13 +10,11 @@ import {
 } from '../helpers/locators';
 import { expectPatternRasterReady } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
-
 import {
   cardBackScroll,
   dragCardBackCopyUp,
   readBackScrollTop,
 } from '../helpers/scrollBack';
-
 
 test.describe('card back', () => {
   test('no media', async ({ page }, testInfo) => {
@@ -268,7 +266,6 @@ test.describe('card back', () => {
     await expectPatternRasterReady(page);
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible({ timeout: 10_000 });
-
 
     const hasForbiddenTransform = await page.evaluate(() => {
       const isVisible = (el: Element) => {

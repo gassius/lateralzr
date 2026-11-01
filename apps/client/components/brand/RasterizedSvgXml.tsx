@@ -123,6 +123,9 @@ export function RasterizedSvgXml({
 
   return (
     <View style={[{ width, height }, style]} collapsable={false}>
+      {captureFailed ? (
+        <View testID="pattern-raster-capture-failed" collapsable={false} />
+      ) : null}
       {layers.showSvg && ast != null ? (
         <View style={StyleSheet.absoluteFill} collapsable={false}>
           <SvgAst

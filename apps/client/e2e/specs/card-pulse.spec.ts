@@ -4,11 +4,10 @@ import { cardFrontPattern, visibleText } from '../helpers/locators';
 import { expectPatternRasterReady } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
 
-
 /**
- * Lz-40 connector pulse — structural only.
+ * Lz-40 connector pulse — structural via raster content (not `#connectors` DOM).
  * Peak/live opacity timing left to Critiquito screenshots, not hard asserts.
- * Pattern raster asserts use rendered output (img/svg), not `#connectors` DOM.
+ * `requireGlow` restores connector-group / `#FFC98A` fill coverage on the PNG.
  */
 test.describe('card front connector pulse', () => {
   test('pulse layer renders connectors (e2ePulsePeak)', async ({ page }, testInfo) => {
@@ -19,7 +18,7 @@ test.describe('card front connector pulse', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
-    await expectPatternRasterReady(page);
+    await expectPatternRasterReady(page, { requireGlow: true });
 
     // AD-only artifact for Critiquito — settle/baseline noise must not fail CI.
     try {
@@ -41,7 +40,8 @@ test.describe('card front connector pulse', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
-    await expectPatternRasterReady(page);
+    // Base pattern still bakes `#connectors` at `#FFC98A` into the raster.
+    await expectPatternRasterReady(page, { requireGlow: true });
   });
 });
 
@@ -65,7 +65,7 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
-    await expectPatternRasterReady(page);
+    await expectPatternRasterReady(page, { requireGlow: true });
   });
 
   test('glow is armed under no-preference Motion system', async ({ page }) => {
@@ -73,6 +73,6 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(0);
-    await expectPatternRasterReady(page);
+    await expectPatternRasterReady(page, { requireGlow: true });
   });
 });
