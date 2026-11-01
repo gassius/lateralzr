@@ -139,6 +139,11 @@ type ConceptCardProps = {
    * sheet/background). PatternLayer still gates RM + scroll.
    */
   pulseGateActive?: boolean;
+  /**
+   * Deck-settled pattern raster gate (`!pulseDragging`). True for underlays too
+   * so upcoming cards pre-capture while idle — never mid-swipe.
+   */
+  patternCaptureEnabled?: boolean;
   /** Face padding from the §16.2 aspect helper. */
   facePadding?: number;
   /**
@@ -167,6 +172,7 @@ export function ConceptCard({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
+  patternCaptureEnabled = false,
   facePadding,
   mediaRequestWidth = 0,
   backScrollOffsetY,
@@ -550,6 +556,7 @@ export function ConceptCard({
         variantOverride={patternVariantOverride}
         pulseGateActive={pulseGateActive && !flipped}
         frontScrolling={frontScrolling}
+        patternCaptureEnabled={patternCaptureEnabled}
       />
       <ScrollView
         style={styles.frontScroll}
