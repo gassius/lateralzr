@@ -19,7 +19,15 @@ export function resolveRasterizedSvgXmlLayers(options: {
   /** cacheKey for which Image.onLoad has fired. */
   loadedCacheKey: string | null;
   captureFailed: boolean;
+  /**
+   * Web preview / Playwright: keep the live SvgAst forever so `#connectors`
+   * stays queryable and pixels match the vector master (no Image swap).
+   */
+  preferLiveSvg?: boolean;
 }): RasterizedSvgXmlLayers {
+  if (options.preferLiveSvg === true) {
+    return { imageUri: null, showImage: false, showSvg: true };
+  }
   const imageUri = options.uri;
   const showImage = imageUri != null;
   const imageReady = showImage && options.loadedCacheKey === options.cacheKey;

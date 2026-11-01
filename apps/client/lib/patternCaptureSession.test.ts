@@ -99,4 +99,43 @@ describe('startPatternCaptureSession (component cancel / web path)', () => {
     });
     assert.equal(scheduled, false);
   });
+
+  it('m1: isCaptureStillEnabled false inside scheduled run skips toDataURL', async () => {
+    let ran = false;
+    let settled = true;
+    let scheduledRun: (() => void) | undefined;
+    startPatternCaptureSession({
+      captureEnabled: true,
+      isCaptureStillEnabled: () => settled,
+      hasUri: false,
+      captureFailed: false,
+      getSvgNode: () => ({
+        toDataURL(cb) {
+          ran = true;
+          cb('abc');
+        },
+      }),
+      captureWidth: 10,
+      captureHeight: 10,
+      runCapture: (work) => work(),
+      onMissingToDataURL: () => {
+        assert.fail('should not miss');
+      },
+      onCaptured: () => {
+        assert.fail('should not capture after settle flips');
+      },
+      onError: () => {
+        assert.fail('should not error');
+      },
+      schedule: (run) => {
+        scheduledRun = run;
+        return { cancel() {} };
+      },
+    });
+    settled = false;
+    scheduledRun?.();
+    await Promise.resolve();
+    assert.equal(ran, false);
+  });
 });
+

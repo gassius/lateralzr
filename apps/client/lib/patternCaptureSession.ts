@@ -14,6 +14,13 @@ export type PatternCaptureSvgNode = {
 export type PatternCaptureSessionOptions = {
   /** Real deck-settled gate (not InteractionManager). */
   captureEnabled: boolean;
+  /**
+   * Re-read when the scheduled callback fires. Pan `onStart` → React re-render
+   * can land after schedule() but before this run; without a second check the
+   * capture overlaps the swipe. Cancel drops late results but cannot abort an
+   * already-running toDataURL — this gate skips starting it.
+   */
+  isCaptureStillEnabled?: () => boolean;
   hasUri: boolean;
   captureFailed: boolean;
   getSvgNode: () => PatternCaptureSvgNode | null;
@@ -52,6 +59,10 @@ export function startPatternCaptureSession(
   const schedule = options.schedule ?? defaultSchedule;
   const handle = schedule(() => {
     if (cancelled) return;
+    // m1: settle may have flipped false between schedule and run (pan start).
+    if (options.isCaptureStillEnabled?.() === false) {
+      return;
+    }
     const node = options.getSvgNode();
     if (node == null || typeof node.toDataURL !== 'function') {
       options.onMissingToDataURL();

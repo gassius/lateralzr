@@ -69,4 +69,20 @@ describe('RasterizedSvgXml display after key change', () => {
   });
 });
 
-// Cancel + web toDataURL paths: see patternCaptureSession.test.ts (component session).
+describe('RasterizedSvgXml web live-SVG fallback (B3)', () => {
+  it('preferLiveSvg keeps SvgAst and never mounts Image even with a uri', () => {
+    const web = resolveRasterizedSvgXmlLayers({
+      cacheKey: 'k1',
+      uri: 'data:image/png;base64,abc',
+      loadedCacheKey: 'k1',
+      captureFailed: false,
+      preferLiveSvg: true,
+    });
+    assert.equal(web.showSvg, true);
+    assert.equal(web.showImage, false);
+    assert.equal(web.imageUri, null);
+  });
+});
+
+// Effect mount / cancel / m1 settle re-check: rasterizedSvgXmlCapture.test.ts
+// Session primitives: patternCaptureSession.test.ts
