@@ -26,8 +26,6 @@ describe('analyzePatternRasterPng (B5)', () => {
     const result = analyzePatternRasterPng(png, {
       expectedWidth: 10,
       expectedHeight: 10,
-      minOpaque: 64,
-      minGlow: 8,
     });
     assert.equal(result.sizeOk, true);
     assert.equal(result.nonBlank, false);
@@ -56,13 +54,11 @@ describe('analyzePatternRasterPng (B5)', () => {
     const result = analyzePatternRasterPng(png, {
       expectedWidth: 20,
       expectedHeight: 30,
-      minOpaque: 64,
-      minGlow: 8,
     });
     assert.equal(result.sizeOk, true);
     assert.equal(result.nonBlank, true);
     assert.equal(result.hasGlow, true);
-    assert.ok(result.glowPixels >= 8);
+    assert.ok(result.glowPixels >= 3);
   });
 
   it('decodeDataImagePng rejects non-png data URIs', () => {

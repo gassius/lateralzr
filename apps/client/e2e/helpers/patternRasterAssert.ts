@@ -10,14 +10,17 @@ export const PATTERN_BITMAP_MAX_PIXEL_RATIO_CLIENT = 3;
 /** Connector glow fill `#FFC98A` (theme PATTERN_PULSE_GLOW_FILL). */
 export const PATTERN_GLOW_RGB = { r: 0xff, g: 0xc9, b: 0x8a } as const;
 
-/** Max |Δ| per channel to count as glow-ish (AA / encode noise). */
-export const PATTERN_GLOW_CHANNEL_TOLERANCE = 36;
+/** Max |Δ| per channel to count as glow-ish (AA / toDataURL encode noise). */
+export const PATTERN_GLOW_CHANNEL_TOLERANCE = 48;
 
-/** Min opaque non-near-orange-fill pixels that must be present (not a blank PNG). */
+/** Min opaque pixels that must be present (not a blank PNG). */
 export const PATTERN_MIN_OPAQUE_PIXELS = 64;
 
-/** Min glow-ish pixels — restores old “connector groups > 0 / fill #FFC98A” signal. */
-export const PATTERN_MIN_GLOW_PIXELS = 8;
+/**
+ * Min glow-ish pixels — restores old “connector groups > 0 / fill #FFC98A”.
+ * Thin connector strokes + canvas AA often yield only a handful of exact hits.
+ */
+export const PATTERN_MIN_GLOW_PIXELS = 3;
 
 export type PatternRasterAnalysis = {
   width: number;

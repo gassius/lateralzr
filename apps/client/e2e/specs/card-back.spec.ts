@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { capture, flipCard, isFrontCardFlipped } from '../helpers/capture';
 import {
   cardBackCopy,
@@ -16,11 +16,16 @@ import {
   readBackScrollTop,
 } from '../helpers/scrollBack';
 
+/** Flip only after the front pattern PNG raster has settled (no mid-capture jank). */
+async function flipAfterRaster(page: Page): Promise<void> {
+  await expectPatternRasterReady(page);
+  await flipCard(page);
+}
+
 test.describe('card back', () => {
   test('no media', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom');
-    await expectPatternRasterReady(page);
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveCount(0);
@@ -37,7 +42,7 @@ test.describe('card back', () => {
   test('no media at 200% e2e text scale', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% back capture');
     await openApp(page, 'canonicalConcept=mushroom&e2eTextScale=2');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
     await expect(page.getByTestId('card-back-wikipedia')).toBeVisible();
@@ -46,7 +51,7 @@ test.describe('card back', () => {
 
   test('no description fallback copy', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=no-description');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(
       page.getByText("There isn't a description for this concept yet."),
     ).toBeVisible();
@@ -59,7 +64,7 @@ test.describe('card back', () => {
 
   test('long description scrolls without flipping', async ({ page }) => {
     await openApp(page, 'canonicalConcept=long-description');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(cardBackScroll(page)).toBeVisible();
 
@@ -81,7 +86,7 @@ test.describe('card back', () => {
   test('with photo', async ({ page }, testInfo) => {
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true');
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.getByTestId('card-back-emboss')).toHaveCount(0);
     await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'cover');
@@ -98,7 +103,7 @@ test.describe('card back', () => {
       await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
         mock: { omitWikipedia: reference === 'absent' },
       });
-      await flipCard(page);
+      await flipAfterRaster(page);
       const copy = cardBackCopy(page);
       await expect(copy.getByTestId('card-back-credit')).toHaveText(
         'Image: Lateralzr fixture photographer · CC BY-SA 4.0 · Cropped',
@@ -116,7 +121,7 @@ test.describe('card back', () => {
 
   test('media credit prefix follows the active locale', async ({ page }) => {
     await openApp(page, 'localizedConcept=Psicodélicos&onlyWithMedia=true&locale=es');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
       'Imagen: Lateralzr fixture photographer · CC BY-SA 4.0 · Recortada',
     );
@@ -126,8 +131,7 @@ test.describe('card back', () => {
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
       mock: { licenseOnlyMedia: true },
     });
-    await expectPatternRasterReady(page);
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
       'Image: Wikimedia Commons · CC BY-SA 4.0',
       { timeout: 10_000 },
@@ -136,7 +140,7 @@ test.describe('card back', () => {
 
   test('media without credit metadata has no credit row', async ({ page }) => {
     await openApp(page, 'canonicalConcept=diagram&onlyWithMedia=true');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveCount(0);
   });
@@ -146,7 +150,7 @@ test.describe('card back', () => {
       page,
       'localizedConcept=Psychedelics&onlyWithMedia=true&e2eShowReferenceLinks=0',
     );
-    await flipCard(page);
+    await flipAfterRaster(page);
     const copy = cardBackCopy(page);
     await expect(copy.getByTestId('card-back-wikipedia')).toHaveCount(0);
     await expect(copy.getByTestId('card-back-credit')).toBeVisible();
@@ -160,7 +164,7 @@ test.describe('card back', () => {
       page,
       'localizedConcept=Psychedelics&onlyWithMedia=true&e2eShowMediaCredits=0',
     );
-    await flipCard(page);
+    await flipAfterRaster(page);
     const copy = cardBackCopy(page);
     await expect(copy.getByTestId('card-back-wikipedia')).toBeVisible();
     await expect(copy.getByTestId('card-back-credit')).toHaveCount(0);
@@ -172,7 +176,7 @@ test.describe('card back', () => {
     test.skip(testInfo.project.name !== '390x844', 'one viewport covers the 200% media-back capture');
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true&e2eTextScale=2');
     await expect(visibleText(page, 'Psychedelics')).toBeVisible();
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(page.locator('[data-testid="card-back-description"]:visible').first()).toBeVisible();
     const credit = cardBackCopy(page).getByTestId('card-back-credit');
@@ -206,7 +210,7 @@ test.describe('card back', () => {
     await openApp(page, 'canonicalConcept=diagram&onlyWithMedia=true');
     // Front title may wrap with \\n; match the unwrapped aria-label.
     await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /schematic lattice/i);
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await expect(cardBackMedia(page)).toHaveAttribute('data-media-fit', 'contain');
     await expect(cardBackMedia(page)).toHaveAttribute('data-media-fade', 'none');
@@ -220,7 +224,7 @@ test.describe('card back', () => {
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
       mock: { brokenMedia: true },
     });
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(page.locator('[data-testid="card-back-without-media"]:visible')).toBeVisible();
     await expect(page.locator('[data-testid="card-back-media"]:visible')).toHaveCount(0);
     await expect(cardBackCopy(page)).toBeVisible();
@@ -229,14 +233,14 @@ test.describe('card back', () => {
   test('with transparent media', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=transparent&onlyWithMedia=true');
     await expect(cardFrontTitle(page)).toHaveAttribute('aria-label', /amber cutout/i);
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackMedia(page)).toBeVisible();
     await capture(page, testInfo, { screen: 'card-back', state: 'with-transparent', locale: 'en' });
   });
 
   test('wikipedia link does not flip the card', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page)).toBeVisible();
 
     // Stub navigation so Linking.openURL cannot leave the SPA or open a tab.
@@ -262,9 +266,7 @@ test.describe('card back', () => {
    */
   test('reduced-motion flip has no rotate or perspective', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
-    // Wait for PNG raster before flip so toDataURL isn't on the main thread.
-    await expectPatternRasterReady(page);
-    await flipCard(page);
+    await flipAfterRaster(page);
     await expect(cardBackCopy(page)).toBeVisible({ timeout: 10_000 });
 
     const hasForbiddenTransform = await page.evaluate(() => {
@@ -307,8 +309,7 @@ for (const concept of ['mushroom', 'no-description']) {
   for (const scale of [1, 2]) {
     test(`${concept} back uses lower reading region at ${scale * 100}% text`, async ({ page }) => {
       await openApp(page, `canonicalConcept=${concept}&e2eTextScale=${scale}`);
-      await expectPatternRasterReady(page);
-      await flipCard(page);
+      await flipAfterRaster(page);
       const scroll = cardBackScroll(page);
       await expect(cardBackCopy(page)).toBeInViewport();
       // The rendered content column owns the lower anchor; no pixel assertions.
@@ -346,7 +347,7 @@ for (const concept of ['mushroom', 'no-description']) {
 for (const scale of [1, 2]) {
   test(`long no-media copy is reachable by scrolling at ${scale * 100}% text`, async ({ page }) => {
     await openApp(page, `canonicalConcept=long-description&e2eTextScale=${scale}`);
-    await flipCard(page);
+    await flipAfterRaster(page);
     const scroll = cardBackScroll(page);
     const description = page.locator('[data-testid="card-back-description"]:visible').first();
     expect((await description.textContent())?.startsWith('A long reading passage')).toBe(true);
