@@ -1,0 +1,36 @@
+diff --git a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
+index 48e37714232d5ccf74d99d61cb2fac56314087aa..df19621f02940403d4a686c997d1427d73fdbb4b 100644
+--- a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
++++ b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
+@@ -245,6 +245,14 @@ open class NativeProxy {
+             }.apply { isAccessible = true }
+     }
+ 
++    // Lateralzr product patch (1amjtrex67j): mirror reanimated#10435 on 4.5.5 —
++    // skip sync updates for unmounted tags; never Log.w full stacks on the UI thread.
++    private val getViewExistsMethod by lazy {
++        runCatching {
++            mountingManager.javaClass.getMethod("getViewExists", Int::class.javaPrimitiveType)
++        }.getOrNull()
++    }
++
+     @DoNotStrip
+     fun synchronouslyUpdateUIProps(
+         intBuffer: IntArray,
+@@ -253,9 +261,15 @@ open class NativeProxy {
+         SynchronousPropsBufferParser.parse(intBuffer, doubleBuffer) { viewTag, props ->
+             if (BuildConfig.IS_REACT_NATIVE_86_OR_NEWER) {
+                 try {
++                    if (getViewExistsMethod?.invoke(mountingManager, viewTag) == false) {
++                        return@parse
++                    }
+                     updatePropsSynchronouslyMethod.invoke(mountingManager, viewTag, props)
+                 } catch (e: Exception) {
+-                    Log.w("Reanimated", "synchronouslyUpdateUIProps failed for tag $viewTag", e)
++                    Log.w(
++                        "Reanimated",
++                        "synchronouslyUpdateUIProps failed for tag $viewTag: ${e.cause ?: e}",
++                    )
+                 }
+             } else {
+                 mFabricUIManager.synchronouslyUpdateViewOnUIThread(viewTag, props)
