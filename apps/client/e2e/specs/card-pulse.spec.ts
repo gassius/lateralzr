@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 import { capture } from '../helpers/capture';
 import { cardFrontPattern, visibleText } from '../helpers/locators';
-import { expectPatternRendered } from '../helpers/patternRender';
+import { expectPatternRasterReady } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
+
 
 /**
  * Lz-40 connector pulse — structural only.
@@ -18,7 +19,7 @@ test.describe('card front connector pulse', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
-    await expectPatternRendered(page);
+    await expectPatternRasterReady(page);
 
     // AD-only artifact for Critiquito — settle/baseline noise must not fail CI.
     try {
@@ -40,7 +41,7 @@ test.describe('card front connector pulse', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
-    await expectPatternRendered(page);
+    await expectPatternRasterReady(page);
   });
 });
 
@@ -64,7 +65,7 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
-    await expectPatternRendered(page);
+    await expectPatternRasterReady(page);
   });
 
   test('glow is armed under no-preference Motion system', async ({ page }) => {
@@ -72,6 +73,6 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(0);
-    await expectPatternRendered(page);
+    await expectPatternRasterReady(page);
   });
 });

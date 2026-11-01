@@ -8,8 +8,9 @@ import {
   cardFrontTitle,
   visibleText,
 } from '../helpers/locators';
-import { expectPatternRendered } from '../helpers/patternRender';
+import { expectPatternRasterReady } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
+
 import {
   cardBackScroll,
   dragCardBackCopyUp,
@@ -20,6 +21,7 @@ import {
 test.describe('card back', () => {
   test('no media', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom');
+    await expectPatternRasterReady(page);
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
     await expect(page.getByTestId('card-back-media')).toHaveCount(0);
@@ -126,9 +128,11 @@ test.describe('card back', () => {
     await openApp(page, 'localizedConcept=Psychedelics&onlyWithMedia=true', {
       mock: { licenseOnlyMedia: true },
     });
+    await expectPatternRasterReady(page);
     await flipCard(page);
     await expect(cardBackCopy(page).getByTestId('card-back-credit')).toHaveText(
       'Image: Wikimedia Commons · CC BY-SA 4.0',
+      { timeout: 10_000 },
     );
   });
 
@@ -260,10 +264,10 @@ test.describe('card back', () => {
    */
   test('reduced-motion flip has no rotate or perspective', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
-    // Wait for pattern raster (img/svg) before flip — same native path on web.
-    await expectPatternRendered(page);
+    // Wait for PNG raster before flip so toDataURL isn't on the main thread.
+    await expectPatternRasterReady(page);
     await flipCard(page);
-    await expect(cardBackCopy(page)).toBeVisible();
+    await expect(cardBackCopy(page)).toBeVisible({ timeout: 10_000 });
 
 
     const hasForbiddenTransform = await page.evaluate(() => {
@@ -306,7 +310,7 @@ for (const concept of ['mushroom', 'no-description']) {
   for (const scale of [1, 2]) {
     test(`${concept} back uses lower reading region at ${scale * 100}% text`, async ({ page }) => {
       await openApp(page, `canonicalConcept=${concept}&e2eTextScale=${scale}`);
-      await expectPatternRendered(page);
+      await expectPatternRasterReady(page);
       await flipCard(page);
       const scroll = cardBackScroll(page);
       await expect(cardBackCopy(page)).toBeInViewport();

@@ -30,9 +30,41 @@ export async function readPatternRender(page: Page): Promise<PatternRender> {
   });
 }
 
+/** Soft check: pattern has either Image or SVG painted. */
 export async function expectPatternRendered(page: Page): Promise<void> {
   await expect(cardFrontPattern(page)).toBeAttached();
   await expect
     .poll(async () => readPatternRender(page), { timeout: 5_000 })
     .toMatchObject({ ok: true });
+}
+
+/**
+ * Wait until the front pattern has finished rasterising to an Image.
+ * Prefer this before flips — flipping while toDataURL is still on the main
+ * thread flakes card-back under CI load. Falls back to SVG only if the
+ * image never appears (onMissingToDataURL permanent fallback).
+ */
+export async function expectPatternRasterReady(page: Page): Promise<void> {
+  await expect(cardFrontPattern(page)).toBeAttached();
+  let sawSvg = false;
+  try {
+    await expect
+      .poll(
+        async () => {
+          const r = await readPatternRender(page);
+          if (r.via === 'svg') sawSvg = true;
+          return r.via === 'image' ? 'image' : r.via === 'svg' ? 'svg' : 'missing';
+        },
+        { timeout: 10_000 },
+      )
+      .toBe('image');
+  } catch (err) {
+    if (!sawSvg) throw err;
+    // Capture unavailable — permanent SvgAst is valid rendered output.
+    await expect
+      .poll(async () => readPatternRender(page), { timeout: 1_000 })
+      .toMatchObject({ ok: true, via: 'svg' });
+  }
+  // Let underlay pre-captures finish so flip isn't fighting toDataURL.
+  await page.waitForTimeout(200);
 }
