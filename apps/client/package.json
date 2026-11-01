@@ -60,5 +60,10 @@
     "tsx": "^4.20.5",
     "typescript": "~6.0.3"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "install": {
+      "exclude": ["react-native-reanimated"]
+    }
+  }
 }

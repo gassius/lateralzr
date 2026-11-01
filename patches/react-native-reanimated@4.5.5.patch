@@ -1,8 +1,18 @@
 diff --git a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
-index 48e37714232d5ccf74d99d61cb2fac56314087aa..df19621f02940403d4a686c997d1427d73fdbb4b 100644
+index 48e37714232d5ccf74d99d61cb2fac56314087aa..28af601f8b1311896fd1716be1d013dad3fd88d7 100644
 --- a/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
 +++ b/android/src/main/java/com/swmansion/reanimated/NativeProxy.kt
-@@ -245,6 +245,14 @@ open class NativeProxy {
+@@ -37,6 +37,9 @@ open class NativeProxy {
+         init {
+             SoLoader.loadLibrary("reanimated")
+         }
++
++        // Lateralzr (1amjtrex67j): once-per-process for sync-props fallback Log.w
++        private val hasLoggedSyncPropsFailure = AtomicBoolean(false)
+     }
+ 
+     protected var mNodesManager: NodesManager? = null
+@@ -245,6 +248,14 @@ open class NativeProxy {
              }.apply { isAccessible = true }
      }
  
@@ -17,7 +27,7 @@ index 48e37714232d5ccf74d99d61cb2fac56314087aa..df19621f02940403d4a686c997d1427d
      @DoNotStrip
      fun synchronouslyUpdateUIProps(
          intBuffer: IntArray,
-@@ -253,9 +261,15 @@ open class NativeProxy {
+@@ -253,9 +264,17 @@ open class NativeProxy {
          SynchronousPropsBufferParser.parse(intBuffer, doubleBuffer) { viewTag, props ->
              if (BuildConfig.IS_REACT_NATIVE_86_OR_NEWER) {
                  try {
@@ -27,10 +37,12 @@ index 48e37714232d5ccf74d99d61cb2fac56314087aa..df19621f02940403d4a686c997d1427d
                      updatePropsSynchronouslyMethod.invoke(mountingManager, viewTag, props)
                  } catch (e: Exception) {
 -                    Log.w("Reanimated", "synchronouslyUpdateUIProps failed for tag $viewTag", e)
-+                    Log.w(
-+                        "Reanimated",
-+                        "synchronouslyUpdateUIProps failed for tag $viewTag: ${e.cause ?: e}",
-+                    )
++                    if (hasLoggedSyncPropsFailure.compareAndSet(false, true)) {
++                        Log.w(
++                            "Reanimated",
++                            "synchronouslyUpdateUIProps failed for tag $viewTag: ${e.cause ?: e}",
++                        )
++                    }
                  }
              } else {
                  mFabricUIManager.synchronouslyUpdateViewOnUIThread(viewTag, props)
