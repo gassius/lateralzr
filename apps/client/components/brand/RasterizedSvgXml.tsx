@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
+  InteractionManager,
   PixelRatio,
+  StyleSheet,
   View,
   type ImageStyle,
   type StyleProp,
@@ -10,9 +12,15 @@ import { parse, SvgAst } from 'react-native-svg';
 import type Svg from 'react-native-svg';
 import {
   buildPatternBitmapCacheKey,
-  getCachedPatternBitmap,
+  estimatePatternBitmapBytes,
+  peekCachedPatternBitmap,
+  resolveCapturePixelSize,
   runPatternBitmapCapture,
 } from '@/lib/patternBitmapCache';
+import {
+  resolveRasterizedSvgXmlLayers,
+  uriForCacheKey,
+} from '@/lib/rasterizedSvgXmlState';
 
 type RasterizedSvgXmlProps = {
   xml: string;
@@ -20,14 +28,20 @@ type RasterizedSvgXmlProps = {
   height: number;
   preserveAspectRatio?: string;
   style?: StyleProp<ImageStyle>;
+  /**
+   * When false, never call toDataURL (keep SvgAst). Defaults true; callers can
+   * gate this if they have a stronger idle signal. Capture itself always waits
+   * for InteractionManager.runAfterInteractions so a swipe never rasterises.
+   */
+  captureEnabled?: boolean;
 };
 
 type SvgHandle = InstanceType<typeof Svg>;
 
 /**
  * Draw an SvgXml tree once into a PNG texture, then show a single Image.
- * Subsequent mounts with the same size+xml hit the process cache and never
- * remount RNSVG UseViews — cards animate one layer.
+ * SVG stays mounted under the Image until onLoad (no blank flash). Capture
+ * runs only after interactions idle — never mid-swipe.
  */
 export function RasterizedSvgXml({
   xml,
@@ -35,45 +49,74 @@ export function RasterizedSvgXml({
   height,
   preserveAspectRatio = 'xMidYMid slice',
   style,
+  captureEnabled = true,
 }: RasterizedSvgXmlProps) {
-  const pixelRatio = PixelRatio.get();
+  const devicePixelRatio = PixelRatio.get();
   const cacheKey = useMemo(
     () =>
       buildPatternBitmapCacheKey({
         width,
         height,
-        pixelRatio,
+        pixelRatio: devicePixelRatio,
         xml,
+        preserveAspectRatio,
       }),
-    [width, height, pixelRatio, xml],
+    [width, height, devicePixelRatio, xml, preserveAspectRatio],
   );
 
-  const [uri, setUri] = useState<string | null>(() => getCachedPatternBitmap(cacheKey));
+  const peekedUri = peekCachedPatternBitmap(cacheKey);
+  const [sessionCapture, setSessionCapture] = useState<{
+    cacheKey: string;
+    uri: string;
+  } | null>(null);
+  const [loadedCacheKey, setLoadedCacheKey] = useState<string | null>(null);
   const [captureFailed, setCaptureFailed] = useState(false);
   const svgRef = useRef<SvgHandle | null>(null);
-  const captureStarted = useRef(false);
+  const captureAttemptedForKey = useRef<string | null>(null);
+
+  const uri = uriForCacheKey(cacheKey, peekedUri, sessionCapture);
+  const layers = resolveRasterizedSvgXmlLayers({
+    cacheKey,
+    uri,
+    loadedCacheKey,
+    captureFailed,
+  });
 
   const ast = useMemo(() => parse(xml), [xml]);
 
+  // Reset failure / attempt bookkeeping when the visual key changes.
   useEffect(() => {
-    setUri(getCachedPatternBitmap(cacheKey));
     setCaptureFailed(false);
-    captureStarted.current = false;
+    captureAttemptedForKey.current = null;
   }, [cacheKey]);
 
   useEffect(() => {
-    if (uri != null || captureFailed || captureStarted.current || ast == null) {
+    if (
+      !captureEnabled ||
+      uri != null ||
+      captureFailed ||
+      ast == null ||
+      captureAttemptedForKey.current === cacheKey
+    ) {
       return;
     }
-    captureStarted.current = true;
 
     let cancelled = false;
-    const pixelW = Math.max(1, Math.round(width * pixelRatio));
-    const pixelH = Math.max(1, Math.round(height * pixelRatio));
+    captureAttemptedForKey.current = cacheKey;
 
-    const timer = setTimeout(() => {
+    const capture = resolveCapturePixelSize({
+      width,
+      height,
+      pixelRatio: devicePixelRatio,
+    });
+    const bytes = estimatePatternBitmapBytes(capture.width, capture.height);
+
+    // B2: never rasterise on the gesture path — wait until interactions settle.
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (cancelled) return;
       const node = svgRef.current;
       if (node == null || typeof node.toDataURL !== 'function') {
+        // Web / missing native module: stay on SVG, do not retry-loop.
         setCaptureFailed(true);
         return;
       }
@@ -90,53 +133,68 @@ export function RasterizedSvgXml({
                   }
                   resolve(`data:image/png;base64,${base64}`);
                 },
-                { width: pixelW, height: pixelH },
+                { width: capture.width, height: capture.height },
               );
             } catch (err) {
               reject(err instanceof Error ? err : new Error(String(err)));
             }
           }),
+        bytes,
       )
         .then((next) => {
-          if (!cancelled) setUri(next);
+          if (cancelled) return;
+          setSessionCapture({ cacheKey, uri: next });
         })
         .catch(() => {
           if (!cancelled) setCaptureFailed(true);
         });
-    }, 0);
+    });
 
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      if (typeof task.cancel === 'function') {
+        task.cancel();
+      }
     };
-  }, [ast, cacheKey, captureFailed, height, pixelRatio, uri, width]);
+  }, [
+    ast,
+    cacheKey,
+    captureEnabled,
+    captureFailed,
+    devicePixelRatio,
+    height,
+    uri,
+    width,
+  ]);
 
-  if (uri != null) {
-    return (
-      <Image
-        source={{ uri }}
-        style={[{ width, height }, style]}
-        resizeMode="stretch"
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
-    );
-  }
-
-  // First paint / capture (or permanent fallback if capture fails): one SvgAst mount.
   return (
     <View style={[{ width, height }, style]} collapsable={false}>
-      {ast != null ? (
-        <SvgAst
-          ast={ast}
-          override={{
-            width,
-            height,
-            preserveAspectRatio,
-            ref: (node: SvgHandle | null) => {
-              svgRef.current = node;
-            },
+      {layers.showSvg && ast != null ? (
+        <View style={StyleSheet.absoluteFill} collapsable={false}>
+          <SvgAst
+            ast={ast}
+            override={{
+              width,
+              height,
+              preserveAspectRatio,
+              ref: (node: SvgHandle | null) => {
+                svgRef.current = node;
+              },
+            }}
+          />
+        </View>
+      ) : null}
+      {layers.showImage && layers.imageUri != null ? (
+        <Image
+          key={cacheKey}
+          source={{ uri: layers.imageUri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          onLoad={() => {
+            setLoadedCacheKey(cacheKey);
           }}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
         />
       ) : null}
     </View>

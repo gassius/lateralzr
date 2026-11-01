@@ -172,9 +172,10 @@ export function PatternLayer({
         />
       ) : null}
       {/*
-        Rasterise the heavy pattern SvgXml once to a cached PNG Image so each
-        card animates a single texture layer (Hermes A50: cut ~800 UseViews).
-        Connector glow stays a tiny SvgXml under opacity animation.
+        Rasterise once to a cached PNG Image (keyed by visual xml fingerprint +
+        size + preserveAspectRatio — not concept identity). Capture waits for
+        InteractionManager idle so swipes never run toDataURL. SVG stays under
+        the Image until onLoad (no blank flash). Glow stays a tiny SvgXml.
       */}
       <RasterizedSvgXml
         xml={built.xml}
