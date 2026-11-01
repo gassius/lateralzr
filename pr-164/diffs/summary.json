@@ -81,11 +81,11 @@
   },
   {
     "file": "card-front_long-label_390x844_en.png",
-    "ratio": 0,
-    "percent": 0,
+    "ratio": 0.00010785028557540406,
+    "percent": 0.010785028557540405,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 0
+    "mismatchedPixels": 142
   },
   {
     "file": "card-front_pattern-01-descending_390x844_en.png",
