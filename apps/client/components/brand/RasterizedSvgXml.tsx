@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
   PixelRatio,
-  Platform,
   StyleSheet,
   View,
   type ImageStyle,
@@ -30,7 +29,6 @@ type RasterizedSvgXmlProps = {
    * Must be a real deck-settled signal (e.g. !pulseDragging from the stack).
    * When false, toDataURL never runs — swipe cannot rasterise on the UI thread.
    * Idle + upcoming underlay cards set this true to pre-capture before show.
-   * Ignored on web (live SVG kept for DOM / pixel parity).
    */
   captureEnabled: boolean;
 };
@@ -41,9 +39,7 @@ type SvgHandle = InstanceType<typeof Svg>;
  * Draw an SvgXml tree once into a PNG texture, then show a single Image.
  * SVG stays mounted under the Image until onLoad (no blank flash). Capture
  * only when `captureEnabled` (deck settled) — never mid-swipe.
- *
- * Web keeps the live SvgAst forever: Playwright needs `#connectors` in the
- * DOM, and preview pixels must match the vector master (Carlos: SVG fallback).
+ * Same path on Android / iOS / web (web is a native preview).
  */
 export function RasterizedSvgXml({
   xml,
@@ -53,7 +49,6 @@ export function RasterizedSvgXml({
   style,
   captureEnabled,
 }: RasterizedSvgXmlProps) {
-  const preferLiveSvg = Platform.OS === 'web';
   const devicePixelRatio = PixelRatio.get();
   const cacheKey = useMemo(
     () =>
@@ -67,7 +62,7 @@ export function RasterizedSvgXml({
     [width, height, devicePixelRatio, xml, preserveAspectRatio],
   );
 
-  const peekedUri = preferLiveSvg ? null : peekCachedPatternBitmap(cacheKey);
+  const peekedUri = peekCachedPatternBitmap(cacheKey);
   const [sessionCapture, setSessionCapture] = useState<{
     cacheKey: string;
     uri: string;
@@ -79,15 +74,12 @@ export function RasterizedSvgXml({
   const captureEnabledRef = useRef(captureEnabled);
   captureEnabledRef.current = captureEnabled;
 
-  const uri = preferLiveSvg
-    ? null
-    : uriForCacheKey(cacheKey, peekedUri, sessionCapture);
+  const uri = uriForCacheKey(cacheKey, peekedUri, sessionCapture);
   const layers = resolveRasterizedSvgXmlLayers({
     cacheKey,
     uri,
     loadedCacheKey,
     captureFailed,
-    preferLiveSvg,
   });
 
   const ast = useMemo(() => parse(xml), [xml]);
@@ -99,7 +91,6 @@ export function RasterizedSvgXml({
 
   useEffect(() => {
     const session = attachRasterizedSvgXmlCapture({
-      preferLiveSvg,
       captureEnabled,
       isCaptureStillEnabled: () => captureEnabledRef.current,
       uri,
@@ -126,7 +117,6 @@ export function RasterizedSvgXml({
     captureFailed,
     devicePixelRatio,
     height,
-    preferLiveSvg,
     uri,
     width,
   ]);

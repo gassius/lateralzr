@@ -1,41 +1,13 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { capture } from '../helpers/capture';
 import { cardFrontPattern, visibleText } from '../helpers/locators';
+import { expectPatternRendered } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
-
-type PulseDom = {
-  ok: boolean;
-  reason?: string;
-  connectorGroupCount: number;
-  fill: string | null;
-};
-
-/**
- * react-native-svg on web camelCases data-* (`dataConnector`), so do not query
- * `[data-connector]`. Pulse groups are direct `#connectors > g[id^="c"]`.
- */
-async function readPulseDom(page: Page): Promise<PulseDom> {
-  return page.evaluate(() => {
-    const pattern = document.querySelector('[data-testid="card-front-pattern"]');
-    if (!pattern) {
-      return { ok: false, reason: 'missing pattern', connectorGroupCount: 0, fill: null };
-    }
-    const connectors = pattern.querySelector('#connectors');
-    if (!connectors) {
-      return { ok: false, reason: 'missing #connectors', connectorGroupCount: 0, fill: null };
-    }
-    const groups = connectors.querySelectorAll(':scope > g[id^="c"]');
-    return {
-      ok: true,
-      connectorGroupCount: groups.length,
-      fill: connectors.getAttribute('fill'),
-    };
-  });
-}
 
 /**
  * Lz-40 connector pulse — structural only.
  * Peak/live opacity timing left to Critiquito screenshots, not hard asserts.
+ * Pattern raster asserts use rendered output (img/svg), not `#connectors` DOM.
  */
 test.describe('card front connector pulse', () => {
   test('pulse layer renders connectors (e2ePulsePeak)', async ({ page }, testInfo) => {
@@ -46,11 +18,7 @@ test.describe('card front connector pulse', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
-
-    const pulse = await readPulseDom(page);
-    expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
-    expect(pulse.connectorGroupCount, JSON.stringify(pulse)).toBeGreaterThan(0);
-    expect(pulse.fill).toBe('#FFC98A');
+    await expectPatternRendered(page);
 
     // AD-only artifact for Critiquito — settle/baseline noise must not fail CI.
     try {
@@ -72,9 +40,7 @@ test.describe('card front connector pulse', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
-    const pulse = await readPulseDom(page);
-    expect(pulse.ok, JSON.stringify(pulse)).toBe(true);
-    expect(pulse.connectorGroupCount).toBeGreaterThan(0);
+    await expectPatternRendered(page);
   });
 });
 
@@ -98,6 +64,7 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(0);
+    await expectPatternRendered(page);
   });
 
   test('glow is armed under no-preference Motion system', async ({ page }) => {
@@ -105,5 +72,6 @@ test.describe('card front connector pulse — Motion reduced', () => {
     await expect(cardFrontPattern(page)).toBeAttached();
     await expect(page.getByTestId('card-front-pulse-armed')).toHaveCount(1);
     await expect(page.getByTestId('card-front-pulse-idle')).toHaveCount(0);
+    await expectPatternRendered(page);
   });
 });

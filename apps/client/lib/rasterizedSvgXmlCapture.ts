@@ -1,7 +1,7 @@
 /**
  * Capture-effect body for RasterizedSvgXml — same guards + session the
- * component mounts in useEffect. Extracted so unit tests can "mount" the
- * effect (deps / cleanup) without a React Native renderer.
+ * component mounts in useEffect. Extracted so unit tests can drive the
+ * attach contract; the component mount test covers useEffect wiring.
  */
 import {
   estimatePatternBitmapBytes,
@@ -15,8 +15,6 @@ import {
 } from '@/lib/patternCaptureSession';
 
 export type RasterizedSvgXmlCaptureAttachOptions = {
-  /** Web keeps live SVG — never schedule toDataURL / Image swap. */
-  preferLiveSvg: boolean;
   captureEnabled: boolean;
   /** Live settle gate re-read when the scheduled capture runs (m1). */
   isCaptureStillEnabled: () => boolean;
@@ -43,7 +41,6 @@ export function attachRasterizedSvgXmlCapture(
   options: RasterizedSvgXmlCaptureAttachOptions,
 ): { cancel: () => void } {
   if (
-    options.preferLiveSvg ||
     !options.captureEnabled ||
     options.uri != null ||
     options.captureFailed ||

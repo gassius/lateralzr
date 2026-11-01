@@ -8,12 +8,14 @@ import {
   cardFrontTitle,
   visibleText,
 } from '../helpers/locators';
+import { expectPatternRendered } from '../helpers/patternRender';
 import { openApp } from '../helpers/preparePage';
 import {
   cardBackScroll,
   dragCardBackCopyUp,
   readBackScrollTop,
 } from '../helpers/scrollBack';
+
 
 test.describe('card back', () => {
   test('no media', async ({ page }, testInfo) => {
@@ -258,8 +260,11 @@ test.describe('card back', () => {
    */
   test('reduced-motion flip has no rotate or perspective', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
+    // Wait for pattern raster (img/svg) before flip — same native path on web.
+    await expectPatternRendered(page);
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
+
 
     const hasForbiddenTransform = await page.evaluate(() => {
       const isVisible = (el: Element) => {
@@ -301,6 +306,7 @@ for (const concept of ['mushroom', 'no-description']) {
   for (const scale of [1, 2]) {
     test(`${concept} back uses lower reading region at ${scale * 100}% text`, async ({ page }) => {
       await openApp(page, `canonicalConcept=${concept}&e2eTextScale=${scale}`);
+      await expectPatternRendered(page);
       await flipCard(page);
       const scroll = cardBackScroll(page);
       await expect(cardBackCopy(page)).toBeInViewport();

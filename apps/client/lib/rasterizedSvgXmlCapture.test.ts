@@ -1,6 +1,6 @@
 /**
- * Mounts the RasterizedSvgXml capture effect (attachRasterizedSvgXmlCapture)
- * and covers deps + cleanup — same wiring the component useEffect uses.
+ * attachRasterizedSvgXmlCapture contract (deps gates / m1). Component
+ * useEffect wiring is covered by RasterizedSvgXml.mount.test.tsx.
  */
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
@@ -17,7 +17,6 @@ function baseOptions(
   },
 ) {
   return {
-    preferLiveSvg: false,
     captureEnabled: true,
     isCaptureStillEnabled: () => true,
     uri: null,
@@ -43,27 +42,8 @@ function baseOptions(
   };
 }
 
-describe('attachRasterizedSvgXmlCapture (RasterizedSvgXml effect mount)', () => {
-  it('preferLiveSvg (web) never schedules capture', () => {
-    let scheduled = false;
-    const attempted = { current: null as string | null };
-    const session = attachRasterizedSvgXmlCapture(
-      baseOptions({
-        preferLiveSvg: true,
-        captureAttemptedForKey: attempted,
-        schedule: (run) => {
-          scheduled = true;
-          run();
-          return { cancel() {} };
-        },
-      }),
-    );
-    session.cancel();
-    assert.equal(scheduled, false);
-    assert.equal(attempted.current, null);
-  });
-
-  it('cleanup cancel before scheduled run prevents toDataURL (unmount / dep change)', async () => {
+describe('attachRasterizedSvgXmlCapture', () => {
+  it('cleanup cancel before scheduled run prevents toDataURL', async () => {
     let ran = false;
     let scheduledRun: (() => void) | undefined;
     const attempted = { current: null as string | null };
@@ -106,7 +86,6 @@ describe('attachRasterizedSvgXmlCapture (RasterizedSvgXml effect mount)', () => 
       }),
     );
     first.cancel();
-    // Simulate cacheKey effect reset (RasterizedSvgXml resets attempted on key change).
     attempted.current = null;
     const second = attachRasterizedSvgXmlCapture(
       baseOptions({
