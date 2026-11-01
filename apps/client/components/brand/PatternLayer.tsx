@@ -11,8 +11,11 @@ import {
 } from '@/lib/connectorPulse';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
 import {
-  buildPatternSvgXml,
+  hideMotifsInPatternSvg,
+  motifsIntersectingClearArea,
+  patternSvgForVariant,
   resolvePatternClearArea,
+  variantFor,
   type PatternRect,
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
@@ -46,6 +49,11 @@ type PatternLayerProps = {
   pulseGateActive?: boolean;
   /** Front-face ScrollView is scrolling — stops pulse within a frame. */
   frontScrolling?: boolean;
+  /**
+   * Deck-settled capture gate from ConceptCardStack (`!pulseDragging`).
+   * When true, idle / underlay cards may toDataURL; when false, never.
+   */
+  patternCaptureEnabled?: boolean;
 };
 
 function ConnectorGlowOverlay({
@@ -71,7 +79,8 @@ function ConnectorGlowOverlay({
 /**
  * Card-front pattern master (Lz-25) + required connector glow (Lz-58 / §11.3).
  * Decorative only — no pointer events, excluded from the accessibility tree.
- * Base XML is memoized; glow is a small overlay animated on the UI thread.
+ * Base XML is memoized on **visual** inputs (variant + hidden motifs + size);
+ * glow is a small overlay animated on the UI thread.
  */
 export function PatternLayer({
   conceptKey,
@@ -83,42 +92,56 @@ export function PatternLayer({
   variantOverride = null,
   pulseGateActive = false,
   frontScrolling = false,
+  patternCaptureEnabled = false,
 }: PatternLayerProps) {
   const reduceMotion = useReducedMotion();
   const forcePeak = resolveE2ePulsePeak(readJourneyTestParams().e2ePulsePeak);
   const ready = faceWidth >= 8 && faceHeight >= 8;
-  const titleKey = titleFaceRect
-    ? `${titleFaceRect.x},${titleFaceRect.y},${titleFaceRect.width},${titleFaceRect.height}`
-    : 'none';
 
-  const built = useMemo(
-    () =>
-      ready
-        ? buildPatternSvgXml({
-            conceptKey,
-            titleFaceRect,
-            faceWidth,
-            faceHeight,
-            variantOverride,
-          })
-        : null,
-    // titleFaceRect is keyed via titleKey.
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- titleKey stands in for titleFaceRect
-    [ready, conceptKey, titleKey, faceWidth, faceHeight, variantOverride],
-  );
-
+  // Visual inputs only — conceptKey is folded into variant; title into clear/motifs.
+  const variant: PatternVariantIndex =
+    variantOverride != null ? variantOverride : variantFor(conceptKey);
   const clearArea = useMemo(
     () =>
-      ready && built != null
+      ready
         ? resolvePatternClearArea({
-            variant: built.variant,
+            variant,
             titleFaceRect,
             faceWidth,
             faceHeight,
           })
         : { x: 0, y: 0, width: 1, height: 1 },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- titleKey stands in for titleFaceRect
-    [ready, built, titleKey, faceWidth, faceHeight],
+    // titleFaceRect primitives — not concept identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- explicit visual deps
+    [
+      ready,
+      variant,
+      titleFaceRect?.x,
+      titleFaceRect?.y,
+      titleFaceRect?.width,
+      titleFaceRect?.height,
+      faceWidth,
+      faceHeight,
+    ],
+  );
+  const hiddenMotifs = useMemo(
+    () => (ready ? motifsIntersectingClearArea(variant, clearArea) : []),
+    [ready, variant, clearArea],
+  );
+  const hiddenMotifsKey = hiddenMotifs.join(',');
+
+  const built = useMemo(
+    () =>
+      ready
+        ? {
+            variant,
+            xml: hideMotifsInPatternSvg(patternSvgForVariant(variant), hiddenMotifs),
+            hiddenMotifs,
+          }
+        : null,
+    // Cache / memo on pattern pixels only (variant + which motifs are hidden).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hiddenMotifsKey stands in for list
+    [ready, variant, hiddenMotifsKey],
   );
 
   const allowed =
@@ -172,16 +195,15 @@ export function PatternLayer({
         />
       ) : null}
       {/*
-        Rasterise once to a cached PNG Image (keyed by visual xml fingerprint +
-        size + preserveAspectRatio — not concept identity). Capture waits for
-        InteractionManager idle so swipes never run toDataURL. SVG stays under
-        the Image until onLoad (no blank flash). Glow stays a tiny SvgXml.
+        Visual-keyed raster cache + deck-settled captureEnabled. Underlay cards
+        pre-capture while idle so a swipe never mounts a cold SvgAst+toDataURL.
       */}
       <RasterizedSvgXml
         xml={built.xml}
         width={faceWidth}
         height={faceHeight}
         preserveAspectRatio="xMidYMid slice"
+        captureEnabled={patternCaptureEnabled}
       />
       {pulse.armed && pulse.geometry ? (
         <ConnectorGlowOverlay

@@ -967,6 +967,13 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     appActive &&
     !showDeckStatus;
 
+  /**
+   * Pattern raster gate: real swipe-settled signal (`!pulseDragging` from
+   * pan/commit onEnd). True for underlays too so upcoming cards pre-capture
+   * while idle — InteractionManager is not used (RNGH never registers handles).
+   */
+  const patternCaptureEnabled = !pulseDragging && cardSettled && !showDeckStatus;
+
   const cancelCoachPeek = () => {
     'worklet';
     coachPeekX.value = 0;
@@ -1456,6 +1463,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   preloadedMediaUrls={preloadedMediaUrls}
                   facePadding={cardLayout.padding}
                   mediaRequestWidth={mediaRequestWidth}
+                  patternCaptureEnabled={patternCaptureEnabled}
                 />
               ) : (
                 <LoadingCard exposeTestId={false} />
@@ -1521,6 +1529,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                   exposeFrontTitleTestId
                   onBackInteractivePress={noteBackInteractivePress}
                   pulseGateActive={pulseGateActive}
+                  patternCaptureEnabled={patternCaptureEnabled}
                   facePadding={cardLayout.padding}
                   mediaRequestWidth={mediaRequestWidth}
                   backScrollOffsetY={backScrollY}
@@ -1548,6 +1557,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
                 preloadedMediaUrls={preloadedMediaUrls}
                 facePadding={cardLayout.padding}
                 mediaRequestWidth={mediaRequestWidth}
+                patternCaptureEnabled={patternCaptureEnabled}
               />
             </Animated.View>
           ) : null}
@@ -1569,6 +1579,7 @@ function ConceptCardForIndex({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
+  patternCaptureEnabled = false,
   facePadding,
   mediaRequestWidth,
   backScrollOffsetY,
@@ -1585,6 +1596,7 @@ function ConceptCardForIndex({
   exposeFrontTitleTestId?: boolean;
   onBackInteractivePress?: () => void;
   pulseGateActive?: boolean;
+  patternCaptureEnabled?: boolean;
   facePadding: number;
   mediaRequestWidth: number;
   backScrollOffsetY?: SharedValue<number>;
@@ -1612,6 +1624,7 @@ function ConceptCardForIndex({
       exposeFrontTitleTestId={exposeFrontTitleTestId}
       onBackInteractivePress={onBackInteractivePress}
       pulseGateActive={pulseGateActive}
+      patternCaptureEnabled={patternCaptureEnabled}
       facePadding={facePadding}
       mediaRequestWidth={mediaRequestWidth}
       backScrollOffsetY={backScrollOffsetY}

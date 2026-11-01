@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image,
-  InteractionManager,
   PixelRatio,
   StyleSheet,
   View,
@@ -17,6 +16,7 @@ import {
   resolveCapturePixelSize,
   runPatternBitmapCapture,
 } from '@/lib/patternBitmapCache';
+import { startPatternCaptureSession } from '@/lib/patternCaptureSession';
 import {
   resolveRasterizedSvgXmlLayers,
   uriForCacheKey,
@@ -29,11 +29,11 @@ type RasterizedSvgXmlProps = {
   preserveAspectRatio?: string;
   style?: StyleProp<ImageStyle>;
   /**
-   * When false, never call toDataURL (keep SvgAst). Defaults true; callers can
-   * gate this if they have a stronger idle signal. Capture itself always waits
-   * for InteractionManager.runAfterInteractions so a swipe never rasterises.
+   * Must be a real deck-settled signal (e.g. !pulseDragging from the stack).
+   * When false, toDataURL never runs — swipe cannot rasterise on the UI thread.
+   * Idle + upcoming underlay cards set this true to pre-capture before show.
    */
-  captureEnabled?: boolean;
+  captureEnabled: boolean;
 };
 
 type SvgHandle = InstanceType<typeof Svg>;
@@ -41,7 +41,7 @@ type SvgHandle = InstanceType<typeof Svg>;
 /**
  * Draw an SvgXml tree once into a PNG texture, then show a single Image.
  * SVG stays mounted under the Image until onLoad (no blank flash). Capture
- * runs only after interactions idle — never mid-swipe.
+ * only when `captureEnabled` (deck settled) — never mid-swipe.
  */
 export function RasterizedSvgXml({
   xml,
@@ -49,7 +49,7 @@ export function RasterizedSvgXml({
   height,
   preserveAspectRatio = 'xMidYMid slice',
   style,
-  captureEnabled = true,
+  captureEnabled,
 }: RasterizedSvgXmlProps) {
   const devicePixelRatio = PixelRatio.get();
   const cacheKey = useMemo(
@@ -84,7 +84,6 @@ export function RasterizedSvgXml({
 
   const ast = useMemo(() => parse(xml), [xml]);
 
-  // Reset failure / attempt bookkeeping when the visual key changes.
   useEffect(() => {
     setCaptureFailed(false);
     captureAttemptedForKey.current = null;
@@ -101,9 +100,7 @@ export function RasterizedSvgXml({
       return;
     }
 
-    let cancelled = false;
     captureAttemptedForKey.current = cacheKey;
-
     const capture = resolveCapturePixelSize({
       width,
       height,
@@ -111,50 +108,21 @@ export function RasterizedSvgXml({
     });
     const bytes = estimatePatternBitmapBytes(capture.width, capture.height);
 
-    // B2: never rasterise on the gesture path — wait until interactions settle.
-    const task = InteractionManager.runAfterInteractions(() => {
-      if (cancelled) return;
-      const node = svgRef.current;
-      if (node == null || typeof node.toDataURL !== 'function') {
-        // Web / missing native module: stay on SVG, do not retry-loop.
-        setCaptureFailed(true);
-        return;
-      }
-      void runPatternBitmapCapture(
-        cacheKey,
-        () =>
-          new Promise<string>((resolve, reject) => {
-            try {
-              node.toDataURL(
-                (base64) => {
-                  if (!base64) {
-                    reject(new Error('empty toDataURL'));
-                    return;
-                  }
-                  resolve(`data:image/png;base64,${base64}`);
-                },
-                { width: capture.width, height: capture.height },
-              );
-            } catch (err) {
-              reject(err instanceof Error ? err : new Error(String(err)));
-            }
-          }),
-        bytes,
-      )
-        .then((next) => {
-          if (cancelled) return;
-          setSessionCapture({ cacheKey, uri: next });
-        })
-        .catch(() => {
-          if (!cancelled) setCaptureFailed(true);
-        });
+    const session = startPatternCaptureSession({
+      captureEnabled: true,
+      hasUri: false,
+      captureFailed: false,
+      getSvgNode: () => svgRef.current,
+      captureWidth: capture.width,
+      captureHeight: capture.height,
+      runCapture: (work) => runPatternBitmapCapture(cacheKey, work, bytes),
+      onMissingToDataURL: () => setCaptureFailed(true),
+      onCaptured: (next) => setSessionCapture({ cacheKey, uri: next }),
+      onError: () => setCaptureFailed(true),
     });
 
     return () => {
-      cancelled = true;
-      if (typeof task.cancel === 'function') {
-        task.cancel();
-      }
+      session.cancel();
     };
   }, [
     ast,

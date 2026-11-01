@@ -56,21 +56,7 @@ describe('RasterizedSvgXml display contract (B1)', () => {
   });
 });
 
-describe('RasterizedSvgXml capture cancel / web fallback contracts', () => {
-  it('treats missing toDataURL as a terminal failure (web path)', () => {
-    const node: { toDataURL?: unknown } = {};
-    const missing = typeof node.toDataURL !== 'function';
-    assert.equal(missing, true);
-    const layers = resolveRasterizedSvgXmlLayers({
-      cacheKey: 'web',
-      uri: null,
-      loadedCacheKey: null,
-      captureFailed: true,
-    });
-    assert.equal(layers.showSvg, true);
-    assert.equal(layers.showImage, false);
-  });
-
+describe('RasterizedSvgXml display after key change', () => {
   it('key change invalidates prior loaded state so SVG covers the gap', () => {
     const afterKeyChange = resolveRasterizedSvgXmlLayers({
       cacheKey: 'next',
@@ -82,3 +68,5 @@ describe('RasterizedSvgXml capture cancel / web fallback contracts', () => {
     assert.equal(afterKeyChange.showImage, false);
   });
 });
+
+// Cancel + web toDataURL paths: see patternCaptureSession.test.ts (component session).
