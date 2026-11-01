@@ -18,6 +18,7 @@ import {
 } from '@/lib/patternPlacement';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
 import type { SharedValue } from 'react-native-reanimated';
+import { RasterizedSvgXml } from './RasterizedSvgXml';
 
 type PatternLayerProps = {
   /** Concept key for stable variant assignment (`hash % 3`). */
@@ -170,7 +171,12 @@ export function PatternLayer({
           collapsable={false}
         />
       ) : null}
-      <SvgXml
+      {/*
+        Rasterise the heavy pattern SvgXml once to a cached PNG Image so each
+        card animates a single texture layer (Hermes A50: cut ~800 UseViews).
+        Connector glow stays a tiny SvgXml under opacity animation.
+      */}
+      <RasterizedSvgXml
         xml={built.xml}
         width={faceWidth}
         height={faceHeight}
