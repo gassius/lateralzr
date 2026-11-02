@@ -131,15 +131,15 @@ export async function expectPatternRasterReady(
         });
         if (!analysis.sizeOk) {
           settled = null;
-          return `size-${analysis.width}x${analysis.height}`;
+          return `png ${analysis.width}x${analysis.height} vs expected ${expected.width}x${expected.height}`;
         }
         if (!analysis.nonBlank) {
           settled = null;
-          return 'blank';
+          return `opaquePixels=${analysis.opaquePixels} (blank / trivial PNG)`;
         }
         if (options.requireGlow && !analysis.hasGlow) {
           settled = null;
-          return `no-glow-${analysis.glowPixels}`;
+          return `glowPixels=${analysis.glowPixels} (need #FFC98A-ish connector signal)`;
         }
         settled = render;
         return 'image-ready';
@@ -150,4 +150,32 @@ export async function expectPatternRasterReady(
 
   expect(settled?.via, JSON.stringify(settled)).toBe('image');
   expect(settled?.dataUri, 'png data uri').toBeTruthy();
+
+  // Mirror size / opaque / glow expects so a late remount still surfaces the
+  // same expected-vs-actual and pixel-count messages as pre-#166.
+  const render = settled!;
+  const expected = expectedCaptureSize(
+    render.layoutWidth ?? 0,
+    render.layoutHeight ?? 0,
+    render.devicePixelRatio ?? 1,
+  );
+  const png = decodeDataImagePng(render.dataUri!);
+  const analysis = analyzePatternRasterPng(png, {
+    expectedWidth: expected.width,
+    expectedHeight: expected.height,
+  });
+  expect(
+    analysis.sizeOk,
+    `png ${analysis.width}x${analysis.height} vs expected ${expected.width}x${expected.height}`,
+  ).toBe(true);
+  expect(
+    analysis.nonBlank,
+    `opaquePixels=${analysis.opaquePixels} (blank / trivial PNG)`,
+  ).toBe(true);
+  if (options.requireGlow) {
+    expect(
+      analysis.hasGlow,
+      `glowPixels=${analysis.glowPixels} (need #FFC98A-ish connector signal)`,
+    ).toBe(true);
+  }
 }
