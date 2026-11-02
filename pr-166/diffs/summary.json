@@ -1,20 +1,19 @@
 [
   {
     "file": "card-back_no-description_390x844_en.png",
-    "ratio": 0.014480040102078017,
-    "percent": 1.4480040102078018,
+    "ratio": 0.000056963179001093695,
+    "percent": 0.005696317900109369,
     "threshold": 0.01,
-    "status": "over-threshold",
-    "mismatchedPixels": 19065,
-    "diffImage": "card-back_no-description_390x844_en.diff.png"
+    "status": "pass",
+    "mismatchedPixels": 75
   },
   {
     "file": "card-back_no-media_390x844_en.png",
-    "ratio": 0.006159618422651598,
-    "percent": 0.6159618422651598,
+    "ratio": 0.000028101834973872888,
+    "percent": 0.002810183497387289,
     "threshold": 0.01,
     "status": "pass",
-    "mismatchedPixels": 8110
+    "mismatchedPixels": 37
   },
   {
     "file": "card-back_no-media-200_390x844_en.png",
