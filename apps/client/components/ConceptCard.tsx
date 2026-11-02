@@ -22,7 +22,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ConceptItem } from '@/lib/api';
 import { color, layout } from '@/theme/tokens';
 import { namedFaceStyle, textStyle } from '@/theme/typography';
@@ -93,8 +93,8 @@ import {
   titleColor,
   type ConceptFrontTitleLayout,
 } from '@/lib/conceptFrontTitle';
-import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
-import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
+import { resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
+import { variantFor, type PatternRect } from '@/lib/patternPlacement';
 import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipA11yFace, cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
@@ -1078,16 +1078,15 @@ export function ConceptCard({
               ? ({ dataSet: { mediaFade: fade.kind } } as Record<string, unknown>)
               : null)}
           >
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id="cardBackPaperFade" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <Stop offset="0%" stopColor={color.paper} stopOpacity="0" />
-                  <Stop offset="70%" stopColor={color.paper} stopOpacity="0.85" />
-                  <Stop offset="100%" stopColor={color.paper} stopOpacity="1" />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill="url(#cardBackPaperFade)" />
-            </Svg>
+            <LinearGradient
+              colors={[
+                'rgba(245,241,232,0)',
+                'rgba(245,241,232,0.85)',
+                color.paper,
+              ]}
+              locations={[0, 0.7, 1]}
+              style={StyleSheet.absoluteFill}
+            />
           </View>
         ) : null}
       </View>
@@ -1103,18 +1102,8 @@ export function ConceptCard({
     cardHeight: backFaceH,
     firstTextY,
   });
-  const embossXml = useMemo(() => {
-    if (!showBlindEmboss) return '';
-    return buildNoMediaEmbossXml(
-      buildPatternSvgXml({
-        conceptKey: patternConceptKey,
-        titleFaceRect: null,
-        faceWidth,
-        faceHeight: backFaceH,
-        variantOverride: patternVariantOverride,
-      }).xml,
-    );
-  }, [showBlindEmboss, patternConceptKey, faceWidth, backFaceH, patternVariantOverride]);
+  const embossVariant =
+    patternVariantOverride != null ? patternVariantOverride : variantFor(patternConceptKey);
 
   const back = (
     <View
@@ -1131,7 +1120,7 @@ export function ConceptCard({
     >
       {showBlindEmboss ? (
         <NoMediaEmboss
-          xml={embossXml}
+          variant={embossVariant}
           width={faceWidth}
           height={embossPlan.height}
           faceHeight={backFaceH}

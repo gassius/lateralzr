@@ -1,0 +1,32 @@
+{
+  "cardUnits": {
+    "width": 358,
+    "height": 560
+  },
+  "scale": 3,
+  "pixelSize": {
+    "width": 1074,
+    "height": 1680
+  },
+  "variants": [
+    {
+      "index": 0,
+      "key": "01",
+      "front": "pattern-01@3x.png",
+      "emboss": "emboss-01@3x.png"
+    },
+    {
+      "index": 1,
+      "key": "02",
+      "front": "pattern-02@3x.png",
+      "emboss": "emboss-02@3x.png"
+    },
+    {
+      "index": 2,
+      "key": "03",
+      "front": "pattern-03@3x.png",
+      "emboss": "emboss-03@3x.png"
+    }
+  ],
+  "paperFade": "paper-fade-vertical.png"
+}

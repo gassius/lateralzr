@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import { SvgXml } from 'react-native-svg';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 import {
   LOADING_CARD_HAIRLINE_ALPHA,
   LOADING_CARD_PATTERN_OPACITY,
   LOADING_CARD_RAIL_ALPHA,
   LOADING_PATTERN_VARIANT,
 } from '@/lib/loadingCard';
-import { patternSvgForVariant } from '@/lib/patternPlacement';
+import { bakedPatternFront } from '@/lib/patternBakedAssets';
 import { CARD_SHADOW, cardRadius, cardShadowStyle } from '@/lib/cardLayout';
 import { hexToRgba } from '@/theme/contrast';
 import { color } from '@/theme/tokens';
@@ -19,12 +18,11 @@ type LoadingCardProps = {
 
 /**
  * Quiet loading silhouette (Lz-35): front-sized card, no title, no pulse, no spinner.
- * Status copy lives on the laterality control row (`DeckStatusLine`), not on the card.
+ * Build-time pattern PNG — no react-native-svg.
  */
 export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
   const [face, setFace] = useState({ width: 0, height: 0 });
   const radius = cardRadius();
-  const xml = patternSvgForVariant(LOADING_PATTERN_VARIANT);
 
   return (
     <View
@@ -62,11 +60,12 @@ export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
             importantForAccessibility="no-hide-descendants"
             nativeID="loading-pattern-variant-3"
           >
-            <SvgXml
-              xml={xml}
-              width={face.width}
-              height={face.height}
-              preserveAspectRatio="xMidYMid slice"
+            <Image
+              source={bakedPatternFront(LOADING_PATTERN_VARIANT)}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
             />
           </View>
         ) : null}

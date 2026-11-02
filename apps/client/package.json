@@ -10,6 +10,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "bake:patterns": "node ./scripts/bake-pattern-rasters.mjs",
     "test": "tsx --require ./scripts/register-audio-assets.cjs --test lib/*.test.ts theme/*.test.ts e2e/helpers/*.test.ts components/brand/*.test.ts && tsx --require ./scripts/register-rn-component-test.cjs --test components/brand/*.mount.test.tsx",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test -c e2e/playwright.config.ts",
@@ -29,6 +30,7 @@
     "expo-constants": "~57.0.21",
     "expo-font": "~57.0.4",
     "expo-image": "~57.0.5",
+    "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.12",
     "expo-navigation-bar": "~57.0.3",
     "expo-router": "~57.0.26",
@@ -48,6 +50,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "1.55.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@testing-library/react-native": "13.3.3",
     "@types/node": "^22",
     "@types/pngjs": "^6.0.5",

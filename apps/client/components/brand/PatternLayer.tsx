@@ -1,15 +1,18 @@
 import { useMemo } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Image, Platform, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import { SvgXml } from 'react-native-svg';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
-  buildConnectorGlowOverlayXml,
+  CONNECTOR_GLOW_HALO_OPACITIES,
+  CONNECTOR_GLOW_LINE_EXTRAS,
+  CONNECTOR_GLOW_NODE_RING_EXTRAS,
+  CONNECTOR_GLOW_NODE_RING_STROKE,
   connectorPulseAllowed,
   type ConnectorGlowLine,
 } from '@/lib/connectorPulse';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
+import { bakedPatternFront } from '@/lib/patternBakedAssets';
 import {
   hideMotifsInPatternSvg,
   motifsIntersectingClearArea,
@@ -20,8 +23,8 @@ import {
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
+import { PATTERN_CARD_FILL, PATTERN_CARD_UNITS, PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
 import type { SharedValue } from 'react-native-reanimated';
-import { RasterizedSvgXml } from './RasterizedSvgXml';
 
 type PatternLayerProps = {
   /** Concept key for stable variant assignment (`hash % 3`). */
@@ -49,13 +52,14 @@ type PatternLayerProps = {
   pulseGateActive?: boolean;
   /** Front-face ScrollView is scrolling — stops pulse within a frame. */
   frontScrolling?: boolean;
-  /**
-   * Deck-settled capture gate from ConceptCardStack (`!pulseDragging`).
-   * When true, idle / underlay cards may toDataURL; when false, never.
-   */
+  /** @deprecated Runtime capture removed — build-time PNGs only. Ignored. */
   patternCaptureEnabled?: boolean;
 };
 
+/**
+ * Soft glow without react-native-svg: stacked Views (line + terminal node).
+ * Geometry is in pattern card units, scaled to the face.
+ */
 function ConnectorGlowOverlay({
   geometry,
   opacity,
@@ -68,19 +72,98 @@ function ConnectorGlowOverlay({
   height: number;
 }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const xml = useMemo(() => buildConnectorGlowOverlayXml(geometry), [geometry]);
+  const sx = width / PATTERN_CARD_UNITS.width;
+  const sy = height / PATTERN_CARD_UNITS.height;
+  const x1 = geometry.x1 * sx;
+  const y1 = geometry.y1 * sy;
+  const x2 = geometry.x2 * sx;
+  const y2 = geometry.y2 * sy;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const endX = geometry.endX * sx;
+  const endY = geometry.endY * sy;
+  const endR = Math.min(4, geometry.endR) * ((sx + sy) / 2);
+  const strokeScale = (sx + sy) / 2;
+
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
-      <SvgXml xml={xml} width={width} height={height} preserveAspectRatio="xMidYMid slice" />
+      {CONNECTOR_GLOW_LINE_EXTRAS.map((extra, i) => {
+        const opacityHalo = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+        const thickness = (geometry.strokeWidth + extra) * strokeScale;
+        return (
+          <View
+            key={`line-halo-${extra}`}
+            style={{
+              position: 'absolute',
+              left: midX - length / 2,
+              top: midY - thickness / 2,
+              width: length,
+              height: thickness,
+              borderRadius: thickness,
+              backgroundColor: PATTERN_PULSE_GLOW_FILL,
+              opacity: opacityHalo,
+              transform: [{ rotate: `${angleDeg}deg` }],
+            }}
+          />
+        );
+      })}
+      <View
+        style={{
+          position: 'absolute',
+          left: midX - length / 2,
+          top: midY - (geometry.strokeWidth * strokeScale) / 2,
+          width: length,
+          height: geometry.strokeWidth * strokeScale,
+          borderRadius: geometry.strokeWidth * strokeScale,
+          backgroundColor: PATTERN_PULSE_GLOW_FILL,
+          transform: [{ rotate: `${angleDeg}deg` }],
+        }}
+      />
+      {CONNECTOR_GLOW_NODE_RING_EXTRAS.map((extra, i) => {
+        const opacityHalo = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
+        const r = endR + extra * strokeScale;
+        const stroke = CONNECTOR_GLOW_NODE_RING_STROKE * strokeScale;
+        return (
+          <View
+            key={`ring-halo-${extra}`}
+            style={{
+              position: 'absolute',
+              left: endX - r,
+              top: endY - r,
+              width: r * 2,
+              height: r * 2,
+              borderRadius: r,
+              borderWidth: stroke,
+              borderColor: PATTERN_PULSE_GLOW_FILL,
+              opacity: opacityHalo,
+            }}
+          />
+        );
+      })}
+      <View
+        style={{
+          position: 'absolute',
+          left: endX - endR,
+          top: endY - endR,
+          width: endR * 2,
+          height: endR * 2,
+          borderRadius: endR,
+          backgroundColor: PATTERN_PULSE_GLOW_FILL,
+        }}
+      />
     </Animated.View>
   );
 }
 
 /**
- * Card-front pattern master (Lz-25) + required connector glow (Lz-58 / §11.3).
- * Decorative only — no pointer events, excluded from the accessibility tree.
- * Base XML is memoized on **visual** inputs (variant + hidden motifs + size);
- * glow is a small overlay animated on the UI thread.
+ * Card-front pattern (Lz-25) + connector glow (Lz-58 / §11.3).
+ * Build-time PNG background — zero react-native-svg in the deck.
+ * Title clear = opaque orange cover over the measured title box (motifs stay in the bake).
+ * Glow is View layers; opacity breathes on the UI thread via Reanimated.
  */
 export function PatternLayer({
   conceptKey,
@@ -92,13 +175,11 @@ export function PatternLayer({
   variantOverride = null,
   pulseGateActive = false,
   frontScrolling = false,
-  patternCaptureEnabled = false,
 }: PatternLayerProps) {
   const reduceMotion = useReducedMotion();
   const forcePeak = resolveE2ePulsePeak(readJourneyTestParams().e2ePulsePeak);
   const ready = faceWidth >= 8 && faceHeight >= 8;
 
-  // Visual inputs only — conceptKey is folded into variant; title into clear/motifs.
   const variant: PatternVariantIndex =
     variantOverride != null ? variantOverride : variantFor(conceptKey);
   const clearArea = useMemo(
@@ -111,7 +192,6 @@ export function PatternLayer({
             faceHeight,
           })
         : { x: 0, y: 0, width: 1, height: 1 },
-    // titleFaceRect primitives — not concept identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- explicit visual deps
     [
       ready,
@@ -130,16 +210,12 @@ export function PatternLayer({
   );
   const hiddenMotifsKey = hiddenMotifs.join(',');
 
-  const built = useMemo(
+  /** SVG string kept only for pulse connector picking — never mounted. */
+  const pulseXml = useMemo(
     () =>
       ready
-        ? {
-            variant,
-            xml: hideMotifsInPatternSvg(patternSvgForVariant(variant), hiddenMotifs),
-            hiddenMotifs,
-          }
-        : null,
-    // Cache / memo on pattern pixels only (variant + which motifs are hidden).
+        ? hideMotifsInPatternSvg(patternSvgForVariant(variant), hiddenMotifs)
+        : '',
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hiddenMotifsKey stands in for list
     [ready, variant, hiddenMotifsKey],
   );
@@ -159,14 +235,25 @@ export function PatternLayer({
 
   const pulse = useConnectorPulse({
     allowed: Boolean(allowed),
-    xml: built?.xml ?? '',
-    variant: built?.variant ?? 0,
+    xml: pulseXml,
+    variant,
     clearArea,
     conceptKey,
     forcePeak,
   });
 
-  if (!ready || built == null) {
+  /** Face-pixel clear cover (pattern image is edge-to-edge on the face). */
+  const clearCover = useMemo(() => {
+    if (!ready || clearArea.width < 1 || clearArea.height < 1) return null;
+    return {
+      left: clearArea.x,
+      top: clearArea.y,
+      width: clearArea.width,
+      height: clearArea.height,
+    };
+  }, [ready, clearArea]);
+
+  if (!ready) {
     return null;
   }
 
@@ -186,7 +273,7 @@ export function PatternLayer({
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
-      nativeID={exposeTestId ? `pattern-variant-${built.variant}` : undefined}
+      nativeID={exposeTestId ? `pattern-variant-${variant}` : undefined}
     >
       {exposeTestId ? (
         <View
@@ -194,17 +281,20 @@ export function PatternLayer({
           collapsable={false}
         />
       ) : null}
-      {/*
-        Visual-keyed raster cache + deck-settled captureEnabled. Underlay cards
-        pre-capture while idle so a swipe never mounts a cold SvgAst+toDataURL.
-      */}
-      <RasterizedSvgXml
-        xml={built.xml}
-        width={faceWidth}
-        height={faceHeight}
-        preserveAspectRatio="xMidYMid slice"
-        captureEnabled={patternCaptureEnabled}
+      <Image
+        source={bakedPatternFront(variant)}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       />
+      {clearCover ? (
+        <View
+          pointerEvents="none"
+          style={[styles.titleClear, clearCover, { backgroundColor: PATTERN_CARD_FILL }]}
+          testID={exposeTestId ? 'card-front-pattern-clear' : undefined}
+        />
+      ) : null}
       {pulse.armed && pulse.geometry ? (
         <ConnectorGlowOverlay
           geometry={pulse.geometry}
@@ -223,5 +313,8 @@ const styles = StyleSheet.create({
     pointerEvents: 'none',
     zIndex: 0,
     overflow: 'hidden',
+  },
+  titleClear: {
+    position: 'absolute',
   },
 });
