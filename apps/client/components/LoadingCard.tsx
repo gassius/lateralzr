@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import {
   LOADING_CARD_HAIRLINE_ALPHA,
   LOADING_CARD_PATTERN_OPACITY,
@@ -62,8 +63,11 @@ export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
           >
             <Image
               source={bakedPatternFront(LOADING_PATTERN_VARIANT)}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
+              style={{ width: face.width, height: face.height }}
+              contentFit="cover"
+              decodeFormat="rgb"
+              recyclingKey="loading-pattern-front"
+              cachePolicy="memory-disk"
               accessibilityElementsHidden
               importantForAccessibility="no-hide-descendants"
             />

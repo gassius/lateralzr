@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { Image, Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -14,6 +15,7 @@ import {
   GLOW_NODE_SOFT,
 } from '@/lib/patternBakedAssets';
 import {
+  cardPointToFacePixels,
   cardRectToFacePixels,
   defaultTitleClearForVariant,
   hideMotifsInPatternSvg,
@@ -21,13 +23,14 @@ import {
   motifsIntersectingClearArea,
   patternSvgForVariant,
   resolvePatternClearArea,
+  sliceFaceLayout,
   variantFor,
   type PatternRect,
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
 import { PATTERN_VARIANT_PLACEMENTS } from '@/lib/patternVariantPlacements';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
-import { PATTERN_CARD_FILL, PATTERN_CARD_UNITS } from '@/theme/pattern';
+import { PATTERN_CARD_FILL } from '@/theme/pattern';
 import type { SharedValue } from 'react-native-reanimated';
 
 type PatternLayerProps = {
@@ -60,8 +63,8 @@ type PatternLayerProps = {
 
 /**
  * Soft glow without react-native-svg: baked WebP sprites (Gaussian blur at
- * bake time). Geometry is in pattern card units, scaled to the face.
- * Node size follows `geometry.endR` (already capped in connectorPulse).
+ * bake time). Geometry is card design units → face via xMidYMid slice (same
+ * as the pattern Image `contentFit="cover"` / former SvgXml overlay).
  */
 function ConnectorGlowOverlay({
   geometry,
@@ -75,25 +78,20 @@ function ConnectorGlowOverlay({
   height: number;
 }) {
   const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const sx = width / PATTERN_CARD_UNITS.width;
-  const sy = height / PATTERN_CARD_UNITS.height;
-  const x1 = geometry.x1 * sx;
-  const y1 = geometry.y1 * sy;
-  const x2 = geometry.x2 * sx;
-  const y2 = geometry.y2 * sy;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
+  const { scale } = sliceFaceLayout(width, height);
+  const p1 = cardPointToFacePixels(geometry.x1, geometry.y1, width, height);
+  const p2 = cardPointToFacePixels(geometry.x2, geometry.y2, width, height);
+  const end = cardPointToFacePixels(geometry.endX, geometry.endY, width, height);
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
   const length = Math.max(1, Math.hypot(dx, dy));
   const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  const endX = geometry.endX * sx;
-  const endY = geometry.endY * sy;
-  const strokeScale = (sx + sy) / 2;
-  // Match buildConnectorGlowOverlayXml: endR is card units (already ≤ NODE_R_MAX).
-  const endR = geometry.endR * strokeScale;
-  // Soft line sprite is 256×64 with ~6px core + blur — scale height to stroke halo.
-  const lineH = Math.max(12, (geometry.strokeWidth + 6) * strokeScale * 2.2);
+  const midX = (p1.x + p2.x) / 2;
+  const midY = (p1.y + p2.y) / 2;
+  // endR is card units (already ≤ NODE_R_MAX); map with uniform slice scale.
+  const endR = geometry.endR * scale;
+  // Soft line sprite is 256×64 with blurred stroke — height tracks stroke halo.
+  const lineH = Math.max(12, (geometry.strokeWidth + 6) * scale * 2.2);
   // Soft node sprite is 64×64 with solid r≈5; map that core to endR.
   const nodeSize = Math.max(8, endR * 2 * (64 / 10));
 
@@ -109,7 +107,8 @@ function ConnectorGlowOverlay({
           height: lineH,
           transform: [{ rotate: `${angleDeg}deg` }],
         }}
-        resizeMode="stretch"
+        contentFit="fill"
+        cachePolicy="memory"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       />
@@ -117,12 +116,13 @@ function ConnectorGlowOverlay({
         source={GLOW_NODE_SOFT}
         style={{
           position: 'absolute',
-          left: endX - nodeSize / 2,
-          top: endY - nodeSize / 2,
+          left: end.x - nodeSize / 2,
+          top: end.y - nodeSize / 2,
           width: nodeSize,
           height: nodeSize,
         }}
-        resizeMode="contain"
+        contentFit="contain"
+        cachePolicy="memory"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       />
@@ -133,9 +133,11 @@ function ConnectorGlowOverlay({
 /**
  * Card-front pattern (Lz-25) + connector glow (Lz-58 / §11.3).
  * Build-time WebP background — zero react-native-svg in the deck.
- * Default title-clear motifs are baked out; measured title only covers
- * extra motif AABBs (matches pulseXml hideMotifs, not a solid rect cut).
- * Glow is soft baked sprites; opacity breathes via Reanimated.
+ *
+ * The bake is 1074×1680 (@3× of 358×560). Size the Image to the **face in
+ * points** (`faceWidth × faceHeight`) — never the asset pixel box — so one
+ * cover fills the orange face exactly once. expo-image decodes at that
+ * display size (avoids keeping a full 3× bitmap on GPU for a ~358pt face).
  */
 export function PatternLayer({
   conceptKey,
@@ -272,8 +274,12 @@ export function PatternLayer({
       ) : null}
       <Image
         source={bakedPatternFront(variant)}
-        style={StyleSheet.absoluteFill}
-        resizeMode="cover"
+        style={{ width: faceWidth, height: faceHeight }}
+        contentFit="cover"
+        // Opaque orange bake — RGB_565 on Android cuts decode bandwidth.
+        decodeFormat="rgb"
+        recyclingKey={`pattern-front-${variant}`}
+        cachePolicy="memory-disk"
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       />
