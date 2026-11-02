@@ -1136,6 +1136,7 @@ export function ConceptCard({
           height={embossPlan.height}
           faceHeight={backFaceH}
           fadeStart={embossPlan.fadeStart}
+          captureEnabled={patternCaptureEnabled}
         />
       ) : null}
       <Text

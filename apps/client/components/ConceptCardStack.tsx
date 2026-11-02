@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -975,6 +976,22 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
    */
   const patternCaptureEnabled = !pulseDragging && cardSettled && !showDeckStatus;
 
+  /**
+   * Defer card+2 prewarm one tick after settle so the front (+ behind) finish
+   * their first toDataURL before another full card tree mounts.
+   */
+  const [prewarmArmed, setPrewarmArmed] = useState(false);
+  useEffect(() => {
+    if (!patternCaptureEnabled) {
+      setPrewarmArmed(false);
+      return;
+    }
+    const id = setTimeout(() => setPrewarmArmed(true), 32);
+    return () => {
+      clearTimeout(id);
+    };
+  }, [patternCaptureEnabled, currentIndex]);
+
   const cancelCoachPeek = () => {
     'worklet';
     coachPeekX.value = 0;
@@ -1432,6 +1449,28 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     !showDeckStatus &&
     returnOverlayIndex >= 0 &&
     (currentIndex > 0 || returnOverlayLockedIndex !== null);
+  /**
+   * Pre-mount card+2 only while settled (behind already covers +1). Unmounts for
+   * the swipe/flip frame so capture never contends with the gesture; remounts
+   * idle to rasterise pattern + emboss ahead of need.
+   */
+  const prewarmIndex = currentIndex + 2;
+  const showPrewarm =
+    !showDeckStatus &&
+    prewarmArmed &&
+    prewarmIndex >= 0 &&
+    prewarmIndex < concepts.length;
+  /** Stable concept keys for non-interactive slots — remount hits bitmap cache. */
+  const behindConceptKey = nextCardReady
+    ? (concepts[behindDisplayIndex]?.concept ?? `behind-${behindDisplayIndex}`)
+    : 'behind-loading';
+  const returnConceptKey =
+    returnOverlayIndex >= 0
+      ? (concepts[returnOverlayIndex]?.concept ?? `return-${returnOverlayIndex}`)
+      : 'return-none';
+  const prewarmConceptKey = showPrewarm
+    ? (concepts[prewarmIndex]?.concept ?? `prewarm-${prewarmIndex}`)
+    : 'prewarm-none';
 
   return (
     <View
@@ -1452,6 +1491,29 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
       >
         <GestureDetector gesture={composed}>
           <View style={styles.gestureFill}>
+          {showPrewarm ? (
+            <View
+              style={styles.prewarmSlot}
+              pointerEvents="none"
+              testID="deck-prewarm"
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
+            >
+              <ConceptCardForIndex
+                key={prewarmConceptKey}
+                concepts={concepts}
+                currentIndex={prewarmIndex}
+                flipped={false}
+                reduceMotion={reduceMotion}
+                preloadedMediaUrls={preloadedMediaUrls}
+                facePadding={cardLayout.padding}
+                mediaRequestWidth={mediaRequestWidth}
+                patternCaptureEnabled={patternCaptureEnabled}
+              />
+            </View>
+          ) : null}
+
           {showBehindNext ? (
             <Animated.View
               style={[styles.behindWrap, behindAnimatedStyle]}
@@ -1463,6 +1525,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
             >
               {nextCardReady ? (
                 <ConceptCardForIndex
+                  key={behindConceptKey}
                   concepts={concepts}
                   currentIndex={behindDisplayIndex}
                   flipped={false}
@@ -1555,6 +1618,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
               {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             >
               <ConceptCardForIndex
+                key={returnConceptKey}
                 concepts={concepts}
                 currentIndex={returnOverlayIndex}
                 flipped={false}
@@ -1573,7 +1637,7 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
   );
 });
 
-function ConceptCardForIndex({
+const ConceptCardForIndex = memo(function ConceptCardForIndex({
   concepts,
   currentIndex,
   flipped,
@@ -1638,7 +1702,7 @@ function ConceptCardForIndex({
       flipProgress={flipProgress}
     />
   );
-}
+});
 
 const styles = StyleSheet.create({
   outer: {
@@ -1661,6 +1725,21 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     borderRadius: cardRadius(),
     zIndex: 4,
+  },
+  /**
+   * Off-gesture pre-mount for card+2. Same width/height as the stack so
+   * toDataURL / media decode run at display size; parked off-screen so it
+   * cannot hit-test or leak into screenshots / a11y.
+   */
+  prewarmSlot: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: 0,
+    transform: [{ translateX: -10000 }],
   },
   /** Next-card underlay (Lz-56) — opacity/scale driven by behindAnimatedStyle. */
   behindWrap: {

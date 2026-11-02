@@ -1,7 +1,7 @@
 import { Platform, StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { SvgXml } from 'react-native-svg';
 import { color } from '@/theme/tokens';
+import { RasterizedSvgXml } from './RasterizedSvgXml';
 
 type NoMediaEmbossProps = {
   xml: string;
@@ -11,11 +11,18 @@ type NoMediaEmbossProps = {
   /** Full face height — pattern is drawn at card scale from the top (§9.4). */
   faceHeight: number;
   fadeStart: number;
+  /**
+   * Deck-settled capture gate — same signal as PatternLayer. Idle cards
+   * (including the unflipped back face) pre-rasterise so flip never mounts
+   * a cold UseView tree on the gesture frame.
+   */
+  captureEnabled?: boolean;
 };
 
 /**
  * Mirrored Paper blind emboss for no-media and missing-description backs.
  * Decorative only — excluded from the accessibility tree and never glows.
+ * Static pattern XML is drawn once to a cached Image (same path as PatternLayer).
  */
 export function NoMediaEmboss({
   xml,
@@ -23,6 +30,7 @@ export function NoMediaEmboss({
   height,
   faceHeight,
   fadeStart,
+  captureEnabled = false,
 }: NoMediaEmbossProps) {
   if (width < 8 || height < 8 || faceHeight < 8 || !xml) return null;
   const fadeHeight = Math.max(0, height - fadeStart);
@@ -36,12 +44,19 @@ export function NoMediaEmboss({
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
       style={[styles.layer, { width, height, transform: [{ scaleX: -1 }] }]}
     >
-      <SvgXml
-        xml={xml}
-        width={width}
-        height={faceHeight}
-        preserveAspectRatio="xMidYMin slice"
-      />
+      {/*
+        Full-face raster clipped by the emboss band (matches prior SvgXml layout:
+        width × faceHeight with xMidYMin slice inside overflow:hidden).
+      */}
+      <View style={{ width, height: faceHeight }} collapsable={false}>
+        <RasterizedSvgXml
+          xml={xml}
+          width={width}
+          height={faceHeight}
+          preserveAspectRatio="xMidYMin slice"
+          captureEnabled={captureEnabled}
+        />
+      </View>
       {fadeHeight > 0 ? (
         <View style={[styles.fade, { top: fadeStart, height: fadeHeight }]} pointerEvents="none">
           <Svg width="100%" height="100%">

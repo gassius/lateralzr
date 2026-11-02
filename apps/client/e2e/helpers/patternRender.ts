@@ -98,49 +98,56 @@ export async function expectPatternRasterReady(
   // Explicit failure marker — never treat as a soft SVG pass.
   await expect(page.getByTestId('pattern-raster-capture-failed')).toHaveCount(0);
 
+  // Poll requires settled DOM *and* a readable PNG URI in one tick — concurrent
+  // card rasters can remount SvgAst between a bare settle check and the read.
+  let settled: PatternRender | null = null;
   await expect
     .poll(
       async () => {
         if ((await page.getByTestId('pattern-raster-capture-failed').count()) > 0) {
+          settled = null;
           return 'capture-failed';
         }
-        if (await isFrontRasterSettled(page)) return 'image-ready';
-        const r = await readPatternRender(page);
-        if (r.via === 'image') return 'image-decoding';
-        return r.via === 'svg' ? 'svg' : (r.reason ?? 'missing');
+        if (!(await isFrontRasterSettled(page))) {
+          settled = null;
+          const r = await readPatternRender(page);
+          if (r.via === 'image') return 'image-decoding';
+          return r.via === 'svg' ? 'svg' : (r.reason ?? 'missing');
+        }
+        const render = await readPatternRender(page);
+        if (render.via !== 'image' || !render.dataUri) {
+          settled = null;
+          return render.via === 'svg' ? 'svg' : (render.reason ?? 'missing');
+        }
+        const expected = expectedCaptureSize(
+          render.layoutWidth ?? 0,
+          render.layoutHeight ?? 0,
+          render.devicePixelRatio ?? 1,
+        );
+        const png = decodeDataImagePng(render.dataUri);
+        const analysis = analyzePatternRasterPng(png, {
+          expectedWidth: expected.width,
+          expectedHeight: expected.height,
+        });
+        if (!analysis.sizeOk) {
+          settled = null;
+          return `size-${analysis.width}x${analysis.height}`;
+        }
+        if (!analysis.nonBlank) {
+          settled = null;
+          return 'blank';
+        }
+        if (options.requireGlow && !analysis.hasGlow) {
+          settled = null;
+          return `no-glow-${analysis.glowPixels}`;
+        }
+        settled = render;
+        return 'image-ready';
       },
       { timeout: 12_000 },
     )
     .toBe('image-ready');
 
-  const render = await readPatternRender(page);
-  expect(render.via, JSON.stringify(render)).toBe('image');
-  expect(render.dataUri, 'png data uri').toBeTruthy();
-
-  const expected = expectedCaptureSize(
-    render.layoutWidth ?? 0,
-    render.layoutHeight ?? 0,
-    render.devicePixelRatio ?? 1,
-  );
-  const png = decodeDataImagePng(render.dataUri!);
-  const analysis = analyzePatternRasterPng(png, {
-    expectedWidth: expected.width,
-    expectedHeight: expected.height,
-  });
-
-  expect(
-    analysis.sizeOk,
-    `png ${analysis.width}x${analysis.height} vs expected ${expected.width}x${expected.height}`,
-  ).toBe(true);
-  expect(
-    analysis.nonBlank,
-    `opaquePixels=${analysis.opaquePixels} (blank / trivial PNG)`,
-  ).toBe(true);
-
-  if (options.requireGlow) {
-    expect(
-      analysis.hasGlow,
-      `glowPixels=${analysis.glowPixels} (need #FFC98A-ish connector signal)`,
-    ).toBe(true);
-  }
+  expect(settled?.via, JSON.stringify(settled)).toBe('image');
+  expect(settled?.dataUri, 'png data uri').toBeTruthy();
 }

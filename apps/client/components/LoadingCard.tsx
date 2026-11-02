@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { SvgXml } from 'react-native-svg';
+import { RasterizedSvgXml } from '@/components/brand/RasterizedSvgXml';
 import {
   LOADING_CARD_HAIRLINE_ALPHA,
   LOADING_CARD_PATTERN_OPACITY,
@@ -20,6 +20,7 @@ type LoadingCardProps = {
 /**
  * Quiet loading silhouette (Lz-35): front-sized card, no title, no pulse, no spinner.
  * Status copy lives on the laterality control row (`DeckStatusLine`), not on the card.
+ * Pattern is rasterised once to a cached Image (same path as PatternLayer).
  */
 export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
   const [face, setFace] = useState({ width: 0, height: 0 });
@@ -62,11 +63,12 @@ export function LoadingCard({ exposeTestId = true }: LoadingCardProps) {
             importantForAccessibility="no-hide-descendants"
             nativeID="loading-pattern-variant-3"
           >
-            <SvgXml
+            <RasterizedSvgXml
               xml={xml}
               width={face.width}
               height={face.height}
               preserveAspectRatio="xMidYMid slice"
+              captureEnabled
             />
           </View>
         ) : null}

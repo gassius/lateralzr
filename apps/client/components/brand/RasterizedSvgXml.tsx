@@ -36,9 +36,10 @@ type RasterizedSvgXmlProps = {
 type SvgHandle = InstanceType<typeof Svg>;
 
 /**
- * Draw an SvgXml tree once into a PNG texture, then show a single Image.
- * SVG stays mounted under the Image until onLoad (no blank flash). Capture
- * only when `captureEnabled` (deck settled) — never mid-swipe.
+ * Draw a static SvgXml tree once into a PNG texture, then show a single Image.
+ * Used for PatternLayer, no-media emboss, and LoadingCard. SVG stays mounted
+ * under the Image until onLoad (no blank flash). Capture only when
+ * `captureEnabled` (deck settled) — never mid-swipe / mid-flip.
  * Same path on Android / iOS / web (web is a native preview).
  */
 export function RasterizedSvgXml({
