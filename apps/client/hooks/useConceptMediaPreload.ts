@@ -4,10 +4,9 @@ import { Platform } from 'react-native';
 import type { ConceptItem } from '@/lib/api';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
 import {
-  nearbyCardMediaUrls,
-  uniqueCardMediaUrls,
-} from '@/lib/conceptMediaPrefetch';
-import { remoteImageHeadersForPlatform } from '@/lib/remoteImage';
+  remoteImageHeadersForPlatform,
+  resolveCardMediaUrl,
+} from '@/lib/remoteImage';
 
 const BATCH_DEBOUNCE_MS = 200;
 
@@ -17,6 +16,24 @@ function prefetchOpts() {
     cachePolicy: 'memory-disk' as const,
     ...(headers ? { headers } : {}),
   };
+}
+
+function uniqueMediaUrls(concepts: ConceptItem[], requestWidth: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const apiBaseUrl = resolveApiBaseUrl();
+  for (const c of concepts) {
+    const u = resolveCardMediaUrl({
+      mediaUrl: c.mediaUrl,
+      platform: Platform.OS,
+      apiBaseUrl,
+      requestWidth,
+    });
+    if (!u || seen.has(u)) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
 }
 
 async function prefetchOne(url: string): Promise<boolean> {
@@ -35,10 +52,12 @@ function mergeReady(prev: ReadonlySet<string>, urls: string[]): ReadonlySet<stri
 }
 
 /**
- * Prefetches concept images at display request width: immediate for the
- * current + next 1–2 cards, debounced batch for the rest of the deck.
+ * Prefetches concept images: immediate load for the visible card, debounced batch for the rest.
  * Tracks URLs that prefetched successfully for UI (e.g. shorter image transition).
  * `requestWidth` must be the same value ConceptCard uses (from cardLayout.width).
+ *
+ * #166 regression: do not eagerly prefetch next-1–2 here — behind already mounts
+ * +1, and eager decode drove PSS / jank (see docs/android-remaining-svg-166-regression.md).
  */
 export function useConceptMediaPreload(
   concepts: ConceptItem[],
@@ -47,22 +66,22 @@ export function useConceptMediaPreload(
 ) {
   const [preloadedMediaUrls, setPreloadedMediaUrls] = useState<ReadonlySet<string>>(() => new Set());
 
-  /** Current + next 1–2 — ahead of swipe/flip before the deck-wide batch finishes. */
+  /** Current card first — helps first flip after load or after swipe before batch finishes. */
   useEffect(() => {
     if (!(requestWidth > 0)) return;
-    const urls = nearbyCardMediaUrls(concepts, currentIndex, requestWidth, {
+    const url = resolveCardMediaUrl({
+      mediaUrl: concepts[currentIndex]?.mediaUrl,
       platform: Platform.OS,
       apiBaseUrl: resolveApiBaseUrl(),
+      requestWidth,
     });
-    if (urls.length === 0) return;
+    if (!url) return;
 
     let cancelled = false;
     void (async () => {
-      const results = await Promise.all(urls.map((u) => prefetchOne(u)));
-      if (cancelled) return;
-      const ok = urls.filter((u, i) => results[i]);
-      if (ok.length === 0) return;
-      setPreloadedMediaUrls((prev) => mergeReady(prev, ok));
+      const ok = await prefetchOne(url);
+      if (cancelled || !ok) return;
+      setPreloadedMediaUrls((prev) => mergeReady(prev, [url]));
     })();
 
     return () => {
@@ -73,10 +92,7 @@ export function useConceptMediaPreload(
   /** Remaining URLs after payload settles (debounced so rapid refetches don’t thrash). */
   useEffect(() => {
     if (!(requestWidth > 0)) return;
-    const urls = uniqueCardMediaUrls(concepts, requestWidth, {
-      platform: Platform.OS,
-      apiBaseUrl: resolveApiBaseUrl(),
-    });
+    const urls = uniqueMediaUrls(concepts, requestWidth);
     if (urls.length === 0) return;
 
     let cancelled = false;
