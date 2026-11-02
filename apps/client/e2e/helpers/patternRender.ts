@@ -1,93 +1,85 @@
 import { expect, type Page } from '@playwright/test';
+import { PATTERN_BAKE_PIXEL } from '../../theme/pattern.ts';
 import { cardFrontPattern } from './locators';
 import {
   analyzePatternRasterPng,
   decodeDataImagePng,
-  PATTERN_BITMAP_MAX_PIXEL_RATIO_CLIENT,
 } from './patternRasterAssert.ts';
 
 export type PatternRender = {
   ok: boolean;
   reason?: string;
-  via?: 'image' | 'svg' | 'capture-failed';
+  via?: 'image' | 'svg' | 'missing';
   dataUri?: string;
   layoutWidth?: number;
   layoutHeight?: number;
   devicePixelRatio?: number;
+  naturalWidth?: number;
+  naturalHeight?: number;
 };
 
 /**
- * PatternLayer rasterises to a PNG Image (same path as native). Read the
- * front-pattern DOM — never query `#connectors` (gone after Image onLoad).
+ * Build-time WebP/PNG pattern (no react-native-svg / toDataURL). Read the front
+ * pattern DOM img — decode via canvas for pixel asserts.
  */
 export async function readPatternRender(page: Page): Promise<PatternRender> {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const pattern = document.querySelector('[data-testid="card-front-pattern"]');
     if (!pattern) {
       return { ok: false, reason: 'missing pattern' };
     }
-    if (pattern.querySelector('[data-testid="pattern-raster-capture-failed"]')) {
-      return { ok: false, reason: 'capture-failed', via: 'capture-failed' };
-    }
     const img = pattern.querySelector('img');
-    const src = img ? img.currentSrc || img.getAttribute('src') || '' : '';
-    // Require PNG data URI — not a generic data:image (blank jpeg would pass).
-    if (img && src.startsWith('data:image/png')) {
-      const box = pattern.getBoundingClientRect();
-      return {
-        ok: true,
-        via: 'image',
-        dataUri: src,
-        layoutWidth: box.width,
-        layoutHeight: box.height,
-        devicePixelRatio: window.devicePixelRatio || 1,
-      };
+    if (!img) {
+      if (pattern.querySelector('svg')) {
+        return { ok: false, reason: 'svg-only (deck must not mount rnsvg)', via: 'svg' };
+      }
+      return { ok: false, reason: 'no image in pattern' };
     }
-    if (pattern.querySelector('svg')) {
-      return { ok: false, reason: 'svg-only (raster pending or failed)', via: 'svg' };
+    if (!img.complete || img.naturalWidth < 8) {
+      return { ok: false, reason: 'image not loaded' };
     }
-    return { ok: false, reason: 'no png image in pattern' };
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return { ok: false, reason: 'no canvas' };
+    }
+    ctx.drawImage(img, 0, 0);
+    let dataUri = '';
+    try {
+      dataUri = canvas.toDataURL('image/png');
+    } catch {
+      return { ok: false, reason: 'canvas tainted' };
+    }
+    const box = pattern.getBoundingClientRect();
+    return {
+      ok: true,
+      via: 'image',
+      dataUri,
+      layoutWidth: box.width,
+      layoutHeight: box.height,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+    };
   });
 }
 
-/** Front-card capture settled: PNG Image mounted and SvgAst unmounted under it. */
-async function isFrontRasterSettled(page: Page): Promise<boolean> {
+async function isFrontPatternImageReady(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const pattern = document.querySelector('[data-testid="card-front-pattern"]');
     if (!pattern) return false;
-    if (pattern.querySelector('[data-testid="pattern-raster-capture-failed"]')) {
-      return false;
-    }
-    const img = [...pattern.querySelectorAll('img')].find((el) => {
-      const src = el.currentSrc || el.getAttribute('src') || '';
-      return src.startsWith('data:image/png');
-    });
-    if (!img?.parentElement) return false;
-    // Glow overlay SvgXml is a sibling of RasterizedSvgXml, not inside img's parent.
-    // SvgAst (fallback) is a sibling of Image under the same raster root — must be gone.
-    return img.parentElement.querySelector('svg') == null;
+    if (pattern.querySelector('svg')) return false;
+    const img = pattern.querySelector('img');
+    return Boolean(img && img.complete && img.naturalWidth >= 8);
   });
 }
 
-function expectedCaptureSize(
-  layoutWidth: number,
-  layoutHeight: number,
-  devicePixelRatio: number,
-): { width: number; height: number } {
-  const pixelRatio = Math.min(
-    Math.max(devicePixelRatio, 1),
-    PATTERN_BITMAP_MAX_PIXEL_RATIO_CLIENT,
-  );
-  return {
-    width: Math.max(1, Math.round(layoutWidth * pixelRatio)),
-    height: Math.max(1, Math.round(layoutHeight * pixelRatio)),
-  };
-}
-
 /**
- * Wait until the front pattern has a finished PNG raster (Image mounted,
- * SvgAst unmounted). Fails on capture-failed marker or svg-only timeout.
- * Optionally asserts non-blank + glow (#FFC98A) pixels (pulse specs).
+ * Wait until the front pattern shows a loaded build-time bake (no SVG subtree).
+ * Asserts natural size matches PATTERN_BAKE_PIXEL (1074×1680 @3×), non-blank,
+ * and optionally glow (#FFC98A) pixels from the baked asset.
  */
 export async function expectPatternRasterReady(
   page: Page,
@@ -95,19 +87,27 @@ export async function expectPatternRasterReady(
 ): Promise<void> {
   await expect(cardFrontPattern(page)).toBeAttached();
 
-  // Explicit failure marker — never treat as a soft SVG pass.
-  await expect(page.getByTestId('pattern-raster-capture-failed')).toHaveCount(0);
+  // Deck must never mount react-native-svg under the front pattern.
+  await expect
+    .poll(
+      async () => {
+        const hasSvg = await page.evaluate(() => {
+          const pattern = document.querySelector('[data-testid="card-front-pattern"]');
+          return Boolean(pattern?.querySelector('svg'));
+        });
+        return hasSvg ? 'svg' : 'no-svg';
+      },
+      { timeout: 12_000 },
+    )
+    .toBe('no-svg');
 
   await expect
     .poll(
       async () => {
-        if ((await page.getByTestId('pattern-raster-capture-failed').count()) > 0) {
-          return 'capture-failed';
-        }
-        if (await isFrontRasterSettled(page)) return 'image-ready';
+        if (await isFrontPatternImageReady(page)) return 'image-ready';
         const r = await readPatternRender(page);
-        if (r.via === 'image') return 'image-decoding';
-        return r.via === 'svg' ? 'svg' : (r.reason ?? 'missing');
+        if (r.via === 'svg') return 'svg';
+        return r.reason ?? 'missing';
       },
       { timeout: 12_000 },
     )
@@ -115,13 +115,12 @@ export async function expectPatternRasterReady(
 
   const render = await readPatternRender(page);
   expect(render.via, JSON.stringify(render)).toBe('image');
-  expect(render.dataUri, 'png data uri').toBeTruthy();
+  expect(render.dataUri, 'png data uri from canvas').toBeTruthy();
 
-  const expected = expectedCaptureSize(
-    render.layoutWidth ?? 0,
-    render.layoutHeight ?? 0,
-    render.devicePixelRatio ?? 1,
-  );
+  const expected = {
+    width: PATTERN_BAKE_PIXEL.width,
+    height: PATTERN_BAKE_PIXEL.height,
+  };
   const png = decodeDataImagePng(render.dataUri!);
   const analysis = analyzePatternRasterPng(png, {
     expectedWidth: expected.width,
@@ -130,7 +129,7 @@ export async function expectPatternRasterReady(
 
   expect(
     analysis.sizeOk,
-    `png ${analysis.width}x${analysis.height} vs expected ${expected.width}x${expected.height}`,
+    `png ${analysis.width}x${analysis.height} vs bake ${expected.width}x${expected.height} (natural ${render.naturalWidth}x${render.naturalHeight})`,
   ).toBe(true);
   expect(
     analysis.nonBlank,

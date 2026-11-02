@@ -22,8 +22,9 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ConceptItem } from '@/lib/api';
+import { hexToRgba } from '@/theme/contrast';
 import { color, layout } from '@/theme/tokens';
 import { namedFaceStyle, textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
@@ -93,8 +94,8 @@ import {
   titleColor,
   type ConceptFrontTitleLayout,
 } from '@/lib/conceptFrontTitle';
-import { buildNoMediaEmbossXml, resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
-import { buildPatternSvgXml, type PatternRect } from '@/lib/patternPlacement';
+import { resolveNoMediaEmbossHeight } from '@/lib/noMediaEmboss';
+import { variantFor, type PatternRect } from '@/lib/patternPlacement';
 import { NoMediaEmboss } from './brand/NoMediaEmboss';
 import { PatternLayer } from './brand/PatternLayer';
 import { cardFlipA11yFace, cardFlipFaceStyle, flipDurationMs } from '@/lib/cardFlip';
@@ -139,11 +140,6 @@ type ConceptCardProps = {
    * sheet/background). PatternLayer still gates RM + scroll.
    */
   pulseGateActive?: boolean;
-  /**
-   * Deck-settled pattern raster gate (`!pulseDragging`). True for underlays too
-   * so upcoming cards pre-capture while idle — never mid-swipe.
-   */
-  patternCaptureEnabled?: boolean;
   /** Face padding from the §16.2 aspect helper. */
   facePadding?: number;
   /**
@@ -172,7 +168,6 @@ export function ConceptCard({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
-  patternCaptureEnabled = false,
   facePadding,
   mediaRequestWidth = 0,
   backScrollOffsetY,
@@ -556,7 +551,6 @@ export function ConceptCard({
         variantOverride={patternVariantOverride}
         pulseGateActive={pulseGateActive && !flipped}
         frontScrolling={frontScrolling}
-        patternCaptureEnabled={patternCaptureEnabled}
       />
       <ScrollView
         style={styles.frontScroll}
@@ -1078,16 +1072,15 @@ export function ConceptCard({
               ? ({ dataSet: { mediaFade: fade.kind } } as Record<string, unknown>)
               : null)}
           >
-            <Svg width="100%" height="100%">
-              <Defs>
-                <LinearGradient id="cardBackPaperFade" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <Stop offset="0%" stopColor={color.paper} stopOpacity="0" />
-                  <Stop offset="70%" stopColor={color.paper} stopOpacity="0.85" />
-                  <Stop offset="100%" stopColor={color.paper} stopOpacity="1" />
-                </LinearGradient>
-              </Defs>
-              <Rect width="100%" height="100%" fill="url(#cardBackPaperFade)" />
-            </Svg>
+            <LinearGradient
+              colors={[
+                hexToRgba(color.paper, 0),
+                hexToRgba(color.paper, 0.85),
+                color.paper,
+              ]}
+              locations={[0, 0.7, 1]}
+              style={StyleSheet.absoluteFill}
+            />
           </View>
         ) : null}
       </View>
@@ -1103,18 +1096,8 @@ export function ConceptCard({
     cardHeight: backFaceH,
     firstTextY,
   });
-  const embossXml = useMemo(() => {
-    if (!showBlindEmboss) return '';
-    return buildNoMediaEmbossXml(
-      buildPatternSvgXml({
-        conceptKey: patternConceptKey,
-        titleFaceRect: null,
-        faceWidth,
-        faceHeight: backFaceH,
-        variantOverride: patternVariantOverride,
-      }).xml,
-    );
-  }, [showBlindEmboss, patternConceptKey, faceWidth, backFaceH, patternVariantOverride]);
+  const embossVariant =
+    patternVariantOverride != null ? patternVariantOverride : variantFor(patternConceptKey);
 
   const back = (
     <View
@@ -1131,7 +1114,7 @@ export function ConceptCard({
     >
       {showBlindEmboss ? (
         <NoMediaEmboss
-          xml={embossXml}
+          variant={embossVariant}
           width={faceWidth}
           height={embossPlan.height}
           faceHeight={backFaceH}

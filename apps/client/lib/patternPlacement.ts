@@ -213,6 +213,50 @@ export function faceRectToCardUnits(
 }
 
 /**
+ * xMidYMid slice origin: uniform scale + centre offsets for card→face mapping.
+ * Matches SVG `preserveAspectRatio="xMidYMid slice"` / Image `contentFit="cover"`.
+ */
+export function sliceFaceLayout(
+  faceWidth: number,
+  faceHeight: number,
+): { scale: number; offX: number; offY: number } {
+  const scale = sliceScale(faceWidth, faceHeight);
+  const dispW = PATTERN_CARD_UNITS.width * scale;
+  const dispH = PATTERN_CARD_UNITS.height * scale;
+  return {
+    scale,
+    offX: (faceWidth - dispW) / 2,
+    offY: (faceHeight - dispH) / 2,
+  };
+}
+
+/** Inverse of {@link faceRectToCardUnits} — card design units → face pixels. */
+export function cardRectToFacePixels(
+  cardRect: PatternRect,
+  faceWidth: number,
+  faceHeight: number,
+): PatternRect {
+  const { scale, offX, offY } = sliceFaceLayout(faceWidth, faceHeight);
+  return {
+    x: cardRect.x * scale + offX,
+    y: cardRect.y * scale + offY,
+    width: cardRect.width * scale,
+    height: cardRect.height * scale,
+  };
+}
+
+/** Map a card-unit point through xMidYMid slice into face pixels. */
+export function cardPointToFacePixels(
+  x: number,
+  y: number,
+  faceWidth: number,
+  faceHeight: number,
+): { x: number; y: number } {
+  const { scale, offX, offY } = sliceFaceLayout(faceWidth, faceHeight);
+  return { x: x * scale + offX, y: y * scale + offY };
+}
+
+/**
  * Hide motif instances (bulbs, connector uses, pulse groups) by id.
  * Does not rewrite path geometry — only adds `display="none"`.
  */

@@ -1,10 +1,10 @@
-import { Platform, StyleSheet, View } from 'react-native';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { SvgXml } from 'react-native-svg';
-import { color } from '@/theme/tokens';
+import { Image, Platform, StyleSheet, View } from 'react-native';
+import { bakedPatternEmboss, PAPER_FADE_VERTICAL } from '@/lib/patternBakedAssets';
+import type { PatternVariantIndex } from '@/lib/patternPlacement';
 
 type NoMediaEmbossProps = {
-  xml: string;
+  /** Pattern variant for the baked Paper emboss PNG. */
+  variant: PatternVariantIndex;
   width: number;
   /** Clipped emboss band (≤ 55% of the card). */
   height: number;
@@ -15,16 +15,16 @@ type NoMediaEmbossProps = {
 
 /**
  * Mirrored Paper blind emboss for no-media and missing-description backs.
- * Decorative only — excluded from the accessibility tree and never glows.
+ * Build-time PNG — no react-native-svg. Decorative only.
  */
 export function NoMediaEmboss({
-  xml,
+  variant,
   width,
   height,
   faceHeight,
   fadeStart,
 }: NoMediaEmbossProps) {
-  if (width < 8 || height < 8 || faceHeight < 8 || !xml) return null;
+  if (width < 8 || height < 8 || faceHeight < 8) return null;
   const fadeHeight = Math.max(0, height - fadeStart);
 
   return (
@@ -36,23 +36,25 @@ export function NoMediaEmboss({
       {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
       style={[styles.layer, { width, height, transform: [{ scaleX: -1 }] }]}
     >
-      <SvgXml
-        xml={xml}
-        width={width}
-        height={faceHeight}
-        preserveAspectRatio="xMidYMin slice"
+      <Image
+        source={bakedPatternEmboss(variant)}
+        style={{ width, height: faceHeight }}
+        resizeMode="cover"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       />
       {fadeHeight > 0 ? (
-        <View style={[styles.fade, { top: fadeStart, height: fadeHeight }]} pointerEvents="none">
-          <Svg width="100%" height="100%">
-            <Defs>
-              <LinearGradient id="noMediaEmbossFade" x1="0%" y1="0%" x2="0%" y2="100%">
-                <Stop offset="0%" stopColor={color.paper} stopOpacity="0" />
-                <Stop offset="100%" stopColor={color.paper} stopOpacity="1" />
-              </LinearGradient>
-            </Defs>
-            <Rect width="100%" height="100%" fill="url(#noMediaEmbossFade)" />
-          </Svg>
+        <View
+          pointerEvents="none"
+          style={[styles.fade, { top: fadeStart, height: fadeHeight, width }]}
+        >
+          <Image
+            source={PAPER_FADE_VERTICAL}
+            style={StyleSheet.absoluteFill}
+            resizeMode="stretch"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
         </View>
       ) : null}
     </View>
@@ -70,6 +72,5 @@ const styles = StyleSheet.create({
   fade: {
     position: 'absolute',
     left: 0,
-    right: 0,
   },
 });

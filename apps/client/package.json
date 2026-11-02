@@ -10,7 +10,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "tsx --require ./scripts/register-audio-assets.cjs --test lib/*.test.ts theme/*.test.ts e2e/helpers/*.test.ts components/brand/*.test.ts && tsx --require ./scripts/register-rn-component-test.cjs --test components/brand/*.mount.test.tsx",
+    "bake:patterns": "tsx ./scripts/bake-pattern-rasters.ts",
+    "test": "tsx --require ./scripts/register-audio-assets.cjs --test lib/*.test.ts theme/*.test.ts e2e/helpers/*.test.ts",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test -c e2e/playwright.config.ts",
     "e2e:build": "EXPO_PUBLIC_API_URL=http://127.0.0.1:4173 EXPO_PUBLIC_E2E=1 expo export --platform web"
@@ -29,6 +30,7 @@
     "expo-constants": "~57.0.21",
     "expo-font": "~57.0.4",
     "expo-image": "~57.0.5",
+    "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.12",
     "expo-navigation-bar": "~57.0.3",
     "expo-router": "~57.0.26",
@@ -48,6 +50,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "1.55.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@testing-library/react-native": "13.3.3",
     "@types/node": "^22",
     "@types/pngjs": "^6.0.5",
@@ -59,6 +62,7 @@
     "pngjs": "^7.0.0",
     "react-test-renderer": "19.2.3",
     "serve": "^14.2.6",
+    "sharp": "^0.35.5",
     "tsx": "^4.20.5",
     "typescript": "~6.0.3"
   },

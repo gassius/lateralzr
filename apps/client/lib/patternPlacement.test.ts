@@ -15,6 +15,8 @@ import { PATTERN_CARD_FILL, PATTERN_RELIEF, PATTERN_TITLE_CLEAR_MARGIN_PX } from
 import { color, pattern } from '../theme/tokens.ts';
 import {
   buildPatternSvgXml,
+  cardPointToFacePixels,
+  cardRectToFacePixels,
   defaultTitleClearForVariant,
   expandRect,
   faceRectToCardUnits,
@@ -23,6 +25,8 @@ import {
   motifsIntersectingClearArea,
   patternVariantName,
   resolvePatternClearArea,
+  sliceFaceLayout,
+  sliceScale,
   variantFor,
   type PatternRect,
 } from './patternPlacement.ts';
@@ -320,6 +324,15 @@ describe('title clearing', () => {
     const face = { width: 358, height: 560 };
     const title = { x: 44, y: 260, width: 280, height: 40 };
     const inCard = faceRectToCardUnits(title, face.width, face.height);
+    const roundTrip = cardRectToFacePixels(inCard, face.width, face.height);
+    assertRectClose(roundTrip, title, 0.5);
+    const pt = cardPointToFacePixels(title.x, title.y, face.width, face.height);
+    assert.ok(Math.abs(pt.x - title.x) < 0.01);
+    assert.ok(Math.abs(pt.y - title.y) < 0.01);
+    const layout = sliceFaceLayout(face.width, face.height);
+    assert.equal(layout.scale, sliceScale(face.width, face.height));
+    assert.equal(layout.offX, 0);
+    assert.equal(layout.offY, 0);
     assert.ok(Math.abs(inCard.x - 44) < 0.01);
     assert.ok(Math.abs(inCard.y - 260) < 0.01);
 
