@@ -15,6 +15,7 @@ import { PATTERN_CARD_FILL, PATTERN_RELIEF, PATTERN_TITLE_CLEAR_MARGIN_PX } from
 import { color, pattern } from '../theme/tokens.ts';
 import {
   buildPatternSvgXml,
+  cardRectToFacePixels,
   defaultTitleClearForVariant,
   expandRect,
   faceRectToCardUnits,
@@ -320,6 +321,8 @@ describe('title clearing', () => {
     const face = { width: 358, height: 560 };
     const title = { x: 44, y: 260, width: 280, height: 40 };
     const inCard = faceRectToCardUnits(title, face.width, face.height);
+    const roundTrip = cardRectToFacePixels(inCard, face.width, face.height);
+    assertRectClose(roundTrip, title, 0.5);
     assert.ok(Math.abs(inCard.x - 44) < 0.01);
     assert.ok(Math.abs(inCard.y - 260) < 0.01);
 

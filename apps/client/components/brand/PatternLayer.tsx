@@ -4,17 +4,20 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useConnectorPulse } from '@/hooks/useConnectorPulse';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import {
-  CONNECTOR_GLOW_HALO_OPACITIES,
-  CONNECTOR_GLOW_LINE_EXTRAS,
-  CONNECTOR_GLOW_NODE_RING_EXTRAS,
-  CONNECTOR_GLOW_NODE_RING_STROKE,
   connectorPulseAllowed,
   type ConnectorGlowLine,
 } from '@/lib/connectorPulse';
 import { resolveE2ePulsePeak } from '@/lib/e2eFlags';
-import { bakedPatternFront } from '@/lib/patternBakedAssets';
 import {
+  bakedPatternFront,
+  GLOW_LINE_SOFT,
+  GLOW_NODE_SOFT,
+} from '@/lib/patternBakedAssets';
+import {
+  cardRectToFacePixels,
+  defaultTitleClearForVariant,
   hideMotifsInPatternSvg,
+  motifBoundingBox,
   motifsIntersectingClearArea,
   patternSvgForVariant,
   resolvePatternClearArea,
@@ -22,8 +25,9 @@ import {
   type PatternRect,
   type PatternVariantIndex,
 } from '@/lib/patternPlacement';
+import { PATTERN_VARIANT_PLACEMENTS } from '@/lib/patternVariantPlacements';
 import { readJourneyTestParams } from '@/lib/testQueryParams';
-import { PATTERN_CARD_FILL, PATTERN_CARD_UNITS, PATTERN_PULSE_GLOW_FILL } from '@/theme/pattern';
+import { PATTERN_CARD_FILL, PATTERN_CARD_UNITS } from '@/theme/pattern';
 import type { SharedValue } from 'react-native-reanimated';
 
 type PatternLayerProps = {
@@ -52,13 +56,12 @@ type PatternLayerProps = {
   pulseGateActive?: boolean;
   /** Front-face ScrollView is scrolling — stops pulse within a frame. */
   frontScrolling?: boolean;
-  /** @deprecated Runtime capture removed — build-time PNGs only. Ignored. */
-  patternCaptureEnabled?: boolean;
 };
 
 /**
- * Soft glow without react-native-svg: stacked Views (line + terminal node).
- * Geometry is in pattern card units, scaled to the face.
+ * Soft glow without react-native-svg: baked WebP sprites (Gaussian blur at
+ * bake time). Geometry is in pattern card units, scaled to the face.
+ * Node size follows `geometry.endR` (already capped in connectorPulse).
  */
 function ConnectorGlowOverlay({
   geometry,
@@ -86,74 +89,42 @@ function ConnectorGlowOverlay({
   const midY = (y1 + y2) / 2;
   const endX = geometry.endX * sx;
   const endY = geometry.endY * sy;
-  const endR = Math.min(4, geometry.endR) * ((sx + sy) / 2);
   const strokeScale = (sx + sy) / 2;
+  // Match buildConnectorGlowOverlayXml: endR is card units (already ≤ NODE_R_MAX).
+  const endR = geometry.endR * strokeScale;
+  // Soft line sprite is 256×64 with ~6px core + blur — scale height to stroke halo.
+  const lineH = Math.max(12, (geometry.strokeWidth + 6) * strokeScale * 2.2);
+  // Soft node sprite is 64×64 with solid r≈5; map that core to endR.
+  const nodeSize = Math.max(8, endR * 2 * (64 / 10));
 
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, style]}>
-      {CONNECTOR_GLOW_LINE_EXTRAS.map((extra, i) => {
-        const opacityHalo = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
-        const thickness = (geometry.strokeWidth + extra) * strokeScale;
-        return (
-          <View
-            key={`line-halo-${extra}`}
-            style={{
-              position: 'absolute',
-              left: midX - length / 2,
-              top: midY - thickness / 2,
-              width: length,
-              height: thickness,
-              borderRadius: thickness,
-              backgroundColor: PATTERN_PULSE_GLOW_FILL,
-              opacity: opacityHalo,
-              transform: [{ rotate: `${angleDeg}deg` }],
-            }}
-          />
-        );
-      })}
-      <View
+      <Image
+        source={GLOW_LINE_SOFT}
         style={{
           position: 'absolute',
           left: midX - length / 2,
-          top: midY - (geometry.strokeWidth * strokeScale) / 2,
+          top: midY - lineH / 2,
           width: length,
-          height: geometry.strokeWidth * strokeScale,
-          borderRadius: geometry.strokeWidth * strokeScale,
-          backgroundColor: PATTERN_PULSE_GLOW_FILL,
+          height: lineH,
           transform: [{ rotate: `${angleDeg}deg` }],
         }}
+        resizeMode="stretch"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       />
-      {CONNECTOR_GLOW_NODE_RING_EXTRAS.map((extra, i) => {
-        const opacityHalo = CONNECTOR_GLOW_HALO_OPACITIES[i]!;
-        const r = endR + extra * strokeScale;
-        const stroke = CONNECTOR_GLOW_NODE_RING_STROKE * strokeScale;
-        return (
-          <View
-            key={`ring-halo-${extra}`}
-            style={{
-              position: 'absolute',
-              left: endX - r,
-              top: endY - r,
-              width: r * 2,
-              height: r * 2,
-              borderRadius: r,
-              borderWidth: stroke,
-              borderColor: PATTERN_PULSE_GLOW_FILL,
-              opacity: opacityHalo,
-            }}
-          />
-        );
-      })}
-      <View
+      <Image
+        source={GLOW_NODE_SOFT}
         style={{
           position: 'absolute',
-          left: endX - endR,
-          top: endY - endR,
-          width: endR * 2,
-          height: endR * 2,
-          borderRadius: endR,
-          backgroundColor: PATTERN_PULSE_GLOW_FILL,
+          left: endX - nodeSize / 2,
+          top: endY - nodeSize / 2,
+          width: nodeSize,
+          height: nodeSize,
         }}
+        resizeMode="contain"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       />
     </Animated.View>
   );
@@ -161,9 +132,10 @@ function ConnectorGlowOverlay({
 
 /**
  * Card-front pattern (Lz-25) + connector glow (Lz-58 / §11.3).
- * Build-time PNG background — zero react-native-svg in the deck.
- * Title clear = opaque orange cover over the measured title box (motifs stay in the bake).
- * Glow is View layers; opacity breathes on the UI thread via Reanimated.
+ * Build-time WebP background — zero react-native-svg in the deck.
+ * Default title-clear motifs are baked out; measured title only covers
+ * extra motif AABBs (matches pulseXml hideMotifs, not a solid rect cut).
+ * Glow is soft baked sprites; opacity breathes via Reanimated.
  */
 export function PatternLayer({
   conceptKey,
@@ -210,6 +182,34 @@ export function PatternLayer({
   );
   const hiddenMotifsKey = hiddenMotifs.join(',');
 
+  /** Motifs already removed in the bake (default `#title-clear-area`). */
+  const bakedHidden = useMemo(
+    () => motifsIntersectingClearArea(variant, defaultTitleClearForVariant(variant)),
+    [variant],
+  );
+
+  /**
+   * Extra motifs the measured title needs hidden beyond the bake — cover
+   * each motif AABB with card fill (same visual as hideMotifsInPatternSvg).
+   */
+  const motifCovers = useMemo(() => {
+    if (!ready) return [] as Array<PatternRect & { id: string }>;
+    const baked = new Set(bakedHidden);
+    const covers: Array<PatternRect & { id: string }> = [];
+    for (const id of hiddenMotifs) {
+      if (baked.has(id)) continue;
+      const placement = PATTERN_VARIANT_PLACEMENTS[variant].motifs.find((m) => m.id === id);
+      if (!placement) continue;
+      const face = cardRectToFacePixels(
+        motifBoundingBox(placement),
+        faceWidth,
+        faceHeight,
+      );
+      covers.push({ id, ...face });
+    }
+    return covers;
+  }, [ready, bakedHidden, hiddenMotifs, variant, faceWidth, faceHeight]);
+
   /** SVG string kept only for pulse connector picking — never mounted. */
   const pulseXml = useMemo(
     () =>
@@ -241,17 +241,6 @@ export function PatternLayer({
     conceptKey,
     forcePeak,
   });
-
-  /** Face-pixel clear cover (pattern image is edge-to-edge on the face). */
-  const clearCover = useMemo(() => {
-    if (!ready || clearArea.width < 1 || clearArea.height < 1) return null;
-    return {
-      left: clearArea.x,
-      top: clearArea.y,
-      width: clearArea.width,
-      height: clearArea.height,
-    };
-  }, [ready, clearArea]);
 
   if (!ready) {
     return null;
@@ -288,12 +277,25 @@ export function PatternLayer({
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       />
-      {clearCover ? (
+      {motifCovers.map((cover) => (
         <View
+          key={cover.id}
           pointerEvents="none"
-          style={[styles.titleClear, clearCover, { backgroundColor: PATTERN_CARD_FILL }]}
-          testID={exposeTestId ? 'card-front-pattern-clear' : undefined}
+          style={[
+            styles.motifCover,
+            {
+              left: cover.x,
+              top: cover.y,
+              width: cover.width,
+              height: cover.height,
+              backgroundColor: PATTERN_CARD_FILL,
+            },
+          ]}
+          testID={exposeTestId ? `card-front-pattern-clear-${cover.id}` : undefined}
         />
+      ))}
+      {exposeTestId && motifCovers.length === 0 ? (
+        <View testID="card-front-pattern-clear" collapsable={false} />
       ) : null}
       {pulse.armed && pulse.geometry ? (
         <ConnectorGlowOverlay
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
     zIndex: 0,
     overflow: 'hidden',
   },
-  titleClear: {
+  motifCover: {
     position: 'absolute',
   },
 });

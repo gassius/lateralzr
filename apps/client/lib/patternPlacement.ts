@@ -212,6 +212,26 @@ export function faceRectToCardUnits(
   };
 }
 
+/** Inverse of {@link faceRectToCardUnits} — card design units → face pixels. */
+export function cardRectToFacePixels(
+  cardRect: PatternRect,
+  faceWidth: number,
+  faceHeight: number,
+): PatternRect {
+  const { width: vbW, height: vbH } = PATTERN_CARD_UNITS;
+  const scale = sliceScale(faceWidth, faceHeight);
+  const dispW = vbW * scale;
+  const dispH = vbH * scale;
+  const offX = (faceWidth - dispW) / 2;
+  const offY = (faceHeight - dispH) / 2;
+  return {
+    x: cardRect.x * scale + offX,
+    y: cardRect.y * scale + offY,
+    width: cardRect.width * scale,
+    height: cardRect.height * scale,
+  };
+}
+
 /**
  * Hide motif instances (bulbs, connector uses, pulse groups) by id.
  * Does not rewrite path geometry — only adds `display="none"`.

@@ -8,25 +8,32 @@
     "width": 1074,
     "height": 1680
   },
+  "paper": "#F5F1E8",
+  "format": "webp",
   "variants": [
     {
       "index": 0,
       "key": "01",
-      "front": "pattern-01@3x.png",
-      "emboss": "emboss-01@3x.png"
+      "front": "pattern-01-3x.webp",
+      "emboss": "emboss-01-3x.webp",
+      "defaultClearHiddenMotifs": []
     },
     {
       "index": 1,
       "key": "02",
-      "front": "pattern-02@3x.png",
-      "emboss": "emboss-02@3x.png"
+      "front": "pattern-02-3x.webp",
+      "emboss": "emboss-02-3x.webp",
+      "defaultClearHiddenMotifs": []
     },
     {
       "index": 2,
       "key": "03",
-      "front": "pattern-03@3x.png",
-      "emboss": "emboss-03@3x.png"
+      "front": "pattern-03-3x.webp",
+      "emboss": "emboss-03-3x.webp",
+      "defaultClearHiddenMotifs": []
     }
   ],
-  "paperFade": "paper-fade-vertical.png"
+  "glowLine": "glow-line-soft.webp",
+  "glowNode": "glow-node-soft.webp",
+  "paperFade": "paper-fade-vertical.webp"
 }

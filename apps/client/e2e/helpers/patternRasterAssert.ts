@@ -4,7 +4,7 @@
  */
 import { PNG } from 'pngjs';
 
-/** Mirror of `patternBitmapCache.PATTERN_BITMAP_MAX_PIXEL_RATIO` — keep in sync. */
+/** Mirror of `PATTERN_BAKE_SCALE` in theme/pattern — keep in sync. */
 export const PATTERN_BITMAP_MAX_PIXEL_RATIO_CLIENT = 3;
 
 /** Connector glow fill `#FFC98A` (theme PATTERN_PULSE_GLOW_FILL). */

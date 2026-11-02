@@ -22,5 +22,16 @@ export const PATTERN_CARD_UNITS = {
   height: 560,
 } as const;
 
+/**
+ * Build-time bake density for card backgrounds (phone 3×).
+ * Filenames use `-3x.webp` — never Metro `@3x` suffixes.
+ */
+export const PATTERN_BAKE_SCALE = 3 as const;
+
+export const PATTERN_BAKE_PIXEL = {
+  width: PATTERN_CARD_UNITS.width * PATTERN_BAKE_SCALE,
+  height: PATTERN_CARD_UNITS.height * PATTERN_BAKE_SCALE,
+} as const;
+
 /** Margin around the measured title box when clearing motifs (Carlos / Critiquito). */
 export const PATTERN_TITLE_CLEAR_MARGIN_PX = 16;

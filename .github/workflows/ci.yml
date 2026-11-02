@@ -143,6 +143,9 @@ jobs:
       - name: Audio size budget (Sound 3)
         run: node .github/scripts/audio-budget.mjs
 
+      - name: Assert baked pattern assets
+        run: node .github/scripts/assert-pattern-baked.mjs
+
       - name: Client unit tests
         run: pnpm test
         working-directory: apps/client

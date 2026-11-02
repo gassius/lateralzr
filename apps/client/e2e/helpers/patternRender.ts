@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { PATTERN_BAKE_PIXEL } from '../../theme/pattern.ts';
 import { cardFrontPattern } from './locators';
 import {
   analyzePatternRasterPng,
@@ -18,7 +19,7 @@ export type PatternRender = {
 };
 
 /**
- * Build-time PNG pattern (no react-native-svg / toDataURL). Read the front
+ * Build-time WebP/PNG pattern (no react-native-svg / toDataURL). Read the front
  * pattern DOM img — decode via canvas for pixel asserts.
  */
 export async function readPatternRender(page: Page): Promise<PatternRender> {
@@ -76,14 +77,29 @@ async function isFrontPatternImageReady(page: Page): Promise<boolean> {
 }
 
 /**
- * Wait until the front pattern shows a loaded build-time PNG (no SVG subtree).
- * Optionally asserts non-blank + glow (#FFC98A) pixels from the baked asset.
+ * Wait until the front pattern shows a loaded build-time bake (no SVG subtree).
+ * Asserts natural size matches PATTERN_BAKE_PIXEL (1074×1680 @3×), non-blank,
+ * and optionally glow (#FFC98A) pixels from the baked asset.
  */
 export async function expectPatternRasterReady(
   page: Page,
   options: { requireGlow?: boolean } = {},
 ): Promise<void> {
   await expect(cardFrontPattern(page)).toBeAttached();
+
+  // Deck must never mount react-native-svg under the front pattern.
+  await expect
+    .poll(
+      async () => {
+        const hasSvg = await page.evaluate(() => {
+          const pattern = document.querySelector('[data-testid="card-front-pattern"]');
+          return Boolean(pattern?.querySelector('svg'));
+        });
+        return hasSvg ? 'svg' : 'no-svg';
+      },
+      { timeout: 12_000 },
+    )
+    .toBe('no-svg');
 
   await expect
     .poll(
@@ -101,16 +117,19 @@ export async function expectPatternRasterReady(
   expect(render.via, JSON.stringify(render)).toBe('image');
   expect(render.dataUri, 'png data uri from canvas').toBeTruthy();
 
+  const expected = {
+    width: PATTERN_BAKE_PIXEL.width,
+    height: PATTERN_BAKE_PIXEL.height,
+  };
   const png = decodeDataImagePng(render.dataUri!);
   const analysis = analyzePatternRasterPng(png, {
-    // Baked @3× of 358×560 — accept natural bake size, not layout×dpr.
-    expectedWidth: render.naturalWidth ?? png.width,
-    expectedHeight: render.naturalHeight ?? png.height,
+    expectedWidth: expected.width,
+    expectedHeight: expected.height,
   });
 
   expect(
     analysis.sizeOk,
-    `png ${analysis.width}x${analysis.height} vs natural ${render.naturalWidth}x${render.naturalHeight}`,
+    `png ${analysis.width}x${analysis.height} vs bake ${expected.width}x${expected.height} (natural ${render.naturalWidth}x${render.naturalHeight})`,
   ).toBe(true);
   expect(
     analysis.nonBlank,

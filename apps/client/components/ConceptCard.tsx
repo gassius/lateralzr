@@ -24,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConceptItem } from '@/lib/api';
+import { hexToRgba } from '@/theme/contrast';
 import { color, layout } from '@/theme/tokens';
 import { namedFaceStyle, textStyle } from '@/theme/typography';
 import { resolveApiBaseUrl } from '@/lib/apiBaseUrl';
@@ -139,11 +140,6 @@ type ConceptCardProps = {
    * sheet/background). PatternLayer still gates RM + scroll.
    */
   pulseGateActive?: boolean;
-  /**
-   * Deck-settled pattern raster gate (`!pulseDragging`). True for underlays too
-   * so upcoming cards pre-capture while idle — never mid-swipe.
-   */
-  patternCaptureEnabled?: boolean;
   /** Face padding from the §16.2 aspect helper. */
   facePadding?: number;
   /**
@@ -172,7 +168,6 @@ export function ConceptCard({
   exposeFrontTitleTestId = false,
   onBackInteractivePress,
   pulseGateActive = false,
-  patternCaptureEnabled = false,
   facePadding,
   mediaRequestWidth = 0,
   backScrollOffsetY,
@@ -556,7 +551,6 @@ export function ConceptCard({
         variantOverride={patternVariantOverride}
         pulseGateActive={pulseGateActive && !flipped}
         frontScrolling={frontScrolling}
-        patternCaptureEnabled={patternCaptureEnabled}
       />
       <ScrollView
         style={styles.frontScroll}
@@ -1080,8 +1074,8 @@ export function ConceptCard({
           >
             <LinearGradient
               colors={[
-                'rgba(245,241,232,0)',
-                'rgba(245,241,232,0.85)',
+                hexToRgba(color.paper, 0),
+                hexToRgba(color.paper, 0.85),
                 color.paper,
               ]}
               locations={[0, 0.7, 1]}
