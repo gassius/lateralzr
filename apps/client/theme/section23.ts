@@ -1,285 +1,409 @@
 /**
- * Independent pin of Art Direction guide §23 (v3.4 Lz-55 + Lz-56 + Lz-57 + Lz-59 + Lz-60).
- * Lz-55 adds `cardAspect`, `media`, and `webPreview`. Lz-56 adds `motion.flip`,
- * `motion.swipe`, and `motion.deck`. Lz-57 adds `motion.reshuffle` and laterality
- * filter/onChange pins. Lz-59 adds sheet layout
- * tokens, `color.sheetGroup` / `color.scrim`, and `type.sheetTitle` 22.
- * Lz-60 adds `build` and media fade/provenance fields. Later Lz-54 tickets add
- * their own groups (decorative, …) on top.
+ * Independent pin of Art Direction guide §23 (v3.5 Lz-67 + prior Lz-55…Lz-66).
  * Used for typed exports and for the token deep-equal test — not imported from tokens.json.
  */
 export const GUIDE_SECTION_23 = {
-  version: '3.4',
-  status: 'Approved v3.4 (Carlos González Rico, 2026-10-17)',
-  color: {
-    shell: '#082D3D',
-    front: '#F78D1E',
-    paper: '#F5F1E8',
-    ink: '#172126',
-    concept: '#135B77',
-    mutedOnPaper: '#5C6266',
-    mutedOnShell: '#A9C2CD',
-    rail: '#7298A9',
-    controlBorder: '#777C7D',
-    divider: '#D8D2C8',
-    selectedSoft: '#FBE2C5',
-    error: '#9F3530',
-    sheetGroup: '#FFFFFF8C',
-    scrim: '#00000073',
+  "version": "3.5",
+  "status": "Approved v3.5 (Carlos González Rico, 2026-11-03)",
+  "color": {
+    "shell": "#082D3D",
+    "front": "#F78D1E",
+    "paper": "#F5F1E8",
+    "ink": "#172126",
+    "concept": "#135B77",
+    "mutedOnPaper": "#5C6266",
+    "mutedOnShell": "#A9C2CD",
+    "rail": "#7298A9",
+    "controlBorder": "#777C7D",
+    "divider": "#D8D2C8",
+    "selectedSoft": "#FBE2C5",
+    "error": "#9F3530",
+    "sheetGroup": "#FFFFFF8C",
+    "scrim": "#00000073"
   },
-  decorative: {
-    reliefFront: {
-      shade: '#C9670F',
-      shadeAlpha: 0.34,
-      highlight: '#FFB867',
-      highlightAlpha: 0.6,
-      core: '#EC8318',
-      coreAlpha: 0.45,
-      offsetPx: [-0.6, 0.7],
+  "decorative": {
+    "reliefFront": {
+      "shade": "#C9670F",
+      "shadeAlpha": 0.34,
+      "highlight": "#FFB867",
+      "highlightAlpha": 0.6,
+      "core": "#EC8318",
+      "coreAlpha": 0.45,
+      "offsetPx": [
+        -0.6,
+        0.7
+      ]
     },
-    reliefPaper: {
-      shade: '#CFC6B6',
-      shadeAlpha: 0.55,
-      highlight: '#FFFFFF',
-      highlightAlpha: 0.85,
-      core: '#ECE6DA',
-      coreAlpha: 0.55,
+    "reliefPaper": {
+      "shade": "#CFC6B6",
+      "shadeAlpha": 0.55,
+      "highlight": "#FFFFFF",
+      "highlightAlpha": 0.85,
+      "core": "#ECE6DA",
+      "coreAlpha": 0.55
     },
-    glow: '#FFC98A',
+    "glow": "#FFC98A"
   },
-  logoOnly: { logoNearBlack: '#231F20' },
-  laterality: {
-    '1': 'Same domain',
-    '2': 'Shared context',
-    '3': 'Abstract bridge',
-    '4': 'Provocation',
-    '5': 'Random entry',
-    allSelectable: true,
-    filterByGrade: true,
-    onChange: 'reshuffle-whole-deck',
-    historyKeepsVisited: true,
-    discardFutureOnChange: true,
+  "logoOnly": {
+    "logoNearBlack": "#231F20"
   },
-  spacing: [4, 8, 12, 16, 20, 24, 32],
-  layout: {
-    screenGutter: 16,
-    cardPadding: 24,
-    cardPaddingNarrow: 20,
-    cardRadius: 22,
-    sheetRadius: 22,
-    sheetInset: 12,
-    sheetBottomGap: 12,
-    sheetGroupRadius: 16,
-    sheetRowHeight: 56,
-    sheetHandleStrip: 48,
-    sheetPattern: 'none',
-    cardToControlGap: 12,
-    cardToControlGapTall: 16,
-    recommendedTouchTarget: 48,
-    minImageBandRatio: 0.28,
+  "laterality": {
+    "1": "Same domain",
+    "2": "Shared context",
+    "3": "Abstract bridge",
+    "4": "Provocation",
+    "5": "Random entry",
+    "allSelectable": true,
+    "filterByGrade": true,
+    "onChange": "reshuffle-whole-deck",
+    "historyKeepsVisited": true,
+    "discardFutureOnChange": true
   },
-  type: {
-    family: 'Inter',
-    concept: 32,
-    conceptMinOnOrange: 24,
-    sheetTitle: 22,
-    body: 18,
-    row: 17,
-    label: 14,
-    meta: 13,
-  },
-  /** Lz-66: bundled Inter OFL — amends guide §7.1 platform system sans. */
-  font: {
-    family: {
-      regular: 'Inter_400Regular',
-      medium: 'Inter_500Medium',
-      semiBold: 'Inter_600SemiBold',
-      bold: 'Inter_700Bold',
-    },
-  },
-  motion: {
-    controlMs: 150,
-    sheetMs: 280,
-    flipMs: 360,
-    swipeSettleMs: 260,
-    swipeReturnMs: 200,
-    swipeCommitRatio: 0.3,
-    swipeFlingPxPerMs: 0.5,
-    reducedMotionCrossfadeMs: 150,
-    pulseCycleMs: [2400, 2400],
-    pulsePauseMs: [7000, 12000],
-    concurrentPulses: 1,
-    pulseUnderReducedMotion: false,
-    glow: {
-      required: true,
-      color: '#FFC98A',
-      peakOpacity: 0.55,
-      peakRange: [0.45, 0.6],
-      settleOnDevice: true,
-      haloPx: 3,
-      haloOpacity: 0.3,
-      cycleMs: 2400,
-      pauseMs: [7000, 12000],
-      firstDelayMs: 1500,
-      concurrent: 1,
-      target: 'inter-bulb-connector',
-      underReducedMotion: false,
-      underMotionOff: false,
-    },
-    introLogoPulse: {
-      optional: true,
-      cycles: 1,
-      maxMs: 1200,
-      underReducedMotion: false,
-    },
-    flip: { ms: 360, bidirectional: true },
-    swipe: {
-      commitRatio: 0.3,
-      flingPxPerMs: 0.5,
-      exitMs: 260,
-      returnSpring: { damping: 26, stiffness: 260 },
-      perspective: 1200,
-      pivotHorizontal: 'bottom-center',
-      pivotVertical: 'center',
-      tiltZDegAtHalf: 8,
-      tiltZDegMax: 12,
-      tiltZDegExit: 14,
-      tiltYDegMax: 3,
-      followYFactor: 0.15,
-      liftShadowPx: 6,
-      backEnterTiltZDeg: -10,
-      backEnterTiltYDeg: -3,
-      backCoveredScale: 0.97,
-      backCoveredTint: 0.22,
-      verticalPitchDegMax: 6,
-      verticalRollDegMax: 3,
-      startOfHistoryResistance: 0.35,
-      backFaceScrollHandoffPx: 24,
-      aboveChromeWhileMoving: true,
-      chromeLockedWhileMoving: true,
-    },
-    deck: {
-      underlays: 1,
-      nextVisibleAtRest: false,
-      nextScale: 0.95,
-      nextOffsetY: 10,
-      nextTint: 0.22,
-      revealToScale: 1,
-      revealTint: 0,
-    },
-    reshuffle: {
-      gatherMs: 260,
-      gatherDropPx: 34,
-      gatherScale: 0.92,
-      silhouettes: 3,
-      fanDeg: [-6, 5, -1],
-      fanOffsetPx: 30,
-      riffleEveryMs: 1200,
-      riffleMoveMs: 280,
-      statusDelayMs: 300,
-      minCueMs: 900,
-      dealMs: 360,
-      reverseDealMs: 260,
-      timeoutMs: 10000,
-      cardInputDuringShuffle: false,
-      reducedMotion: { silhouettes: 1, crossfadeMs: 150 },
-    },
-  },
-  pattern: {
-    authority: 'assets/pattern/pattern-master-v3.4.png',
-    vectorMasters: [
-      'assets/pattern/lateralzr-pattern-network-descending-v3.4-study.svg',
-      'assets/pattern/lateralzr-pattern-network-ascending-v3.4.svg',
-      'assets/pattern/lateralzr-pattern-network-edge-v3.4.svg',
+  "spacing": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32
+  ],
+  "layout": {
+    "screenGutter": 16,
+    "cardPadding": 24,
+    "cardPaddingNarrow": 20,
+    "cardRadius": 22,
+    "sheetRadius": 22,
+    "sheetInset": 12,
+    "sheetBottomGap": 12,
+    "sheetGroupRadius": 16,
+    "sheetRowHeight": 56,
+    "sheetHandleStrip": 48,
+    "sheetPattern": "none",
+    "recommendedTouchTarget": 48,
+    "minImageBandRatio": 0.28,
+    "referenceViewport": [
+      390,
+      844
     ],
-    phoneSizeComparisonRequired: true,
-    connected: true,
-    finish: 'shallow-emboss',
-    variants: ['descending-current', 'ascending-current', 'edge-current'],
-    network: 'node-to-node',
-    bulbsPerCurrent: [4, 7],
-    bulbsPerEcho: [1, 3],
-    maxArmStretch: 1.6,
-    stablePerEncounter: true,
-    titleClearingRequired: true,
-    numericReliefNotApproved: true,
-    noMediaEmboss: {
-      mirror: 'horizontal',
-      maxHeightRatio: 0.55,
-      fadeRatio: 0.3,
-      minGapAboveTextPx: 24,
+    "referenceSafeArea": {
+      "top": 47,
+      "bottom": 34
     },
+    "cardStackGutter": 12,
+    "cardGaps": "equal",
+    "cardGapAtReference": 45,
+    "cardSizeUnchanged": true,
+    "messagingLine": "lower-card-gap"
   },
-  /** Card face / swirl ghost cast — Critiquito Lz-24 (not in original §23 table; shared pin). */
-  shadow: {
-    card: {
-      color: '#000000',
-      offsetWidth: 0,
-      offsetHeight: 4,
-      opacity: 0.18,
-      radius: 12,
-      elevation: 4,
-    },
+  "type": {
+    "family": "Inter",
+    "concept": 32,
+    "conceptMinOnOrange": 24,
+    "sheetTitle": 22,
+    "body": 18,
+    "row": 17,
+    "label": 14,
+    "meta": 13
   },
-  cardAspect: {
-    preferred: 1.4,
-    min: 1.3,
-    max: 1.5,
-    minCardWidth: 288,
-    surplusGoes: 'above-card',
-    neverSquash: true,
+  "font": {
+    "family": {
+      "regular": "Inter_400Regular",
+      "medium": "Inter_500Medium",
+      "semiBold": "Inter_600SemiBold",
+      "bold": "Inter_700Bold"
+    }
   },
-  media: {
-    fitBy: ['purpose', 'measured'],
-    purposes: {
-      photo: 'cover',
-      diagram: 'contain',
-      map: 'contain',
-      artwork: 'contain',
-      'text-bearing': 'contain',
-    },
-    measuredCoverAspect: [0.6, 1.8],
-    maxUpscale: 1.5,
-    containInset: 16,
-    containFill: 'paper',
-    singleInstance: true,
-    repeat: 'never',
-    maxRequestWidth: 1600,
-    nativePreferRasterForSvg: true,
-    decodeTimeoutMs: 8000,
-    imageFadeInMs: 150,
-    fadeOnlyOnCover: true,
-    darkBusyFadeRaise: 0.15,
-    requiredFields: [
-      'purpose',
-      'alt',
-      'creator',
-      'sourcePageUrl',
-      'licenceName',
-      'licenceUrl',
-      'changeNotice',
-      'focalX',
-      'focalY',
-      'tone',
+  "motion": {
+    "controlMs": 150,
+    "sheetMs": 280,
+    "flipMs": 360,
+    "swipeSettleMs": 260,
+    "swipeReturnMs": 200,
+    "swipeCommitRatio": 0.3,
+    "swipeFlingPxPerMs": 0.5,
+    "reducedMotionCrossfadeMs": 150,
+    "pulseCycleMs": [
+      2400,
+      2400
     ],
-  },
-  build: {
-    showReferenceLinks: {
-      env: 'EXPO_PUBLIC_SHOW_REFERENCE_LINKS',
-      default: true,
+    "pulsePauseMs": [
+      7000,
+      12000
+    ],
+    "concurrentPulses": 1,
+    "pulseUnderReducedMotion": false,
+    "glow": {
+      "required": true,
+      "color": "#FFC98A",
+      "peakOpacity": 0.55,
+      "peakRange": [
+        0.45,
+        0.6
+      ],
+      "settleOnDevice": true,
+      "haloPx": 3,
+      "haloOpacity": 0.3,
+      "cycleMs": 2400,
+      "pauseMs": [
+        7000,
+        12000
+      ],
+      "firstDelayMs": 1500,
+      "concurrent": 1,
+      "target": "inter-bulb-connector",
+      "underReducedMotion": false,
+      "underMotionOff": false
     },
-    showMediaCredits: {
-      env: 'EXPO_PUBLIC_SHOW_MEDIA_CREDITS',
-      default: true,
+    "introLogoPulse": {
+      "optional": true,
+      "cycles": 1,
+      "maxMs": 1200,
+      "underReducedMotion": false
     },
-    userSetting: false,
+    "flip": {
+      "ms": 360,
+      "bidirectional": true
+    },
+    "swipe": {
+      "commitRatio": 0.3,
+      "flingPxPerMs": 0.5,
+      "exitMs": 260,
+      "returnSpring": {
+        "damping": 26,
+        "stiffness": 260
+      },
+      "perspective": 1200,
+      "pivotHorizontal": "bottom-center",
+      "pivotVertical": "center",
+      "tiltZDegAtHalf": 8,
+      "tiltZDegMax": 12,
+      "tiltZDegExit": 14,
+      "tiltYDegMax": 3,
+      "followYFactor": 0.15,
+      "liftShadowPx": 6,
+      "backEnterTiltZDeg": -10,
+      "backEnterTiltYDeg": -3,
+      "backCoveredScale": 0.97,
+      "backCoveredTint": 0.22,
+      "verticalPitchDegMax": 6,
+      "verticalRollDegMax": 3,
+      "startOfHistoryResistance": 0.35,
+      "backFaceScrollHandoffPx": 24,
+      "aboveChromeWhileMoving": true,
+      "chromeLockedWhileMoving": true
+    },
+    "deck": {
+      "underlays": 1,
+      "nextVisibleAtRest": false,
+      "nextScale": 0.95,
+      "nextOffsetY": 10,
+      "nextTint": 0.22,
+      "revealToScale": 1,
+      "revealTint": 0
+    },
+    "reshuffle": {
+      "gatherMs": 260,
+      "gatherDropPx": 34,
+      "gatherScale": 0.92,
+      "silhouettes": 3,
+      "fanDeg": [
+        -6,
+        5,
+        -1
+      ],
+      "fanOffsetPx": 30,
+      "riffleEveryMs": 1200,
+      "riffleMoveMs": 280,
+      "statusDelayMs": 300,
+      "minCueMs": 900,
+      "dealMs": 360,
+      "reverseDealMs": 260,
+      "timeoutMs": 10000,
+      "cardInputDuringShuffle": false,
+      "reducedMotion": {
+        "silhouettes": 1,
+        "crossfadeMs": 150
+      }
+    }
   },
-  webPreview: {
-    outside: '#0E1012',
-    frameEdge: '#FFFFFF1A',
-    simulatedSafeAreaTop: 47,
-    simulatedSafeAreaBottom: 34,
+  "pattern": {
+    "authority": "assets/pattern/pattern-master-v3.4.png",
+    "vectorMasters": [
+      "assets/pattern/lateralzr-pattern-network-descending-v3.4-study.svg",
+      "assets/pattern/lateralzr-pattern-network-ascending-v3.4.svg",
+      "assets/pattern/lateralzr-pattern-network-edge-v3.4.svg"
+    ],
+    "phoneSizeComparisonRequired": true,
+    "connected": true,
+    "finish": "shallow-emboss",
+    "variants": [
+      "descending-current",
+      "ascending-current",
+      "edge-current"
+    ],
+    "network": "node-to-node",
+    "bulbsPerCurrent": [
+      4,
+      7
+    ],
+    "bulbsPerEcho": [
+      1,
+      3
+    ],
+    "maxArmStretch": 1.6,
+    "stablePerEncounter": true,
+    "titleClearingRequired": true,
+    "numericReliefNotApproved": true,
+    "noMediaEmboss": {
+      "mirror": "horizontal",
+      "maxHeightRatio": 0.55,
+      "fadeRatio": 0.3,
+      "minGapAboveTextPx": 24
+    },
+    "runtime": {
+      "format": "webp",
+      "scale": 3,
+      "fit": "cover",
+      "sizeTo": "card-face-pt",
+      "perCard": 1,
+      "tile": false,
+      "dir": "assets/images/pattern/baked",
+      "bakeScript": "pnpm bake:patterns",
+      "runtimeSvgInDeck": false
+    }
   },
+  "shadow": {
+    "card": {
+      "color": "#000000",
+      "offsetWidth": 0,
+      "offsetHeight": 4,
+      "opacity": 0.18,
+      "radius": 12,
+      "elevation": 4
+    }
+  },
+  "cardAspect": {
+    "preferred": 1.4,
+    "min": 1.3,
+    "max": 1.5,
+    "minCardWidth": 288,
+    "surplusGoes": "above-card",
+    "neverSquash": true
+  },
+  "media": {
+    "fitBy": [
+      "purpose",
+      "measured"
+    ],
+    "purposes": {
+      "photo": "cover",
+      "diagram": "contain",
+      "map": "contain",
+      "artwork": "contain",
+      "text-bearing": "contain"
+    },
+    "measuredCoverAspect": [
+      0.6,
+      1.8
+    ],
+    "maxUpscale": 1.5,
+    "containInset": 16,
+    "containFill": "paper",
+    "singleInstance": true,
+    "repeat": "never",
+    "maxRequestWidth": 1600,
+    "nativePreferRasterForSvg": true,
+    "decodeTimeoutMs": 8000,
+    "imageFadeInMs": 150,
+    "fadeOnlyOnCover": true,
+    "darkBusyFadeRaise": 0.15,
+    "requiredFields": [
+      "purpose",
+      "alt",
+      "creator",
+      "sourcePageUrl",
+      "licenceName",
+      "licenceUrl",
+      "changeNotice",
+      "focalX",
+      "focalY",
+      "tone"
+    ]
+  },
+  "build": {
+    "showReferenceLinks": {
+      "env": "EXPO_PUBLIC_SHOW_REFERENCE_LINKS",
+      "default": true
+    },
+    "showMediaCredits": {
+      "env": "EXPO_PUBLIC_SHOW_MEDIA_CREDITS",
+      "default": true
+    },
+    "userSetting": false
+  },
+  "webPreview": {
+    "outside": "#0E1012",
+    "frameEdge": "#FFFFFF1A",
+    "simulatedSafeAreaTop": 47,
+    "simulatedSafeAreaBottom": 34
+  },
+  "header": {
+    "wordmark": {
+      "source": "assets/images/lateralzrWordmark.ts",
+      "logoPaths": [
+        179,
+        187
+      ],
+      "case": "lower",
+      "color": "paper",
+      "on": "shell",
+      "heightPt": 20,
+      "minHeightPt": 16,
+      "bulbMark": false,
+      "alignLeftTo": "card"
+    },
+    "menuButton": {
+      "alignRightTo": "card",
+      "touchTarget": 48,
+      "opticalAlign": "dot-centre-to-x-height-centre"
+    },
+    "wordmarkToComplexityLabel": 24
+  },
+  "complexityBar": {
+    "persistent": true,
+    "mirrors": "laterality",
+    "rail": "#7298A9",
+    "selectedDot": "front",
+    "dots": 5,
+    "labelSize": 14,
+    "labelWeight": 500,
+    "label": {
+      "en": "Complexity {n}",
+      "es": "Complejidad {n}"
+    },
+    "chevronOpens": "complexity-picker",
+    "amended": "2026-11-03 (reverses Lz-12)"
+  },
+  "sound": {
+    "menuRowAfter": "Motion",
+    "values": [
+      "On",
+      "Music only",
+      "Effects only",
+      "Off"
+    ],
+    "switches": [
+      "sound",
+      "music",
+      "effects"
+    ],
+    "disabledDependant": {
+      "label": "mutedOnPaper",
+      "track": "divider",
+      "keepThumbPosition": true
+    }
+  }
 } as const;
 
 export type DesignTokens = typeof GUIDE_SECTION_23;

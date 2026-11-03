@@ -7,12 +7,13 @@ import { AccessibleNavRow } from '@/components/AccessibleNavRow';
 import { AppMenuSheet } from '@/components/AppMenuSheet';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { CoachHint } from '@/components/CoachHint';
-import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
+import { ComplexityControl } from '@/components/ComplexityControl';
 import {
   ConceptCardStack,
   type ConceptCardStackHandle,
 } from '@/components/ConceptCardStack';
 import { DeckStatusLine } from '@/components/DeckStatusLine';
+import { HeaderWordmark } from '@/components/HeaderWordmark';
 import { LateralityControl } from '@/components/LateralityControl';
 import { LateralityReshuffle } from '@/components/LateralityReshuffle';
 import { LateralitySheet } from '@/components/LateralitySheet';
@@ -26,7 +27,6 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ApiError, fetchConceptRelationships, type ConceptItem, DEFAULT_CONCEPT_COMPLEXITY } from '@/lib/api';
 import { A11Y_PASS_FOCUS } from '@/lib/a11yPass';
 import { ACCESSIBLE_NAV_ROW_MIN_HEIGHT } from '@/lib/cardActions';
-import { resolveCardAspectLayout } from '@/lib/cardLayout';
 import { applyAppendedBatch, applyComplexityTreeSwap, graphToDeckItems, planLoadMoreMerge } from '@/lib/conceptDeck';
 import { resolveDeckChromeStatus } from '@/lib/deckChromeStatus';
 import { reduceSwipeRight, resolveDeckSlotState } from '@/lib/deckSlotState';
@@ -40,12 +40,6 @@ import {
 } from '@/lib/emptyBatchRetry';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
-import {
-  complexityCueHoldMs,
-  resolveSessionComplexityToAnnounce,
-  shouldAnnounceComplexity,
-  shouldKeepSessionComplexityMark,
-} from '@/lib/complexityFeedback';
 import { applyMenuComplexitySelection } from '@/lib/complexityMenu';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import {
@@ -93,6 +87,7 @@ import {
 import {
   DEFAULT_APP_MENU_FEATURES,
   type AppMenuFeatures,
+  type AppMenuView,
 } from '@/lib/appMenu';
 import { useAppFontsReady } from '@/hooks/appFontsContext';
 import { remainingIntroMs } from '@/lib/introLogo';
@@ -122,9 +117,8 @@ import {
   type LateralityReshufflePhase,
 } from '@/lib/lateralityReshuffle';
 import {
+  COMPLEXITY_CONTROL_HEIGHT,
   LATERALITY_CONTROL_HEIGHT,
-  lateralityCardGap,
-  lateralityChromeReserve,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
 import { applyResolvedLocale } from '@/lib/locale';
@@ -132,9 +126,12 @@ import { loadStoredLocale, persistLocale, selectLocale } from '@/lib/localeStora
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_MAX_WIDTH,
-  practiceMenuChromeHeight,
-  practiceScreenGutter,
+  practiceCardEdgeInset,
+  practiceHeaderRowHeight,
+  practiceWordmarkHeight,
+  practiceWordmarkToComplexityGap,
 } from '@/lib/practiceLayout';
+import { cardVerticalBudget, resolveCardAspectLayout } from '@/lib/cardLayout';
 import {
   applyJourneyTestDeck,
   journeyStartOptions,
@@ -180,11 +177,6 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
-  const [complexityCue, setComplexityCue] = useState<{
-    grade: number;
-    token: number;
-    holdMs: number;
-  } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
   /** Gates laterality controls while the neighborhood tree prefetches — no swirl overlay (Lz-33). */
@@ -198,8 +190,11 @@ export default function HomeScreen() {
   const [lateralityFetchFailed, setLateralityFetchFailed] = useState(false);
   /** Measured laterality control height (grows when the label wraps at large text). */
   const [lateralityControlHeight, setLateralityControlHeight] = useState(LATERALITY_CONTROL_HEIGHT);
+  /** Measured Complexity bar height (grows when the label wraps at large text). */
+  const [complexityControlHeight, setComplexityControlHeight] = useState(COMPLEXITY_CONTROL_HEIGHT);
   const [lateralitySheetOpen, setLateralitySheetOpen] = useState(false);
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [appMenuInitialView, setAppMenuInitialView] = useState<AppMenuView>('root');
   /** Lz-56: moving card sits above chrome; chrome ignores presses until settle. */
   const [deckMoving, setDeckMoving] = useState(false);
   const [motionPreference, setMotionPreference] =
@@ -216,14 +211,16 @@ export default function HomeScreen() {
     sound: isSoundAvailable() || isClientTestOrDevBuild(),
   };
   const lateralityLabelRef = useRef<View | null>(null);
+  const complexityLabelRef = useRef<View | null>(null);
   const cardStackRef = useRef<ConceptCardStackHandle | null>(null);
   const accessibleNavVisible = useAccessibleNavVisible();
   const [accessibleNavHeight, setAccessibleNavHeight] = useState<number>(ACCESSIBLE_NAV_ROW_MIN_HEIGHT);
   const appMenuTriggerRef = useRef<View | null>(null);
+  const appMenuReturnFocusRef = useRef<View | null>(null);
   const replayGestureTipsRef = useRef<() => void>(() => {});
   /** React state mirrors activeLocale so menu / chrome re-render on pick. */
   const [locale, setLocale] = useState<AppLocale>(() => applyResolvedLocale());
-  /** §12.3 tip chip — shared messaging band above Laterality, never on the card. */
+  /** §12.3 tip chip — lives in the lower card gap (Lz-67), never on the card. */
   const [coachTip, setCoachTip] = useState<{
     text: string;
     animateAppear: boolean;
@@ -265,7 +262,6 @@ export default function HomeScreen() {
   const pendingEndDeckLoadRef = useRef(false);
   const complexityRef = useRef(complexity);
   const lateralityRef = useRef(laterality);
-  const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const lateralitySwapTokenRef = useRef(0);
   const lateralitySwapActiveRef = useRef(false);
@@ -304,10 +300,6 @@ export default function HomeScreen() {
       cancelActiveLateralityRowMix();
     };
   }, []);
-  /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
-  const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
-  const [showSessionComplexityMark, setShowSessionComplexityMark] = useState(false);
-
   useEffect(() => {
     complexityRef.current = complexity;
   }, [complexity]);
@@ -359,17 +351,6 @@ export default function HomeScreen() {
       const hydrated = resolveInitialComplexity(params, stored);
       complexityRef.current = hydrated;
       setComplexity(hydrated);
-      if (
-        shouldAnnounceComplexity({
-          reason: params.complexity != null ? 'session-url' : 'hydrate-stored',
-          complexity: hydrated,
-        })
-      ) {
-        setPendingSessionComplexity(hydrated);
-        if (shouldKeepSessionComplexityMark('session-url')) {
-          setShowSessionComplexityMark(true);
-        }
-      }
       setComplexityHydrated(true);
     });
     return () => {
@@ -1059,12 +1040,22 @@ export default function HomeScreen() {
   }, [playOtherSfx]);
 
   const openAppMenu = useCallback(() => {
+    appMenuReturnFocusRef.current = appMenuTriggerRef.current;
+    setAppMenuInitialView('root');
+    setAppMenuOpen(true);
+    playOtherSfx(sheetOpenSoundEvent());
+  }, [playOtherSfx]);
+
+  const openComplexityPicker = useCallback(() => {
+    appMenuReturnFocusRef.current = complexityLabelRef.current;
+    setAppMenuInitialView('complexity');
     setAppMenuOpen(true);
     playOtherSfx(sheetOpenSoundEvent());
   }, [playOtherSfx]);
 
   const dismissAppMenu = useCallback(() => {
     setAppMenuOpen(false);
+    setAppMenuInitialView('root');
     playOtherSfx(sheetCloseSoundEvent());
   }, [playOtherSfx]);
 
@@ -1113,34 +1104,17 @@ export default function HomeScreen() {
     [],
   );
 
-  const dismissComplexityCue = useCallback(() => {
-    setComplexityCue(null);
-  }, []);
-
-  const announceComplexity = useCallback((
-    grade: number,
-    reason: 'session-url' | 'swipe',
-  ) => {
-    setComplexityCue({
-      grade,
-      token: Date.now(),
-      holdMs: complexityCueHoldMs(reason),
-    });
-  }, []);
-
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
       if (lateralityBlocksComplexityChange(lateralitySwap != null)) return;
       const previous = complexityRef.current;
       const next = clampComplexity(previous + (direction === 'up' ? 1 : -1));
+      if (next === previous) return;
       complexityRef.current = next;
       setComplexity(next);
       // Lz-38: Complexity change resets the empty-retry counter.
       resetEmptyRetryCycle('complexity');
       setLoadMoreError(false);
-      if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
-        announceComplexity(next, 'swipe');
-      }
       if (shouldPersistComplexity('swipe')) {
         void persistComplexity(next);
       }
@@ -1158,7 +1132,7 @@ export default function HomeScreen() {
 
       void prefetchComplexityTree(next);
     },
-    [announceComplexity, lateralitySwap, prefetchComplexityTree],
+    [lateralitySwap, prefetchComplexityTree],
   );
 
   /**
@@ -1219,8 +1193,10 @@ export default function HomeScreen() {
     soundEvent({ name: 'intro_ready' });
   }, [introGateOpen, prefsReady, concepts.length, error]);
 
-  const menuChromeHeight = practiceMenuChromeHeight();
-  const usableHeight = layoutHeight - insets.top - insets.bottom - menuChromeHeight;
+  const headerRowHeight = practiceHeaderRowHeight();
+  const wordmarkToComplexityGap = practiceWordmarkToComplexityGap();
+  const usableHeight =
+    layoutHeight - insets.top - insets.bottom - headerRowHeight - wordmarkToComplexityGap;
 
   // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
   // After the intro gate opens, a still-empty deck uses the quiet silhouette (not more logo).
@@ -1279,24 +1255,6 @@ export default function HomeScreen() {
     chromeStatus.kind === 'fetchFailed' || chromeStatus.kind === 'noNextIdea';
   const visibleCoachTip = suppressCoachTip ? null : coachTip;
 
-  useEffect(() => {
-    if (!showMainDeck) return;
-    const pending = resolveSessionComplexityToAnnounce({
-      alreadyAnnounced: announcedSessionComplexityRef.current,
-      pending: pendingSessionComplexity,
-      routeComplexity,
-      rememberedComplexity:
-        readJourneyTestParams().complexity ?? journeyTestParamsRef.current.complexity,
-    });
-    if (pending == null) return;
-    announcedSessionComplexityRef.current = true;
-    setPendingSessionComplexity(null);
-    if (shouldKeepSessionComplexityMark('session-url')) {
-      setShowSessionComplexityMark(true);
-    }
-    announceComplexity(pending, 'session-url');
-  }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
-
   if (showIntroLogo) {
     return (
       <MotionPreferenceProvider value={motionPreference}>
@@ -1352,15 +1310,29 @@ export default function HomeScreen() {
             : Platform.OS === 'web'
               ? ({ inert: undefined, 'aria-hidden': undefined } as Record<string, unknown>)
               : {};
-        const stackAvailableHeight = Math.max(
+        const columnWidth = Math.min(layoutWidth, PRACTICE_COLUMN_MAX_WIDTH);
+        const a11yExtra = accessibleNavVisible ? accessibleNavHeight : 0;
+        const cardRegionBudget = Math.max(
           0,
-          usableHeight -
-            lateralityChromeReserve(usableHeight, lateralityControlHeight) -
-            (accessibleNavVisible ? accessibleNavHeight : 0),
+          cardVerticalBudget({
+            screenHeight: layoutHeight,
+            insetTop: insets.top,
+            insetBottom: insets.bottom,
+            headerRowHeight,
+            wordmarkToComplexityGap,
+            complexityBarHeight: complexityControlHeight,
+            lateralityLabelAndRailHeight: lateralityControlHeight,
+            extraBelowCard: a11yExtra,
+          }),
         );
-        const controlGap = lateralityCardGap(usableHeight);
-        // AD #119: tip OR status share LateralityControl's messaging band —
-        // one fixed height, never stacked, never subtracted again from the card.
+        const cardLayout = resolveCardAspectLayout({
+          columnWidth,
+          availableHeight: cardRegionBudget,
+          surplusMode: 'equal',
+        });
+        // Stack gets above-gap + card; lower gap (messaging) is a sibling below.
+        const stackAvailableHeight = cardLayout.topSurplus + cardLayout.height;
+        // AD #119: tip OR status share the lower card gap — one slot, never stacked.
         const messagingSlot = showStatusSlot ? (
           <DeckStatusLine
             message={deckStatusMessage}
@@ -1381,12 +1353,11 @@ export default function HomeScreen() {
               onDismiss={visibleCoachTip.onDismiss}
             />
           </View>
-        ) : undefined;
+        ) : null;
         const cardLateralityGroup = (
           <View
             style={[
               styles.cardLateralityGroup,
-              { gap: controlGap },
               deckMoving ? styles.deckMovingGroup : null,
             ]}
             testID="card-laterality-group"
@@ -1396,6 +1367,20 @@ export default function HomeScreen() {
                 } as Record<string, unknown>)
               : null)}
           >
+            <View
+              pointerEvents={deckMoving ? 'none' : 'auto'}
+              style={styles.complexityChrome}
+              testID="complexity-chrome"
+            >
+              <ComplexityControl
+                complexity={complexity}
+                disabled={lateralitySwap != null}
+                onSelectComplexity={onSelectComplexity}
+                onHeightChange={setComplexityControlHeight}
+                onPressLabel={openComplexityPicker}
+                labelRef={complexityLabelRef}
+              />
+            </View>
             <View
               style={[
                 styles.deckStackLayer,
@@ -1410,10 +1395,11 @@ export default function HomeScreen() {
                     reduceMotion={reduceMotion}
                     cardFrame={reshuffleCueFrame(
                       resolveCardAspectLayout({
-                        columnWidth: Math.min(layoutWidth, PRACTICE_COLUMN_MAX_WIDTH),
+                        columnWidth,
                         availableHeight: stackAvailableHeight,
+                        surplusMode: 'above',
                       }),
-                      Math.min(layoutWidth, PRACTICE_COLUMN_MAX_WIDTH),
+                      columnWidth,
                     )}
                   />
                 ) : null}
@@ -1440,6 +1426,13 @@ export default function HomeScreen() {
                 </View>
               </View>
             </View>
+            <View
+              style={[styles.lowerCardGap, { minHeight: cardLayout.bottomSurplus }]}
+              testID="lower-card-gap"
+              pointerEvents={deckMoving ? 'none' : 'box-none'}
+            >
+              {messagingSlot}
+            </View>
             {accessibleNavVisible ? (
               <View pointerEvents={deckMoving || lateralitySwap != null ? 'none' : 'auto'}>
                 <AccessibleNavRow
@@ -1465,46 +1458,27 @@ export default function HomeScreen() {
                 onHeightChange={setLateralityControlHeight}
                 onPressLabel={openLateralitySheet}
                 labelRef={lateralityLabelRef}
-                statusSlot={messagingSlot}
               />
             </View>
-            {complexityCue ? (
-              <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-                pointerEvents="none"
-              >
-                <ComplexityCue
-                  grade={complexityCue.grade}
-                  token={complexityCue.token}
-                  holdMs={complexityCue.holdMs}
-                  onHidden={dismissComplexityCue}
-                />
-              </View>
-            ) : showSessionComplexityMark && !visibleCoachTip ? (
-              <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-                pointerEvents="none"
-              >
-                <ComplexitySessionMark grade={complexity} />
-              </View>
-            ) : null}
           </View>
         );
-        // Lz-41 reading order: concept (practice column) before chrome controls.
-        // Spacer keeps the petrol band height; trigger is absolute so AT/DOM order
-        // is card → laterality → menu (visual layout unchanged).
-        const menuSpacer =
+        // Lz-41 reading order: concept before chrome. Header spacer preserves
+        // the wordmark+⋯ band; absolute header keeps AT order card → controls → menu.
+        const headerSpacer =
           APP_MENU_TRIGGER_ENABLED ? (
             <View
-              style={{ height: menuChromeHeight }}
+              style={{ height: headerRowHeight + wordmarkToComplexityGap }}
               pointerEvents="none"
               accessible={false}
               importantForAccessibility="no-hide-descendants"
-              testID="app-menu-chrome-spacer"
+              testID="practice-header-spacer"
               {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             />
-          ) : null;
+          ) : (
+            <View style={{ height: headerRowHeight + wordmarkToComplexityGap }} pointerEvents="none" />
+          );
         const focusRingPad = A11Y_PASS_FOCUS.widthPx + A11Y_PASS_FOCUS.offsetPx;
+        // usableHeight already excludes header + wordmark→Complexity gap.
         const practiceColumn = accessibleNavVisible ? (
           <ScrollView
             style={[
@@ -1515,7 +1489,6 @@ export default function HomeScreen() {
             contentContainerStyle={{
               minHeight: usableHeight,
               overflow: 'visible',
-              // Web E2E only: keep the 2+2 px focus ring inside the scroll clip (Lz-53 / keyboard both-faces).
               ...(Platform.OS === 'web'
                 ? { paddingTop: focusRingPad, paddingBottom: focusRingPad }
                 : {}),
@@ -1543,26 +1516,41 @@ export default function HomeScreen() {
             {cardLateralityGroup}
           </View>
         );
-        const menuChrome = APP_MENU_TRIGGER_ENABLED ? (
+        /**
+         * Optical align: ⋯ dots sit at the vertical centre of the 48 pt hit target.
+         * Wordmark (~20 pt) is offset so its x-height band centre matches that midline
+         * (ascenders would otherwise pull geometric centre too high — guide §9.7).
+         */
+        const wordmarkH = practiceWordmarkHeight();
+        const xHeightCentreRatio = 0.58;
+        const wordmarkTop =
+          headerRowHeight / 2 - wordmarkH * xHeightCentreRatio;
+        const headerChrome = APP_MENU_TRIGGER_ENABLED ? (
           <View
             style={[
               styles.menuChrome,
               styles.menuChromeAbsolute,
-              { height: menuChromeHeight, top: insets.top },
+              { height: headerRowHeight, top: insets.top },
             ]}
-            testID="app-menu-chrome"
+            testID="practice-header"
             pointerEvents={sheetOpen || deckMoving ? 'none' : 'box-none'}
             importantForAccessibility={backgroundA11yHide}
             {...backgroundInertProps}
           >
+            <View
+              style={[styles.headerWordmarkSlot, { marginTop: Math.max(0, wordmarkTop) }]}
+              pointerEvents="none"
+            >
+              <HeaderWordmark height={wordmarkH} />
+            </View>
             <AppMenuTrigger ref={appMenuTriggerRef} onPress={openAppMenu} />
           </View>
         ) : null;
         return (
           <>
-            {menuSpacer}
+            {headerSpacer}
             {practiceColumn}
-            {menuChrome}
+            {headerChrome}
           </>
         );
       })()}
@@ -1581,7 +1569,8 @@ export default function HomeScreen() {
         onSelectLocale={onSelectLocale}
         currentComplexity={complexity}
         onSelectComplexity={onSelectComplexity}
-        returnFocusRef={appMenuTriggerRef}
+        returnFocusRef={appMenuReturnFocusRef}
+        initialView={appMenuInitialView}
         motionPreference={motionPreference}
         onMotionPreferenceChange={onMotionPreferenceChange}
         soundPreferences={soundPreferences}
@@ -1606,15 +1595,15 @@ const styles = StyleSheet.create({
     backgroundColor: color.shell,
     width: '100%',
   },
-  /** Top-right ellipsis band on petrol — card starts below (Lz-32 Art Director). */
+  /** Header row: wordmark left + ⋯ right, aligned to card edges (§9.7). */
   menuChrome: {
     width: '100%',
     maxWidth: PRACTICE_COLUMN_MAX_WIDTH,
     alignSelf: 'center',
-    paddingHorizontal: practiceScreenGutter(),
+    paddingHorizontal: practiceCardEdgeInset(),
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     zIndex: 30,
   },
   /** Absolute so DOM/AT order can place concept before the menu (Lz-41). */
@@ -1622,6 +1611,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
+  },
+  headerWordmarkSlot: {
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   /** Centred practice column for tablets / wide native; web phone frame already ≤430. */
   practiceColumn: {
@@ -1637,9 +1630,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   /**
-   * Stack wrapper is a sibling of laterality-chrome. zIndex only works between
-   * siblings, so the moving card must raise THIS wrapper (not only frontWrap).
-   * At rest stay below the complexity cue (z 20) so ~18 px of the chip shows.
+   * Stack wrapper is a sibling of Complexity / Laterality chrome. zIndex only
+   * works between siblings, so the moving card must raise THIS wrapper.
    */
   deckStackLayer: {
     position: 'relative',
@@ -1648,36 +1640,39 @@ const styles = StyleSheet.create({
     zIndex: 40,
     elevation: 40,
   },
+  complexityChrome: {
+    position: 'relative',
+    zIndex: 1,
+    elevation: 1,
+  },
   lateralityChrome: {
     position: 'relative',
     zIndex: 1,
     elevation: 1,
+  },
+  /** Reserved equal gap below the card — holds tip OR status (AD #119 / Lz-67). */
+  lowerCardGap: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    zIndex: 1,
   },
   stackSlot: {
     width: '100%',
     position: 'relative',
     overflow: 'visible',
   },
-  /** Card sits above the cue so gather/deal read on top of sinking silhouettes. */
+  /** Card sits above reshuffle silhouettes. */
   reshuffleCardLayer: {
     zIndex: 2,
   },
-  /** While dragging / exiting, the card stacks above the ellipsis (zIndex 30). */
+  /** While dragging / exiting, the card stacks above the header (zIndex 30). */
   deckMovingGroup: {
     zIndex: 40,
     elevation: 40,
     overflow: 'visible',
   },
-  /** Above the laterality control, never on that row. */
-  complexityCueSlot: {
-    position: 'absolute',
-    left: practiceScreenGutter(),
-    right: practiceScreenGutter(),
-    alignItems: 'center',
-    zIndex: 20,
-    elevation: 20,
-  },
-  /** Tip chip inside LateralityControl's shared messaging band. */
+  /** Tip chip inside the lower card gap. */
   coachTipSlot: {
     width: '100%',
     alignItems: 'center',

@@ -24,6 +24,7 @@ export const MESSAGE_KEYS = [
   'decreaseLaterality',
   'increaseLaterality',
   'complexityGrade',
+  'complexityA11yValue',
   'loadingLateralNeighborhood',
   // v3.3 UI labels (Lz-43)
   'lateralityGrade1',
@@ -98,6 +99,7 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     decreaseLaterality: 'Decrease laterality',
     increaseLaterality: 'Increase laterality',
     complexityGrade: 'Complexity {grade}',
+    complexityA11yValue: '{label}, {n} of 5',
     loadingLateralNeighborhood: 'Loading a new neighborhood',
     lateralityGrade1: 'Same domain',
     lateralityGrade2: 'Shared context',
@@ -166,6 +168,7 @@ export const messages: Record<AppLocale, Record<MessageKey, string>> = {
     decreaseLaterality: 'Disminuir lateralidad',
     increaseLaterality: 'Aumentar lateralidad',
     complexityGrade: 'Complejidad {grade}',
+    complexityA11yValue: '{label}, {n} de 5',
     loadingLateralNeighborhood: 'Cargando un vecindario nuevo',
     lateralityGrade1: 'Mismo dominio',
     lateralityGrade2: 'Contexto compartido',

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import {
   Platform,
   Pressable,
@@ -22,7 +22,6 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
-  CONTROL_MESSAGING_BAND_HEIGHT,
 } from '@/lib/lateralityChrome';
 import {
   clampLaterality,
@@ -47,11 +46,6 @@ type LateralityControlProps = {
   onHeightChange?: (height: number) => void;
   /** Host for focus restore when the sheet closes. */
   labelRef?: RefObject<ViewType | null>;
-  /**
-   * Full-width messaging band above the Laterality label (Lz-35 / Lz-38 / AD #119).
-   * Shared by coach tip OR deck status — never stacked, never beside the label.
-   */
-  statusSlot?: ReactNode;
 };
 
 const DOT_COUNT = 5;
@@ -141,7 +135,6 @@ export function LateralityControl({
   onPressLabel,
   onHeightChange,
   labelRef,
-  statusSlot,
 }: LateralityControlProps) {
   const grade = clampLaterality(laterality);
   const disabled = lateralityControlDisabled(true, swapping);
@@ -267,14 +260,6 @@ export function LateralityControl({
         : {})}
       onLayout={onRootLayout}
     >
-      {/*
-        Shared tip/status messaging band (AD #119): one fixed height for every
-        state so tip and status never stack and the card frame never shifts.
-      */}
-      <View style={styles.statusBand} testID="laterality-status-band">
-        {statusSlot}
-      </View>
-
       <View style={styles.labelRow}>
         <Pressable
           ref={labelRef}
@@ -349,13 +334,6 @@ const styles = StyleSheet.create({
     minHeight: LATERALITY_CONTROL_HEIGHT,
     paddingHorizontal: LATERALITY_ROW_PADDING_HORIZONTAL,
     justifyContent: 'flex-start',
-  },
-  statusBand: {
-    alignSelf: 'stretch',
-    width: '100%',
-    minHeight: CONTROL_MESSAGING_BAND_HEIGHT,
-    justifyContent: 'center',
-    alignItems: 'stretch',
   },
   labelRow: {
     minHeight: LATERALITY_LABEL_ROW_HEIGHT,

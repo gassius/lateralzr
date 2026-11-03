@@ -1,10 +1,13 @@
 /**
- * Tokens for grouping the laterality control with the card.
- * The control is part of the card composition — not a bezel-pinned footer.
+ * Tokens for grouping the laterality / complexity controls with the card
+ * (ClickUp Lz-67 / guide §9.6, §9.7, §16.2).
+ *
+ * Messaging (coach tip / status) lives in the lower card gap — not inside
+ * the Laterality control height — so the card never jumps when a status appears.
  */
 
 import { coachHintSlotHeight } from './coachHintPresentation';
-import { layout, tallScreenMinHeight, type } from '@/theme/tokens';
+import { layout, type } from '@/theme/tokens';
 
 /** 48 px stepped-slider hit region (guide §10 / layout.recommendedTouchTarget). */
 export const LATERALITY_RAIL_HEIGHT = layout.recommendedTouchTarget;
@@ -18,14 +21,15 @@ export const LATERALITY_LABEL_ROW_HEIGHT = Math.round(type.label * 1.4);
 /**
  * Status-only content height (two meta lines at 13 × 1.4 → 18 × 2 = 36).
  * Tip chip needs a taller band — see {@link CONTROL_MESSAGING_BAND_HEIGHT}.
+ * Kept for DeckStatusLine / CoachHint sizing inside the lower card gap.
  */
 export const STATUS_BAND_LINE_HEIGHT = Math.round(type.meta * 1.4);
 export const STATUS_BAND_HEIGHT = STATUS_BAND_LINE_HEIGHT * 2;
 
 /**
- * Shared tip-or-status messaging band above the Laterality label (AD #119).
+ * Shared tip-or-status content height (AD #119).
  * One fixed height for every state: max(status 2-line, tip 2-line chip).
- * Tip and status never stack — they share this band (not sum).
+ * Tip and status never stack — they share this slot in the lower card gap.
  */
 export const CONTROL_MESSAGING_BAND_HEIGHT = Math.max(
   STATUS_BAND_HEIGHT,
@@ -33,11 +37,13 @@ export const CONTROL_MESSAGING_BAND_HEIGHT = Math.max(
 );
 
 /**
- * Minimum control height: shared messaging band + label + rail.
- * Band is always reserved (empty / tip / status) so the card frame never shifts.
+ * Laterality control height: label + rail only (v3.5 — messaging left the band).
  */
 export const LATERALITY_CONTROL_HEIGHT =
-  CONTROL_MESSAGING_BAND_HEIGHT + LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+  LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+
+/** Complexity bar mirrors Laterality: same label row + rail heights. */
+export const COMPLEXITY_CONTROL_HEIGHT = LATERALITY_CONTROL_HEIGHT;
 
 /** Comfortable tap target size (≥44). */
 export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;
@@ -58,30 +64,55 @@ export const STATUS_SLOT_MIN_WIDTH = 120;
 export const MIN_CARD_AREA_HEIGHT = 260;
 
 /**
- * Gap card bottom → control label (v3.3 §8).
- * 12 px normally; 16 px when usable height (viewport − safe areas) ≥ 800.
+ * Minimum lower-gap height for one status line + 8 pt above and below (§16.2).
  */
-export function lateralityCardGap(usableHeight: number): number {
-  const height = Number.isFinite(usableHeight) ? usableHeight : 0;
-  return height >= tallScreenMinHeight ? layout.cardToControlGapTall : layout.cardToControlGap;
+export function messagingMinGapHeight(): number {
+  return STATUS_BAND_LINE_HEIGHT + 8 + 8;
 }
 
 /**
- * Height reserved under the card for the laterality control + grouping gap.
- * Pass the measured control height when the label wraps (large text).
+ * Reference equal gap at 390×844 (token). Runtime gaps are derived from leftover
+ * height after the preferred card; this pin documents the design target.
+ */
+export function cardGapAtReference(): number {
+  return layout.cardGapAtReference;
+}
+
+/**
+ * Height reserved under the card for the laterality label+rail only.
+ * Equal gaps are handled separately by {@link resolveEqualCardGaps}.
  */
 export function lateralityChromeReserve(
-  usableHeight: number,
+  _usableHeight: number,
   controlHeight: number = LATERALITY_CONTROL_HEIGHT,
 ): number {
   const control =
     Number.isFinite(controlHeight) && controlHeight > 0
       ? Math.max(LATERALITY_CONTROL_HEIGHT, controlHeight)
       : LATERALITY_CONTROL_HEIGHT;
-  return control + lateralityCardGap(usableHeight);
+  return control;
 }
 
-/** Vertical space the card stack may use once laterality sits under the card. */
+/**
+ * Split leftover height into two equal gaps (above + below the card).
+ * Guide §16.2 centres the card between Complexity rail and Laterality label.
+ * Messaging sits in the lower gap without changing the card frame (overflow OK
+ * when leftover is below 2× the status-line minimum).
+ */
+export function resolveEqualCardGaps(leftoverHeight: number): {
+  above: number;
+  below: number;
+} {
+  const leftover = Number.isFinite(leftoverHeight) ? Math.max(0, leftoverHeight) : 0;
+  const half = leftover / 2;
+  return { above: half, below: half };
+}
+
+/**
+ * Vertical space the card stack may use once header, Complexity, Laterality
+ * chrome and equal gaps are accounted for. Prefer calling
+ * {@link resolvePracticeCardRegion} from cardLayout for the full budget.
+ */
 export function cardStackAvailableHeight(
   usableHeight: number,
   controlHeight: number = LATERALITY_CONTROL_HEIGHT,
@@ -90,4 +121,12 @@ export function cardStackAvailableHeight(
     MIN_CARD_AREA_HEIGHT,
     usableHeight - lateralityChromeReserve(usableHeight, controlHeight),
   );
+}
+
+/**
+ * @deprecated v3.5 equal gaps replace the tall/short single gap. Returns the
+ * reference gap for documentation; do not use for layout.
+ */
+export function lateralityCardGap(_usableHeight?: number): number {
+  return layout.cardGapAtReference;
 }

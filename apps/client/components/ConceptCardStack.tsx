@@ -315,9 +315,12 @@ export const ConceptCardStack = forwardRef<ConceptCardStackHandle, ConceptCardSt
     });
   }, []);
 
+  // Lower card gap (messaging) is reserved outside this stack (Lz-67).
+  // All leftover inside availableHeight is top padding above the card.
   const cardLayout = resolveCardAspectLayout({
     columnWidth: containerW,
     availableHeight,
+    surplusMode: 'above',
   });
   const cardWidth = cardLayout.width;
   const cardAreaHeight = cardLayout.height;
