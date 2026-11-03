@@ -2,8 +2,8 @@
  * Adaptive layer player group — shared clock, gain-only muting.
  *
  * Native: expo-audio players started in one JS tick; re-aligned to master at
- * every loop boundary (no loopEnd / sample-accurate scheduler). LPF + stereo
- * width are unavailable — colour is gain + arp/arp-bright swap only.
+ * every loop boundary (no loopEnd / sample-accurate scheduler). Colour is
+ * gain + arp/arp-bright swap only (same as web preview).
  *
  * Web: platforms pass a custom {@link LayerGainSink} with Web Audio fades.
  */
@@ -69,8 +69,6 @@ export type AdaptiveLayerGroupOptions = {
   createPlayer: LayerPlayerFactory;
   resolveModule?: (name: SoundAssetName) => SoundAssetRef;
   schedulerOptions?: Omit<LayerSchedulerOptions, 'sink'>;
-  /** Optional colour sink (web LPF/width). Native omits. */
-  setColour?: (opts: { lowpassHz: number; width: number }) => void;
   /** Optional Web Audio equal-power fade. */
   fadeGains?: LayerSchedulerOptions['sink']['fadeGains'];
   /** Read current playback position (seconds) for drift / realign. */
@@ -127,7 +125,6 @@ export function createAdaptiveLayerGroup(
         pendingGains = { ...gains };
         applyVolumes();
       },
-      setColour: options.setColour,
       fadeGains: options.fadeGains,
     },
   });

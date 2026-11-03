@@ -76,16 +76,20 @@ export const LAYER_COMPLEXITY_MIN: Record<LayerRole, number> = {
   extra: 5,
 };
 
-/** Laterality → colour / space (starting values; filter+width may be N/A on native). */
+/**
+ * Laterality → arp variant + extra gain (native and web preview).
+ * Brightness/width come only from the arp ↔ arp-bright swap and these gains —
+ * no LPF / stereo-width stage on either platform (Carlos / PR #168).
+ */
 export const LATERALITY_MIX: Record<
   1 | 2 | 3 | 4 | 5,
-  { lowpassHz: number; width: number; arp: 'arp' | 'arp-bright'; extraGainDb: number }
+  { arp: 'arp' | 'arp-bright'; extraGainDb: number }
 > = {
-  1: { lowpassHz: 2500, width: 0.6, arp: 'arp', extraGainDb: -3 },
-  2: { lowpassHz: 4000, width: 0.75, arp: 'arp', extraGainDb: -2 },
-  3: { lowpassHz: 6500, width: 0.9, arp: 'arp', extraGainDb: -1 },
-  4: { lowpassHz: 10000, width: 1.0, arp: 'arp-bright', extraGainDb: 0 },
-  5: { lowpassHz: 16000, width: 1.15, arp: 'arp-bright', extraGainDb: 1 },
+  1: { arp: 'arp', extraGainDb: -3 },
+  2: { arp: 'arp', extraGainDb: -2 },
+  3: { arp: 'arp', extraGainDb: -1 },
+  4: { arp: 'arp-bright', extraGainDb: 0 },
+  5: { arp: 'arp-bright', extraGainDb: 1 },
 };
 
 /** Bed attenuation at Complexity 4–5 (existing free-time beds). */
@@ -99,8 +103,6 @@ export type LayerTargets = {
   gains: Record<LayerRole, number>;
   /** Authoring gains in dB (−Infinity when silent). */
   gainsDb: Record<LayerRole, number>;
-  lowpassHz: number;
-  width: number;
   arpRole: 'arp' | 'arp-bright';
 };
 
@@ -112,7 +114,7 @@ function clampLevel(value: number): 1 | 2 | 3 | 4 | 5 {
 }
 
 /**
- * Pure Complexity × Laterality → per-layer gains + colour.
+ * Pure Complexity × Laterality → per-layer gains.
  * Silent layers use gain 0 (−Infinity dB). Arp and arp-bright never both audible
  * except during an equal-power swap fade owned by the scheduler.
  */
@@ -140,8 +142,6 @@ export function layerTargets(complexity: number, laterality: number): LayerTarge
   return {
     gains,
     gainsDb,
-    lowpassHz: mix.lowpassHz,
-    width: mix.width,
     arpRole: mix.arp,
   };
 }
@@ -189,8 +189,6 @@ export function loopPhaseOffsetSeconds(t0Seconds: number, nowSeconds: number): n
 export type LayerGainSink = {
   /** Apply linear gains immediately (no fade). */
   setGains: (gains: Record<LayerRole, number>) => void;
-  /** Apply colour (may no-op on native). */
-  setColour?: (opts: { lowpassHz: number; width: number }) => void;
   /** Optional: schedule equal-power fade ending at `endTime` (web AudioContext). */
   fadeGains?: (
     from: Record<LayerRole, number>,
@@ -254,12 +252,47 @@ export function createLayerScheduler(options: LayerSchedulerOptions): LayerSched
   ) as Record<LayerRole, number>;
   let fading = false;
   let barTimer: ReturnType<typeof setTimeout> | null = null;
+  let snapTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Wall-ms deadline for the web-path snap timer (pause/resume). */
+  let snapDeadlineMs: number | null = null;
+  let snapTargets: LayerTargets | null = null;
+  let snapToGains: Record<LayerRole, number> | null = null;
+  /**
+   * Native timer-step fade progress. Cleared when the fade finishes or stop().
+   * pause() clears the tick timer but keeps this so resume can continue.
+   */
+  let stepFade: {
+    targets: LayerTargets;
+    to: Record<LayerRole, number>;
+    curves: Record<LayerRole, Float32Array>;
+    stepIndex: number;
+    steps: number;
+    stepMs: number;
+    timerId: ReturnType<typeof setTimeout> | null;
+  } | null = null;
   const loaded = new Set<LayerRole>(['pad']);
 
   function clearBarTimer(): void {
     if (barTimer == null) return;
     clearTimer(barTimer);
     barTimer = null;
+  }
+
+  function clearSnapTimer(): void {
+    if (snapTimer == null) return;
+    clearTimer(snapTimer);
+    snapTimer = null;
+  }
+
+  function clearStepFadeTimer(): void {
+    if (stepFade?.timerId == null) return;
+    clearTimer(stepFade.timerId);
+    stepFade.timerId = null;
+  }
+
+  function clearAllFadeTimers(): void {
+    clearSnapTimer();
+    clearStepFadeTimer();
   }
 
   function audibleGains(targets: LayerTargets): Record<LayerRole, number> {
@@ -270,68 +303,110 @@ export function createLayerScheduler(options: LayerSchedulerOptions): LayerSched
     return out;
   }
 
-  function applyColour(targets: LayerTargets): void {
+  function finishFade(targets: LayerTargets, to: Record<LayerRole, number>): void {
+    currentGains = { ...to };
+    fading = false;
+    applied = targets;
+    stepFade = null;
+    snapTargets = null;
+    snapToGains = null;
+    snapDeadlineMs = null;
+    clearAllFadeTimers();
     try {
-      options.sink.setColour?.({
-        lowpassHz: targets.lowpassHz,
-        width: targets.width,
-      });
+      options.sink.setGains({ ...currentGains });
     } catch (err) {
-      console.warn('[sound] layer colour', err);
+      console.warn('[sound] layer fade finish', err);
     }
   }
 
+  function scheduleStepFadeTick(): void {
+    if (!stepFade || paused || !enabled) return;
+    clearStepFadeTimer();
+    stepFade.timerId = setTimer(runStepFadeTick, stepFade.stepMs);
+  }
+
+  function runStepFadeTick(): void {
+    if (!stepFade) return;
+    stepFade.timerId = null;
+    if (!enabled) return;
+    if (paused) return;
+
+    const { curves, steps, targets, to } = stepFade;
+    for (const role of LAYER_ROLES) {
+      currentGains[role] = curves[role]![stepFade.stepIndex]!;
+    }
+    try {
+      options.sink.setGains({ ...currentGains });
+    } catch (err) {
+      console.warn('[sound] layer fade step', err);
+    }
+    stepFade.stepIndex += 1;
+    if (stepFade.stepIndex < steps) {
+      scheduleStepFadeTick();
+      return;
+    }
+    finishFade(targets, to);
+  }
+
+  function scheduleSnap(remainingMs: number): void {
+    clearSnapTimer();
+    if (!snapTargets || !snapToGains) return;
+    const targets = snapTargets;
+    const to = snapToGains;
+    snapDeadlineMs = nowMs() + Math.max(0, remainingMs);
+    snapTimer = setTimer(() => {
+      snapTimer = null;
+      if (!enabled || paused) return;
+      finishFade(targets, to);
+    }, Math.max(0, remainingMs));
+  }
+
   function commitFade(targets: LayerTargets): void {
+    // A new fade replaces any in-flight one (latest wins after the bar).
+    clearAllFadeTimers();
+    stepFade = null;
+    snapTargets = null;
+    snapToGains = null;
+    snapDeadlineMs = null;
+
     const to = audibleGains(targets);
     const from = { ...currentGains };
     fading = true;
-    applyColour(targets);
 
     const startAudio = audioNow();
     try {
       if (options.sink.fadeGains) {
         options.sink.fadeGains(from, to, startAudio, crossfadeSec);
-      } else {
-        // Timer-step equal-power fallback (native / tests).
-        const steps = Math.max(8, Math.round(crossfadeMs / 50));
-        const curves = {} as Record<LayerRole, Float32Array>;
-        for (const role of LAYER_ROLES) {
-          curves[role] = equalPowerCurve(from[role], to[role], steps);
-        }
-        let i = 0;
-        const stepMs = crossfadeMs / (steps - 1);
-        const tick = (): void => {
-          if (!enabled || paused) return;
-          for (const role of LAYER_ROLES) {
-            currentGains[role] = curves[role]![i]!;
-          }
-          try {
-            options.sink.setGains({ ...currentGains });
-          } catch (err) {
-            console.warn('[sound] layer fade step', err);
-          }
-          i += 1;
-          if (i < steps) {
-            setTimer(tick, stepMs);
-            return;
-          }
-          currentGains = { ...to };
-          fading = false;
-          applied = targets;
-        };
-        tick();
+        snapTargets = targets;
+        snapToGains = to;
+        scheduleSnap(crossfadeMs);
         return;
       }
+
+      // Timer-step equal-power fallback (native / tests).
+      const steps = Math.max(8, Math.round(crossfadeMs / 50));
+      const curves = {} as Record<LayerRole, Float32Array>;
+      for (const role of LAYER_ROLES) {
+        curves[role] = equalPowerCurve(from[role], to[role], steps);
+      }
+      stepFade = {
+        targets,
+        to,
+        curves,
+        stepIndex: 0,
+        steps,
+        stepMs: crossfadeMs / (steps - 1),
+        timerId: null,
+      };
+      // First sample immediately, then continue on the timer.
+      runStepFadeTick();
+      return;
     } catch (err) {
       console.warn('[sound] layer fade', err);
     }
 
-    // Web path: assume AudioParam curve runs; snap bookkeeping after duration.
-    setTimer(() => {
-      currentGains = { ...to };
-      fading = false;
-      applied = targets;
-    }, crossfadeMs);
+    // Fallback: snap now if scheduling failed.
+    finishFade(targets, to);
   }
 
   function fireBar(): void {
@@ -371,7 +446,6 @@ export function createLayerScheduler(options: LayerSchedulerOptions): LayerSched
     currentGains = audibleGains(initial);
     try {
       options.sink.setGains({ ...currentGains });
-      applyColour(initial);
     } catch (err) {
       console.warn('[sound] layer start gains', err);
     }
@@ -380,8 +454,13 @@ export function createLayerScheduler(options: LayerSchedulerOptions): LayerSched
 
   function stop(): void {
     clearBarTimer();
+    clearAllFadeTimers();
     pending = null;
     fading = false;
+    stepFade = null;
+    snapTargets = null;
+    snapToGains = null;
+    snapDeadlineMs = null;
     t0 = null;
     currentGains = Object.fromEntries(LAYER_ROLES.map((r) => [r, 0])) as Record<
       LayerRole,
@@ -397,11 +476,26 @@ export function createLayerScheduler(options: LayerSchedulerOptions): LayerSched
   function pause(): void {
     paused = true;
     clearBarTimer();
+    // Keep fade progress / destination; just stop the tick / snap timers.
+    clearStepFadeTimer();
+    clearSnapTimer();
   }
 
   function resume(): void {
     if (!paused) return;
     paused = false;
+    // Pick the mid-fade back up (B3) — continue step fade or remaining snap.
+    if (stepFade && fading) {
+      scheduleStepFadeTick();
+    } else if (fading && snapTargets && snapToGains) {
+      const remaining =
+        snapDeadlineMs != null ? Math.max(0, snapDeadlineMs - nowMs()) : 0;
+      if (remaining <= 0) {
+        finishFade(snapTargets, snapToGains);
+      } else {
+        scheduleSnap(remaining);
+      }
+    }
     if (pending) scheduleBar();
   }
 

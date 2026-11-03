@@ -72,6 +72,8 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
   let sharedStart: number | null = null;
   let enabled = true;
   let lazyStarted = false;
+  /** Last setMasterGain — restored on resume (do not snap back to 1). */
+  let masterGain = 1;
   const layers = new Map<LayerRole, LayerNodes>();
   const loaded = new Set<LayerRole>(['pad']);
 
@@ -284,9 +286,10 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
     },
     setProgress: (c, l) => scheduler.setProgress(c, l),
     setMasterGain: (gain) => {
+      masterGain = Math.max(0, Math.min(1, gain));
       if (!groupGain) return;
       try {
-        groupGain.gain.value = Math.max(0, Math.min(1, gain));
+        groupGain.gain.value = masterGain;
       } catch (err) {
         soundWarn('web layer master', err);
       }
@@ -305,7 +308,8 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
       scheduler.resume();
       if (groupGain) {
         try {
-          groupGain.gain.value = 1;
+          // Restore duck / master gain — never force unity after pause.
+          groupGain.gain.value = masterGain;
         } catch (err) {
           soundWarn('web layer resume', err);
         }

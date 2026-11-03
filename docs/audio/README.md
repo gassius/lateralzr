@@ -123,7 +123,7 @@ Grid: D Dorian, 72 BPM, 4/4, 16 bars per loop. 1 bar = 3.333 s; every loop = 53.
 | `music-layer-extra` | `layer-extra` | Sparse high bells and sparkles | 5 | all | 53.333 s | -26.0 / -10.7 | -9 |
 
 Complexity: L1 pad · L2 + pulse · L3 + arp · L4 + rhythm · L5 + extra.
-Laterality (applied on the layer bus, not baked into files): L1 low-pass 2.5 kHz, width 0.6 · L2 4 kHz, 0.75 · L3 6.5 kHz, 0.9 · L4 10 kHz, 1.0, arp swaps to arp-bright · L5 16 kHz (open), 1.15, extra +1 dB. Starting values, to be tuned by ear.
+Laterality (gain + arp swap only on native and web preview; no LPF/width stage): L1–3 use `layer-arp` with extra −3/−2/−1 dB · L4–5 swap to `layer-arp-bright` with extra 0/+1 dB. Starting values, to be tuned by ear.
 Playback rules: start all layers together on one clock and keep them running; a layer "enters" or "leaves" by gain only. Every change waits for the next bar line, then crossfades over about 2 s. Never restart one layer alone. On web, use Web Audio `AudioBufferSourceNode` with `loopEnd = 2352000 / 44100` because AAC pads the last frame. Preload the pad with the base kit; see Loading below.
 Formats: native AAC 128 kbps stereo, web AAC 48 kbps stereo. Sizes: native 5.0 MiB, web 1.9 MiB for the six layers; whole kit within the 12 / 5 MiB caps.
 Loading (decided): the pad loads with the base kit at start-up; layers 2 to 5 load lazily in the background after start-up and only fade in once loaded.
