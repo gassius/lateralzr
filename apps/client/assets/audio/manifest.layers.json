@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "addendumTo": "apps/client/assets/audio/manifest.json",
+  "name": "adaptive-layers-v1",
+  "sampleRate": 44100,
+  "layerSystem": {
+    "bpm": 72,
+    "timeSignature": "4/4",
+    "bars": 16,
+    "barMs": 3333.333,
+    "loopMs": 53333.333,
+    "loopSamples": 2352000,
+    "crossfadeMs": 2000,
+    "quantize": "next bar",
+    "note": "All layers start together at sample 0 and loop on one shared clock; mute/unmute with gain, never restart a single layer. On web set loopEnd = durationSamples/44100 (AAC padding).",
+    "complexity": {
+      "1": [
+        "pad"
+      ],
+      "2": [
+        "pad",
+        "pulse"
+      ],
+      "3": [
+        "pad",
+        "pulse",
+        "arp"
+      ],
+      "4": [
+        "pad",
+        "pulse",
+        "arp",
+        "rhythm"
+      ],
+      "5": [
+        "pad",
+        "pulse",
+        "arp",
+        "rhythm",
+        "extra"
+      ]
+    },
+    "laterality": {
+      "1": {
+        "lowpassHz": 2500,
+        "width": 0.6,
+        "arp": "arp",
+        "extraGainDb": -3
+      },
+      "2": {
+        "lowpassHz": 4000,
+        "width": 0.75,
+        "arp": "arp",
+        "extraGainDb": -2
+      },
+      "3": {
+        "lowpassHz": 6500,
+        "width": 0.9,
+        "arp": "arp",
+        "extraGainDb": -1
+      },
+      "4": {
+        "lowpassHz": 10000,
+        "width": 1.0,
+        "arp": "arp-bright",
+        "extraGainDb": 0
+      },
+      "5": {
+        "lowpassHz": 16000,
+        "width": 1.15,
+        "arp": "arp-bright",
+        "extraGainDb": 1
+      }
+    }
+  },
+  "assets": {
+    "music-layer-pad": {
+      "id": "music-layer-pad",
+      "category": "music-layer",
+      "path": "music/layers/layer-pad.web.m4a",
+      "nativePath": "music/layers/layer-pad.m4a",
+      "files": {
+        "native": "music/layers/layer-pad.m4a",
+        "web": "music/layers/layer-pad.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -2,
+      "level": 1,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "pad",
+      "complexityMin": 1,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -14.8,
+      "description": "Tempo-locked pad base and sync anchor (new asset; existing free-time beds stay underneath)"
+    },
+    "music-layer-pulse": {
+      "id": "music-layer-pulse",
+      "category": "music-layer",
+      "path": "music/layers/layer-pulse.web.m4a",
+      "nativePath": "music/layers/layer-pulse.m4a",
+      "files": {
+        "native": "music/layers/layer-pulse.m4a",
+        "web": "music/layers/layer-pulse.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -6,
+      "level": 2,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "pulse",
+      "complexityMin": 2,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -14.0,
+      "description": "Soft low synth pulse, steady eighth notes on D"
+    },
+    "music-layer-arp": {
+      "id": "music-layer-arp",
+      "category": "music-layer",
+      "path": "music/layers/layer-arp.web.m4a",
+      "nativePath": "music/layers/layer-arp.m4a",
+      "files": {
+        "native": "music/layers/layer-arp.m4a",
+        "web": "music/layers/layer-arp.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -7,
+      "level": 3,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "arp",
+      "complexityMin": 3,
+      "lateralityMax": 3,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -12.3,
+      "description": "Mid-register plucked arpeggio, sixteenth notes (Laterality 1-3)"
+    },
+    "music-layer-arp-bright": {
+      "id": "music-layer-arp-bright",
+      "category": "music-layer",
+      "path": "music/layers/layer-arp-bright.web.m4a",
+      "nativePath": "music/layers/layer-arp-bright.m4a",
+      "files": {
+        "native": "music/layers/layer-arp-bright.m4a",
+        "web": "music/layers/layer-arp-bright.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -7,
+      "level": 3,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "arp-bright",
+      "complexityMin": 3,
+      "variantOf": "music-layer-arp",
+      "lateralityMin": 4,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -12.3,
+      "description": "Brighter high-register bell arpeggio variant; replaces layer-arp at Laterality 4-5 (same slot, crossfade)"
+    },
+    "music-layer-rhythm": {
+      "id": "music-layer-rhythm",
+      "category": "music-layer",
+      "path": "music/layers/layer-rhythm.web.m4a",
+      "nativePath": "music/layers/layer-rhythm.m4a",
+      "files": {
+        "native": "music/layers/layer-rhythm.m4a",
+        "web": "music/layers/layer-rhythm.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -9,
+      "level": 4,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "rhythm",
+      "complexityMin": 4,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -10.8,
+      "description": "Light minimal percussion: shaker, muted clicks, very soft kick"
+    },
+    "music-layer-extra": {
+      "id": "music-layer-extra",
+      "category": "music-layer",
+      "path": "music/layers/layer-extra.web.m4a",
+      "nativePath": "music/layers/layer-extra.m4a",
+      "files": {
+        "native": "music/layers/layer-extra.m4a",
+        "web": "music/layers/layer-extra.web.m4a"
+      },
+      "durationMs": 53333,
+      "durationSamples": 2352000,
+      "loop": true,
+      "gainDb": -9,
+      "level": 5,
+      "placeholder": false,
+      "bpm": 72,
+      "timeSignature": "4/4",
+      "bars": 16,
+      "key": "D Dorian",
+      "layerRole": "extra",
+      "complexityMin": 5,
+      "loudnessLufs": -26.0,
+      "truePeakDbtp": -10.7,
+      "description": "Sparse high glassy bell and sparkle layer"
+    }
+  }
+}

@@ -2,7 +2,7 @@
 
 Audio index for `apps/client/assets/audio/`. Machine-readable list: `apps/client/assets/audio/manifest.json`.
 68 sounds, two files each: `<name>.m4a` (native, AAC 44.1 kHz; music stereo 128 kbps, sfx mono 96 kbps) and `<name>.web.m4a` (web preview; music stereo 64 kbps, sfx mono 64 kbps).
-Sizes: native set 5.55 MiB, web set 2.90 MiB (budget caps: 8 MiB native / 3 MiB web).
+Sizes: native set 5.55 MiB, web set 2.90 MiB for kit v1; with the adaptive layers 10.55 MiB native / 4.80 MiB web (budget caps, raised 2026-11-03: 12 MiB native / 5 MiB web).
 
 Durations measured with ffprobe on the native file. Loudness measured on the native file with ffmpeg ebur128 (true peak) and volumedetect (sample peak). LUFS is omitted for sfx shorter than 0.4 s (below the gating window). AAC can overshoot the source peak by up to about 2 dB on a few short sfx (swipe-next-b, complexity-5, reshuffle-land-a); all files stay below -1 dBTP.
 
@@ -107,3 +107,25 @@ Every generated sound has its ElevenLabs prompt, model, settings and generation 
 
 ## Provenance
 AI-generated with ElevenLabs (music and sound effects), post-processed with ffmpeg (trim, loop crossfades, pitch correction with rubberband, reverse, filtering, loudness normalization, AAC encoding). `swipe-tone-up` / `-down` are synthesized with ffmpeg. No new audio was generated for this package. Final listening sign-off comes from the audio director and Carlos.
+
+## Adaptive layers (v1 addendum, 2026-11-03)
+Tempo-locked music layers that follow Complexity (density) and Laterality (colour and space). New files only; every existing bed, texture, intro and drop-in is unchanged and keeps playing as before. Machine-readable: `apps/client/assets/audio/manifest.layers.json` (merge into `manifest.json`).
+
+Grid: D Dorian, 72 BPM, 4/4, 16 bars per loop. 1 bar = 3.333 s; every loop = 53.333 s = 2,352,000 samples at 44.1 kHz. All six files have the identical length and start on beat 1 at sample 0, so they stay in sync when started together.
+
+| Asset | File (native / web) | Role | complexityMin | Laterality | Length | LUFS / dBTP (native) | gainDb (start) |
+| ---| ---| ---| ---| ---| ---| ---| --- |
+| `music-layer-pad` | `music/layers/layer-pad.m4a` / `.web.m4a` | Tempo-locked pad, sync anchor | 1 | all | 53.333 s | -26.0 / -14.8 | -2 |
+| `music-layer-pulse` | `layer-pulse` | Soft low pulse, eighth notes on D | 2 | all | 53.333 s | -26.0 / -14.0 | -6 |
+| `music-layer-arp` | `layer-arp` | Mid-register plucked arpeggio | 3 | 1 to 3 | 53.333 s | -26.0 / -12.3 | -7 |
+| `music-layer-arp-bright` | `layer-arp-bright` | High, bell-like arpeggio (variant of arp) | 3 | 4 to 5 | 53.333 s | -26.0 / -12.3 | -7 |
+| `music-layer-rhythm` | `layer-rhythm` | Light percussion (shaker, clicks, very soft kick) | 4 | all | 53.333 s | -26.0 / -10.8 | -9 |
+| `music-layer-extra` | `layer-extra` | Sparse high bells and sparkles | 5 | all | 53.333 s | -26.0 / -10.7 | -9 |
+
+Complexity: L1 pad · L2 + pulse · L3 + arp · L4 + rhythm · L5 + extra.
+Laterality (gain + arp swap only on native and web preview; no LPF/width stage): L1–3 use `layer-arp` with extra −3/−2/−1 dB · L4–5 swap to `layer-arp-bright` with extra 0/+1 dB. Starting values, to be tuned by ear.
+Playback rules: start all layers together on one clock and keep them running; a layer "enters" or "leaves" by gain only. Every change waits for the next bar line, then crossfades over about 2 s. Never restart one layer alone. On web, use Web Audio `AudioBufferSourceNode` with `loopEnd = 2352000 / 44100` because AAC pads the last frame. Preload the pad with the base kit; see Loading below.
+Formats: native AAC 128 kbps stereo, web AAC 48 kbps stereo. Sizes: native 5.0 MiB, web 1.9 MiB for the six layers; whole kit within the 12 / 5 MiB caps.
+Loading (decided): the pad loads with the base kit at start-up; layers 2 to 5 load lazily in the background after start-up and only fade in once loaded.
+Level 4 and 5 (decided): at most one texture at a time and the existing bed -4 dB.
+Provenance: generated with ElevenLabs Music (`eleven_music_v2_5`, 60 s, instrumental), 12 takes, picks listed in Annex A (A9). Post: ffmpeg + numpy, beat-aligned cut, gentle level flattening (max ±4 dB), 2-beat equal-power loop crossfade, normalized to -26 LUFS, AAC encode. Final listening sign-off: audio director and Carlos.
