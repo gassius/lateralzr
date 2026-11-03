@@ -8,16 +8,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   COACH_APPEAR_DURATION_MS,
-  COACH_HINT_MAX_LINES,
+  coachHintChrome,
   coachHintHitSlop,
+  COACH_HINT_FONT_SIZE,
   COACH_HINT_OPACITY,
-  COACH_HINT_PADDING_H,
-  COACH_HINT_PADDING_V,
   COACH_HINT_RADIUS,
   coachHintPalette,
+  type CoachHintFit,
   type CoachHintSurface,
 } from '@/lib/coachHintPresentation';
-import { textStyle } from '@/theme/typography';
+import { namedFaceStyle, textStyle } from '@/theme/typography';
 
 type CoachHintProps = {
   text: string;
@@ -31,10 +31,10 @@ type CoachHintProps = {
   /** Tap dismisses the tip (§12.3). */
   onDismiss?: () => void;
   /**
-   * Clamp copy to this many lines so the chip fits the lower card gap
-   * (1 when the equal gap is under the 2-line 56 pt chip).
+   * Comfortable (label) or compact (smaller type, wider chip) so copy fits the
+   * lower card gap without truncation — wrap only, never ellipsis (Lz-67 B1).
    */
-  maxLines?: 1 | 2;
+  fit?: CoachHintFit;
 };
 
 export function CoachHint({
@@ -42,10 +42,22 @@ export function CoachHint({
   animateAppear = true,
   surface = 'shell',
   onDismiss,
-  maxLines = COACH_HINT_MAX_LINES as 1 | 2,
+  fit = 'comfortable',
 }: CoachHintProps) {
   const progress = useSharedValue(animateAppear ? 0 : 1);
   const colors = coachHintPalette(surface);
+  const chrome = coachHintChrome(fit);
+  // Scale compact sizes with the same e2eTextScale factor textStyle applies.
+  const labelScaled = textStyle('label');
+  const scale = (labelScaled.fontSize as number) / COACH_HINT_FONT_SIZE;
+  const copyStyle =
+    fit === 'compact'
+      ? {
+          ...namedFaceStyle(chrome.fontWeight),
+          fontSize: Math.round(chrome.fontSize * scale),
+          lineHeight: Math.round(chrome.lineHeight * scale),
+        }
+      : labelScaled;
 
   useEffect(() => {
     if (!animateAppear) {
@@ -74,18 +86,18 @@ export function CoachHint({
         accessibilityRole="button"
         accessibilityLabel={text}
         disabled={onDismiss == null}
-        hitSlop={coachHintHitSlop()}
+        hitSlop={coachHintHitSlop(fit)}
         style={[
           styles.chip,
+          {
+            paddingHorizontal: chrome.paddingH,
+            paddingVertical: chrome.paddingV,
+          },
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
         ]}
       >
-        <Text
-          style={[styles.copy, textStyle('label'), { color: colors.text }]}
-          numberOfLines={maxLines}
-        >
-          {text}
-        </Text>
+        {/* Full copy always — wrap via type/width, never ellipsis. */}
+        <Text style={[styles.copy, copyStyle, { color: colors.text }]}>{text}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -94,13 +106,14 @@ export function CoachHint({
 const styles = StyleSheet.create({
   /** Parent slot positions this in the control region above the rail. */
   anchor: {
-    alignItems: 'center',
+    alignItems: 'stretch',
+    width: '100%',
     opacity: COACH_HINT_OPACITY,
   },
+  /** Full-width chip so long ES tips measure against the column, not a shrink-wrap. */
   chip: {
+    width: '100%',
     maxWidth: '100%',
-    paddingHorizontal: COACH_HINT_PADDING_H,
-    paddingVertical: COACH_HINT_PADDING_V,
     borderRadius: COACH_HINT_RADIUS,
   },
   chipBare: {

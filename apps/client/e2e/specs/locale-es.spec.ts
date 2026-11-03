@@ -35,10 +35,18 @@ function assertNoBareMidWordBreak(rendered: string, word: string): void {
   );
 }
 
+/**
+ * Spanish card captures (full screenshot matrix). Layout is locale-agnostic —
+ * the same practice shell as en; these specs only switch copy via `locale=es`.
+ * Keep them in the capture set so es front/back do not go stale vs en.
+ */
 test.describe('locale es', () => {
   test('front short label', async ({ page }, testInfo) => {
     await openApp(page, 'canonicalConcept=mushroom&locale=es');
     await expect(visibleText(page, 'Seta')).toBeVisible();
+    // Same chrome as en — Complexity label + equal card gaps (Lz-67).
+    await expect(page.getByTestId('complexity-label')).toBeVisible();
+    await expect(page.getByTestId('header-wordmark')).toBeVisible();
     await capture(page, testInfo, { screen: 'card-front', state: 'short-label', locale: 'es' });
   });
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { coachHintLinesForGap, coachHintSlotHeight } from './coachHintPresentation.ts';
+import { coachHintSlotHeight, resolveCoachHintFit } from './coachHintPresentation.ts';
 import { layout } from '../theme/tokens.ts';
 import {
   cardStackAvailableHeight,
@@ -138,9 +138,9 @@ describe('laterality chrome grouping (v3.5)', () => {
     assert.ok(Math.abs(above - below) < 1.01);
     assert.ok(above > 40 && above < 46);
     assert.ok(below > 40 && below < 46);
-    // 2-line tip (56) does not fit ~41 — clamp to 1 line (36).
-    assert.equal(coachHintLinesForGap(result.bottomSurplus), 1);
-    assert.ok(coachHintSlotHeight(1) <= result.bottomSurplus + 1e-9);
+    // 2-line label tip (56) does not fit bottomSurplus (~38.9) — compact (~38) wraps.
+    assert.equal(resolveCoachHintFit(result.bottomSurplus), 'compact');
+    assert.ok(coachHintSlotHeight(2, 'compact') <= result.bottomSurplus + 1e-9);
     const budget = cardVerticalBudget({
       screenHeight: 844,
       insetTop: 47,

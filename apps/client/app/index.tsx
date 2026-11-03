@@ -123,7 +123,7 @@ import {
   withTimeout,
   type LateralityReshufflePhase,
 } from '@/lib/lateralityReshuffle';
-import { coachHintLinesForGap, coachHintSlotHeight } from '@/lib/coachHintPresentation';
+import { coachHintSlotHeight, resolveCoachHintFit } from '@/lib/coachHintPresentation';
 import {
   COMPLEXITY_CONTROL_HEIGHT,
   LATERALITY_CONTROL_HEIGHT,
@@ -137,7 +137,6 @@ import {
   practiceCardEdgeInset,
   practiceHeaderRowHeight,
   practiceHeaderToComplexityOffset,
-  practiceScreenGutter,
   practiceWordmarkHeight,
   practiceWordmarkTopOffset,
 } from '@/lib/practiceLayout';
@@ -1399,10 +1398,11 @@ export default function HomeScreen() {
         // Stack gets above-gap + card; lower gap (messaging) is a sibling below.
         const stackAvailableHeight = cardLayout.topSurplus + cardLayout.height;
         // Fixed lower-gap height (not minHeight) so tip/status cannot push Laterality.
-        // Tip clamps to 1 line when the equal gap is under the 2-line 56 pt chip.
+        // Compact tip chrome when the equal gap is under the 2-line 56 pt chip —
+        // smaller type + wider chip, never numberOfLines truncation (Lz-67 B1).
         const lowerGapHeight = cardLayout.bottomSurplus;
-        const tipLines = coachHintLinesForGap(lowerGapHeight);
-        const tipSlotHeight = coachHintSlotHeight(tipLines);
+        const tipFit = resolveCoachHintFit(lowerGapHeight);
+        const tipSlotHeight = coachHintSlotHeight(2, tipFit);
         // AD #119: tip OR status share the lower card gap — one slot, never stacked.
         const messagingSlot = showStatusSlot ? (
           <DeckStatusLine
@@ -1422,7 +1422,7 @@ export default function HomeScreen() {
               animateAppear={visibleCoachTip.animateAppear}
               surface="shell"
               onDismiss={visibleCoachTip.onDismiss}
-              maxLines={tipLines}
+              fit={tipFit}
             />
           </View>
         ) : null;
@@ -1503,12 +1503,16 @@ export default function HomeScreen() {
               testID="lower-card-gap"
               pointerEvents={deckMoving ? 'none' : 'box-none'}
             >
+              {/*
+                One centred slot in the equal lower gap (locale-agnostic): tip OR
+                status OR Complexity cue/session mark — same vertical centre as
+                the coach tip (Lz-67 design review).
+              */}
               {messagingSlot ? (
                 <View
                   style={[
                     styles.messagingOverlay,
                     {
-                      // Tip height tracks the clamped line count so it fits the gap.
                       minHeight: showStatusSlot ? undefined : tipSlotHeight,
                     },
                   ]}
@@ -1516,6 +1520,27 @@ export default function HomeScreen() {
                   pointerEvents="box-none"
                 >
                   {messagingSlot}
+                </View>
+              ) : complexityCue ? (
+                <View
+                  style={styles.messagingOverlay}
+                  pointerEvents="none"
+                  testID="complexity-cue-slot"
+                >
+                  <ComplexityCue
+                    grade={complexityCue.grade}
+                    token={complexityCue.token}
+                    holdMs={complexityCue.holdMs}
+                    onHidden={dismissComplexityCue}
+                  />
+                </View>
+              ) : showSessionComplexityMark ? (
+                <View
+                  style={styles.messagingOverlay}
+                  pointerEvents="none"
+                  testID="complexity-session-mark-slot"
+                >
+                  <ComplexitySessionMark grade={complexity} />
                 </View>
               ) : null}
             </View>
@@ -1546,26 +1571,6 @@ export default function HomeScreen() {
                 labelRef={lateralityLabelRef}
               />
             </View>
-            {complexityCue ? (
-              <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-                pointerEvents="none"
-              >
-                <ComplexityCue
-                  grade={complexityCue.grade}
-                  token={complexityCue.token}
-                  holdMs={complexityCue.holdMs}
-                  onHidden={dismissComplexityCue}
-                />
-              </View>
-            ) : showSessionComplexityMark && !visibleCoachTip ? (
-              <View
-                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
-                pointerEvents="none"
-              >
-                <ComplexitySessionMark grade={complexity} />
-              </View>
-            ) : null}
           </View>
         );
         // Lz-41 reading order: concept before chrome. Spacer = wordmark bottom + 24
@@ -1786,20 +1791,11 @@ const styles = StyleSheet.create({
     elevation: 40,
     overflow: 'visible',
   },
-  /** Tip chip inside the messaging overlay. */
+  /** Tip chip inside the messaging overlay — stretch so the chip can use full width. */
   coachTipSlot: {
     width: '100%',
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
-  },
-  /** Ephemeral Complexity N cue / quiet session mark (Lz-12). */
-  complexityCueSlot: {
-    position: 'absolute',
-    left: practiceScreenGutter(),
-    right: practiceScreenGutter(),
-    alignItems: 'center',
-    zIndex: 20,
-    elevation: 20,
   },
 
   error: {
