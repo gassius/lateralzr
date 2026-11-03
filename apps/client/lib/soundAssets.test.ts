@@ -129,3 +129,30 @@ test('every Sound 1 event variant group is non-empty', () => {
     assert.ok(group.length >= 1, `empty variant group for ${name}`);
   }
 });
+
+
+test('adaptive layer assets are registered with durationSamples 2352000', () => {
+  const layers = [
+    'music-layer-pad',
+    'music-layer-pulse',
+    'music-layer-arp',
+    'music-layer-arp-bright',
+    'music-layer-rhythm',
+    'music-layer-extra',
+  ] as const;
+  for (const name of layers) {
+    const entry = manifest.assets[name] as {
+      durationMs: number;
+      durationSamples?: number;
+      layerRole?: string;
+      complexityMin?: number;
+    };
+    assert.ok(entry, name);
+    assert.equal(entry.durationMs, 53333);
+    assert.equal(entry.durationSamples, 2352000);
+    assert.equal(getSoundAsset(name).durationMs, 53333);
+    assert.equal(getSoundAsset(name).loop, true);
+  }
+  assert.equal((manifest.assets['music-layer-arp'] as { lateralityMax?: number }).lateralityMax, 3);
+  assert.equal((manifest.assets['music-layer-arp-bright'] as { lateralityMin?: number }).lateralityMin, 4);
+});

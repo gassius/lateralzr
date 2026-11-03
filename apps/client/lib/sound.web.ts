@@ -24,6 +24,7 @@ import {
   type SoundAssetName,
 } from '@/lib/soundAssets';
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
+import { createWebLayerGraph } from '@/lib/soundLayers.web';
 import {
   getSoundMapEntry,
   playableVariants,
@@ -40,6 +41,7 @@ import type {
   SoundEventOptions,
   SoundPreferences,
 } from '@/lib/soundTypes';
+import { soundWarn } from '@/lib/soundWarn';
 
 /** Lazy so Node unit tests can import this module without loading react-native. */
 function assetFromModule(moduleId: number): { uri?: string | null; localUri?: string | null; downloadAsync: () => Promise<unknown> } | null {
@@ -460,11 +462,35 @@ const controller = createSoundController({
       const ctx = getOrCreateContext();
       if (!ctx) return createSilentPlayer();
       return createWebAudioPlayer(ctx, source);
-    } catch {
+    } catch (err) {
+      soundWarn('web createPlayer', err);
       return createSilentPlayer();
     }
   },
   available,
+});
+
+const webLayerGraph = createWebLayerGraph({
+  getContext: getOrCreateContext,
+  resolveUri: (moduleId) => resolvePlayableUri(moduleId),
+  decode: async (uri) => {
+    const ctx = getOrCreateContext();
+    if (!ctx) throw new Error('sound: no AudioContext');
+    return decodeUri(ctx, uri);
+  },
+});
+
+controller.registerMusicHooks({
+  pause: () => webLayerGraph.pause(),
+  resume: () => webLayerGraph.resume(),
+  duck: (volume) => webLayerGraph.setMasterGain(volume),
+  duckEffects: (volume) => webLayerGraph.setMasterGain(volume),
+  stop: () => webLayerGraph.stop(),
+  restartBed: () => {
+    if (musicAllowed && unlocked) webLayerGraph.ensureStarted();
+  },
+  pauseDropIns: () => {},
+  resumeDropIns: () => {},
 });
 
 let unlocked = false;
@@ -569,6 +595,10 @@ function unlockAudio(): void {
     if (firstUnlock) {
       preloadEffects();
       flushPendingMusic();
+      if (musicAllowed) {
+        webLayerGraph.ensureStarted();
+        webLayerGraph.startLazyLoads();
+      }
     }
     return;
   }
@@ -608,6 +638,10 @@ function unlockAudio(): void {
     return;
   }
   flush();
+  if (musicAllowed) {
+    webLayerGraph.ensureStarted();
+    webLayerGraph.startLazyLoads();
+  }
 }
 
 function attachUnlockListeners(): void {
@@ -671,8 +705,10 @@ export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void
 export function setSoundPreferences(prefs: SoundPreferences): void {
   try {
     controller.setSoundPreferences(prefs);
-  } catch {
-    // ignore
+    const musicOn = Boolean(prefs.sound && prefs.music);
+    webLayerGraph.setEnabled(musicOn);
+  } catch (err) {
+    soundWarn('web setSoundPreferences', err);
   }
 }
 
@@ -682,18 +718,22 @@ export function setSoundPreferences(prefs: SoundPreferences): void {
  * scheduling remains native until a web music-engine wire lands.
  */
 export function setSoundReducedMotion(_enabled: boolean): void {
-  // no-op on web preview for now
+  // no-op on web preview for generative beds/textures
 }
 
 /**
- * Drive bed brightness / texture count from Complexity + Laterality (Sound 6).
- * No-op on web until generative music engine is wired to Web Audio players.
+ * Drive adaptive layer gains from Complexity + Laterality (web preview).
+ * Generative beds/textures remain native-only; layers share this API.
  */
 export function setSoundMusicProgress(
-  _complexity: number,
-  _lateralityStep: number,
+  complexity: number,
+  lateralityStep: number,
 ): void {
-  // no-op on web preview for now
+  try {
+    webLayerGraph.setProgress(complexity, lateralityStep);
+  } catch (err) {
+    soundWarn('web setSoundMusicProgress', err);
+  }
 }
 
 /**
@@ -714,8 +754,13 @@ export function notifySoundFirstCardReady(): void {
     musicAllowed = true;
     preloadMusic();
     flushPendingMusic();
-  } catch {
-    // ignore
+    // Pad is base-kit; layers 2–5 lazy after first card (off interaction path).
+    if (unlocked) {
+      webLayerGraph.ensureStarted();
+      webLayerGraph.startLazyLoads();
+    }
+  } catch (err) {
+    soundWarn('web first-card ready', err);
   }
 }
 
@@ -870,4 +915,9 @@ export function __createWebAudioPlayerForTests(
 export function __clearWebBufferCacheForTests(): void {
   bufferPromises.clear();
   resolvedBuffers.clear();
+}
+
+/** Test helper — adaptive web layer graph. */
+export function __getWebLayerGraphForTests() {
+  return webLayerGraph;
 }

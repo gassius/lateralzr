@@ -119,7 +119,7 @@ test('manifest and SOUND_ASSETS gainDb match applied director table for every as
     assert.ok(man, `manifest ${name}`);
     assert.equal(man!.gainDb, expected, `manifest ${name} gainDb`);
   }
-  assert.equal(Object.keys(AUDIO_MANIFEST.assets).length, 68);
+  assert.equal(Object.keys(AUDIO_MANIFEST.assets).length, 74);
 });
 
 test('resolveEventGain clamps to ≤ 1 and preserves laterality > swipe relative', () => {

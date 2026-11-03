@@ -160,6 +160,9 @@ test('texture count grows with progress; RM caps at 1; air only at max', () => {
   assert.equal(textureCountForProgress(0.95, true), 1);
   assert.deepEqual(texturesForProgress(0.95, false), [...MUSIC_TEXTURES]);
   assert.ok(!texturesForProgress(0.8, false).includes('music-texture-air-d'));
+  // Adaptive layers: Complexity 4–5 caps textures at 1.
+  assert.equal(textureCountForProgress(0.95, false, 5), 1);
+  assert.equal(texturesForProgress(0.95, false, 4).length, 1);
 });
 
 test('bed choice: calm low, bright high / random entry', () => {

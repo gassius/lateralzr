@@ -26,6 +26,7 @@ import {
 } from '@/lib/soundAssets';
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
 import { getSoundMapEntry } from '@/lib/soundMap';
+import { createAdaptiveLayerGroup } from '@/lib/soundLayerPlayers';
 import {
   createSoundMusicEngine,
   loopEndSecondsFromDurationMs,
@@ -38,6 +39,7 @@ import {
   type SoundSystemFlags,
 } from '@/lib/soundSystem';
 import type { SoundEvent, SoundEventOptions, SoundPreferences } from '@/lib/soundTypes';
+import { soundWarn } from '@/lib/soundWarn';
 
 export type {
   SoundEvent,
@@ -109,7 +111,7 @@ export {
   MUSIC_INTRO_LOOP,
 } from '@/lib/soundMusic';
 
-function wrapPlayer(player: AudioPlayer): SoundPlayer & MusicPlayer {
+function wrapPlayer(player: AudioPlayer): SoundPlayer & MusicPlayer & { currentTime?: number } {
   return {
     get volume() {
       return player.volume;
@@ -125,6 +127,14 @@ function wrapPlayer(player: AudioPlayer): SoundPlayer & MusicPlayer {
     },
     set loop(v: boolean) {
       player.loop = v;
+    },
+    get currentTime() {
+      try {
+        return player.currentTime;
+      } catch (err) {
+        soundWarn('player currentTime', err);
+        return 0;
+      }
     },
     play() {
       player.play();
@@ -183,18 +193,61 @@ const musicEngine = createSoundMusicEngine({
   },
 });
 
+/**
+ * Adaptive layers (ticket 1amjtrexgqf). Separate from MUSIC_MAX_PLAYERS.
+ * Native: no LPF/width — gain + arp swap only (report to director).
+ * Re-align at every loop boundary; drift samples go to {@link __getLayerDriftLogForTests}.
+ */
+const layerGroup = createAdaptiveLayerGroup({
+  createPlayer: (source) => {
+    if (source == null) {
+      throw new Error('sound layers: missing asset');
+    }
+    const player = wrapPlayer(createAudioPlayer(source));
+    player.loop = true;
+    return player;
+  },
+  resolveModule: (name: SoundAssetName) => getSoundAsset(name).module,
+  getPositionSeconds: (player) => {
+    const timed = player as { currentTime?: number };
+    return typeof timed.currentTime === 'number' ? timed.currentTime : null;
+  },
+  // expo-audio has no BiquadFilter / stereo-width — colour via gain + arp only.
+  reAlignOnLoop: true,
+});
+
 /** Intro-loop end (seconds) from manifest — mirrors Sound 8 web `loopEnd`. */
 export const NATIVE_INTRO_LOOP_END_SECONDS = loopEndSecondsFromDurationMs(
   getSoundAssetDurationMs('music-intro-loop'),
 );
 
 controller.registerMusicHooks({
-  pause: () => musicEngine.pause(),
-  resume: (opts) => musicEngine.resume(opts),
-  duck: (volume) => musicEngine.duck(volume),
-  duckEffects: (volume, opts) => musicEngine.duckEffects(volume, opts),
-  stop: () => musicEngine.stop(),
-  restartBed: (opts) => musicEngine.restartBed(opts),
+  pause: () => {
+    musicEngine.pause();
+    layerGroup.pause();
+  },
+  resume: (opts) => {
+    musicEngine.resume(opts);
+    layerGroup.resume();
+  },
+  duck: (volume) => {
+    musicEngine.duck(volume);
+    layerGroup.setMasterGain(volume);
+  },
+  duckEffects: (volume, opts) => {
+    musicEngine.duckEffects(volume, opts);
+    layerGroup.setMasterGain(volume);
+  },
+  stop: () => {
+    musicEngine.stop();
+    layerGroup.stop();
+  },
+  restartBed: (opts) => {
+    musicEngine.restartBed(opts);
+    if (controller.canStartMusic()) {
+      layerGroup.ensureStarted();
+    }
+  },
   pauseDropIns: () => musicEngine.pauseDropIns(),
   resumeDropIns: () => musicEngine.resumeDropIns(),
 });
@@ -249,7 +302,8 @@ async function refreshOtherAudioPlaying(): Promise<void> {
   try {
     const playing = await Promise.resolve(otherAudioProbe());
     setOtherAudioFlag(Boolean(playing));
-  } catch {
+  } catch (err) {
+    soundWarn('other-audio probe', err);
     // Undetectable — do not block music spuriously.
     setOtherAudioFlag(false);
   }
@@ -259,6 +313,13 @@ async function refreshOtherAudioPlaying(): Promise<void> {
 export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void {
   // Music engine owns beds / intro / textures / drop-ins / discovery ducks.
   musicEngine.handleEvent(event);
+
+  if (event.name === 'intro_ready') {
+    // Layers share the post-intro bed phase; pad is already in the base kit.
+    if (controller.canStartMusic()) {
+      layerGroup.ensureStarted();
+    }
+  }
 
   const entry = getSoundMapEntry(event.name);
   if (entry.bus === 'music') {
@@ -271,7 +332,9 @@ export function soundEvent(event: SoundEvent, options?: SoundEventOptions): void
 /** Push persisted prefs into the module (buses on/off). Immediate; music fades, not cut. */
 export function setSoundPreferences(prefs: SoundPreferences): void {
   controller.setSoundPreferences(prefs);
-  musicEngine.setEnabled(Boolean(prefs.sound && prefs.music));
+  const musicOn = Boolean(prefs.sound && prefs.music);
+  musicEngine.setEnabled(musicOn);
+  layerGroup.setEnabled(musicOn);
 }
 
 /** Reduced Motion → fewer texture layers (cap 1). */
@@ -279,9 +342,10 @@ export function setSoundReducedMotion(enabled: boolean): void {
   musicEngine.setReducedMotion(enabled);
 }
 
-/** Drive bed brightness / texture count from Complexity + Laterality. */
+/** Drive bed brightness / texture count + adaptive layers from Complexity + Laterality. */
 export function setSoundMusicProgress(complexity: number, lateralityStep: number): void {
   musicEngine.setProgressInputs(complexity, lateralityStep);
+  layerGroup.setProgress(complexity, lateralityStep);
 }
 
 /** True on native when expo-audio is linked (dev / production builds). */
@@ -326,7 +390,8 @@ export function canStartMusic(): boolean {
           () => setOtherAudioFlag(false),
         );
       }
-    } catch {
+    } catch (err) {
+      soundWarn('other-audio probe sync', err);
       setOtherAudioFlag(false);
     }
   }
@@ -369,15 +434,31 @@ export function __disposeSoundSystemForTests(): void {
 }
 
 /**
- * Web-only: allow music after the first card is ready. Native has no gesture
- * unlock / deferred music gate — this is a no-op so shared callers can import
- * from `@/lib/sound` on both platforms.
+ * After the first card is ready: start lazy-loading adaptive layers 2–5
+ * (pad already loads with the base kit). Shared with web.
  */
 export function notifySoundFirstCardReady(): void {
-  // no-op on native
+  try {
+    if (controller.canStartMusic()) {
+      layerGroup.ensureStarted();
+    }
+    layerGroup.startLazyLoads();
+  } catch (err) {
+    soundWarn('first-card layer load', err);
+  }
 }
 
 /** Test helper — music engine diagnostics. */
 export function __getMusicEngineForTests() {
   return musicEngine;
+}
+
+/** Test helper — adaptive layer group. */
+export function __getLayerGroupForTests() {
+  return layerGroup;
+}
+
+/** Drift samples collected at native loop re-aligns (AC 4). */
+export function __getLayerDriftLogForTests() {
+  return layerGroup.getDriftLog();
 }

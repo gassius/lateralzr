@@ -42,6 +42,12 @@ export type SoundAssetName =
   | 'music-dropin-22'
   | 'music-dropin-23'
   | 'music-dropin-24'
+  | 'music-layer-pad'
+  | 'music-layer-pulse'
+  | 'music-layer-arp'
+  | 'music-layer-arp-bright'
+  | 'music-layer-rhythm'
+  | 'music-layer-extra'
   | 'sfx-swipe-next-a'
   | 'sfx-swipe-next-b'
   | 'sfx-swipe-next-c'
@@ -293,6 +299,43 @@ export const SOUND_ASSETS = {
     loop: false,
     gainDb: -5,
   },
+
+  'music-layer-pad': {
+    module: require('../assets/audio/music/layers/layer-pad.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -2,
+  },
+  'music-layer-pulse': {
+    module: require('../assets/audio/music/layers/layer-pulse.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -6,
+  },
+  'music-layer-arp': {
+    module: require('../assets/audio/music/layers/layer-arp.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -7,
+  },
+  'music-layer-arp-bright': {
+    module: require('../assets/audio/music/layers/layer-arp-bright.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -7,
+  },
+  'music-layer-rhythm': {
+    module: require('../assets/audio/music/layers/layer-rhythm.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -9,
+  },
+  'music-layer-extra': {
+    module: require('../assets/audio/music/layers/layer-extra.web.m4a') as number,
+    durationMs: 53333,
+    loop: true,
+    gainDb: -9,
+  },
   'sfx-swipe-next-a': {
     module: require('../assets/audio/sfx/swipe-next-a.web.m4a') as number,
     durationMs: 480,
@@ -542,6 +585,7 @@ export const SOUND_VARIANT_GROUPS = {
   intro_ready: ['music-intro-arrival-a', 'music-intro-arrival-b'] as const satisfies readonly SoundAssetName[],
   music_bed: ['music-bed-calm-a', 'music-bed-bright-b'] as const satisfies readonly SoundAssetName[],
   music_texture: ['music-texture-shimmer-a', 'music-texture-subswell-b', 'music-texture-tonedrift-c', 'music-texture-air-d'] as const satisfies readonly SoundAssetName[],
+  music_layer: ['music-layer-pad', 'music-layer-pulse', 'music-layer-arp', 'music-layer-arp-bright', 'music-layer-rhythm', 'music-layer-extra'] as const satisfies readonly SoundAssetName[],
   music_dropin: ['music-dropin-01', 'music-dropin-02', 'music-dropin-03', 'music-dropin-04', 'music-dropin-05', 'music-dropin-06', 'music-dropin-07', 'music-dropin-08', 'music-dropin-09', 'music-dropin-10', 'music-dropin-11', 'music-dropin-12', 'music-dropin-13', 'music-dropin-14', 'music-dropin-15', 'music-dropin-16', 'music-dropin-17', 'music-dropin-18', 'music-dropin-19', 'music-dropin-20', 'music-dropin-21', 'music-dropin-22', 'music-dropin-23', 'music-dropin-24'] as const satisfies readonly SoundAssetName[],
   swipe_tone: ['sfx-swipe-tone-up', 'sfx-swipe-tone-down'] as const satisfies readonly SoundAssetName[],
 } as const;

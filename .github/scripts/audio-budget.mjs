@@ -3,20 +3,21 @@
  * Sound 3 size + manifest integrity check.
  *
  * Fails when:
- * - native kit (non-`.web.m4a`) exceeds 8 MiB
- * - web kit (`*.web.m4a`) exceeds 3 MiB
+ * - native kit (non-`.web.m4a`) exceeds 12 MiB
+ * - web kit (`*.web.m4a`) exceeds 5 MiB
  * - a manifest asset is missing on disk
  * - an on-disk `.m4a` is unreferenced by the manifest
  *
  * Manifest shape matches Sound 8 consumer (`version` + `assets` map with
  * `path` / `nativePath`, `durationMs`, `loop`, optional `level` / `placeholder`).
+ * Caps raised 2026-11-03 (Carlos) for adaptive layers.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const NATIVE_MAX_BYTES = 8 * 1024 * 1024;
-const WEB_MAX_BYTES = 3 * 1024 * 1024;
+const NATIVE_MAX_BYTES = 12 * 1024 * 1024;
+const WEB_MAX_BYTES = 5 * 1024 * 1024;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
@@ -126,11 +127,11 @@ export function checkAudioBudget(opts = {}) {
 
   if (nativeBytes > NATIVE_MAX_BYTES) {
     errors.push(
-      `native kit ${nativeBytes} bytes exceeds ${NATIVE_MAX_BYTES} (8 MiB)`,
+      `native kit ${nativeBytes} bytes exceeds ${NATIVE_MAX_BYTES} (12 MiB)`,
     );
   }
   if (webBytes > WEB_MAX_BYTES) {
-    errors.push(`web kit ${webBytes} bytes exceeds ${WEB_MAX_BYTES} (3 MiB)`);
+    errors.push(`web kit ${webBytes} bytes exceeds ${WEB_MAX_BYTES} (5 MiB)`);
   }
 
   return { ok: errors.length === 0, errors, nativeBytes, webBytes };

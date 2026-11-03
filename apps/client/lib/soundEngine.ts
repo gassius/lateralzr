@@ -52,6 +52,7 @@ import {
   type SoundEventOptions,
   type SoundPreferences,
 } from '@/lib/soundTypes';
+import { soundWarn } from '@/lib/soundWarn';
 
 export const EFFECTS_POOL_SIZE = 6;
 
@@ -180,14 +181,14 @@ export function scheduleReducedMotionFade(
       const t = Math.min(1, step / steps);
       try {
         player.volume = startVolume * (1 - t);
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
       if (t >= 1) {
         try {
           player.pause();
-        } catch {
-          // ignore
+        } catch (err) {
+          soundWarn('engine', err);
         }
         fadeTimer = null;
         if (!finished) {
@@ -260,13 +261,13 @@ export function createEffectsPool(options: {
     if (!slot) return;
     try {
       slot.player.pause();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     try {
       slot.player.release();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     slots.splice(index, 1);
   }
@@ -325,8 +326,8 @@ export function createEffectsPool(options: {
     const slot = slots[oldest]!;
     try {
       slot.player.pause();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     slot.player.replace(source);
     slot.lastUsedAt = now();
@@ -362,8 +363,8 @@ export function createEffectsPool(options: {
       try {
         slot.player.volume = 0;
         slot.player.pause();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
     }
     onDone?.();
@@ -374,8 +375,8 @@ export function createEffectsPool(options: {
       if (slot.eventName == null || !isMatch(slot.eventName)) continue;
       try {
         slot.player.pause();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
     }
   }
@@ -388,8 +389,8 @@ export function createEffectsPool(options: {
       if (slot.eventName == null || !isBus(slot.eventName)) continue;
       try {
         slot.player.volume = volume;
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
     }
   }
@@ -432,14 +433,14 @@ export function scheduleEffectCutFade(
     const t = Math.min(1, step / steps);
     try {
       player.volume = startVolume * (1 - t);
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     if (t >= 1) {
       try {
         player.pause();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
       timer = null;
       if (!finished) {
@@ -494,8 +495,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     sessionReady = true;
     try {
       await options.configureSession();
-    } catch {
-      // Session setup must never break event announce path.
+    } catch (err) {
+      soundWarn('Session setup must never break event announce path.', err);
     }
   }
 
@@ -513,8 +514,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     if (!cancel) return;
     try {
       cancel();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     rmFadeByPlayer.delete(player);
   }
@@ -524,8 +525,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     if (!cancel) return;
     try {
       cancel();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     cutFadeByPlayer.delete(player);
   }
@@ -548,8 +549,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       } else {
         musicHooks.duckEffects(1, { fadeMs: EFFECT_MUSIC_DUCK_RELEASE_MS });
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 
@@ -577,8 +578,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
         // eslint-disable-next-line no-console
         console.debug('[sound]', eventName, 'active=', active);
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 
@@ -596,13 +597,13 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     pool.clear();
     try {
       musicHooks.stop();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
     try {
       musicHooks.pauseDropIns();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 
@@ -639,7 +640,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     let player: SoundPlayer;
     try {
       player = pool.acquire(source, eventName);
-    } catch {
+    } catch (err) {
+      soundWarn('effects acquire', err);
       return false;
     }
 
@@ -653,8 +655,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     const playSafe = (): void => {
       try {
         player.play();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
       const durationMs =
         source != null
@@ -685,7 +687,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       } else {
         playSafe();
       }
-    } catch {
+    } catch (err) {
+      soundWarn('effects seek', err);
       playSafe();
     }
     return true;
@@ -790,8 +793,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
       try {
         musicHooks.stop();
         musicHooks.pauseDropIns();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('engine', err);
       }
     }
   }
@@ -817,8 +820,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
 
     try {
       applyMusicLifecycleTransition(musicHooks, prefs, systemFlags, prev);
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
 
     const g = gates();
@@ -835,16 +838,16 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     pool.pauseMatching((name) => resolveEntry(name).bus === 'music');
     try {
       musicHooks.pause();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 
   function resumeMusic(opts: { fadeIn?: boolean } = {}): void {
     try {
       musicHooks.resume({ fadeIn: opts.fadeIn !== false });
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 
@@ -853,8 +856,8 @@ export function createSoundController(options: SoundEngineOptions): SoundControl
     pool.setVolumeForBus((name) => resolveEntry(name).bus === 'music', level);
     try {
       musicHooks.duck(level);
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('engine', err);
     }
   }
 

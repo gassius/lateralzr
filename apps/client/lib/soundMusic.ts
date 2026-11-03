@@ -12,8 +12,13 @@ import {
   getSoundAssetDurationMs,
   type SoundAssetName,
 } from '@/lib/soundAssets';
+import {
+  BED_HIGH_COMPLEXITY_GAIN_DB,
+  HIGH_COMPLEXITY_TEXTURE_CAP,
+} from '@/lib/soundLayers';
 import { gainFromDb, type SoundAssetRef } from '@/lib/soundMap';
 import type { SoundEvent } from '@/lib/soundTypes';
+import { soundWarn } from '@/lib/soundWarn';
 
 /** Layer base × manifest `gainDb` (Sound 9 — same native + web). */
 export function musicAssetVolume(asset: SoundAssetName, layerGain = 1): number {
@@ -172,8 +177,13 @@ export function computeMusicProgress(complexity: number, lateralityStep: number)
  * How many textures may be present for a progress value.
  * Low → bed only; high → bed + layers; air-d only at max tier.
  * Reduced Motion caps at 1.
+ * Complexity 4–5 (director): at most {@link HIGH_COMPLEXITY_TEXTURE_CAP}.
  */
-export function textureCountForProgress(progress: number, reduceMotion: boolean): number {
+export function textureCountForProgress(
+  progress: number,
+  reduceMotion: boolean,
+  complexity?: number,
+): number {
   const p = Math.max(0, Math.min(1, progress));
   let n = 0;
   if (p >= 0.25) n = 1;
@@ -181,6 +191,9 @@ export function textureCountForProgress(progress: number, reduceMotion: boolean)
   if (p >= 0.75) n = 3;
   if (p >= 0.9) n = 4;
   if (reduceMotion) n = Math.min(n, 1);
+  if (complexity != null && complexity >= 4) {
+    n = Math.min(n, HIGH_COMPLEXITY_TEXTURE_CAP);
+  }
   return n;
 }
 
@@ -188,9 +201,16 @@ export function textureCountForProgress(progress: number, reduceMotion: boolean)
 export function texturesForProgress(
   progress: number,
   reduceMotion: boolean,
+  complexity?: number,
 ): readonly SoundAssetName[] {
-  const n = textureCountForProgress(progress, reduceMotion);
+  const n = textureCountForProgress(progress, reduceMotion, complexity);
   return MUSIC_TEXTURES.slice(0, n);
+}
+
+/** Bed linear gain — −4 dB at Complexity 4–5 (adaptive-layer budget). */
+export function bedLayerGainForComplexity(complexity: number): number {
+  if (complexity >= 4) return gainFromDb(BED_HIGH_COMPLEXITY_GAIN_DB);
+  return 1;
 }
 
 export function bedAssetForProgress(
@@ -307,8 +327,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
   function applyVolume(slot: PlayerSlot, volume: number): void {
     try {
       slot.player.volume = volume;
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('music', err);
     }
   }
 
@@ -370,13 +390,13 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     }
     try {
       slot.player.pause();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('music', err);
     }
     try {
       slot.player.release();
-    } catch {
-      // ignore
+    } catch (err) {
+      soundWarn('music', err);
     }
     slots.delete(id);
   }
@@ -449,8 +469,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       const playSafe = (): void => {
         try {
           player.play();
-        } catch {
-          // ignore
+        } catch (err) {
+          soundWarn('music', err);
         }
       };
       if (seek && typeof (seek as Promise<void>).then === 'function') {
@@ -461,8 +481,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     } catch {
       try {
         player.play();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('music', err);
       }
     }
     return slot;
@@ -560,7 +580,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     // Intro pad keeps going and crossfades into bed (no hard stop).
     const nextBed = bedAssetForProgress(progress, randomEntry);
     bedAsset = nextBed;
-    const bedVol = musicAssetVolume(nextBed, 1);
+    const bedVol = bedTargetVolume(nextBed);
     const bed = createSlot(nextBed, 'bed', bedVol);
     if (bed) {
       fadeSlot(bed, bedVol, fadeMs);
@@ -591,6 +611,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     const current = slotsOfKind('bed').find((s) => !s.stopping);
     if (current && current.asset === next) {
       bedAsset = next;
+      // Still refresh gain when Complexity 4–5 attenuation changes.
+      syncBedGainForComplexity();
       return;
     }
     bedAsset = next;
@@ -605,7 +627,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
         if (slots.has(slot.id)) releaseSlot(slot.id);
       });
     }
-    const bedVol = musicAssetVolume(next, 1);
+    const bedVol = bedTargetVolume(next);
     const bed = createSlot(next, 'bed', bedVol);
     if (!bed) return;
     if (fadeIn) {
@@ -620,7 +642,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
 
   function syncTextures(): void {
     if (phase !== 'bed' || !enabled || paused) return;
-    const allowed = new Set(texturesForProgress(progress, reduceMotion));
+    const allowed = new Set(texturesForProgress(progress, reduceMotion, complexity));
     for (const slot of slotsOfKind('texture')) {
       if (slot.stopping || allowed.has(slot.asset)) continue;
       slot.stopping = true;
@@ -639,6 +661,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     );
     const missing = [...allowed].filter((a) => !present.has(a));
     // Fill up to allowed count, respecting player budget (leave room for bed pair + drop-in).
+    // Adaptive layers use a separate player group — not counted in MUSIC_MAX_PLAYERS.
     const room = Math.max(0, maxPlayers - activeCount() - 1);
     for (const asset of missing.slice(0, room)) {
       const texVol = musicAssetVolume(asset, 0.7);
@@ -646,6 +669,21 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       if (!slot) break;
       fadeSlot(slot, texVol, fadeMs);
       scheduleCrossfadeLoop(slot);
+    }
+  }
+
+  function bedTargetVolume(asset: SoundAssetName): number {
+    return musicAssetVolume(asset, 1) * bedLayerGainForComplexity(complexity);
+  }
+
+  /** Re-apply bed −4 dB / restore when Complexity crosses the C4 threshold. */
+  function syncBedGainForComplexity(): void {
+    if (phase !== 'bed' || !enabled) return;
+    for (const slot of slotsOfKind('bed')) {
+      if (slot.stopping) continue;
+      const next = bedTargetVolume(slot.asset);
+      if (Math.abs(slot.targetVolume - next) < 1e-6) continue;
+      fadeSlot(slot, next, fadeMs);
     }
   }
 
@@ -661,8 +699,9 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       textureRotateTimer = null;
       if (phase !== 'bed' || paused) return;
       const present = slotsOfKind('texture').filter((s) => !s.stopping);
-      // Fade one out / one in within allowed set.
-      if (present.length > 0 && random() < 0.6) {
+      const allowed = texturesForProgress(progress, reduceMotion, complexity);
+      // Fade one out / one in within allowed set (skip rotate-out when C4–5 cap is 1).
+      if (present.length > 0 && allowed.length > 1 && random() < 0.6) {
         const victim = present[Math.floor(random() * present.length)]!;
         victim.stopping = true;
         if (victim.loopTimerId != null) {
@@ -754,6 +793,7 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
     progress = computeMusicProgress(complexity, lateralityStep);
     if (phase === 'bed') {
       syncBed(true);
+      syncBedGainForComplexity();
       syncTextures();
     }
   }
@@ -844,8 +884,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       }
       try {
         slot.player.pause();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('music', err);
       }
     }
   }
@@ -886,8 +926,8 @@ export function createSoundMusicEngine(options: MusicEngineOptions): MusicEngine
       slot.loopAnchorAt += pauseMs;
       try {
         slot.player.play();
-      } catch {
-        // ignore
+      } catch (err) {
+        soundWarn('music', err);
       }
       if (opts.fadeIn) {
         applyVolume(slot, 0);
