@@ -17,12 +17,12 @@ import {
   resolveNativeCardLayout,
 } from './cardLayout.ts';
 import {
-  CONTROL_MESSAGING_BAND_HEIGHT,
-  LATERALITY_LABEL_ROW_HEIGHT,
-  LATERALITY_RAIL_HEIGHT,
-  lateralityCardGap,
+  COMPLEXITY_CONTROL_HEIGHT,
+  LATERALITY_CONTROL_HEIGHT,
+  visibleCardGapAbove,
+  visibleCardGapBelow,
 } from './lateralityChrome.ts';
-import { practiceMenuChromeHeight } from './practiceLayout.ts';
+import { practiceHeaderToComplexityOffset } from './practiceLayout.ts';
 
 describe('cardLayout radius and padding', () => {
   it('uses the 22 px card radius token', () => {
@@ -72,15 +72,15 @@ describe('cardLayout shadow', () => {
   });
 });
 
-describe('v3.4 native card aspect (§16.2)', () => {
+describe('v3.5 native card aspect (§16.2 equal gaps)', () => {
   const PHONE_WIDTH = 390;
   const PHONE_HEIGHT = 844;
   const INSET_TOP = 47;
   const INSET_BOTTOM = 34;
   const THREE_BUTTON_BOTTOM = 48;
-  const menu = practiceMenuChromeHeight();
-  const messaging = CONTROL_MESSAGING_BAND_HEIGHT;
-  const labelAndRail = LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT;
+  const headerToComplexity = practiceHeaderToComplexityOffset();
+  const complexity = COMPLEXITY_CONTROL_HEIGHT;
+  const laterality = LATERALITY_CONTROL_HEIGHT;
 
   function phoneLayout(overrides: {
     insetBottom?: number;
@@ -91,23 +91,22 @@ describe('v3.4 native card aspect (§16.2)', () => {
   } = {}) {
     const screenHeight = overrides.screenHeight ?? PHONE_HEIGHT;
     const insetBottom = overrides.insetBottom ?? INSET_BOTTOM;
-    const usableForGap = screenHeight - INSET_TOP - insetBottom - menu;
     return resolveNativeCardLayout({
       columnWidth: overrides.columnWidth ?? PHONE_WIDTH,
       screenHeight,
       insetTop: INSET_TOP,
       insetBottom,
-      menuBandHeight: menu,
-      cardGap: lateralityCardGap(usableForGap),
-      messagingBandHeight: messaging,
+      headerToComplexityOffset: headerToComplexity,
+      complexityBarHeight: complexity,
       lateralityLabelAndRailHeight:
-        overrides.lateralityLabelAndRailHeight ?? labelAndRail,
+        overrides.lateralityLabelAndRailHeight ?? laterality,
       extraBelowCard: overrides.extraBelowCard,
     });
   }
 
   it('pins the stack gutter at 12 and aspect tokens', () => {
     assert.equal(CARD_STACK_GUTTER, 12);
+    assert.equal(CARD_STACK_GUTTER, layout.cardStackGutter);
     assert.equal(cardAspect.preferred, 1.4);
     assert.equal(cardAspect.min, 1.3);
     assert.equal(cardAspect.max, 1.5);
@@ -130,7 +129,7 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.doesNotMatch(layoutSrc, /insetBottom:\s*34/);
   });
 
-  it('returns a 1.30–1.50 ratio on 390×844 with 47/34 insets, surplus above', () => {
+  it('returns a 1.30–1.50 ratio on 390×844 with 47/34 insets, equal visual gaps', () => {
     const result = phoneLayout();
     assert.equal(result.width, PHONE_WIDTH - CARD_STACK_GUTTER * 2);
     assert.equal(result.width, 366);
@@ -140,17 +139,22 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.equal(result.height, result.width * cardAspect.preferred);
     assert.equal(result.narrowed, false);
     assert.ok(result.topSurplus > 0);
+    assert.ok(result.bottomSurplus > 0);
+    // Visible: dots bottom → card == card → Laterality glyph caps (~41 pt).
+    const above = visibleCardGapAbove(result.topSurplus);
+    const below = visibleCardGapBelow(result.bottomSurplus);
+    assert.ok(Math.abs(above - below) < 1e-6);
+    assert.ok(above > 40 && above < 46);
     assert.equal(result.padding, layout.cardPadding);
     const budget = cardVerticalBudget({
       screenHeight: PHONE_HEIGHT,
       insetTop: INSET_TOP,
       insetBottom: INSET_BOTTOM,
-      menuBandHeight: menu,
-      cardGap: lateralityCardGap(PHONE_HEIGHT - INSET_TOP - INSET_BOTTOM - menu),
-      messagingBandHeight: messaging,
-      lateralityLabelAndRailHeight: labelAndRail,
+      headerToComplexityOffset: headerToComplexity,
+      complexityBarHeight: complexity,
+      lateralityLabelAndRailHeight: laterality,
     });
-    assert.equal(result.topSurplus + result.height, budget);
+    assert.equal(result.topSurplus + result.height + result.bottomSurplus, budget);
   });
 
   it('keeps the ratio on Android 3-button-nav insets', () => {
@@ -163,8 +167,6 @@ describe('v3.4 native card aspect (§16.2)', () => {
   });
 
   it('narrows rather than squashing at 200% text without dropping padding early', () => {
-    // Available just below 1.30 × 366 so we narrow, but stay above 360 so
-    // face padding remains 24. §16.2 drops to 20 only at minCardWidth.
     const available = 472;
     const result = resolveCardAspectLayout({
       columnWidth: PHONE_WIDTH,
@@ -211,6 +213,7 @@ describe('v3.4 native card aspect (§16.2)', () => {
     assert.equal(result.width, cardAspect.minCardWidth);
     assert.ok(result.height + 1e-9 >= result.width * cardAspect.min);
     assert.equal(result.topSurplus, 0);
+    assert.equal(result.bottomSurplus, 0);
     assert.ok(200 < result.width * cardAspect.min);
     assert.equal(result.padding, layout.cardPaddingNarrow);
   });

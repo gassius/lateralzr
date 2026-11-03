@@ -1,27 +1,36 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { layout } from '../theme/tokens.ts';
+import { header, layout } from '../theme/tokens.ts';
 import {
   APP_MENU_TRIGGER_ENABLED,
   PRACTICE_COLUMN_GUIDE_MIN_MAX,
   PRACTICE_COLUMN_MAX_WIDTH,
+  practiceCardEdgeInset,
   practiceColumnWidth,
-  practiceMenuChromeHeight,
+  practiceHeaderRowHeight,
+  practiceHeaderToComplexityOffset,
   practiceMenuTriggerSize,
   practiceScreenGutter,
+  practiceWordmarkHeight,
+  practiceWordmarkTopOffset,
+  practiceWordmarkToComplexityGap,
+  WORDMARK_X_HEIGHT_CENTRE_RATIO,
 } from './practiceLayout.ts';
 import { resolveNativeCardLayout } from './cardLayout.ts';
 import {
-  CONTROL_MESSAGING_BAND_HEIGHT,
-  LATERALITY_LABEL_ROW_HEIGHT,
-  LATERALITY_RAIL_HEIGHT,
-  lateralityCardGap,
+  COMPLEXITY_CONTROL_HEIGHT,
+  LATERALITY_CONTROL_HEIGHT,
 } from './lateralityChrome.ts';
 
 describe('practiceLayout shell column', () => {
   it('uses the 16 px screen gutter token', () => {
     assert.equal(practiceScreenGutter(), 16);
     assert.equal(practiceScreenGutter(), layout.screenGutter);
+  });
+
+  it('aligns header edges to the card stack gutter (12)', () => {
+    assert.equal(practiceCardEdgeInset(), 12);
+    assert.equal(practiceCardEdgeInset(), layout.cardStackGutter);
   });
 
   it('keeps the practice column within the 440–480 guide band', () => {
@@ -45,7 +54,7 @@ describe('practiceLayout shell column', () => {
   });
 });
 
-describe('practiceLayout menu trigger slot', () => {
+describe('practiceLayout header (Lz-67)', () => {
   it('reserves a 48 px hit target from the layout token', () => {
     assert.equal(practiceMenuTriggerSize(), 48);
     assert.equal(practiceMenuTriggerSize(), layout.recommendedTouchTarget);
@@ -55,28 +64,44 @@ describe('practiceLayout menu trigger slot', () => {
     assert.equal(APP_MENU_TRIGGER_ENABLED, true);
   });
 
-  it('reserves a 48 px petrol band above the card for the ellipsis', () => {
-    assert.equal(practiceMenuChromeHeight(), 48);
-    assert.equal(practiceMenuChromeHeight(), practiceMenuTriggerSize());
+  it('pins wordmark height and 24 pt gap to Complexity', () => {
+    assert.equal(practiceWordmarkHeight(), 20);
+    assert.equal(practiceWordmarkHeight(), header.wordmark.heightPt);
+    assert.equal(practiceWordmarkToComplexityGap(), 24);
+    assert.equal(practiceWordmarkToComplexityGap(), header.wordmarkToComplexityLabel);
   });
 
-  it('feeds the 390 column into the v3.4 aspect helper', () => {
+  it('reserves a 48 px header row for the menu touch target', () => {
+    assert.equal(practiceHeaderRowHeight(), 48);
+  });
+
+  it('measures 24 pt from the wordmark visible bottom to glyph caps, not the 48 pt row', () => {
+    assert.equal(WORDMARK_X_HEIGHT_CENTRE_RATIO, 0.58);
+    const top = practiceWordmarkTopOffset();
+    assert.equal(top, 48 / 2 - 20 * 0.58);
+    const offset = practiceHeaderToComplexityOffset();
+    // wordmarkTop + 20 + 24 − glyph inset (4.5) — letters at wordmarkBottom + 24.
+    assert.equal(offset, top + 20 + 24 - 4.5);
+    assert.ok(offset < practiceHeaderRowHeight() + practiceWordmarkToComplexityGap());
+    assert.ok(Math.abs(offset - 51.9) < 1e-9);
+  });
+
+  it('feeds the 390 column into the v3.5 aspect helper with equal visible gaps', () => {
     const column = practiceColumnWidth(390);
     assert.equal(column, 390);
-    const menu = practiceMenuChromeHeight();
-    const usable = 844 - 47 - 34 - menu;
-    const layout = resolveNativeCardLayout({
+    const result = resolveNativeCardLayout({
       columnWidth: column,
       screenHeight: 844,
       insetTop: 47,
       insetBottom: 34,
-      menuBandHeight: menu,
-      cardGap: lateralityCardGap(usable),
-      messagingBandHeight: CONTROL_MESSAGING_BAND_HEIGHT,
-      lateralityLabelAndRailHeight: LATERALITY_LABEL_ROW_HEIGHT + LATERALITY_RAIL_HEIGHT,
+      headerToComplexityOffset: practiceHeaderToComplexityOffset(),
+      complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
+      lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
     });
-    assert.ok(layout.aspect >= 1.3);
-    assert.ok(layout.aspect <= 1.5);
-    assert.ok(layout.topSurplus > 0);
+    assert.ok(result.aspect >= 1.3);
+    assert.ok(result.aspect <= 1.5);
+    assert.ok(result.topSurplus >= 0);
+    assert.ok(result.bottomSurplus >= 0);
+    assert.equal(result.aspect, 1.4);
   });
 });

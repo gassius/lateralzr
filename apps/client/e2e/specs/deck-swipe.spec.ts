@@ -47,16 +47,24 @@ test.describe('deck swipe (Lz-56)', () => {
     await expect(cardFrontTitle(page)).toHaveText('Spore', { timeout: 10_000 });
   });
 
-  test('vertical swipe and Complexity actions change the cue', async ({ page }) => {
+  test('vertical swipe and Complexity actions update the Complexity bar', async ({ page }) => {
     await openApp(page, 'canonicalConcept=mushroom');
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
+    await expect(page.getByTestId('complexity-label')).toBeVisible();
 
     await swipeVertical(page, 'up');
+    await expect(page.getByTestId('complexity-label')).toHaveText(/Complexity [2-5]/, {
+      timeout: 10_000,
+    });
     await expect(page.getByTestId('complexity-cue')).toBeVisible({ timeout: 10_000 });
 
+    const beforeDown = await page.getByTestId('complexity-label').innerText();
     await page.keyboard.press('Tab');
     await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
     await page.getByTestId('a11y-nav-complexity-down').click();
+    await expect(page.getByTestId('complexity-label')).not.toHaveText(beforeDown, {
+      timeout: 10_000,
+    });
     await expect(page.getByTestId('complexity-cue')).toBeVisible();
   });
 
@@ -65,7 +73,11 @@ test.describe('deck swipe (Lz-56)', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await flipCard(page);
     await expect(cardBackCopy(page)).toBeVisible();
+    const before = await page.getByTestId('complexity-label').innerText();
     await swipeVertical(page, 'up');
+    await expect(page.getByTestId('complexity-label')).not.toHaveText(before, {
+      timeout: 10_000,
+    });
     await expect(page.getByTestId('complexity-cue')).toBeVisible({ timeout: 10_000 });
   });
 

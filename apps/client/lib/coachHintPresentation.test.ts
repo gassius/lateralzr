@@ -7,14 +7,20 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  coachHintChrome,
   coachHintContrastRatio,
   coachHintHitSlop,
   coachHintIsSecondaryToConceptTitle,
   coachHintSlotHeight,
+  resolveCoachHintFit,
   COACH_APPEAR_DURATION_MS,
   COACH_APPEAR_TRANSLATE_Y,
   COACH_HINT_CARD_CLEARANCE_PX,
   COACH_HINT_CHIP_RAIL_ALPHA,
+  COACH_HINT_COMPACT_FONT_SIZE,
+  COACH_HINT_COMPACT_LINE_HEIGHT,
+  COACH_HINT_COMPACT_PADDING_H,
+  COACH_HINT_COMPACT_PADDING_V,
   COACH_HINT_FONT_SIZE,
   COACH_HINT_FONT_WEIGHT,
   COACH_HINT_LINE_HEIGHT,
@@ -38,6 +44,8 @@ describe('coach hint type hierarchy', () => {
     assert.equal(COACH_HINT_OPACITY, 1);
     assert.ok(coachHintIsSecondaryToConceptTitle());
     assert.ok(COACH_HINT_FONT_SIZE < CONCEPT_FRONT_TITLE_FONT_SIZE);
+    assert.ok(COACH_HINT_COMPACT_FONT_SIZE < COACH_HINT_FONT_SIZE);
+    assert.ok(coachHintIsSecondaryToConceptTitle(COACH_HINT_COMPACT_FONT_SIZE));
   });
 });
 
@@ -76,24 +84,50 @@ describe('coach appear motion', () => {
   });
 });
 
-describe('coach tip layout (AD Lz-48)', () => {
+describe('coach tip layout (AD Lz-48 / Lz-67 B1)', () => {
   it('reserves a 2-line in-flow band and ≥8px card clearance', () => {
     assert.equal(COACH_HINT_CARD_CLEARANCE_PX, 8);
     assert.equal(
-      coachHintSlotHeight(2),
+      coachHintSlotHeight(2, 'comfortable'),
       COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT * 2,
     );
   });
 
-  it('expands the single-line chip hit area to 48px', () => {
+  it('switches to compact chrome when the lower gap is under the 2-line label chip', () => {
+    assert.equal(resolveCoachHintFit(56), 'comfortable');
+    assert.equal(resolveCoachHintFit(41.1), 'compact');
+    assert.equal(resolveCoachHintFit(36), 'compact');
+    const compact = coachHintChrome('compact');
+    assert.equal(compact.fontSize, COACH_HINT_COMPACT_FONT_SIZE);
+    assert.equal(compact.lineHeight, COACH_HINT_COMPACT_LINE_HEIGHT);
+    assert.equal(compact.paddingV, COACH_HINT_COMPACT_PADDING_V);
+    assert.equal(compact.paddingH, COACH_HINT_COMPACT_PADDING_H);
+    assert.ok(compact.paddingH < COACH_HINT_PADDING_H);
+    assert.equal(
+      coachHintSlotHeight(2, 'compact'),
+      COACH_HINT_COMPACT_PADDING_V * 2 + COACH_HINT_COMPACT_LINE_HEIGHT * 2,
+    );
+    // Must fit bottomSurplus on 390×844 (~38.9), not only the visible ~43 gap.
+    assert.ok(coachHintSlotHeight(2, 'compact') <= 39);
+  });
+
+  it('never truncates tip copy via numberOfLines', () => {
+    assert.equal(/numberOfLines\s*=/.test(coachHintSrc), false);
+    assert.match(coachHintSrc, /fit\?:/);
+  });
+
+  it('expands the chip hit area to 48px for both fits', () => {
     assert.equal(COACH_HINT_MIN_TOUCH_TARGET, 48);
-    const slop = coachHintHitSlop();
-    const visual = COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT;
-    assert.ok(visual + slop.top + slop.bottom >= COACH_HINT_MIN_TOUCH_TARGET);
+    for (const fit of ['comfortable', 'compact'] as const) {
+      const chrome = coachHintChrome(fit);
+      const slop = coachHintHitSlop(fit);
+      const visual = chrome.paddingV * 2 + chrome.lineHeight;
+      assert.ok(visual + slop.top + slop.bottom >= COACH_HINT_MIN_TOUCH_TARGET);
+    }
   });
 
   it('left-aligns tip copy and uses hitSlop on the dismiss control', () => {
     assert.match(coachHintSrc, /textAlign:\s*'left'/);
-    assert.match(coachHintSrc, /hitSlop=\{coachHintHitSlop\(\)\}/);
+    assert.match(coachHintSrc, /hitSlop=\{coachHintHitSlop\(fit\)\}/);
   });
 });

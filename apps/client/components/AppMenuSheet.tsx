@@ -110,6 +110,11 @@ type AppMenuSheetProps = {
   onSoundPreferencesChange?: (prefs: SoundPreferences) => void;
   returnFocusRef?: RefObject<ViewType | null>;
   features?: AppMenuFeatures;
+  /**
+   * Open directly on a nested view (Lz-67: Complexity bar chevron → picker).
+   * Resets to root when the sheet hides.
+   */
+  initialView?: AppMenuView;
 };
 
 type SoundToggleKey = 'sound' | 'music' | 'effects';
@@ -376,8 +381,9 @@ export function AppMenuSheet({
   onSoundPreferencesChange,
   returnFocusRef,
   features = DEFAULT_APP_MENU_FEATURES,
+  initialView = 'root',
 }: AppMenuSheetProps) {
-  const [view, setView] = useState<AppMenuView>('root');
+  const [view, setView] = useState<AppMenuView>(initialView);
   const languageRowRef = useRef<ViewType | null>(null);
   const complexityRowRef = useRef<ViewType | null>(null);
   const motionRowRef = useRef<ViewType | null>(null);
@@ -391,6 +397,8 @@ export function AppMenuSheet({
     [currentComplexity],
   );
   const nestedBack = isAppMenuNestedView(view) && view !== 'about';
+  /** When opened from the Complexity bar, Back should dismiss rather than show the root menu. */
+  const openedOnComplexity = initialView === 'complexity';
 
   const rows = useMemo(
     () =>
@@ -443,8 +451,12 @@ export function AppMenuSheet({
   );
 
   useEffect(() => {
-    if (!visible) setView('root');
-  }, [visible]);
+    if (!visible) {
+      setView('root');
+      return;
+    }
+    setView(initialView);
+  }, [visible, initialView]);
 
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -555,6 +567,11 @@ export function AppMenuSheet({
   /** Stable so Sheet open/close effects never restart on parent re-renders (PRR B1). */
   const goBackToRoot = useCallback(() => {
     const current = viewRef.current;
+    // Complexity bar entry: Back closes the sheet and restores label focus.
+    if (openedOnComplexity && current === 'complexity') {
+      onDismiss();
+      return;
+    }
     if (current === 'motion') {
       pendingMotionRowFocusRef.current = true;
       setView('root');
@@ -568,7 +585,7 @@ export function AppMenuSheet({
     const returnRef = current === 'complexity' ? complexityRowRef : languageRowRef;
     setView('root');
     requestAnimationFrame(() => focusSheetHost(returnRef));
-  }, []);
+  }, [onDismiss, openedOnComplexity]);
 
   const selectMotion = useCallback(
     (pref: MotionPreference) => {
@@ -697,6 +714,10 @@ export function AppMenuSheet({
               key={row.grade}
               onPress={() => {
                 onSelectComplexity(complexityMenuCommitValue(row.grade));
+                if (openedOnComplexity) {
+                  onDismiss();
+                  return;
+                }
                 setView('root');
                 requestAnimationFrame(() => focusSheetHost(complexityRowRef));
               }}

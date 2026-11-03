@@ -4,13 +4,12 @@ import { describe, it } from 'node:test';
 import { blendHexOver, contrastRatio, hexToRgba } from './contrast.ts';
 import { logoNearBlack } from './logo.ts';
 import { GUIDE_SECTION_23 } from './section23.ts';
-import { color, tallScreenMinHeight, tokens } from './tokens.ts';
+import { color, header, tokens } from './tokens.ts';
 
-describe('v3.4 design tokens', () => {
-  it('matches the Lz-55/Lz-56/Lz-57/Lz-59/Lz-60 §23 pin (sheets, cardAspect, media, webPreview, build, motion.swipe/deck/flip, reshuffle + laterality filter)', () => {
-    // Independent pin — not loaded from tokens.json.
+describe('v3.5 design tokens', () => {
+  it('matches the Lz-67 §23 pin (header, complexityBar, cardGaps, prior sheets/media)', () => {
     assert.deepEqual(tokens, GUIDE_SECTION_23);
-    assert.equal(tokens.version, '3.4');
+    assert.equal(tokens.version, '3.5');
     assert.equal(tokens.layout.sheetRadius, 22);
     assert.equal(tokens.layout.sheetInset, 12);
     assert.equal(tokens.layout.sheetBottomGap, 12);
@@ -18,6 +17,21 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.layout.sheetRowHeight, 56);
     assert.equal(tokens.layout.sheetHandleStrip, 48);
     assert.equal(tokens.layout.sheetPattern, 'none');
+    assert.equal(tokens.layout.cardGaps, 'equal');
+    assert.equal(tokens.layout.cardGapAtReference, 45);
+    assert.equal(tokens.layout.cardSizeUnchanged, true);
+    assert.equal(tokens.layout.messagingLine, 'lower-card-gap');
+    assert.equal(tokens.layout.cardStackGutter, 12);
+    assert.deepEqual(tokens.layout.referenceViewport, [390, 844]);
+    assert.deepEqual(tokens.layout.referenceSafeArea, { top: 47, bottom: 34 });
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(tokens.layout, 'cardToControlGap'),
+      false,
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(tokens.layout, 'cardToControlGapTall'),
+      false,
+    );
     assert.equal(tokens.color.sheetGroup, '#FFFFFF8C');
     assert.equal(tokens.color.scrim, '#00000073');
     assert.equal(tokens.type.family, 'Inter');
@@ -34,8 +48,15 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.cardAspect.min, 1.3);
     assert.equal(tokens.cardAspect.max, 1.5);
     assert.equal(tokens.cardAspect.minCardWidth, 288);
-    assert.equal(tokens.cardAspect.surplusGoes, 'above-card');
     assert.equal(tokens.cardAspect.neverSquash, true);
+    assert.equal(header.wordmark.heightPt, 20);
+    assert.equal(header.wordmark.bulbMark, false);
+    assert.equal(header.wordmarkToComplexityLabel, 24);
+    assert.equal(header.menuButton.touchTarget, 48);
+    assert.equal(tokens.complexityBar.persistent, true);
+    assert.equal(tokens.complexityBar.mirrors, 'laterality');
+    assert.equal(tokens.complexityBar.dots, 5);
+    assert.equal(tokens.complexityBar.chevronOpens, 'complexity-picker');
     assert.deepEqual(tokens.media.fitBy, ['purpose', 'measured']);
     assert.equal(tokens.media.purposes.photo, 'cover');
     assert.equal(tokens.media.purposes.diagram, 'contain');
@@ -86,6 +107,8 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.laterality.onChange, 'reshuffle-whole-deck');
     assert.equal(tokens.laterality.historyKeepsVisited, true);
     assert.equal(tokens.laterality.discardFutureOnChange, true);
+    assert.equal(tokens.pattern.runtime.runtimeSvgInDeck, false);
+    assert.equal(tokens.sound.menuRowAfter, 'Motion');
   });
 
   it('pins subdued card shadow tokens for ConceptCard / swirl', () => {
@@ -93,10 +116,6 @@ describe('v3.4 design tokens', () => {
     assert.equal(tokens.shadow.card.opacity, 0.18);
     assert.equal(tokens.shadow.card.radius, 12);
     assert.equal(tokens.shadow.card.elevation, 4);
-  });
-
-  it('pins tallScreenMinHeight for cardToControlGapTall selection', () => {
-    assert.equal(tallScreenMinHeight, 800);
   });
 
   it('keeps logoNearBlack outside the UI color map', () => {

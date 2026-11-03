@@ -58,6 +58,21 @@ test.describe('coach tips (§12.3)', () => {
     const hint = page.getByTestId('coach-hint');
     await expect(hint).toBeVisible({ timeout: 5_000 });
     await expect(hint).toContainText(TIP_COMPLEXITY_ES);
+    // Lz-67 B1: full ES tip visible — no ellipsis / line-clamp truncation at 390×844.
+    await expect(hint).toHaveText(TIP_COMPLEXITY_ES);
+    expect(await hint.innerText()).not.toMatch(/\.\.\.|…/);
+    const truncated = await hint.evaluate((el) => {
+      const textEl =
+        [...el.querySelectorAll('*')].find((n) => (n.textContent ?? '').includes('Desliza')) ?? el;
+      const style = getComputedStyle(textEl);
+      const clamp = style.webkitLineClamp;
+      return (
+        style.textOverflow === 'ellipsis' ||
+        (clamp != null && clamp !== '' && clamp !== 'none') ||
+        textEl.scrollWidth > textEl.clientWidth + 1
+      );
+    });
+    expect(truncated).toBe(false);
     await capture(page, testInfo, {
       screen: 'coach',
       state: 'tip-complexity',
@@ -109,4 +124,30 @@ test.describe('coach tips (§12.3)', () => {
       locale: 'es',
     });
   });
+
+  for (const { name, query } of [
+    { name: 'en', query: 'canonicalConcept=mushroom&locale=en' },
+    {
+      name: 'es at 200% text',
+      query: 'canonicalConcept=mushroom&locale=es&e2eTextScale=2',
+    },
+  ] as const) {
+    test(`Laterality bar position does not change when a tip appears (Lz-67, ${name})`, async ({
+      page,
+    }) => {
+      await openApp(page, query);
+      const laterality = page.getByTestId('laterality-control');
+      await expect(laterality).toBeVisible();
+      const before = await laterality.boundingBox();
+      expect(before, 'laterality-control bbox before tip').toBeTruthy();
+
+      await page.clock.fastForward(COACH_IDLE_MS);
+      await expect(page.getByTestId('coach-hint')).toBeVisible({ timeout: 5_000 });
+
+      const after = await laterality.boundingBox();
+      expect(after, 'laterality-control bbox with tip').toBeTruthy();
+      expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(1);
+      expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThan(1);
+    });
+  }
 });
