@@ -8,11 +8,13 @@ import {
   practiceCardEdgeInset,
   practiceColumnWidth,
   practiceHeaderRowHeight,
-  practiceMenuChromeHeight,
+  practiceHeaderToComplexityOffset,
   practiceMenuTriggerSize,
   practiceScreenGutter,
   practiceWordmarkHeight,
+  practiceWordmarkTopOffset,
   practiceWordmarkToComplexityGap,
+  WORDMARK_X_HEIGHT_CENTRE_RATIO,
 } from './practiceLayout.ts';
 import { resolveNativeCardLayout } from './cardLayout.ts';
 import {
@@ -69,12 +71,22 @@ describe('practiceLayout header (Lz-67)', () => {
     assert.equal(practiceWordmarkToComplexityGap(), header.wordmarkToComplexityLabel);
   });
 
-  it('reserves a 48 px header row (menu touch target) above the Complexity bar', () => {
+  it('reserves a 48 px header row for the menu touch target', () => {
     assert.equal(practiceHeaderRowHeight(), 48);
-    assert.equal(practiceMenuChromeHeight(), practiceHeaderRowHeight());
   });
 
-  it('feeds the 390 column into the v3.5 aspect helper with equal gaps', () => {
+  it('measures 24 pt from the wordmark visible bottom, not below the 48 pt row', () => {
+    assert.equal(WORDMARK_X_HEIGHT_CENTRE_RATIO, 0.58);
+    const top = practiceWordmarkTopOffset();
+    assert.equal(top, 48 / 2 - 20 * 0.58);
+    const offset = practiceHeaderToComplexityOffset();
+    // wordmarkTop + 20 + 24 — shorter than 48 + 24 by the slack under the outlines.
+    assert.equal(offset, top + 20 + 24);
+    assert.ok(offset < practiceHeaderRowHeight() + practiceWordmarkToComplexityGap());
+    assert.ok(Math.abs(offset - 56.4) < 1e-9);
+  });
+
+  it('feeds the 390 column into the v3.5 aspect helper with equal visual gaps', () => {
     const column = practiceColumnWidth(390);
     assert.equal(column, 390);
     const result = resolveNativeCardLayout({
@@ -82,8 +94,7 @@ describe('practiceLayout header (Lz-67)', () => {
       screenHeight: 844,
       insetTop: 47,
       insetBottom: 34,
-      headerRowHeight: practiceHeaderRowHeight(),
-      wordmarkToComplexityGap: practiceWordmarkToComplexityGap(),
+      headerToComplexityOffset: practiceHeaderToComplexityOffset(),
       complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
       lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
     });
@@ -92,5 +103,7 @@ describe('practiceLayout header (Lz-67)', () => {
     assert.ok(result.topSurplus >= 0);
     assert.ok(result.bottomSurplus >= 0);
     assert.equal(result.aspect, 1.4);
+    // Visual gaps (rail centreline → card, card → Laterality label) match.
+    assert.ok(Math.abs(result.topSurplus + 24 - result.bottomSurplus) < 1e-6);
   });
 });

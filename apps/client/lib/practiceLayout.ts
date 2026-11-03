@@ -63,9 +63,30 @@ export function practiceHeaderRowHeight(): number {
 }
 
 /**
- * @deprecated Use {@link practiceHeaderRowHeight}. Kept as an alias so older
- * call sites that meant "top petrol chrome band" keep compiling during Lz-67.
+ * Optical top offset of the wordmark inside the 48 pt header row (§9.7).
+ * Centres the ⋯ dots on the short-letter x-height band (not the ascender box).
  */
-export function practiceMenuChromeHeight(): number {
-  return practiceHeaderRowHeight();
+export const WORDMARK_X_HEIGHT_CENTRE_RATIO = 0.58;
+
+export function practiceWordmarkTopOffset(
+  rowHeight: number = practiceHeaderRowHeight(),
+  wordmarkHeight: number = practiceWordmarkHeight(),
+): number {
+  const row = Number.isFinite(rowHeight) ? Math.max(0, rowHeight) : 0;
+  const h = Number.isFinite(wordmarkHeight) ? Math.max(0, wordmarkHeight) : 0;
+  return Math.max(0, row / 2 - h * WORDMARK_X_HEIGHT_CENTRE_RATIO);
+}
+
+/**
+ * Content offset from the top safe-area edge to the Complexity label top.
+ * Guide §9.7: 24 pt from the **wordmark’s visible bottom**, not from below the
+ * 48 pt menu-button row (the row has slack under the outlines).
+ */
+export function practiceHeaderToComplexityOffset(
+  rowHeight: number = practiceHeaderRowHeight(),
+  wordmarkHeight: number = practiceWordmarkHeight(),
+  gap: number = practiceWordmarkToComplexityGap(),
+): number {
+  const g = Number.isFinite(gap) ? Math.max(0, gap) : 0;
+  return practiceWordmarkTopOffset(rowHeight, wordmarkHeight) + Math.max(0, wordmarkHeight) + g;
 }

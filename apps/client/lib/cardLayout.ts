@@ -8,13 +8,9 @@
 import { cardAspect, layout, shadow } from '@/theme/tokens';
 import {
   COMPLEXITY_CONTROL_HEIGHT,
-  LATERALITY_CONTROL_HEIGHT,
   resolveEqualCardGaps,
 } from './lateralityChrome';
-import {
-  practiceHeaderRowHeight,
-  practiceWordmarkToComplexityGap,
-} from './practiceLayout';
+import { practiceHeaderToComplexityOffset } from './practiceLayout';
 
 /** Devices at or below this width use `layout.cardPaddingNarrow`. */
 export const CARD_PADDING_NARROW_MAX_WIDTH = 360;
@@ -112,15 +108,15 @@ const emptyCardLayout = (): NativeCardLayout => ({
 
 /**
  * Vertical budget for (equal gaps + card height).
- * Available = screen − insets − header − wordmark→complexity gap − Complexity
- * bar − Laterality label/rail − extras. Messaging sits in the lower gap.
+ * Available = screen − insets − (wordmark bottom + 24 → Complexity) − Complexity
+ * bar − Laterality label/rail − extras. Messaging overlays in the lower gap.
  */
 export function cardVerticalBudget(input: {
   screenHeight: number;
   insetTop: number;
   insetBottom: number;
-  headerRowHeight: number;
-  wordmarkToComplexityGap: number;
+  /** Offset from content top to Complexity label (wordmark bottom + 24). */
+  headerToComplexityOffset: number;
   complexityBarHeight: number;
   lateralityLabelAndRailHeight: number;
   extraBelowCard?: number;
@@ -130,8 +126,7 @@ export function cardVerticalBudget(input: {
     input.screenHeight,
     input.insetTop,
     input.insetBottom,
-    input.headerRowHeight,
-    input.wordmarkToComplexityGap,
+    input.headerToComplexityOffset,
     input.complexityBarHeight,
     input.lateralityLabelAndRailHeight,
     extra,
@@ -142,8 +137,7 @@ export function cardVerticalBudget(input: {
     input.screenHeight -
       input.insetTop -
       input.insetBottom -
-      input.headerRowHeight -
-      input.wordmarkToComplexityGap -
+      input.headerToComplexityOffset -
       input.complexityBarHeight -
       input.lateralityLabelAndRailHeight -
       extra,
@@ -244,8 +238,7 @@ export function resolveNativeCardLayout(input: {
   screenHeight: number;
   insetTop: number;
   insetBottom: number;
-  headerRowHeight?: number;
-  wordmarkToComplexityGap?: number;
+  headerToComplexityOffset?: number;
   complexityBarHeight?: number;
   lateralityLabelAndRailHeight: number;
   extraBelowCard?: number;
@@ -255,9 +248,8 @@ export function resolveNativeCardLayout(input: {
     screenHeight: input.screenHeight,
     insetTop: input.insetTop,
     insetBottom: input.insetBottom,
-    headerRowHeight: input.headerRowHeight ?? practiceHeaderRowHeight(),
-    wordmarkToComplexityGap:
-      input.wordmarkToComplexityGap ?? practiceWordmarkToComplexityGap(),
+    headerToComplexityOffset:
+      input.headerToComplexityOffset ?? practiceHeaderToComplexityOffset(),
     complexityBarHeight: input.complexityBarHeight ?? COMPLEXITY_CONTROL_HEIGHT,
     lateralityLabelAndRailHeight: input.lateralityLabelAndRailHeight,
     extraBelowCard: input.extraBelowCard,
@@ -267,9 +259,4 @@ export function resolveNativeCardLayout(input: {
     availableHeight: budget,
     gutter: input.gutter,
   });
-}
-
-/** Default laterality label+rail height for budget helpers. */
-export function defaultLateralityLabelAndRailHeight(): number {
-  return LATERALITY_CONTROL_HEIGHT;
 }

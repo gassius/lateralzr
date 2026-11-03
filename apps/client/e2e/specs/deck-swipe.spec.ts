@@ -56,11 +56,16 @@ test.describe('deck swipe (Lz-56)', () => {
     await expect(page.getByTestId('complexity-label')).toHaveText(/Complexity [2-5]/, {
       timeout: 10_000,
     });
+    await expect(page.getByTestId('complexity-cue')).toBeVisible({ timeout: 10_000 });
 
+    const beforeDown = await page.getByTestId('complexity-label').innerText();
     await page.keyboard.press('Tab');
     await expect(page.getByTestId('accessible-nav-row')).toBeVisible();
     await page.getByTestId('a11y-nav-complexity-down').click();
-    await expect(page.getByTestId('complexity-label')).toBeVisible();
+    await expect(page.getByTestId('complexity-label')).not.toHaveText(beforeDown, {
+      timeout: 10_000,
+    });
+    await expect(page.getByTestId('complexity-cue')).toBeVisible();
   });
 
   test('back face vertical swipe commits Complexity', async ({ page }) => {
@@ -73,6 +78,7 @@ test.describe('deck swipe (Lz-56)', () => {
     await expect(page.getByTestId('complexity-label')).not.toHaveText(before, {
       timeout: 10_000,
     });
+    await expect(page.getByTestId('complexity-cue')).toBeVisible({ timeout: 10_000 });
   });
 
   test('flip toggles front → back → front', async ({ page }) => {

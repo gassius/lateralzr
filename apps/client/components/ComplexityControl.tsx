@@ -51,11 +51,6 @@ const DOT_RADIUS = 4.5;
 const LINE_STROKE = 1.75;
 const CHEVRON_SIZE = 12;
 
-const chevronInlineWebStyle =
-  Platform.OS === 'web'
-    ? ({ display: 'inline-flex', verticalAlign: 'middle' } as Record<string, string>)
-    : null;
-
 const LABEL_HIT_SLOP = Math.max(
   0,
   Math.ceil((layout.recommendedTouchTarget - LATERALITY_LABEL_ROW_HEIGHT) / 2),
@@ -141,6 +136,7 @@ export function ComplexityControl({
   const [previewGrade, setPreviewGrade] = useState<ComplexityGrade | null>(null);
   const displayGrade = previewGrade ?? grade;
   const railWidthRef = useRef(0);
+  const previewGradeRef = useRef<ComplexityGrade | null>(null);
   const reportedHeightRef = useRef(0);
 
   const labelText = useMemo(() => complexityBarLabel(displayGrade), [displayGrade]);
@@ -149,7 +145,10 @@ export function ComplexityControl({
   const previewAt = useCallback(
     (x: number) => {
       if (disabled) return;
-      setPreviewGrade(complexityStepFromX(x, railWidthRef.current));
+      const next = complexityStepFromX(x, railWidthRef.current);
+      if (next === previewGradeRef.current) return;
+      previewGradeRef.current = next;
+      setPreviewGrade(next);
     },
     [disabled],
   );
@@ -157,6 +156,7 @@ export function ComplexityControl({
   const commitAt = useCallback(
     (x: number) => {
       const next = complexityCommitFromRail(x, railWidthRef.current, { swapping: disabled });
+      previewGradeRef.current = null;
       setPreviewGrade(null);
       if (next == null) return;
       onSelectComplexity(next);
@@ -165,6 +165,7 @@ export function ComplexityControl({
   );
 
   const endPreview = useCallback(() => {
+    previewGradeRef.current = null;
     setPreviewGrade(null);
   }, []);
 
@@ -186,28 +187,30 @@ export function ComplexityControl({
     [onHeightChange],
   );
 
-  const tap = Gesture.Tap()
-    .enabled(!disabled)
-    .onEnd((e) => {
-      runOnJS(commitAt)(e.x);
-    });
+  const composed = useMemo(() => {
+    const tap = Gesture.Tap()
+      .enabled(!disabled)
+      .onEnd((e) => {
+        runOnJS(commitAt)(e.x);
+      });
 
-  const pan = Gesture.Pan()
-    .enabled(!disabled)
-    .onBegin((e) => {
-      runOnJS(previewAt)(e.x);
-    })
-    .onUpdate((e) => {
-      runOnJS(previewAt)(e.x);
-    })
-    .onEnd((e) => {
-      runOnJS(commitAt)(e.x);
-    })
-    .onFinalize(() => {
-      runOnJS(endPreview)();
-    });
+    const pan = Gesture.Pan()
+      .enabled(!disabled)
+      .onBegin((e) => {
+        runOnJS(previewAt)(e.x);
+      })
+      .onUpdate((e) => {
+        runOnJS(previewAt)(e.x);
+      })
+      .onEnd((e) => {
+        runOnJS(commitAt)(e.x);
+      })
+      .onFinalize(() => {
+        runOnJS(endPreview)();
+      });
 
-  const composed = Gesture.Exclusive(pan, tap);
+    return Gesture.Exclusive(pan, tap);
+  }, [commitAt, disabled, endPreview, previewAt]);
 
   const onAccessibilityAction = useCallback(
     (event: AccessibilityActionEvent) => {
@@ -272,10 +275,7 @@ export function ComplexityControl({
           <Text style={[styles.labelText, textStyle('label')]}>
             {labelText}
             {'\u00A0'}
-            <View
-              style={[styles.chevronInline, chevronInlineWebStyle]}
-              accessibilityElementsHidden
-            >
+            <View style={styles.chevronInline} accessibilityElementsHidden>
               <ChevronDown stroke={color.paper} />
             </View>
           </Text>

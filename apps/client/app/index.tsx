@@ -8,6 +8,7 @@ import { AppMenuSheet } from '@/components/AppMenuSheet';
 import { AppMenuTrigger } from '@/components/AppMenuTrigger';
 import { CoachHint } from '@/components/CoachHint';
 import { ComplexityControl } from '@/components/ComplexityControl';
+import { ComplexityCue, ComplexitySessionMark } from '@/components/ComplexityCue';
 import {
   ConceptCardStack,
   type ConceptCardStackHandle,
@@ -40,6 +41,12 @@ import {
 } from '@/lib/emptyBatchRetry';
 import { color } from '@/theme/tokens';
 import { textStyle } from '@/theme/typography';
+import {
+  complexityCueHoldMs,
+  resolveSessionComplexityToAnnounce,
+  shouldAnnounceComplexity,
+  shouldKeepSessionComplexityMark,
+} from '@/lib/complexityFeedback';
 import { applyMenuComplexitySelection } from '@/lib/complexityMenu';
 import { clampComplexity, loadStoredComplexity, persistComplexity } from '@/lib/complexityStorage';
 import {
@@ -118,6 +125,7 @@ import {
 } from '@/lib/lateralityReshuffle';
 import {
   COMPLEXITY_CONTROL_HEIGHT,
+  CONTROL_MESSAGING_BAND_HEIGHT,
   LATERALITY_CONTROL_HEIGHT,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
@@ -128,8 +136,10 @@ import {
   PRACTICE_COLUMN_MAX_WIDTH,
   practiceCardEdgeInset,
   practiceHeaderRowHeight,
+  practiceHeaderToComplexityOffset,
+  practiceScreenGutter,
   practiceWordmarkHeight,
-  practiceWordmarkToComplexityGap,
+  practiceWordmarkTopOffset,
 } from '@/lib/practiceLayout';
 import { cardVerticalBudget, resolveCardAspectLayout } from '@/lib/cardLayout';
 import {
@@ -177,6 +187,11 @@ export default function HomeScreen() {
 
   const [complexity, setComplexity] = useState(DEFAULT_CONCEPT_COMPLEXITY);
   const [complexityHydrated, setComplexityHydrated] = useState(false);
+  const [complexityCue, setComplexityCue] = useState<{
+    grade: number;
+    token: number;
+    holdMs: number;
+  } | null>(null);
   const [laterality, setLaterality] = useState<LateralityGrade>(DEFAULT_LATERALITY);
   const [lateralityHydrated, setLateralityHydrated] = useState(false);
   /** Gates laterality controls while the neighborhood tree prefetches — no swirl overlay (Lz-33). */
@@ -262,6 +277,7 @@ export default function HomeScreen() {
   const pendingEndDeckLoadRef = useRef(false);
   const complexityRef = useRef(complexity);
   const lateralityRef = useRef(laterality);
+  const announcedSessionComplexityRef = useRef(false);
   const lateralitySwapGenRef = useRef(0);
   const lateralitySwapTokenRef = useRef(0);
   const lateralitySwapActiveRef = useRef(false);
@@ -300,6 +316,10 @@ export default function HomeScreen() {
       cancelActiveLateralityRowMix();
     };
   }, []);
+  /** State (not a ref) so a late hydrate re-fires the session-cue effect. */
+  const [pendingSessionComplexity, setPendingSessionComplexity] = useState<number | null>(null);
+  const [showSessionComplexityMark, setShowSessionComplexityMark] = useState(false);
+
   useEffect(() => {
     complexityRef.current = complexity;
   }, [complexity]);
@@ -351,6 +371,17 @@ export default function HomeScreen() {
       const hydrated = resolveInitialComplexity(params, stored);
       complexityRef.current = hydrated;
       setComplexity(hydrated);
+      if (
+        shouldAnnounceComplexity({
+          reason: params.complexity != null ? 'session-url' : 'hydrate-stored',
+          complexity: hydrated,
+        })
+      ) {
+        setPendingSessionComplexity(hydrated);
+        if (shouldKeepSessionComplexityMark('session-url')) {
+          setShowSessionComplexityMark(true);
+        }
+      }
       setComplexityHydrated(true);
     });
     return () => {
@@ -1104,6 +1135,21 @@ export default function HomeScreen() {
     [],
   );
 
+  const dismissComplexityCue = useCallback(() => {
+    setComplexityCue(null);
+  }, []);
+
+  const announceComplexity = useCallback((
+    grade: number,
+    reason: 'session-url' | 'swipe',
+  ) => {
+    setComplexityCue({
+      grade,
+      token: Date.now(),
+      holdMs: complexityCueHoldMs(reason),
+    });
+  }, []);
+
   const onSwipeForwardVertical = useCallback(
     (direction: 'up' | 'down') => {
       if (lateralityBlocksComplexityChange(lateralitySwap != null)) return;
@@ -1115,6 +1161,9 @@ export default function HomeScreen() {
       // Lz-38: Complexity change resets the empty-retry counter.
       resetEmptyRetryCycle('complexity');
       setLoadMoreError(false);
+      if (shouldAnnounceComplexity({ reason: 'swipe', previous, next })) {
+        announceComplexity(next, 'swipe');
+      }
       if (shouldPersistComplexity('swipe')) {
         void persistComplexity(next);
       }
@@ -1132,7 +1181,7 @@ export default function HomeScreen() {
 
       void prefetchComplexityTree(next);
     },
-    [lateralitySwap, prefetchComplexityTree],
+    [announceComplexity, lateralitySwap, prefetchComplexityTree],
   );
 
   /**
@@ -1194,9 +1243,9 @@ export default function HomeScreen() {
   }, [introGateOpen, prefsReady, concepts.length, error]);
 
   const headerRowHeight = practiceHeaderRowHeight();
-  const wordmarkToComplexityGap = practiceWordmarkToComplexityGap();
+  const headerToComplexityOffset = practiceHeaderToComplexityOffset();
   const usableHeight =
-    layoutHeight - insets.top - insets.bottom - headerRowHeight - wordmarkToComplexityGap;
+    layoutHeight - insets.top - insets.bottom - headerToComplexityOffset;
 
   // Intro lockup matches main (animated 4-dot pulse + MIN_INTRO_LOGO_MS). Errors skip the gate.
   // After the intro gate opens, a still-empty deck uses the quiet silhouette (not more logo).
@@ -1254,6 +1303,24 @@ export default function HomeScreen() {
   const suppressCoachTip =
     chromeStatus.kind === 'fetchFailed' || chromeStatus.kind === 'noNextIdea';
   const visibleCoachTip = suppressCoachTip ? null : coachTip;
+
+  useEffect(() => {
+    if (!showMainDeck) return;
+    const pending = resolveSessionComplexityToAnnounce({
+      alreadyAnnounced: announcedSessionComplexityRef.current,
+      pending: pendingSessionComplexity,
+      routeComplexity,
+      rememberedComplexity:
+        readJourneyTestParams().complexity ?? journeyTestParamsRef.current.complexity,
+    });
+    if (pending == null) return;
+    announcedSessionComplexityRef.current = true;
+    setPendingSessionComplexity(null);
+    if (shouldKeepSessionComplexityMark('session-url')) {
+      setShowSessionComplexityMark(true);
+    }
+    announceComplexity(pending, 'session-url');
+  }, [announceComplexity, pendingSessionComplexity, routeComplexity, showMainDeck]);
 
   if (showIntroLogo) {
     return (
@@ -1318,8 +1385,7 @@ export default function HomeScreen() {
             screenHeight: layoutHeight,
             insetTop: insets.top,
             insetBottom: insets.bottom,
-            headerRowHeight,
-            wordmarkToComplexityGap,
+            headerToComplexityOffset,
             complexityBarHeight: complexityControlHeight,
             lateralityLabelAndRailHeight: lateralityControlHeight,
             extraBelowCard: a11yExtra,
@@ -1332,6 +1398,9 @@ export default function HomeScreen() {
         });
         // Stack gets above-gap + card; lower gap (messaging) is a sibling below.
         const stackAvailableHeight = cardLayout.topSurplus + cardLayout.height;
+        // Fixed lower-gap height (not minHeight) so tip/status cannot push Laterality.
+        // Messaging overlays inside; may visually overflow when surplus < 56.
+        const lowerGapHeight = cardLayout.bottomSurplus;
         // AD #119: tip OR status share the lower card gap — one slot, never stacked.
         const messagingSlot = showStatusSlot ? (
           <DeckStatusLine
@@ -1427,11 +1496,22 @@ export default function HomeScreen() {
               </View>
             </View>
             <View
-              style={[styles.lowerCardGap, { minHeight: cardLayout.bottomSurplus }]}
+              style={[styles.lowerCardGap, { height: lowerGapHeight }]}
               testID="lower-card-gap"
               pointerEvents={deckMoving ? 'none' : 'box-none'}
             >
-              {messagingSlot}
+              {messagingSlot ? (
+                <View
+                  style={[
+                    styles.messagingOverlay,
+                    { minHeight: CONTROL_MESSAGING_BAND_HEIGHT },
+                  ]}
+                  testID="messaging-overlay"
+                  pointerEvents="box-none"
+                >
+                  {messagingSlot}
+                </View>
+              ) : null}
             </View>
             {accessibleNavVisible ? (
               <View pointerEvents={deckMoving || lateralitySwap != null ? 'none' : 'auto'}>
@@ -1460,14 +1540,34 @@ export default function HomeScreen() {
                 labelRef={lateralityLabelRef}
               />
             </View>
+            {complexityCue ? (
+              <View
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                pointerEvents="none"
+              >
+                <ComplexityCue
+                  grade={complexityCue.grade}
+                  token={complexityCue.token}
+                  holdMs={complexityCue.holdMs}
+                  onHidden={dismissComplexityCue}
+                />
+              </View>
+            ) : showSessionComplexityMark && !visibleCoachTip ? (
+              <View
+                style={[styles.complexityCueSlot, { bottom: lateralityControlHeight + 4 }]}
+                pointerEvents="none"
+              >
+                <ComplexitySessionMark grade={complexity} />
+              </View>
+            ) : null}
           </View>
         );
-        // Lz-41 reading order: concept before chrome. Header spacer preserves
-        // the wordmark+⋯ band; absolute header keeps AT order card → controls → menu.
+        // Lz-41 reading order: concept before chrome. Spacer = wordmark bottom + 24
+        // (not the full 48 pt menu row + 24); absolute header keeps AT order.
         const headerSpacer =
           APP_MENU_TRIGGER_ENABLED ? (
             <View
-              style={{ height: headerRowHeight + wordmarkToComplexityGap }}
+              style={{ height: headerToComplexityOffset }}
               pointerEvents="none"
               accessible={false}
               importantForAccessibility="no-hide-descendants"
@@ -1475,10 +1575,10 @@ export default function HomeScreen() {
               {...(Platform.OS === 'web' ? ({ 'aria-hidden': true } as Record<string, unknown>) : null)}
             />
           ) : (
-            <View style={{ height: headerRowHeight + wordmarkToComplexityGap }} pointerEvents="none" />
+            <View style={{ height: headerToComplexityOffset }} pointerEvents="none" />
           );
         const focusRingPad = A11Y_PASS_FOCUS.widthPx + A11Y_PASS_FOCUS.offsetPx;
-        // usableHeight already excludes header + wordmark→Complexity gap.
+        // usableHeight already excludes wordmark-bottom → Complexity offset.
         const practiceColumn = accessibleNavVisible ? (
           <ScrollView
             style={[
@@ -1516,15 +1616,8 @@ export default function HomeScreen() {
             {cardLateralityGroup}
           </View>
         );
-        /**
-         * Optical align: ⋯ dots sit at the vertical centre of the 48 pt hit target.
-         * Wordmark (~20 pt) is offset so its x-height band centre matches that midline
-         * (ascenders would otherwise pull geometric centre too high — guide §9.7).
-         */
         const wordmarkH = practiceWordmarkHeight();
-        const xHeightCentreRatio = 0.58;
-        const wordmarkTop =
-          headerRowHeight / 2 - wordmarkH * xHeightCentreRatio;
+        const wordmarkTop = practiceWordmarkTopOffset(headerRowHeight, wordmarkH);
         const headerChrome = APP_MENU_TRIGGER_ENABLED ? (
           <View
             style={[
@@ -1538,7 +1631,7 @@ export default function HomeScreen() {
             {...backgroundInertProps}
           >
             <View
-              style={[styles.headerWordmarkSlot, { marginTop: Math.max(0, wordmarkTop) }]}
+              style={[styles.headerWordmarkSlot, { marginTop: wordmarkTop }]}
               pointerEvents="none"
             >
               <HeaderWordmark height={wordmarkH} />
@@ -1650,12 +1743,27 @@ const styles = StyleSheet.create({
     zIndex: 1,
     elevation: 1,
   },
-  /** Reserved equal gap below the card — holds tip OR status (AD #119 / Lz-67). */
+  /**
+   * Fixed-height equal gap below the card. Tip/status overlay inside so the
+   * Laterality bar never jumps when messaging appears (AD #119 / Lz-67).
+   */
   lowerCardGap: {
     width: '100%',
+    position: 'relative',
     justifyContent: 'center',
     alignItems: 'stretch',
+    overflow: 'visible',
     zIndex: 1,
+  },
+  /** Absolutely centred in the lower gap; may overflow when surplus < 56. */
+  messagingOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'stretch',
   },
   stackSlot: {
     width: '100%',
@@ -1672,12 +1780,22 @@ const styles = StyleSheet.create({
     elevation: 40,
     overflow: 'visible',
   },
-  /** Tip chip inside the lower card gap. */
+  /** Tip chip inside the messaging overlay. */
   coachTipSlot: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  /** Ephemeral Complexity N cue / quiet session mark (Lz-12). */
+  complexityCueSlot: {
+    position: 'absolute',
+    left: practiceScreenGutter(),
+    right: practiceScreenGutter(),
+    alignItems: 'center',
+    zIndex: 20,
+    elevation: 20,
+  },
+
   error: {
     color: color.ink,
     textAlign: 'center',

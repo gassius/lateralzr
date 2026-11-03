@@ -83,7 +83,6 @@ export function cardGapAtReference(): number {
  * Equal gaps are handled separately by {@link resolveEqualCardGaps}.
  */
 export function lateralityChromeReserve(
-  _usableHeight: number,
   controlHeight: number = LATERALITY_CONTROL_HEIGHT,
 ): number {
   const control =
@@ -94,18 +93,24 @@ export function lateralityChromeReserve(
 }
 
 /**
- * Split leftover height into two equal gaps (above + below the card).
- * Guide §16.2 centres the card between Complexity rail and Laterality label.
- * Messaging sits in the lower gap without changing the card frame (overflow OK
- * when leftover is below 2× the status-line minimum).
+ * Split leftover height so the **visual** gaps match: Complexity rail
+ * centreline → card top, and card bottom → Laterality label top (§16.2 / C6).
+ *
+ * The rail hit area extends {@link LATERALITY_RAIL_HEIGHT}/2 below the visible
+ * rail line, so that slack is given to the lower gap. Messaging overlays inside
+ * the lower gap at a fixed height so a tip cannot push Laterality.
  */
 export function resolveEqualCardGaps(leftoverHeight: number): {
   above: number;
   below: number;
 } {
   const leftover = Number.isFinite(leftoverHeight) ? Math.max(0, leftoverHeight) : 0;
-  const half = leftover / 2;
-  return { above: half, below: half };
+  const railSlack = LATERALITY_RAIL_HEIGHT / 2;
+  if (leftover <= railSlack) {
+    return { above: 0, below: leftover };
+  }
+  const half = (leftover - railSlack) / 2;
+  return { above: half, below: half + railSlack };
 }
 
 /**
@@ -119,14 +124,6 @@ export function cardStackAvailableHeight(
 ): number {
   return Math.max(
     MIN_CARD_AREA_HEIGHT,
-    usableHeight - lateralityChromeReserve(usableHeight, controlHeight),
+    usableHeight - lateralityChromeReserve(controlHeight),
   );
-}
-
-/**
- * @deprecated v3.5 equal gaps replace the tall/short single gap. Returns the
- * reference gap for documentation; do not use for layout.
- */
-export function lateralityCardGap(_usableHeight?: number): number {
-  return layout.cardGapAtReference;
 }
