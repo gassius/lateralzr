@@ -52,6 +52,16 @@ export function coachHintSlotHeight(lineCount: number = COACH_HINT_MAX_LINES): n
   return COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT * lines;
 }
 
+/**
+ * How many tip lines fit in the lower card gap without overflowing onto the
+ * card or Laterality label. Falls back to 1 line when the equal gap is under
+ * the 2-line chip (~56 pt) — e.g. ~41 pt at 390×844.
+ */
+export function coachHintLinesForGap(gapHeight: number): 1 | 2 {
+  const gap = Number.isFinite(gapHeight) ? Math.max(0, gapHeight) : 0;
+  return gap >= coachHintSlotHeight(2) ? 2 : 1;
+}
+
 /** Expand the single-line chip's hit area to {@link COACH_HINT_MIN_TOUCH_TARGET}. */
 export function coachHintHitSlop(): {
   top: number;

@@ -3,6 +3,7 @@
  * Header row (wordmark + ⋯) + Complexity bar + equal card gaps.
  */
 
+import { LABEL_GLYPH_TOP_INSET } from '@/lib/lateralityChrome';
 import { header, layout } from '@/theme/tokens';
 
 /** Upper bound of the guided 440–480 px practice column. */
@@ -78,9 +79,10 @@ export function practiceWordmarkTopOffset(
 }
 
 /**
- * Content offset from the top safe-area edge to the Complexity label top.
- * Guide §9.7: 24 pt from the **wordmark’s visible bottom**, not from below the
- * 48 pt menu-button row (the row has slack under the outlines).
+ * Content offset from the top safe-area edge to the Complexity **label row**.
+ * Guide §9.7: 24 pt from the wordmark’s visible bottom to the **glyph caps**
+ * (not the text line-box). Subtract {@link LABEL_GLYPH_TOP_INSET} so the
+ * letters land at wordmarkBottom + 24.
  */
 export function practiceHeaderToComplexityOffset(
   rowHeight: number = practiceHeaderRowHeight(),
@@ -88,5 +90,10 @@ export function practiceHeaderToComplexityOffset(
   gap: number = practiceWordmarkToComplexityGap(),
 ): number {
   const g = Number.isFinite(gap) ? Math.max(0, gap) : 0;
-  return practiceWordmarkTopOffset(rowHeight, wordmarkHeight) + Math.max(0, wordmarkHeight) + g;
+  return (
+    practiceWordmarkTopOffset(rowHeight, wordmarkHeight) +
+    Math.max(0, wordmarkHeight) +
+    g -
+    LABEL_GLYPH_TOP_INSET
+  );
 }

@@ -45,6 +45,27 @@ export const LATERALITY_CONTROL_HEIGHT =
 /** Complexity bar mirrors Laterality: same label row + rail heights. */
 export const COMPLEXITY_CONTROL_HEIGHT = LATERALITY_CONTROL_HEIGHT;
 
+/**
+ * Selected-dot radius on the Complexity / Laterality rails.
+ * Visible "rail bottom" for gap measure = rail centreline + this radius.
+ */
+export const RAIL_DOT_RADIUS = 4.5;
+
+/**
+ * Optical inset from a label line-box top to the glyph cap top (Inter label
+ * 14 / 20). Design review measures gaps / the 24 pt header gap to **letters**,
+ * not the text box.
+ */
+export const LABEL_GLYPH_TOP_INSET = 4.5;
+
+/**
+ * Layout slack from selected-dot **bottom** → Complexity control bottom.
+ * (Half the 48 pt rail hit minus the dot radius.)
+ */
+export function complexityDotsBottomToControlBottom(): number {
+  return LATERALITY_RAIL_HEIGHT / 2 - RAIL_DOT_RADIUS;
+}
+
 /** Comfortable tap target size (≥44). */
 export const LATERALITY_STEP_SIZE = layout.recommendedTouchTarget;
 
@@ -93,24 +114,35 @@ export function lateralityChromeReserve(
 }
 
 /**
- * Split leftover height so the **visual** gaps match: Complexity rail
- * centreline → card top, and card bottom → Laterality label top (§16.2 / C6).
- *
- * The rail hit area extends {@link LATERALITY_RAIL_HEIGHT}/2 below the visible
- * rail line, so that slack is given to the lower gap. Messaging overlays inside
- * the lower gap at a fixed height so a tip cannot push Laterality.
+ * Split leftover height so **visible** gaps match within ~1 pt (§16.2 / C6):
+ * Complexity selected-dot bottoms → card top, and card bottom → Laterality
+ * label glyph caps. Layout boxes differ from those edges by
+ * {@link complexityDotsBottomToControlBottom} above and
+ * {@link LABEL_GLYPH_TOP_INSET} below; that bias goes to the lower gap.
+ * Messaging overlays inside the fixed lower gap so a tip cannot push Laterality.
  */
 export function resolveEqualCardGaps(leftoverHeight: number): {
   above: number;
   below: number;
 } {
   const leftover = Number.isFinite(leftoverHeight) ? Math.max(0, leftoverHeight) : 0;
-  const railSlack = LATERALITY_RAIL_HEIGHT / 2;
-  if (leftover <= railSlack) {
+  const bias =
+    complexityDotsBottomToControlBottom() - LABEL_GLYPH_TOP_INSET;
+  if (leftover <= bias) {
     return { above: 0, below: leftover };
   }
-  const half = (leftover - railSlack) / 2;
-  return { above: half, below: half + railSlack };
+  const half = (leftover - bias) / 2;
+  return { above: half, below: half + bias };
+}
+
+/** Visible gap above the card (dots bottom → card), given layout topSurplus. */
+export function visibleCardGapAbove(topSurplus: number): number {
+  return Math.max(0, topSurplus) + complexityDotsBottomToControlBottom();
+}
+
+/** Visible gap below the card (card → Laterality glyph caps). */
+export function visibleCardGapBelow(bottomSurplus: number): number {
+  return Math.max(0, bottomSurplus) + LABEL_GLYPH_TOP_INSET;
 }
 
 /**

@@ -109,4 +109,22 @@ test.describe('coach tips (§12.3)', () => {
       locale: 'es',
     });
   });
+
+  test('Laterality bar position does not change when a tip appears (Lz-67)', async ({
+    page,
+  }) => {
+    await openApp(page, 'canonicalConcept=mushroom&locale=en');
+    const laterality = page.getByTestId('laterality-control');
+    await expect(laterality).toBeVisible();
+    const before = await laterality.boundingBox();
+    expect(before, 'laterality-control bbox before tip').toBeTruthy();
+
+    await page.clock.fastForward(COACH_IDLE_MS);
+    await expect(page.getByTestId('coach-hint')).toBeVisible({ timeout: 5_000 });
+
+    const after = await laterality.boundingBox();
+    expect(after, 'laterality-control bbox with tip').toBeTruthy();
+    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(1);
+    expect(Math.abs((after?.height ?? 0) - (before?.height ?? 0))).toBeLessThan(1);
+  });
 });

@@ -123,9 +123,9 @@ import {
   withTimeout,
   type LateralityReshufflePhase,
 } from '@/lib/lateralityReshuffle';
+import { coachHintLinesForGap, coachHintSlotHeight } from '@/lib/coachHintPresentation';
 import {
   COMPLEXITY_CONTROL_HEIGHT,
-  CONTROL_MESSAGING_BAND_HEIGHT,
   LATERALITY_CONTROL_HEIGHT,
 } from '@/lib/lateralityChrome';
 import { loadStoredLaterality, persistLaterality } from '@/lib/lateralityStorage';
@@ -1399,8 +1399,10 @@ export default function HomeScreen() {
         // Stack gets above-gap + card; lower gap (messaging) is a sibling below.
         const stackAvailableHeight = cardLayout.topSurplus + cardLayout.height;
         // Fixed lower-gap height (not minHeight) so tip/status cannot push Laterality.
-        // Messaging overlays inside; may visually overflow when surplus < 56.
+        // Tip clamps to 1 line when the equal gap is under the 2-line 56 pt chip.
         const lowerGapHeight = cardLayout.bottomSurplus;
+        const tipLines = coachHintLinesForGap(lowerGapHeight);
+        const tipSlotHeight = coachHintSlotHeight(tipLines);
         // AD #119: tip OR status share the lower card gap — one slot, never stacked.
         const messagingSlot = showStatusSlot ? (
           <DeckStatusLine
@@ -1420,6 +1422,7 @@ export default function HomeScreen() {
               animateAppear={visibleCoachTip.animateAppear}
               surface="shell"
               onDismiss={visibleCoachTip.onDismiss}
+              maxLines={tipLines}
             />
           </View>
         ) : null;
@@ -1504,7 +1507,10 @@ export default function HomeScreen() {
                 <View
                   style={[
                     styles.messagingOverlay,
-                    { minHeight: CONTROL_MESSAGING_BAND_HEIGHT },
+                    {
+                      // Tip height tracks the clamped line count so it fits the gap.
+                      minHeight: showStatusSlot ? undefined : tipSlotHeight,
+                    },
                   ]}
                   testID="messaging-overlay"
                   pointerEvents="box-none"

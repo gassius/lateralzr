@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   COACH_APPEAR_DURATION_MS,
+  COACH_HINT_MAX_LINES,
   coachHintHitSlop,
   COACH_HINT_OPACITY,
   COACH_HINT_PADDING_H,
@@ -29,6 +30,11 @@ type CoachHintProps = {
   surface?: CoachHintSurface;
   /** Tap dismisses the tip (§12.3). */
   onDismiss?: () => void;
+  /**
+   * Clamp copy to this many lines so the chip fits the lower card gap
+   * (1 when the equal gap is under the 2-line 56 pt chip).
+   */
+  maxLines?: 1 | 2;
 };
 
 export function CoachHint({
@@ -36,6 +42,7 @@ export function CoachHint({
   animateAppear = true,
   surface = 'shell',
   onDismiss,
+  maxLines = COACH_HINT_MAX_LINES as 1 | 2,
 }: CoachHintProps) {
   const progress = useSharedValue(animateAppear ? 0 : 1);
   const colors = coachHintPalette(surface);
@@ -73,7 +80,12 @@ export function CoachHint({
           colors.chip === 'transparent' ? styles.chipBare : { backgroundColor: colors.chip },
         ]}
       >
-        <Text style={[styles.copy, textStyle('label'), { color: colors.text }]}>{text}</Text>
+        <Text
+          style={[styles.copy, textStyle('label'), { color: colors.text }]}
+          numberOfLines={maxLines}
+        >
+          {text}
+        </Text>
       </Pressable>
     </Animated.View>
   );

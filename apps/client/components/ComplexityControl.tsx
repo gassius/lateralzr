@@ -22,6 +22,7 @@ import {
   LATERALITY_LABEL_ROW_HEIGHT,
   LATERALITY_RAIL_HEIGHT,
   LATERALITY_ROW_PADDING_HORIZONTAL,
+  RAIL_DOT_RADIUS,
 } from '@/lib/lateralityChrome';
 import {
   clampComplexityGrade,
@@ -47,7 +48,7 @@ type ComplexityControlProps = {
 };
 
 const DOT_COUNT = 5;
-const DOT_RADIUS = 4.5;
+const DOT_RADIUS = RAIL_DOT_RADIUS;
 const LINE_STROKE = 1.75;
 const CHEVRON_SIZE = 12;
 

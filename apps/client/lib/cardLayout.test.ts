@@ -19,7 +19,8 @@ import {
 import {
   COMPLEXITY_CONTROL_HEIGHT,
   LATERALITY_CONTROL_HEIGHT,
-  LATERALITY_RAIL_HEIGHT,
+  visibleCardGapAbove,
+  visibleCardGapBelow,
 } from './lateralityChrome.ts';
 import { practiceHeaderToComplexityOffset } from './practiceLayout.ts';
 
@@ -80,7 +81,6 @@ describe('v3.5 native card aspect (§16.2 equal gaps)', () => {
   const headerToComplexity = practiceHeaderToComplexityOffset();
   const complexity = COMPLEXITY_CONTROL_HEIGHT;
   const laterality = LATERALITY_CONTROL_HEIGHT;
-  const railSlack = LATERALITY_RAIL_HEIGHT / 2;
 
   function phoneLayout(overrides: {
     insetBottom?: number;
@@ -140,8 +140,11 @@ describe('v3.5 native card aspect (§16.2 equal gaps)', () => {
     assert.equal(result.narrowed, false);
     assert.ok(result.topSurplus > 0);
     assert.ok(result.bottomSurplus > 0);
-    // Visual: rail centreline → card == card → Laterality label.
-    assert.ok(Math.abs(result.topSurplus + railSlack - result.bottomSurplus) < 1e-6);
+    // Visible: dots bottom → card == card → Laterality glyph caps (~41 pt).
+    const above = visibleCardGapAbove(result.topSurplus);
+    const below = visibleCardGapBelow(result.bottomSurplus);
+    assert.ok(Math.abs(above - below) < 1e-6);
+    assert.ok(above > 40 && above < 46);
     assert.equal(result.padding, layout.cardPadding);
     const budget = cardVerticalBudget({
       screenHeight: PHONE_HEIGHT,
@@ -152,9 +155,6 @@ describe('v3.5 native card aspect (§16.2 equal gaps)', () => {
       lateralityLabelAndRailHeight: laterality,
     });
     assert.equal(result.topSurplus + result.height + result.bottomSurplus, budget);
-    // Card size unchanged at preferred 1.40; gaps near the 45 pt reference.
-    assert.ok(result.topSurplus + railSlack > 30);
-    assert.ok(result.bottomSurplus > 30);
   });
 
   it('keeps the ratio on Android 3-button-nav insets', () => {

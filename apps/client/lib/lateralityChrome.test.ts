@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { coachHintSlotHeight } from './coachHintPresentation.ts';
+import { coachHintLinesForGap, coachHintSlotHeight } from './coachHintPresentation.ts';
 import { layout } from '../theme/tokens.ts';
 import {
   cardStackAvailableHeight,
   COMPLEXITY_CONTROL_HEIGHT,
+  complexityDotsBottomToControlBottom,
   CONTROL_MESSAGING_BAND_HEIGHT,
+  LABEL_GLYPH_TOP_INSET,
   LATERALITY_BAR_MIN_ROW_WIDTH,
   LATERALITY_CONTROL_HEIGHT,
   LATERALITY_LABEL_ROW_HEIGHT,
@@ -14,10 +16,13 @@ import {
   lateralityChromeReserve,
   messagingMinGapHeight,
   MIN_CARD_AREA_HEIGHT,
+  RAIL_DOT_RADIUS,
   resolveEqualCardGaps,
   STATUS_BAND_HEIGHT,
   STATUS_BAND_LINE_HEIGHT,
   STATUS_SLOT_MIN_WIDTH,
+  visibleCardGapAbove,
+  visibleCardGapBelow,
 } from './lateralityChrome.ts';
 import { WEB_PHONE_MIN_WIDTH } from './webPhoneFrame.ts';
 import {
@@ -51,16 +56,21 @@ describe('laterality chrome grouping (v3.5)', () => {
     assert.equal(layout.messagingLine, 'lower-card-gap');
   });
 
-  it('splits leftover so visual gaps match (rail centreline ↔ Laterality label)', () => {
+  it('splits leftover so visible gaps match (dots bottom ↔ Laterality glyph caps)', () => {
+    assert.equal(RAIL_DOT_RADIUS, 4.5);
+    assert.equal(LABEL_GLYPH_TOP_INSET, 4.5);
+    assert.equal(complexityDotsBottomToControlBottom(), 19.5);
     const equal = resolveEqualCardGaps(90);
-    // 90 − 24 rail slack → 33 / 57; visual = 33+24 / 57 = 57 / 57.
-    assert.equal(equal.above, 33);
-    assert.equal(equal.below, 57);
-    assert.equal(equal.above + LATERALITY_RAIL_HEIGHT / 2, equal.below);
+    // bias = 19.5 − 4.5 = 15 → 37.5 / 52.5; visible both 57.
+    assert.equal(equal.above, 37.5);
+    assert.equal(equal.below, 52.5);
+    assert.ok(
+      Math.abs(visibleCardGapAbove(equal.above) - visibleCardGapBelow(equal.below)) < 1e-9,
+    );
     assert.equal(messagingMinGapHeight(), 18 + 16);
     const tight = resolveEqualCardGaps(50);
-    assert.equal(tight.above, 13);
-    assert.equal(tight.below, 37);
+    assert.equal(tight.above, 17.5);
+    assert.equal(tight.below, 32.5);
   });
 
   it('reserves the control under the card; equal gaps are separate', () => {
@@ -76,7 +86,10 @@ describe('laterality chrome grouping (v3.5)', () => {
 
     assert.ok(card.aspect >= 1.3);
     assert.ok(card.aspect <= 1.5);
-    assert.ok(Math.abs(card.topSurplus + 24 - card.bottomSurplus) < 1e-6);
+    assert.ok(
+      Math.abs(visibleCardGapAbove(card.topSurplus) - visibleCardGapBelow(card.bottomSurplus)) <
+        1e-6,
+    );
   });
 
   it('floors a short viewport at the minimum card height', () => {
@@ -107,39 +120,49 @@ describe('laterality chrome grouping (v3.5)', () => {
     assert.ok(STATUS_BAND_HEIGHT <= CONTROL_MESSAGING_BAND_HEIGHT);
   });
 
-  it('keeps a fixed lower-gap budget on 390×844 and 320×568 (overlay holds the 56 pt slot)', () => {
+  it('keeps equal visible ~41 pt gaps on 390×844; tip clamps to fit the lower gap', () => {
     assert.equal(CONTROL_MESSAGING_BAND_HEIGHT, 56);
-    for (const [width, height, insetTop, insetBottom] of [
-      [390, 844, 47, 34],
-      [320, 568, 20, 20],
-    ] as const) {
-      const result = resolveNativeCardLayout({
-        columnWidth: width,
-        screenHeight: height,
-        insetTop,
-        insetBottom,
-        headerToComplexityOffset: practiceHeaderToComplexityOffset(),
-        complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
-        lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
-      });
-      // Lower gap is a fixed layout height; messaging overlays at 56 without growing it.
-      assert.ok(result.bottomSurplus >= 0);
-      assert.ok(result.topSurplus >= 0);
-      const budget = cardVerticalBudget({
-        screenHeight: height,
-        insetTop,
-        insetBottom,
-        headerToComplexityOffset: practiceHeaderToComplexityOffset(),
-        complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
-        lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
-      });
-      // When preferred fits, surplus + card == budget; short phones may min-aspect overflow.
-      if (result.aspect === 1.4) {
-        assert.equal(
-          result.topSurplus + result.height + result.bottomSurplus,
-          budget,
-        );
-      }
-    }
+    const result = resolveNativeCardLayout({
+      columnWidth: 390,
+      screenHeight: 844,
+      insetTop: 47,
+      insetBottom: 34,
+      headerToComplexityOffset: practiceHeaderToComplexityOffset(),
+      complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
+      lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
+    });
+    assert.equal(result.aspect, 1.4);
+    assert.equal(result.height, 366 * 1.4);
+    const above = visibleCardGapAbove(result.topSurplus);
+    const below = visibleCardGapBelow(result.bottomSurplus);
+    assert.ok(Math.abs(above - below) < 1.01);
+    assert.ok(above > 40 && above < 46);
+    assert.ok(below > 40 && below < 46);
+    // 2-line tip (56) does not fit ~41 — clamp to 1 line (36).
+    assert.equal(coachHintLinesForGap(result.bottomSurplus), 1);
+    assert.ok(coachHintSlotHeight(1) <= result.bottomSurplus + 1e-9);
+    const budget = cardVerticalBudget({
+      screenHeight: 844,
+      insetTop: 47,
+      insetBottom: 34,
+      headerToComplexityOffset: practiceHeaderToComplexityOffset(),
+      complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
+      lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
+    });
+    assert.equal(result.topSurplus + result.height + result.bottomSurplus, budget);
+  });
+
+  it('keeps a non-negative lower gap on a short 320×568 phone', () => {
+    const result = resolveNativeCardLayout({
+      columnWidth: 320,
+      screenHeight: 568,
+      insetTop: 20,
+      insetBottom: 20,
+      headerToComplexityOffset: practiceHeaderToComplexityOffset(),
+      complexityBarHeight: COMPLEXITY_CONTROL_HEIGHT,
+      lateralityLabelAndRailHeight: LATERALITY_CONTROL_HEIGHT,
+    });
+    assert.ok(result.bottomSurplus >= 0);
+    assert.ok(result.topSurplus >= 0);
   });
 });

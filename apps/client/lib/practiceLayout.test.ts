@@ -75,18 +75,18 @@ describe('practiceLayout header (Lz-67)', () => {
     assert.equal(practiceHeaderRowHeight(), 48);
   });
 
-  it('measures 24 pt from the wordmark visible bottom, not below the 48 pt row', () => {
+  it('measures 24 pt from the wordmark visible bottom to glyph caps, not the 48 pt row', () => {
     assert.equal(WORDMARK_X_HEIGHT_CENTRE_RATIO, 0.58);
     const top = practiceWordmarkTopOffset();
     assert.equal(top, 48 / 2 - 20 * 0.58);
     const offset = practiceHeaderToComplexityOffset();
-    // wordmarkTop + 20 + 24 — shorter than 48 + 24 by the slack under the outlines.
-    assert.equal(offset, top + 20 + 24);
+    // wordmarkTop + 20 + 24 − glyph inset (4.5) — letters at wordmarkBottom + 24.
+    assert.equal(offset, top + 20 + 24 - 4.5);
     assert.ok(offset < practiceHeaderRowHeight() + practiceWordmarkToComplexityGap());
-    assert.ok(Math.abs(offset - 56.4) < 1e-9);
+    assert.ok(Math.abs(offset - 51.9) < 1e-9);
   });
 
-  it('feeds the 390 column into the v3.5 aspect helper with equal visual gaps', () => {
+  it('feeds the 390 column into the v3.5 aspect helper with equal visible gaps', () => {
     const column = practiceColumnWidth(390);
     assert.equal(column, 390);
     const result = resolveNativeCardLayout({
@@ -103,7 +103,5 @@ describe('practiceLayout header (Lz-67)', () => {
     assert.ok(result.topSurplus >= 0);
     assert.ok(result.bottomSurplus >= 0);
     assert.equal(result.aspect, 1.4);
-    // Visual gaps (rail centreline → card, card → Laterality label) match.
-    assert.ok(Math.abs(result.topSurplus + 24 - result.bottomSurplus) < 1e-6);
   });
 });

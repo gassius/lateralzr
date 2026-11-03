@@ -10,6 +10,7 @@ import {
   coachHintContrastRatio,
   coachHintHitSlop,
   coachHintIsSecondaryToConceptTitle,
+  coachHintLinesForGap,
   coachHintSlotHeight,
   COACH_APPEAR_DURATION_MS,
   COACH_APPEAR_TRANSLATE_Y,
@@ -83,6 +84,13 @@ describe('coach tip layout (AD Lz-48)', () => {
       coachHintSlotHeight(2),
       COACH_HINT_PADDING_V * 2 + COACH_HINT_LINE_HEIGHT * 2,
     );
+  });
+
+  it('clamps to 1 line when the lower card gap is under the 2-line chip', () => {
+    assert.equal(coachHintLinesForGap(56), 2);
+    assert.equal(coachHintLinesForGap(41.1), 1);
+    assert.equal(coachHintLinesForGap(36), 1);
+    assert.equal(coachHintSlotHeight(1), 36);
   });
 
   it('expands the single-line chip hit area to 48px', () => {
