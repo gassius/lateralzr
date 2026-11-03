@@ -195,8 +195,9 @@ const musicEngine = createSoundMusicEngine({
 
 /**
  * Adaptive layers (ticket 1amjtrexgqf). Separate from MUSIC_MAX_PLAYERS.
- * Native: no LPF/width — gain + arp swap only (report to director).
- * Re-align at every loop boundary; drift samples go to {@link __getLayerDriftLogForTests}.
+ * Native + web preview: gain + arp/arp-bright swap only (no LPF/width —
+ * Carlos / PR #168 B1; web must match native). Re-align at every loop
+ * boundary; drift samples go to {@link __getLayerDriftLogForTests}.
  */
 const layerGroup = createAdaptiveLayerGroup({
   createPlayer: (source) => {

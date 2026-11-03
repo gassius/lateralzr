@@ -24,7 +24,7 @@ import {
   type SoundAssetName,
 } from '@/lib/soundAssets';
 import { createSoundController, type SoundPlayer } from '@/lib/soundEngine';
-import { createWebLayerGraph } from '@/lib/soundLayers.web';
+import { createWebLayerGraph } from '@/lib/soundLayerWebGraph';
 import {
   getSoundMapEntry,
   playableVariants,

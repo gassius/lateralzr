@@ -1,9 +1,14 @@
 /**
- * Web Adaptive layer graph (Sound 8 preview).
+ * Web Adaptive layer graph (preview).
  *
  * One AudioBufferSourceNode per layer, shared AudioContext start time,
- * loopEnd = durationSamples/44100. Chain: layer Gain → group BiquadFilter
- * (lowpass) → M/S width → group gain → destination.
+ * loopEnd = durationSamples/44100. Chain: layer Gain → group gain → destination.
+ *
+ * Intentionally NO low-pass / stereo-width stages — web preview must match
+ * native (gain + arp/arp-bright swap only; Carlos 2026-11-03 / PR #168 B1).
+ *
+ * Named `soundLayerWebGraph.ts` (not `soundLayers.web.ts`) so Metro does not
+ * treat this as a platform override of the shared `soundLayers.ts` module.
  */
 
 import { getSoundAsset } from '@/lib/soundAssets';
@@ -63,12 +68,7 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
   const clearTimer = options.clearTimeout ?? ((id) => clearTimeout(id));
 
   let ctx: AudioContext | null = null;
-  let filter: BiquadFilterNode | null = null;
-  let midGain: GainNode | null = null;
-  let sideGain: GainNode | null = null;
   let groupGain: GainNode | null = null;
-  let splitter: ChannelSplitterNode | null = null;
-  let merger: ChannelMergerNode | null = null;
   let sharedStart: number | null = null;
   let enabled = true;
   let lazyStarted = false;
@@ -76,35 +76,12 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
   const loaded = new Set<LayerRole>(['pad']);
 
   function ensureGraph(): boolean {
-    if (groupGain && filter) return true;
+    if (groupGain) return true;
     ctx = options.getContext();
     if (!ctx) return false;
     try {
       groupGain = ctx.createGain();
       groupGain.gain.value = 1;
-      filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 6500;
-      // Mid/side width: split → mid (L+R)/approx + side*(width) → merge.
-      splitter = ctx.createChannelSplitter(2);
-      merger = ctx.createChannelMerger(2);
-      midGain = ctx.createGain();
-      sideGain = ctx.createGain();
-      midGain.gain.value = 1;
-      sideGain.gain.value = 0.9;
-
-      filter.connect(splitter);
-      // L and R both into mid and side paths (simple M/S approx).
-      splitter.connect(midGain, 0);
-      splitter.connect(midGain, 1);
-      splitter.connect(sideGain, 0);
-      splitter.connect(sideGain, 1);
-      midGain.connect(merger, 0, 0);
-      midGain.connect(merger, 0, 1);
-      sideGain.connect(merger, 0, 0);
-      // Invert-ish side into R by connecting same; width scales sideGain.
-      sideGain.connect(merger, 0, 1);
-      merger.connect(groupGain);
       groupGain.connect(ctx.destination);
       return true;
     } catch (err) {
@@ -116,11 +93,11 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
   function layerOrCreate(role: LayerRole): LayerNodes | null {
     const existing = layers.get(role);
     if (existing) return existing;
-    if (!ensureGraph() || !ctx || !filter) return null;
+    if (!ensureGraph() || !ctx || !groupGain) return null;
     try {
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      gain.connect(filter);
+      gain.connect(groupGain);
       const nodes: LayerNodes = {
         source: null,
         gain,
@@ -199,16 +176,7 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
           }
         }
       },
-      setColour: ({ lowpassHz, width }) => {
-        if (!filter || !sideGain) return;
-        try {
-          filter.frequency.value = lowpassHz;
-          // width 1.0 ≈ unity side; scale around 1.
-          sideGain.gain.value = Math.max(0, width);
-        } catch (err) {
-          soundWarn('web layer colour', err);
-        }
-      },
+      // No setColour — native and web both use gain + arp swap only.
       fadeGains: (from, to, startTime, duration) => {
         if (!ctx) return;
         const steps = Math.max(8, Math.round(duration * 50));
@@ -240,7 +208,6 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
     const when = ctx.currentTime + 0.05;
     sharedStart = when;
 
-    // Start every already-decoded layer at the same when (sample 0).
     for (const role of LAYER_ROLES) {
       if (!loaded.has(role)) continue;
       const nodes = layerOrCreate(role);
@@ -250,7 +217,6 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
 
     scheduler.start(when);
 
-    // Pad must be present — kick decode if missing.
     void (async () => {
       const buf = await decodeRole('pad');
       if (!buf || !ctx) return;
@@ -327,7 +293,6 @@ export function createWebLayerGraph(options: WebLayerGraphOptions): WebLayerGrap
     },
     pause: () => {
       scheduler.pause();
-      // Keep sources running silently via gain 0 would drift; stop group gain.
       if (groupGain) {
         try {
           groupGain.gain.value = 0;

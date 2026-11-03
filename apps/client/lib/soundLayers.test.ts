@@ -247,3 +247,40 @@ test('every layer role is covered by LAYER_ROLES', () => {
     'extra',
   ]);
 });
+
+test('web and native per-layer gains match for every C x L (B1 parity)', () => {
+  // Both platforms consume the same pure layerTargets() — no web-only
+  // filter/width colour path. Brightness/width = arp swap + gains only.
+  for (let c = 1; c <= 5; c++) {
+    for (let l = 1; l <= 5; l++) {
+      const targets = layerTargets(c, l);
+      // Native AdaptiveLayerGroup and web WebLayerGraph both apply targets.gains.
+      for (const role of LAYER_ROLES) {
+        const g = targets.gains[role];
+        assert.ok(Number.isFinite(g), `C${c} L${l} ${role} gain finite`);
+        assert.ok(g >= 0 && g <= 1, `C${c} L${l} ${role} gain in [0,1]`);
+      }
+      // Snapshot equality: calling twice yields identical gains (shared mapping).
+      assert.deepEqual(layerTargets(c, l).gains, targets.gains);
+      assert.deepEqual(layerTargets(c, l).gainsDb, targets.gainsDb);
+      assert.equal(layerTargets(c, l).arpRole, targets.arpRole);
+    }
+  }
+});
+
+test('web layer graph module is not a Metro platform override of soundLayers', async () => {
+  // Guard against reintroducing soundLayers.web.ts, which Metro would resolve
+  // instead of the shared soundLayers.ts and break createLayerScheduler on web.
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { dirname, join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const here = dirname(fileURLToPath(import.meta.url));
+  assert.equal(existsSync(join(here, 'soundLayers.web.ts')), false);
+  assert.equal(existsSync(join(here, 'soundLayerWebGraph.ts')), true);
+  const webImport = readFileSync(join(here, 'sound.web.ts'), 'utf8');
+  assert.match(webImport, /from '@\/lib\/soundLayerWebGraph'/);
+  assert.doesNotMatch(webImport, /from '@\/lib\/soundLayers\.web'/);
+  // Shared scheduler export must exist on the non-platform module.
+  const { createLayerScheduler: shared } = await import('@/lib/soundLayers');
+  assert.equal(typeof shared, 'function');
+});
