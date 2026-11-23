@@ -2,10 +2,12 @@
 # Security: the test job is contents:read + persist-credentials:false and never
 # receives a write token. Privileged jobs only download artifacts (no pnpm/expo).
 #
-# Every workflow run reports required check "Client E2E screenshots" (static job
-# name, never skipped): capture on opened/synchronize/reopened/push/dispatch;
-# on labeled/unlabeled, pass-through mirrors only completed/in-progress capture
-# runs on the head SHA (ignores every pass-through; ≤120s timeout).
+# Cost gate (2026-11-23 delivery-speed): do NOT capture on every PR push.
+# Triggers for expensive capture: label `run-native-captures`, workflow_dispatch,
+# or nightly schedule on main. Required check "Client E2E screenshots" always
+# reports (skip → success). Cheap web preview stills live in
+# web-preview-screenshots.yml.
+#
 # Full run (390×844): labeled run-full-screenshots → reusable workflow posts
 # "Client E2E full screenshots". Other labels must not cancel capture/full runs.
 
@@ -14,26 +16,17 @@ name: Client E2E
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-  push:
-    branches: [main, master]
-    paths:
-      - 'apps/client/**'
-      - '.github/workflows/client-e2e.yml'
-      - '.github/workflows/client-e2e-full.yml'
-      - '.github/scripts/client-e2e-*.mjs'
-      - 'pnpm-lock.yaml'
-      - 'package.json'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - '.nvmrc'
-      - '.npmrc'
+  schedule:
+    # ~03:00 Europe/Madrid in winter (CET=UTC+1) → 02:00 UTC.
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  # No concurrency — label events must not cancel an in-progress capture/full run.
+  # Own concurrency for native/E2E captures; unrelated labels use run_id so they
+  # cannot cancel an in-flight run-native-captures capture.
   gate:
     name: Client E2E gate
     runs-on: ubuntu-latest
@@ -43,7 +36,7 @@ jobs:
       screenshots_concurrency_group: ${{ steps.decide.outputs.screenshots_concurrency_group }}
       screenshots_cancel: ${{ steps.decide.outputs.screenshots_cancel }}
     steps:
-      - name: Decide capture vs pass-through
+      - name: Decide capture vs skip vs pass-through
         id: decide
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -52,8 +45,21 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REF_NAME: ${{ github.ref }}
           RUN_ID: ${{ github.run_id }}
+          HAS_NATIVE_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-native-captures') }}
         run: |
           set -euo pipefail
+
+          if [ "${EVENT_NAME}" = "schedule" ] || [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            {
+              echo "mode=capture"
+              echo "run_full=false"
+              echo "screenshots_cancel=true"
+              echo "screenshots_concurrency_group=client-e2e-native-${REF_NAME}"
+            } >> "$GITHUB_OUTPUT"
+            echo "Running capture: ${EVENT_NAME}"
+            exit 0
+          fi
+
           if [ "${EVENT_NAME}" = "pull_request" ] && { [ "${EVENT_ACTION}" = "labeled" ] || [ "${EVENT_ACTION}" = "unlabeled" ]; }; then
             if [ "${EVENT_ACTION}" = "labeled" ] && [ "${LABEL_NAME}" = "run-full-screenshots" ]; then
               {
@@ -63,6 +69,16 @@ jobs:
                 echo "screenshots_cancel=false"
               } >> "$GITHUB_OUTPUT"
               echo "Labeled run-full-screenshots → pass-through required check + full 390×844 job"
+              exit 0
+            fi
+            if [ "${EVENT_ACTION}" = "labeled" ] && [ "${LABEL_NAME}" = "run-native-captures" ]; then
+              {
+                echo "mode=capture"
+                echo "run_full=false"
+                echo "screenshots_cancel=true"
+                echo "screenshots_concurrency_group=client-e2e-native-pr-${PR_NUMBER}"
+              } >> "$GITHUB_OUTPUT"
+              echo "Labeled run-native-captures → expensive Client E2E capture"
               exit 0
             fi
             {
@@ -75,16 +91,27 @@ jobs:
             exit 0
           fi
 
+          # Ordinary PR opened/synchronize/reopened: capture only when the
+          # run-native-captures label is already present; otherwise skip-success
+          # so Main protection never stays pending.
+          if [ "${EVENT_NAME}" = "pull_request" ] && [ "${HAS_NATIVE_LABEL}" = "true" ]; then
+            {
+              echo "mode=capture"
+              echo "run_full=false"
+              echo "screenshots_cancel=true"
+              echo "screenshots_concurrency_group=client-e2e-native-pr-${PR_NUMBER}"
+            } >> "$GITHUB_OUTPUT"
+            echo "PR has run-native-captures → capture"
+            exit 0
+          fi
+
           {
-            echo "mode=capture"
+            echo "mode=skip"
             echo "run_full=false"
-            echo "screenshots_cancel=true"
-            if [ -n "${PR_NUMBER}" ] && [ "${PR_NUMBER}" != "" ]; then
-              echo "screenshots_concurrency_group=client-e2e-pr-${PR_NUMBER}"
-            else
-              echo "screenshots_concurrency_group=client-e2e-${REF_NAME}"
-            fi
+            echo "screenshots_cancel=false"
+            echo "screenshots_concurrency_group=client-e2e-skip-${RUN_ID}"
           } >> "$GITHUB_OUTPUT"
+          echo "Ordinary PR push → skip Client E2E capture (required check reports success)"
 
   # Any new push drops the one-shot full-run label so the next full run is explicit.
   clear-run-full-screenshots-label:
@@ -128,11 +155,29 @@ jobs:
       checks: read
       actions: read
     outputs:
-      should_run: ${{ steps.passthrough.outputs.should_run || steps.plan.outputs.should_run || 'false' }}
+      should_run: ${{ steps.skip.outputs.should_run || steps.passthrough.outputs.should_run || steps.plan.outputs.should_run || 'false' }}
     defaults:
       run:
         working-directory: apps/client
     steps:
+      - name: Skip capture (delivery-speed)
+        id: skip
+        if: needs.gate.outputs.mode == 'skip'
+        working-directory: .
+        run: |
+          set -euo pipefail
+          {
+            echo "<!-- client-e2e-mode:skip -->"
+            echo "### Client E2E screenshots (skipped)"
+            echo "Expensive capture is gated behind label \`run-native-captures\`,"
+            echo "\`workflow_dispatch\`, or nightly schedule. Cheap web preview"
+            echo "stills run on every PR via **Web preview screenshots**."
+            echo "Required check reports **success** (not pending)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "should_run=false"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Pass-through required check
         id: passthrough
         if: needs.gate.outputs.mode == 'passthrough'

@@ -82,7 +82,7 @@ describe('v3.5 design tokens', () => {
     assert.equal(tokens.webPreview.outside, '#0E1012');
     assert.equal(tokens.webPreview.frameEdge, '#FFFFFF1A');
     assert.equal(tokens.webPreview.simulatedSafeAreaTop, 47);
-    assert.equal(tokens.webPreview.simulatedSafeAreaBottom, 34);
+    assert.equal(tokens.webPreview.simulatedSafeAreaBottom, 48);
     assert.equal(tokens.motion.flip.ms, 360);
     assert.equal(tokens.motion.flip.bidirectional, true);
     assert.equal(tokens.motion.flip.ms, tokens.motion.flipMs);

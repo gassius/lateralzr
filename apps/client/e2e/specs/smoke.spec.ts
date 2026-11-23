@@ -10,7 +10,7 @@ test.describe('smoke', () => {
     await expect(visibleText(page, 'Mushroom')).toBeVisible();
     await expect(page.getByTestId('laterality-control')).toBeVisible();
     await expect(page.getByTestId('web-phone-frame')).toHaveAttribute('data-safe-top', '47');
-    await expect(page.getByTestId('web-phone-frame')).toHaveAttribute('data-safe-bottom', '34');
+    await expect(page.getByTestId('web-phone-frame')).toHaveAttribute('data-safe-bottom', '48');
 
     // Sound 8: first gesture unlocks Web Audio; must not throw (headless may mute).
     // Dispatch only — avoid UI side effects (laterality sheet / card flip).

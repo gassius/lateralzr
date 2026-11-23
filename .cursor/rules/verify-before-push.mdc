@@ -1,0 +1,12 @@
+---
+description: Agents must run local verify green before every commit and push
+alwaysApply: true
+---
+
+# Local verify before commit / push
+
+- Run `pnpm verify` (`infra/verify.sh`) and keep it green **before every commit and every push**.
+- Never push a tip that fails Pint, API tests, client typecheck/unit tests, audio budget, pattern bake asserts, or prod storage bind checks.
+- When the change touches UI or capture tooling (`apps/client/**`, `scripts/web-preview-capture/**`, `.github/workflows/web-preview-screenshots.yml`), also run web preview capture locally (`pnpm web-preview:capture` or the workflow’s export + capture path) and keep it green before push.
+- Pre-push is enforced by lefthook (`lefthook.yml` → `pnpm verify`). Do not bypass with `--no-verify` unless Carlos explicitly authorizes an emergency.
+- Prefer fixing locally over relying on GitHub Actions to catch the same failure.

@@ -7,9 +7,16 @@
     "build:all": "turbo run build",
     "dev:all": "turbo run dev",
     "dev:full": "bash ./dev.sh up && pnpm dev:all",
-    "dev:client": "turbo run dev --filter=client"
+    "dev:client": "turbo run dev --filter=client",
+    "verify": "bash infra/verify.sh",
+    "web-preview:build": "pnpm --filter client e2e:build",
+    "web-preview:capture": "node scripts/web-preview-capture/capture-screens.mjs",
+    "web-preview:map": "node scripts/web-preview-capture/map-changed-screens.mjs",
+    "prepare": "lefthook install || true"
   },
   "devDependencies": {
+    "lefthook": "^1.13.6",
+    "playwright": "1.55.0",
     "turbo": "^2.3.0"
   },
   "packageManager": "pnpm@9.15.0",

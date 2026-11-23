@@ -232,7 +232,7 @@ async function cardGestureBox(page: Page): Promise<{
 }> {
   const surface = page.getByTestId('card-a11y-surface');
   // Playwright "visible" requires a non-zero box — wait through chrome remounts
-  // (assistive nav ScrollView, 200% text, 47/34 insets) instead of clicking a stale point.
+  // (assistive nav ScrollView, 200% text, 47/48 insets) instead of clicking a stale point.
   await surface.waitFor({ state: 'visible', timeout: 8_000 });
   const box = await surface.boundingBox();
   if (!box) throw new Error('card-a11y-surface has no bounding box');
