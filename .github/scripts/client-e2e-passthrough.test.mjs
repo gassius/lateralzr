@@ -215,7 +215,7 @@ describe('selectCaptureMirrorTarget', () => {
     });
   });
 
-  it('mirrors delivery-speed skip-success so label events stay green', () => {
+  it('mirrors delivery-speed skip-success when no capture exists (skip only)', () => {
     const target = selectCaptureMirrorTarget([
       { id: 10, kind: 'passthrough', status: 'in_progress', conclusion: null },
       { id: 11, kind: 'skip', status: 'completed', conclusion: 'success' },
@@ -226,6 +226,34 @@ describe('selectCaptureMirrorTarget', () => {
       status: 'completed',
       conclusion: 'success',
       kind: 'skip',
+    });
+  });
+
+  it('failed capture outranks skip success on the same head', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 1, kind: 'skip', status: 'completed', conclusion: 'success' },
+      { id: 2, kind: 'capture', status: 'completed', conclusion: 'failure' },
+    ]);
+    assert.deepEqual(target, {
+      action: 'failure',
+      id: 2,
+      status: 'completed',
+      conclusion: 'failure',
+      kind: 'capture',
+    });
+  });
+
+  it('in-progress capture outranks skip success on the same head', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 1, kind: 'skip', status: 'completed', conclusion: 'success' },
+      { id: 2, kind: 'capture', status: 'in_progress', conclusion: null },
+    ]);
+    assert.deepEqual(target, {
+      action: 'wait',
+      id: 2,
+      status: 'in_progress',
+      conclusion: null,
+      kind: 'capture',
     });
   });
 

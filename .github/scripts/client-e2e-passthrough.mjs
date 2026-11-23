@@ -106,53 +106,70 @@ export function listCaptureCandidates(checkRuns, self = {}) {
 
 /**
  * Pick what a pass-through job should do given already-classified candidates
- * (newest-first). Capture runs and delivery-speed skip-success are mirrorable;
- * every pass-through / unknown is ignored.
+ * (newest-first). Capture runs always win over delivery-speed skip: if any
+ * capture exists for the head, mirror it (success / failure / wait). Skip is
+ * only considered when no capture run exists. Pass-through / unknown ignored.
  *
  * @param {Array<{ id?: number|string, kind?: string, status?: string|null, conclusion?: string|null }>} classified
  * @returns {{ action: 'success'|'failure'|'wait'|'none', id?: string|number|null, status?: string|null, conclusion?: string|null, kind?: string|null }}
  */
 export function selectCaptureMirrorTarget(classified) {
-  const mirrorable = (classified || []).filter(
-    (c) => c.kind === 'capture' || c.kind === 'skip',
+  const list = classified || [];
+  const captures = list.filter((c) => c.kind === 'capture');
+
+  if (captures.length > 0) {
+    const completedSuccess = captures.find(
+      (c) => c.status === 'completed' && c.conclusion === 'success',
+    );
+    if (completedSuccess) {
+      return {
+        action: 'success',
+        id: completedSuccess.id,
+        status: completedSuccess.status,
+        conclusion: completedSuccess.conclusion,
+        kind: completedSuccess.kind,
+      };
+    }
+    const completedFailure = captures.find(
+      (c) => c.status === 'completed' && c.conclusion && c.conclusion !== 'success',
+    );
+    if (completedFailure) {
+      return {
+        action: 'failure',
+        id: completedFailure.id,
+        status: completedFailure.status,
+        conclusion: completedFailure.conclusion,
+        kind: completedFailure.kind,
+      };
+    }
+    const inProgress = captures.find(
+      (c) =>
+        c.status === 'queued' || c.status === 'in_progress' || c.status === 'waiting',
+    );
+    if (inProgress) {
+      return {
+        action: 'wait',
+        id: inProgress.id,
+        status: inProgress.status,
+        conclusion: inProgress.conclusion || null,
+        kind: inProgress.kind,
+      };
+    }
+    return { action: 'none' };
+  }
+
+  // No capture on this head — skip-success keeps required check green.
+  const skipSuccess = list.find(
+    (c) =>
+      c.kind === 'skip' && c.status === 'completed' && c.conclusion === 'success',
   );
-  const completedSuccess = mirrorable.find(
-    (c) => c.status === 'completed' && c.conclusion === 'success',
-  );
-  if (completedSuccess) {
+  if (skipSuccess) {
     return {
       action: 'success',
-      id: completedSuccess.id,
-      status: completedSuccess.status,
-      conclusion: completedSuccess.conclusion,
-      kind: completedSuccess.kind,
-    };
-  }
-  // Skip jobs only report success; failures are capture-only.
-  const captures = mirrorable.filter((c) => c.kind === 'capture');
-  const completedFailure = captures.find(
-    (c) => c.status === 'completed' && c.conclusion && c.conclusion !== 'success',
-  );
-  if (completedFailure) {
-    return {
-      action: 'failure',
-      id: completedFailure.id,
-      status: completedFailure.status,
-      conclusion: completedFailure.conclusion,
-      kind: completedFailure.kind,
-    };
-  }
-  const inProgress = captures.find(
-    (c) =>
-      c.status === 'queued' || c.status === 'in_progress' || c.status === 'waiting',
-  );
-  if (inProgress) {
-    return {
-      action: 'wait',
-      id: inProgress.id,
-      status: inProgress.status,
-      conclusion: inProgress.conclusion || null,
-      kind: inProgress.kind,
+      id: skipSuccess.id,
+      status: skipSuccess.status,
+      conclusion: skipSuccess.conclusion,
+      kind: skipSuccess.kind,
     };
   }
   return { action: 'none' };
