@@ -146,7 +146,8 @@ jobs:
   client-e2e:
     name: Client E2E screenshots
     needs: gate
-    runs-on: ubuntu-latest
+    # Playwright 1.55 browsers are not published for ubuntu-26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     concurrency:
       group: ${{ needs.gate.outputs.screenshots_concurrency_group }}
       cancel-in-progress: ${{ needs.gate.outputs.screenshots_cancel == 'true' }}
@@ -244,8 +245,8 @@ jobs:
               kind="$(
                 CLASSIFY_SUMMARY="${summary}" node "${script_dir}/client-e2e-passthrough.mjs" classify-job <<<"${job_json}"
               )"
-              # Drop every pass-through and unknown — never wait on sibling label runs.
-              if [ "${kind}" != "capture" ]; then
+              # Mirror capture or skip-success; drop pass-through/unknown (sibling label runs).
+              if [ "${kind}" != "capture" ] && [ "${kind}" != "skip" ]; then
                 echo "Skipping check-run id=${id} kind=${kind}"
                 continue
               fi
@@ -265,10 +266,11 @@ jobs:
             capture_id="$(jq -r '.id // empty' <<<"${target}")"
             capture_status="$(jq -r '.status // empty' <<<"${target}")"
             capture_conclusion="$(jq -r '.conclusion // empty' <<<"${target}")"
+            capture_kind="$(jq -r '.kind // empty' <<<"${target}")"
 
             case "${action}" in
               success)
-                echo "Mirroring capture success from check-run id=${capture_id}."
+                echo "Mirroring ${capture_kind:-capture} success from check-run id=${capture_id}."
                 exit 0
                 ;;
               failure)
@@ -280,7 +282,7 @@ jobs:
                 sleep 5
                 ;;
               none)
-                echo "No capture run visible yet on ${HEAD_SHA} (pass-through/unknown ignored); waiting..."
+                echo "No capture/skip-success run visible yet on ${HEAD_SHA} (pass-through/unknown ignored); waiting..."
                 sleep 5
                 ;;
               *)
@@ -290,7 +292,7 @@ jobs:
             esac
           done
 
-          echo "::error::Timed out after ${wait_seconds}s waiting for a completed Client E2E screenshots capture on ${HEAD_SHA} (ignored all pass-through runs)"
+          echo "::error::Timed out after ${wait_seconds}s waiting for a completed Client E2E screenshots capture/skip on ${HEAD_SHA} (ignored all pass-through runs)"
           exit 1
 
       - name: Mark capture run
@@ -611,15 +613,17 @@ jobs:
           node /tmp/client-e2e-publish.mjs
 
   # On main only: publish captures to orphan e2e-screenshots:baselines/ (write job; no install/build).
-  # Push events use github.sha of the trusted main commit (not a pull_request write path).
+  # schedule / workflow_dispatch / push use github.sha of the trusted main commit.
   client-e2e-baselines:
     name: Client E2E baselines
     needs: [gate, client-e2e]
     if: >-
-      github.event_name == 'push'
+      (github.event_name == 'push'
+        || github.event_name == 'schedule'
+        || github.event_name == 'workflow_dispatch')
       && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
       && needs.gate.outputs.mode == 'capture'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

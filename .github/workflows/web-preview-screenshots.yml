@@ -25,7 +25,8 @@ env:
 jobs:
   web-preview-screenshots:
     name: Expo web · Playwright 390×844
-    runs-on: ubuntu-latest
+    # Playwright 1.55 browsers are not published for ubuntu-26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +85,7 @@ jobs:
           set -euo pipefail
           pnpm --filter client exec serve -s dist -l tcp://127.0.0.1:4173 > /tmp/web-preview-serve.log 2>&1 &
           echo $! > /tmp/web-preview-serve.pid
-          for i in $(seq 1 60); do
+          for _ in $(seq 1 60); do
             if curl -sf "http://127.0.0.1:4173/" >/dev/null; then
               break
             fi

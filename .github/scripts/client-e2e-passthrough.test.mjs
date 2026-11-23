@@ -152,6 +152,18 @@ describe('stepActivelyRan / classifyKind', () => {
       classifyKindFromSummary('<!-- client-e2e-mode:passthrough -->\n'),
       'passthrough',
     );
+    assert.equal(classifyKindFromSummary('<!-- client-e2e-mode:skip -->\n'), 'skip');
+  });
+
+  it('classifies delivery-speed skip from the skip step', () => {
+    assert.equal(
+      classifyKindFromJobSteps([
+        { name: 'Skip capture (delivery-speed)', status: 'completed', conclusion: 'success' },
+        { name: 'Pass-through required check', status: 'completed', conclusion: 'skipped' },
+        { name: 'Mark capture run', status: 'completed', conclusion: 'skipped' },
+      ]),
+      'skip',
+    );
   });
 
   it('returns unknown when no active identifying steps exist', () => {
@@ -199,6 +211,21 @@ describe('selectCaptureMirrorTarget', () => {
       id: 3,
       status: 'completed',
       conclusion: 'success',
+      kind: 'capture',
+    });
+  });
+
+  it('mirrors delivery-speed skip-success so label events stay green', () => {
+    const target = selectCaptureMirrorTarget([
+      { id: 10, kind: 'passthrough', status: 'in_progress', conclusion: null },
+      { id: 11, kind: 'skip', status: 'completed', conclusion: 'success' },
+    ]);
+    assert.deepEqual(target, {
+      action: 'success',
+      id: 11,
+      status: 'completed',
+      conclusion: 'success',
+      kind: 'skip',
     });
   });
 
@@ -221,6 +248,7 @@ describe('selectCaptureMirrorTarget', () => {
       id: 2,
       status: 'in_progress',
       conclusion: null,
+      kind: 'capture',
     });
   });
 
@@ -242,6 +270,7 @@ describe('selectCaptureMirrorTarget', () => {
       id: 4,
       status: 'completed',
       conclusion: 'success',
+      kind: 'capture',
     });
   });
 });

@@ -2,8 +2,9 @@
 /**
  * Pass-through helpers for Client E2E screenshots required check.
  *
- * Label/unlabeled runs must mirror only real capture jobs on the head SHA.
- * Every pass-through job is ignored (not only the current run).
+ * Label/unlabeled runs must mirror only real capture jobs (or delivery-speed
+ * skip-success) on the head SHA. Every pass-through job is ignored (not only
+ * the current run).
  */
 import { pathToFileURL } from 'node:url';
 
@@ -50,12 +51,13 @@ export function stepActivelyRan(step) {
 
 /**
  * @param {string|null|undefined} summary
- * @returns {'passthrough'|'capture'|'unknown'}
+ * @returns {'passthrough'|'capture'|'skip'|'unknown'}
  */
 export function classifyKindFromSummary(summary) {
   const text = summary || '';
   if (text.includes('client-e2e-mode:passthrough')) return 'passthrough';
   if (text.includes('client-e2e-mode:capture')) return 'capture';
+  if (text.includes('client-e2e-mode:skip')) return 'skip';
   return 'unknown';
 }
 
@@ -63,14 +65,15 @@ export function classifyKindFromSummary(summary) {
  * Classify from job steps. Capture must win over a skipped pass-through step.
  *
  * @param {Array<{ name?: string, status?: string|null, conclusion?: string|null }>|null|undefined} steps
- * @returns {'passthrough'|'capture'|'unknown'}
+ * @returns {'passthrough'|'capture'|'skip'|'unknown'}
  */
 export function classifyKindFromJobSteps(steps) {
   const list = steps || [];
   const active = (name) => list.some((s) => s.name === name && stepActivelyRan(s));
 
-  // Capture markers first: capture jobs list Pass-through as skipped.
+  // Capture markers first: capture jobs list Pass-through / Skip as skipped.
   if (active('Mark capture run') || active('Plan E2E tier')) return 'capture';
+  if (active('Skip capture (delivery-speed)')) return 'skip';
   if (active('Pass-through required check')) return 'passthrough';
   return 'unknown';
 }
@@ -79,7 +82,7 @@ export function classifyKindFromJobSteps(steps) {
  * Merge summary + steps. Explicit summary markers win; otherwise use steps.
  *
  * @param {{ summary?: string|null, steps?: Array<{ name?: string, status?: string|null, conclusion?: string|null }>|null }} info
- * @returns {'passthrough'|'capture'|'unknown'}
+ * @returns {'passthrough'|'capture'|'skip'|'unknown'}
  */
 export function classifyKind(info = {}) {
   const fromSummary = classifyKindFromSummary(info.summary);
@@ -103,14 +106,17 @@ export function listCaptureCandidates(checkRuns, self = {}) {
 
 /**
  * Pick what a pass-through job should do given already-classified candidates
- * (newest-first). Only confirmed capture runs are considered.
+ * (newest-first). Capture runs and delivery-speed skip-success are mirrorable;
+ * every pass-through / unknown is ignored.
  *
  * @param {Array<{ id?: number|string, kind?: string, status?: string|null, conclusion?: string|null }>} classified
- * @returns {{ action: 'success'|'failure'|'wait'|'none', id?: string|number|null, status?: string|null, conclusion?: string|null }}
+ * @returns {{ action: 'success'|'failure'|'wait'|'none', id?: string|number|null, status?: string|null, conclusion?: string|null, kind?: string|null }}
  */
 export function selectCaptureMirrorTarget(classified) {
-  const captures = (classified || []).filter((c) => c.kind === 'capture');
-  const completedSuccess = captures.find(
+  const mirrorable = (classified || []).filter(
+    (c) => c.kind === 'capture' || c.kind === 'skip',
+  );
+  const completedSuccess = mirrorable.find(
     (c) => c.status === 'completed' && c.conclusion === 'success',
   );
   if (completedSuccess) {
@@ -119,8 +125,11 @@ export function selectCaptureMirrorTarget(classified) {
       id: completedSuccess.id,
       status: completedSuccess.status,
       conclusion: completedSuccess.conclusion,
+      kind: completedSuccess.kind,
     };
   }
+  // Skip jobs only report success; failures are capture-only.
+  const captures = mirrorable.filter((c) => c.kind === 'capture');
   const completedFailure = captures.find(
     (c) => c.status === 'completed' && c.conclusion && c.conclusion !== 'success',
   );
@@ -130,6 +139,7 @@ export function selectCaptureMirrorTarget(classified) {
       id: completedFailure.id,
       status: completedFailure.status,
       conclusion: completedFailure.conclusion,
+      kind: completedFailure.kind,
     };
   }
   const inProgress = captures.find(
@@ -142,6 +152,7 @@ export function selectCaptureMirrorTarget(classified) {
       id: inProgress.id,
       status: inProgress.status,
       conclusion: inProgress.conclusion || null,
+      kind: inProgress.kind,
     };
   }
   return { action: 'none' };
