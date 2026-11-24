@@ -250,13 +250,18 @@ Only Carlos (`gassius`) merges PRs. Agents never merge or enable auto-merge. **I
 
 #### Labels
 
+- **`run-native-captures`**: Engineer Supervisor adds this for the expensive **Client E2E screenshots** capture (not on every push). Own concurrency group; also `workflow_dispatch` and nightly on main.
 - **`run-full-screenshots`**: The Engineer Supervisor adds this once checks are green. It starts the full E2E screenshot run. Any new push removes the label, so the full run happens once per green commit.
 - **`review-requested:code`** (always) and **`review-requested:design`** (client UI PRs only): Added only after **`Client E2E full screenshots`** is green on the current head. In the same step the Engineer Supervisor pings each reviewer, and re-pings if a label is still present after 30 minutes. There are no automatic reviews.
 
 #### Checks
 
-- Every PR reports the required check **`Client E2E screenshots`**: client PRs (draft or ready) run the 390px English subset; non-client PRs finish skipped-green. Draft vs ready does not change what runs.
+- Every PR reports the required check **`Client E2E screenshots`**: skipped-green on ordinary pushes; capture only with **`run-native-captures`**, `workflow_dispatch`, or nightly. Cheap **Web preview screenshots** (Expo web · Playwright 390×844 @3x, safe-area 47/48) run on every PR for design review.
 - Adding the **`run-full-screenshots`** label starts the full locale matrix. That run posts its own check, **`Client E2E full screenshots`**, on the commit it tested. Other labels do not start, re-run, or cancel a Client E2E run. A new push removes the label. Design, QA, and E2E target one phone viewport: **390×844**.
+
+#### Local verify before commit / push
+
+Agents **MUST** run `pnpm verify` (`infra/verify.sh`) and keep it green **before every commit and every push**. Pre-push is enforced by lefthook. When the change touches UI or capture tooling, also run web preview capture locally (`pnpm web-preview:build` then serve + `pnpm web-preview:capture`). See `.cursor/rules/verify-before-push.mdc`.
 
 #### Code review (`gasnet-pr-reviewer`)
 

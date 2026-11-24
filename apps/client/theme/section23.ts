@@ -346,7 +346,7 @@ export const GUIDE_SECTION_23 = {
     "outside": "#0E1012",
     "frameEdge": "#FFFFFF1A",
     "simulatedSafeAreaTop": 47,
-    "simulatedSafeAreaBottom": 34
+    "simulatedSafeAreaBottom": 48
   },
   "header": {
     "wordmark": {

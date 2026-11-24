@@ -19,7 +19,8 @@ permissions:
 jobs:
   client-e2e-full:
     name: Client E2E full screenshots
-    runs-on: ubuntu-latest
+    # Playwright 1.55 browsers are not published for ubuntu-26.04 (ubuntu-latest).
+    runs-on: ubuntu-24.04
     concurrency:
       group: client-e2e-full-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true

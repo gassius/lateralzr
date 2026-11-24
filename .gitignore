@@ -22,6 +22,8 @@ Thumbs.db
 /.turbo
 __pycache__/
 *.pyc
+/artifacts/
+apps/client/dist/
 
 # Laravel Boost (optional - uncomment if you want each developer to configure their own)
 # boost.json

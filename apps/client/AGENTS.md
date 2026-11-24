@@ -44,7 +44,7 @@ pnpm exec expo-doctor             # diagnose dependency and config issues
 pnpm exec expo install --fix      # fix incompatible package versions
 ```
 
-Run `pnpm test` and `pnpm typecheck` before declaring any client task done. For UI / layout PRs, also run `pnpm e2e:build && pnpm e2e` (or rely on the **Client E2E** GitHub Actions workflow).
+From the **repo root**, run `pnpm verify` before every commit/push (lefthook pre-push). That covers Sail Pint + API tests, client typecheck/unit tests, audio budget, pattern bake, and prod storage binds. For UI / capture-tooling changes, also run web preview capture locally (`pnpm web-preview:build`, serve `apps/client/dist`, `pnpm web-preview:capture`) before push. Expensive **Client E2E** capture is gated behind the `run-native-captures` label (or nightly / dispatch) — not every push.
 
 API / Laravel work stays at the **repo root** and must use Sail (`./sail ...`) — see root agent context in `.cursorrules/AGENTS.md`.
 

@@ -95,7 +95,7 @@ describe('native isolation', () => {
     assert.match(webSrc, /webPreviewSafeAreaMetrics/);
   });
 
-  it('web preview injects 47/34 into inset context and does not remount SafeAreaProvider', () => {
+  it('web preview injects 47/48 into inset context and does not remount SafeAreaProvider', () => {
     assert.match(webSrc, /SafeAreaInsetsContext\.Provider/);
     assert.match(webSrc, /SafeAreaFrameContext\.Provider/);
     assert.match(webSrc, /value=\{metrics\.insets\}/);
@@ -105,24 +105,24 @@ describe('native isolation', () => {
 });
 
 describe('v3.4 web preview surround (§16.3)', () => {
-  it('simulates 47/34 insets and pins the near-black surround token', () => {
+  it('simulates 47/48 insets and pins the near-black surround token', () => {
     assert.deepEqual(webPreviewSimulatedInsets(), {
       top: 47,
       left: 0,
       right: 0,
-      bottom: 34,
+      bottom: 48,
     });
     assert.equal(webPreview.outside, '#0E1012');
     assert.equal(webPreview.frameEdge, '#FFFFFF1A');
   });
 
-  it('passes top 47 / bottom 34 into the web preview safe-area metrics', () => {
+  it('passes top 47 / bottom 48 into the web preview safe-area metrics', () => {
     const metrics = webPreviewSafeAreaMetrics(390, 844);
     assert.deepEqual(metrics.insets, {
       top: 47,
       left: 0,
       right: 0,
-      bottom: 34,
+      bottom: 48,
     });
     assert.deepEqual(metrics.frame, { x: 0, y: 0, width: 390, height: 844 });
   });
